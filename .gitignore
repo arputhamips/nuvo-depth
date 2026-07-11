@@ -1,0 +1,27 @@
+# Build output
+/build/
+/build-*/
+/install/
+/log/
+/out/
+
+# Model artifacts and captured data are reproducible or device-local.
+*.har
+*.hef
+*.onnx
+*.pth
+*.npz
+*.npy
+/data/
+/artifacts/
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Python tooling used only by the model conversion workflow
+__pycache__/
+*.py[cod]
+.venv/

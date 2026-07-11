@@ -1,0 +1,43 @@
+schema_version: 1
+
+capture:
+  backend: libcamera
+  left_camera_index: 0
+  right_camera_index: 1
+  width: 728
+  height: 544
+  pixel_format: RGB888
+  orientation_degrees: 180
+  target_hz: 10
+  hardware_trigger:
+    enabled: true
+    gpiochip: /dev/gpiochip0
+    line: 17
+    pulse_width_us: 1000
+    active_high: true
+    start_delay_s: 4.0
+  exposure_time_us: 0
+  analogue_gain: 0.0
+
+rectification:
+  left_calibration: calibration/nuvo_reference/front_left.yaml
+  right_calibration: calibration/nuvo_reference/front_right.yaml
+  map_format: fixed_point
+
+inference:
+  backend: hailort
+  model: las2_s
+  model_input_width: 736
+  model_input_height: 544
+  crop_output_width: 728
+  max_disparity: 96
+
+outputs:
+  disparity_hz: 10
+  disparity_topic: /camera/front/disparity
+  compressed_image_hz: 2
+  compressed_image_topic: /camera/front/left/image_rect/compressed
+  jpeg_quality: 75
+  left_camera_info_topic: /camera/front/left/camera_info
+  diagnostics_topic: /camera/front/depthd/diagnostics
+  future_obstacle_cloud_topic: /camera/front/obstacles
