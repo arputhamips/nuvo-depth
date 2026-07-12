@@ -35,6 +35,7 @@ MAX_DISPARITY = 192
 QUARTER_DISPARITIES = MAX_DISPARITY // 4
 FEATURE_CHANNELS = 40
 MAX_CONCAT_INPUTS = 4
+CORRELATION_GROUP_SIZE = 4
 REWRITE_MAE_LIMIT = 1e-4
 REWRITE_MAX_ABS_LIMIT = 5e-3
 ONNX_MAE_LIMIT = 2e-4
@@ -72,17 +73,29 @@ class FrozenInstanceNorm(nn.Module):
 
     def __init__(self, scale: torch.Tensor, bias: torch.Tensor):
         super().__init__()
-        self.register_buffer("scale", scale.reshape(1, -1, 1, 1))
-        self.register_buffer("bias", bias.reshape(1, -1, 1, 1))
+        channels = scale.numel()
+        self.affine = nn.Conv2d(
+            channels, channels, kernel_size=1, groups=channels, bias=True
+        )
+        with torch.no_grad():
+            self.affine.weight.copy_(scale.reshape(channels, 1, 1, 1))
+            self.affine.bias.copy_(bias)
+        self.affine.weight.requires_grad_(False)
+        self.affine.bias.requires_grad_(False)
 
     def forward(self, tensor: torch.Tensor) -> torch.Tensor:
-        return tensor * self.scale + self.bias
+        return self.affine(tensor)
 
 
 def load_calibration_image(path: Path) -> torch.Tensor:
-    image = np.asarray(Image.open(path).convert("RGB"))
+    pil_image = Image.open(path).convert("RGB")
+    image = np.asarray(pil_image)
     if image.shape == (INPUT_HEIGHT, INPUT_WIDTH - 8, 3):
         image = np.pad(image, ((0, 0), (4, 4), (0, 0)), mode="edge")
+    elif image.shape != (INPUT_HEIGHT, INPUT_WIDTH, 3):
+        image = np.asarray(
+            pil_image.resize((INPUT_WIDTH, INPUT_HEIGHT), Image.Resampling.BILINEAR)
+        )
     if image.shape != (INPUT_HEIGHT, INPUT_WIDTH, 3):
         raise RuntimeError(f"expected 728x544 or 736x544 RGB image, got {image.shape}")
     return torch.from_numpy(image.copy()).permute(2, 0, 1).unsqueeze(0).float()
@@ -98,6 +111,29 @@ def replace_module(root: nn.Module, name: str, replacement: nn.Module) -> None:
         parent[int(last)] = replacement
     else:
         setattr(parent, last, replacement)
+
+
+def fold_affine_into_previous_conv(
+    root: nn.Module, name: str, affine: FrozenInstanceNorm
+) -> None:
+    parts = name.split(".")
+    parent = root
+    for part in parts[:-1]:
+        parent = parent[int(part)] if part.isdigit() else getattr(parent, part)
+    index = int(parts[-1])
+    convolution = parent[index - 1]
+    if not isinstance(convolution, nn.Conv2d):
+        raise RuntimeError(f"{name} does not follow a Conv2d")
+    scale = affine.affine.weight[:, 0, 0, 0].detach()
+    bias = affine.affine.bias.detach()
+    with torch.no_grad():
+        convolution.weight.mul_(scale.reshape(-1, 1, 1, 1))
+        if convolution.bias is None:
+            convolution.bias = nn.Parameter(bias.clone(), requires_grad=False)
+        else:
+            convolution.bias.mul_(scale).add_(bias)
+            convolution.bias.requires_grad_(False)
+    parent[index] = nn.Identity()
 
 
 def frozen_affine(samples: list[torch.Tensor], epsilon: float) -> FrozenInstanceNorm:
@@ -147,19 +183,21 @@ def freeze_instance_norms(
     fnet_norm_name = next(name for name in norms if name.startswith("fnet."))
     fnet_relative_name = fnet_norm_name.removeprefix("fnet.")
     fnet_calls = captured[fnet_norm_name]
-    replace_module(
+    fold_affine_into_previous_conv(
         frozen,
         fnet_norm_name,
         frozen_affine(fnet_calls[0::2], norms[fnet_norm_name].eps),
     )
-    replace_module(
+    fold_affine_into_previous_conv(
         right_fnet,
         fnet_relative_name,
         frozen_affine(fnet_calls[1::2], norms[fnet_norm_name].eps),
     )
     for name, module in norms.items():
         if name != fnet_norm_name:
-            replace_module(frozen, name, frozen_affine(captured[name], module.eps))
+            fold_affine_into_previous_conv(
+                frozen, name, frozen_affine(captured[name], module.eps)
+            )
     return frozen, right_fnet
 
 
@@ -270,7 +308,10 @@ class HailoLas2S(nn.Module):
                 branch = self.channel_mean(product)
                 branch = F.pad(branch, (disparity, 0, 0, 0))
             branches.append(branch)
-            if disparity % 4 == 3 and disparity + 1 < QUARTER_DISPARITIES:
+            if (
+                disparity % CORRELATION_GROUP_SIZE == CORRELATION_GROUP_SIZE - 1
+                and disparity + 1 < QUARTER_DISPARITIES
+            ):
                 left_current = self.correlation_left_passthrough(left_current)
                 right_current = self.correlation_right_passthrough(right_current)
         return torch.cat(branches, dim=1)
@@ -396,6 +437,11 @@ def compare(reference: torch.Tensor, candidate: torch.Tensor) -> dict[str, float
 
 
 def export(args: argparse.Namespace) -> dict[str, object]:
+    global INPUT_HEIGHT, INPUT_WIDTH
+    INPUT_HEIGHT = args.input_height
+    INPUT_WIDTH = args.input_width
+    if INPUT_HEIGHT % 32 or INPUT_WIDTH % 32:
+        raise RuntimeError("LAS2 input dimensions must both be divisible by 32")
     torch.manual_seed(args.seed)
     checkpoint = args.checkpoint.resolve()
     upstream = args.upstream.resolve()
@@ -503,7 +549,11 @@ def export(args: argparse.Namespace) -> dict[str, object]:
         "output_name": "disparity",
         "output_shape_nchw": [1, 1, INPUT_HEIGHT, INPUT_WIDTH],
         "max_disparity": MAX_DISPARITY,
-        "padding": "zero in feature projection; crop 4 columns per side after inference",
+        "padding": (
+            "replicate-pad 4 columns per side before inference; crop after inference"
+            if INPUT_WIDTH == 736 and INPUT_HEIGHT == 544
+            else "resize rectified stereo pair to model input; rescale disparity to output width"
+        ),
         "torch_version": torch.__version__,
         "onnx_version": onnx.__version__,
         "onnxruntime_version": ort.__version__,
@@ -537,6 +587,8 @@ def parse_args() -> argparse.Namespace:
         help="feasibility-only rectified pair used to freeze dynamic InstanceNorm",
     )
     parser.add_argument("--seed", type=int, default=20260711)
+    parser.add_argument("--input-height", type=int, default=INPUT_HEIGHT)
+    parser.add_argument("--input-width", type=int, default=INPUT_WIDTH)
     return parser.parse_args()
 
 

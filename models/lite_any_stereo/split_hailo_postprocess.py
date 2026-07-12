@@ -18,10 +18,6 @@ import onnxruntime as ort
 from onnx import shape_inference, utils
 
 
-COARSE_SHAPE = [1, 1, 136, 184]
-WEIGHTS_SHAPE = [1, 9, 544, 736]
-
-
 def tensor_shapes(model: onnx.ModelProto) -> dict[str, list[int]]:
     inferred = shape_inference.infer_shapes(model)
     return {
@@ -92,8 +88,21 @@ def main() -> None:
 
     model = onnx.load(args.input)
     shapes = tensor_shapes(model)
-    coarse = find_output(model, shapes, COARSE_SHAPE, "Conv", "disparity_regression")
-    weights = find_output(model, shapes, WEIGHTS_SHAPE, "Softmax")
+    weight_shapes = [
+        shapes[output]
+        for node in model.graph.node
+        if node.op_type == "Softmax"
+        for output in node.output
+        if len(shapes.get(output, [])) == 4 and shapes[output][1] == 9
+    ]
+    if len(weight_shapes) != 1:
+        raise RuntimeError(f"expected one 9-channel softmax, got {weight_shapes}")
+    weights_shape = weight_shapes[0]
+    coarse_shape = [1, 1, weights_shape[2] // 4, weights_shape[3] // 4]
+    coarse = find_output(
+        model, shapes, coarse_shape, "Conv", "disparity_regression"
+    )
+    weights = find_output(model, shapes, weights_shape, "Softmax")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     utils.extract_model(
         str(args.input), str(args.output), ["left", "right"], [coarse, weights]
@@ -101,8 +110,9 @@ def main() -> None:
     onnx.checker.check_model(onnx.load(args.output))
 
     random = np.random.default_rng(args.seed)
+    input_shape = (1, 3, weights_shape[2], weights_shape[3])
     inputs = {
-        name: random.uniform(0.0, 255.0, (1, 3, 544, 736)).astype(np.float32)
+        name: random.uniform(0.0, 255.0, input_shape).astype(np.float32)
         for name in ("left", "right")
     }
     full_session = ort.InferenceSession(str(args.input), providers=["CPUExecutionProvider"])
@@ -127,8 +137,8 @@ def main() -> None:
     manifest = {
         "input": str(args.input),
         "outputs": {
-            "disparity_quarter": {"name": coarse, "shape": COARSE_SHAPE},
-            "upsample_weights": {"name": weights, "shape": WEIGHTS_SHAPE},
+            "disparity_quarter": {"name": coarse, "shape": coarse_shape},
+            "upsample_weights": {"name": weights, "shape": weights_shape},
         },
         "host_postprocess": "zero-border 9-tap convex upsample, stride 4",
         "parity": parity,

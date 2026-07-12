@@ -1,7 +1,9 @@
-# Hailo-8L allocation policy for the full 544x736 LAS2-S graph. The default
+# Hailo-8L policy from the closest 512x384 feasibility run. The default
 # allocator repeatedly reaches the per-context L3 limit before choosing a DDR
 # cut, so allow earlier automatic cuts and size buffers for the 10 FPS target.
+# Several options are advanced DFC 3.33 allocator knobs; review them with Hailo
+# before treating this as a production compile profile.
 performance_param(fps=10)
 performance_param(compiler_optimization_level=max)
 context_switch_param(mode=enabled)
-allocator_param(automatic_ddr=True, automatic_ddr_l3_cuts_threshold=1, automatic_l4_portals=True, automatic_l4_portals_l3_cuts_threshold=1, timeout=1000)
+allocator_param(automatic_ddr=True, automatic_ddr_l3_cuts_threshold=1, automatic_l4_portals=True, automatic_l4_portals_l3_cuts_threshold=1, enable_post_split_average_buffers=False, max_auto_merge_depth=4, merge_max_layer_utilization=1.5, merge_max_memory_utilization=1.5, merge_min_layer_utilization=0, seed=12, timeout=1000)

@@ -59,3 +59,11 @@ uniform-precision LayerNorm decomposition, and disables QAT and bias correction.
 The default level-2 QAT pass exceeds a 12 GB compiler GPU at this resolution,
 while level 1 spends substantial CPU time on bias correction. This profile is
 for graph allocation and device execution only, never accuracy acceptance.
+
+## Current Hailo-8L status
+
+The July 2026 feasibility campaign did not produce a HEF. The closest 512 x 384
+split graph reached an estimated 44 FPS but required 65 LCUs on a 64-LCU
+Hailo-8L. See `docs/hailo8l-feasibility-results.md` before running additional
+compiler experiments; the saved HAR is evidence for a Hailo support case, not a
+deployable model.

@@ -64,6 +64,10 @@ The first hardware-matched toolchain is:
 - Pi HailoRT and firmware 4.23.0;
 - target architecture `hailo8l`.
 
+The first compile campaign did not produce a HEF. See
+[Hailo-8L feasibility results](hailo8l-feasibility-results.md) for the exact
+allocator limits, Pi camera findings, and recommended next step.
+
 ## Sources
 
 - [Lite Any Stereo official repository](https://github.com/TomTomTommi/LiteAnyStereo)
