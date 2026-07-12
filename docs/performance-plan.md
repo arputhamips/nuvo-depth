@@ -11,6 +11,11 @@
 No numeric CPU promise is accepted until it is measured on the supplied Pi,
 camera rig, and Hailo-8L under a thermally stable 30-minute run.
 
+The first isolated CPU SGBM replay baseline is recorded in
+[cpu-sgbm-baseline.md](cpu-sgbm-baseline.md). It sustains 10 Hz with 9.039%
+normalized four-core CPU and no deadline misses, excluding live capture and
+rectification. It is a starting measurement, not final acceptance.
+
 ## Timing budget at 10 Hz
 
 | Stage | Initial budget |

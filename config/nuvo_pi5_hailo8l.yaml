@@ -2,11 +2,16 @@ schema_version: 1
 
 capture:
   backend: libcamera
-  left_camera_index: 0
-  right_camera_index: 1
+  # Verified on the supplied rig by disparity-direction testing. These are
+  # logical assignments; keep them configurable because libcamera indices can
+  # change if the physical topology changes.
+  left_camera_index: 1
+  right_camera_index: 0
   width: 728
   height: 544
   pixel_format: RGB888
+  # Picamera2/libcamera's RGB888 name is B, G, R byte order in memory.
+  memory_order: BGR
   orientation_degrees: 180
   target_hz: 10
   hardware_trigger:
@@ -24,15 +29,24 @@ rectification:
   right_calibration: calibration/nuvo_reference/front_right.yaml
   map_format: fixed_point
 
-inference:
-  backend: hailort
-  model: las2_s
-  model_input_width: 736
-  model_input_height: 544
-  crop_output_width: 728
-  # Released LAS2-S weights are structurally fixed at 48 quarter-resolution
-  # disparity channels, which corresponds to a full-resolution range of 192.
+stereo:
+  backend: cpu_sgbm
+  output_width: 728
+  output_height: 544
   max_disparity: 192
+  backends:
+    cpu_sgbm:
+      working_width: 364
+      working_height: 272
+      working_disparities: 96
+      block_size: 5
+      mode: sgbm_3way
+      opencv_threads: 1
+    hailort:
+      model: las2_s
+      model_input_width: 736
+      model_input_height: 544
+      crop_output_width: 728
 
 outputs:
   disparity_hz: 10

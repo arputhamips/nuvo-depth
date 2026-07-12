@@ -118,6 +118,8 @@ def main() -> None:
     parser.add_argument("--left-calibration", type=Path, required=True)
     parser.add_argument("--right-calibration", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--left-camera-index", type=int, default=1)
+    parser.add_argument("--right-camera-index", type=int, default=0)
     parser.add_argument("--gpiochip", default="/dev/gpiochip0")
     parser.add_argument("--line", type=int, default=17)
     parser.add_argument("--trigger-start-delay", type=float, default=4.0)
@@ -127,7 +129,12 @@ def main() -> None:
 
     controls = {"FrameDurationLimits": (100000, 100000), "SyncMode": 2}
     transform = Transform(hflip=1, vflip=1)
-    cameras = [Picamera2(0), Picamera2(1)]
+    if args.left_camera_index == args.right_camera_index:
+        parser.error("left and right camera indices must differ")
+    cameras = [
+        Picamera2(args.left_camera_index),
+        Picamera2(args.right_camera_index),
+    ]
     for camera in cameras:
         config = camera.create_video_configuration(
             main={"size": (WIDTH, HEIGHT), "format": "RGB888"},
@@ -188,9 +195,15 @@ def main() -> None:
 
     left = rectify(images[0], args.left_calibration)
     right = rectify(images[1], args.right_calibration)
-    cv2.imwrite(str(args.output_dir / "left_rect.png"), cv2.cvtColor(left, cv2.COLOR_RGB2BGR))
-    cv2.imwrite(str(args.output_dir / "right_rect.png"), cv2.cvtColor(right, cv2.COLOR_RGB2BGR))
+    # Picamera2 follows libcamera format names: RGB888 is laid out as B, G, R
+    # bytes, which is already OpenCV's native order. Converting RGB->BGR here
+    # would swap red and blue in the saved diagnostic images.
+    cv2.imwrite(str(args.output_dir / "left_rect.png"), left)
+    cv2.imwrite(str(args.output_dir / "right_rect.png"), right)
     summary = {
+        "left_camera_index": args.left_camera_index,
+        "right_camera_index": args.right_camera_index,
+        "pixel_memory_order": "BGR",
         "left_metadata": metadata[0],
         "right_metadata": metadata[1],
         "sensor_timestamp_delta_ns": abs(

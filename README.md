@@ -1,9 +1,11 @@
 # Depth Daemon
 
-Native stereo-depth runtime for the Nuvo Raspberry Pi 5, dual hardware-triggered
-IMX296 cameras, and Hailo-8L. The hot path is intentionally independent of ROS:
-capture, pair validation, rectification, inference, and buffer management happen
-outside DDS. A small boundary adapter publishes only finished products.
+Native stereo-depth runtime for the Nuvo Raspberry Pi 5 and dual
+hardware-triggered IMX296 cameras. Stereo processing is selected through a
+ROS-free backend interface; the first working backend is OpenCV CPU SGBM, with
+Vulkan and Hailo backends able to implement the same contract later. Capture,
+pair validation, rectification, matching, and buffer management happen outside
+DDS. A small boundary adapter publishes only finished products.
 
 This initial commit is decision-ready rather than hardware-complete. It records
 the existing Nuvo contract, pins the LAS2 investigation, and isolates the small
@@ -23,13 +25,14 @@ stable C++ contract from the still-open deployment choice.
 
 See [architecture options](docs/architecture-options.md), the exact
 [Nuvo compatibility contract](docs/nuvo-compatibility.md), and the
-[LAS2-to-HEF gate plan](docs/model-porting.md).
+[LAS2-to-HEF gate plan](docs/model-porting.md). The first measured runtime is
+documented in the [CPU SGBM baseline](docs/cpu-sgbm-baseline.md).
 
 ## Repository shape
 
 ```text
 include/depthd/       Stable ROS-free data contracts
-src/                  ROS-free implementation
+src/                  ROS-free backend implementations
 tests/                Dependency-light contract tests
 config/               Runtime profile and reference calibration
 docs/                 Decisions, audit notes, and acceptance criteria
@@ -37,9 +40,9 @@ models/               Model provenance and conversion instructions
 third_party/          Pinned upstream sources (git submodules)
 ```
 
-The runtime, camera backend, Hailo backend, IPC transport, and ROS bridge will be
-added after the deployment architecture is selected. The core will remain a
-normal CMake project; the bridge will be the only ROS/ament package.
+The camera runtime, Vulkan/Hailo backends, IPC transport, and ROS bridge remain
+to be added. The core is a normal CMake project; the bridge will be the only
+ROS/ament package.
 
 ## Build the current contract test
 
@@ -48,6 +51,10 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
+
+When OpenCV development packages are present, this also builds
+`depthd_sgbm_benchmark`. It accepts a rectified 728 x 544 pair and reports
+per-stage latency plus process and normalized four-core CPU utilization.
 
 ## Non-goals
 
