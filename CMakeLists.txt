@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 project(depth_daemon VERSION 0.1.0 LANGUAGES CXX)
 
 include(CTest)
-option(DEPTHD_WITH_OPENCV "Build the OpenCV CPU SGBM backend" ON)
+option(DEPTHD_WITH_OPENCV "Build the OpenCV CPU processing backends" ON)
 
 function(depthd_enable_warnings target)
   if(MSVC)
@@ -17,6 +17,11 @@ add_library(depthd_contract STATIC
 )
 add_library(depthd::contract ALIAS depthd_contract)
 
+add_library(depthd_rectification STATIC
+  src/rectification_backend.cpp
+)
+add_library(depthd::rectification ALIAS depthd_rectification)
+
 target_include_directories(depthd_contract
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -25,9 +30,31 @@ target_include_directories(depthd_contract
 target_compile_features(depthd_contract PUBLIC cxx_std_20)
 depthd_enable_warnings(depthd_contract)
 
+target_include_directories(depthd_rectification
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_compile_features(depthd_rectification PUBLIC cxx_std_20)
+depthd_enable_warnings(depthd_rectification)
+
 if(DEPTHD_WITH_OPENCV)
   find_package(OpenCV 4 QUIET COMPONENTS core imgproc imgcodecs calib3d)
   if(OpenCV_FOUND)
+    add_library(depthd_opencv_rectification STATIC
+      src/opencv_rectification_backend.cpp
+    )
+    add_library(depthd::opencv_rectification ALIAS depthd_opencv_rectification)
+    target_include_directories(depthd_opencv_rectification
+      PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+    )
+    target_compile_features(depthd_opencv_rectification PUBLIC cxx_std_20)
+    target_include_directories(depthd_opencv_rectification SYSTEM PRIVATE ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(depthd_opencv_rectification PUBLIC depthd::rectification PRIVATE ${OpenCV_LIBS})
+    depthd_enable_warnings(depthd_opencv_rectification)
+
     add_library(depthd_cpu_sgbm STATIC src/cpu_sgbm_backend.cpp)
     add_library(depthd::cpu_sgbm ALIAS depthd_cpu_sgbm)
     target_include_directories(depthd_cpu_sgbm
@@ -54,6 +81,30 @@ if(BUILD_TESTING)
   add_executable(depthd_contract_test tests/contract_test.cpp)
   target_link_libraries(depthd_contract_test PRIVATE depthd::contract)
   add_test(NAME depthd_contract_test COMMAND depthd_contract_test)
+
+  add_executable(depthd_rectification_backend_test
+    tests/rectification_backend_test.cpp
+  )
+  target_link_libraries(depthd_rectification_backend_test
+    PRIVATE depthd::rectification
+  )
+  depthd_enable_warnings(depthd_rectification_backend_test)
+  add_test(NAME depthd_rectification_backend_test
+    COMMAND depthd_rectification_backend_test
+  )
+
+  if(TARGET depthd_opencv_rectification)
+    add_executable(depthd_opencv_rectification_backend_test
+      tests/opencv_rectification_backend_test.cpp
+    )
+    target_link_libraries(depthd_opencv_rectification_backend_test
+      PRIVATE depthd::opencv_rectification
+    )
+    depthd_enable_warnings(depthd_opencv_rectification_backend_test)
+    add_test(NAME depthd_opencv_rectification_backend_test
+      COMMAND depthd_opencv_rectification_backend_test
+    )
+  endif()
 
   if(TARGET depthd_cpu_sgbm)
     add_executable(depthd_cpu_sgbm_test tests/cpu_sgbm_test.cpp)

@@ -32,6 +32,9 @@ capture:
   analogue_gain: 1.5
 
 rectification:
+  backend: cpu_opencv
+  fallback_backend: cpu_opencv
+  allow_fallback: true
   # Calibration files are tied to the camera units, not their current physical
   # sides. Camera 1 uses the originally-right calibration and camera 0 uses the
   # originally-left calibration. This mapping gives 0.34 px median vertical
