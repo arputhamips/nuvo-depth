@@ -193,11 +193,13 @@ def main() -> None:
             camera.stop()
             camera.close()
 
+    # Keep the oriented but unrectified frames for calibration diagnostics.
+    # Picamera2/libcamera's RGB888 is already B, G, R byte order for OpenCV.
+    cv2.imwrite(str(args.output_dir / "left_raw.png"), images[0])
+    cv2.imwrite(str(args.output_dir / "right_raw.png"), images[1])
     left = rectify(images[0], args.left_calibration)
     right = rectify(images[1], args.right_calibration)
-    # Picamera2 follows libcamera format names: RGB888 is laid out as B, G, R
-    # bytes, which is already OpenCV's native order. Converting RGB->BGR here
-    # would swap red and blue in the saved diagnostic images.
+    # Converting RGB->BGR here would swap red and blue in the saved images.
     cv2.imwrite(str(args.output_dir / "left_rect.png"), left)
     cv2.imwrite(str(args.output_dir / "right_rect.png"), right)
     summary = {

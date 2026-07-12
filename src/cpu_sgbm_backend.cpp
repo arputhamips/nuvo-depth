@@ -105,9 +105,9 @@ class CpuSgbmBackend final : public StereoBackend {
     matcher_->compute(left_working_, right_working_, disparity_fixed_);
     const auto matched = Clock::now();
 
-    const float invalid_fixed =
-        static_cast<float>((config_.min_disparity - 1) * 16);
-    cv::compare(disparity_fixed_, invalid_fixed, valid_working_, cv::CMP_GT);
+    const float minimum_useful_fixed =
+        static_cast<float>(config_.min_disparity * 16);
+    cv::compare(disparity_fixed_, minimum_useful_fixed, valid_working_, cv::CMP_GT);
     disparity_fixed_.convertTo(disparity_working_, CV_32F, 1.0 / 16.0);
 
     cv::Mat output_mat(static_cast<int>(output.height),
@@ -131,6 +131,14 @@ class CpuSgbmBackend final : public StereoBackend {
     stats.total_ms = elapsed_ms(started, finished);
     stats.valid_fraction = static_cast<float>(cv::countNonZero(valid_full_)) /
                            static_cast<float>(valid_full_.total());
+    const int searchable_start = std::clamp(
+        config_.working_disparities, 0, valid_working_.cols - 1);
+    const cv::Mat searchable = valid_working_(
+        cv::Rect(searchable_start, 0, valid_working_.cols - searchable_start,
+                 valid_working_.rows));
+    stats.searchable_valid_fraction =
+        static_cast<float>(cv::countNonZero(searchable)) /
+        static_cast<float>(searchable.total());
   }
 
  private:

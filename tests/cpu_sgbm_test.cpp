@@ -58,7 +58,8 @@ int main() {
   if (std::abs(*middle - expected_disparity) > 1.0F) {
     return 3;
   }
-  if (stats.valid_fraction < 0.50F || stats.total_ms <= 0.0 ||
+  if (stats.valid_fraction < 0.50F ||
+      stats.searchable_valid_fraction < 0.70F || stats.total_ms <= 0.0 ||
       stats.match_ms <= 0.0) {
     return 4;
   }

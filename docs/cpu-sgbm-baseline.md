@@ -58,6 +58,56 @@ The camera-order result must be reconfirmed after focus repair with a newly
 captured, correctly colored, synchronized pair. The old pair remains suitable
 for deterministic performance testing but not accuracy acceptance.
 
+## Focused-scene validation
+
+A new well-lit multi-depth scene was captured after both lenses were focused.
+Both images are sharp and correctly colored. This exposed an additional mapping
+detail: the calibration files are tied to the individual camera units. With the
+current physical arrangement, logical left camera 1 must use
+`front_right.yaml`, while logical right camera 0 must use `front_left.yaml`.
+
+Assigning calibration by logical side left a median rectified vertical residual
+of 20.2 px. Assigning it by camera unit reduced the median to 0.34 px. SGBM must
+not run against the former mapping even though it can still produce a visually
+plausible colored image.
+
+The selected focused-scene configuration is:
+
+- 364 x 272 internal matching and 728 x 544 float32 output;
+- 96 internal / 192 full-resolution disparities;
+- `MODE_SGBM_3WAY`, block size 5;
+- uniqueness ratio 5;
+- speckle window 50 and speckle range 2;
+- one OpenCV worker thread.
+
+In a 600-frame replay at 10 Hz it achieved:
+
+| Metric | Focused scene |
+| --- | ---: |
+| Achieved rate | 10.000 Hz |
+| Deadline misses | 0 |
+| Compute p50 / p95 / p99 | 37.326 / 37.524 / 39.180 ms |
+| Process CPU (`100%` = one core) | 36.400% |
+| Normalized four-core CPU | 9.100% |
+| Valid fraction, complete image | 53.7% |
+| Valid fraction, searchable region | 73.0% |
+| Temperature before / after | 47.7 / 48.3 C |
+
+Sample region medians were 0.67 m for the close foreground box, 1.47 m for the
+ladder region, and 5.77 m for the garage-wall region. These are scene-consistent
+sanity checks, not surveyed ground truth.
+
+An unmasked left-right WLS filter was also evaluated. It creates a visually
+dense map but fills uncertain occlusions. Applying its confidence mask produces
+a safer but substantially sparser result and raises one-thread matching time to
+about 51.5 ms. The initial backend therefore keeps the simpler tuned SGBM output
+and invalidates rejected pixels instead of manufacturing dense depth.
+
+The capture is still not motion-valid: the selected sensor timestamps were
+44.04 ms apart and both cameras reported `SyncReady=false`. The static scene is
+valid for rectification, depth, and CPU testing, but hardware synchronization
+must be corrected before moving-platform acceptance.
+
 ## Reproduction
 
 ```bash

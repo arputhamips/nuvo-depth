@@ -34,6 +34,7 @@ struct StereoBackendStats {
   double postprocess_ms{};
   double total_ms{};
   float valid_fraction{};
+  float searchable_valid_fraction{};
 };
 
 class StereoBackend {
@@ -55,8 +56,8 @@ struct CpuSgbmConfig {
   std::int32_t full_resolution_disparities{192};
   std::int32_t working_disparities{96};
   std::int32_t block_size{5};
-  std::int32_t uniqueness_ratio{10};
-  std::int32_t speckle_window_size{100};
+  std::int32_t uniqueness_ratio{5};
+  std::int32_t speckle_window_size{50};
   std::int32_t speckle_range{2};
   std::int32_t disparity_12_max_diff{1};
   std::int32_t pre_filter_cap{31};

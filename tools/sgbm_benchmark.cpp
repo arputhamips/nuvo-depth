@@ -1,4 +1,5 @@
 #include "depthd/stereo_backend.hpp"
+#include "depthd/contract.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -14,6 +15,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <sstream>
 #include <thread>
 #include <vector>
 
@@ -33,6 +35,11 @@ struct Options {
   int warmup{5};
   int target_hz{10};
   int opencv_threads{1};
+  int working_disparities{96};
+  int block_size{5};
+  int uniqueness_ratio{5};
+  int speckle_window_size{50};
+  int speckle_range{2};
 };
 
 [[nodiscard]] std::string require_value(int& index, const int argc,
@@ -61,11 +68,24 @@ struct Options {
       options.target_hz = std::stoi(require_value(index, argc, argv));
     } else if (argument == "--opencv-threads") {
       options.opencv_threads = std::stoi(require_value(index, argc, argv));
+    } else if (argument == "--working-disparities") {
+      options.working_disparities = std::stoi(require_value(index, argc, argv));
+    } else if (argument == "--block-size") {
+      options.block_size = std::stoi(require_value(index, argc, argv));
+    } else if (argument == "--uniqueness-ratio") {
+      options.uniqueness_ratio = std::stoi(require_value(index, argc, argv));
+    } else if (argument == "--speckle-window-size") {
+      options.speckle_window_size = std::stoi(require_value(index, argc, argv));
+    } else if (argument == "--speckle-range") {
+      options.speckle_range = std::stoi(require_value(index, argc, argv));
     } else if (argument == "--help") {
       std::cout
           << "Usage: depthd_sgbm_benchmark --left FILE --right FILE "
              "[--output-dir DIR] [--iterations N] [--warmup N] "
-             "[--target-hz N] [--opencv-threads N]\n";
+             "[--target-hz N] [--opencv-threads N] "
+             "[--working-disparities N] [--block-size N] "
+             "[--uniqueness-ratio N] [--speckle-window-size N] "
+             "[--speckle-range N]\n";
       std::exit(0);
     } else {
       throw std::invalid_argument("unknown argument: " + argument);
@@ -77,6 +97,12 @@ struct Options {
   if (options.iterations < 1 || options.warmup < 0 || options.target_hz < 1 ||
       options.opencv_threads < 1) {
     throw std::invalid_argument("iteration, rate, and thread counts are invalid");
+  }
+  if (options.working_disparities < 16 ||
+      options.working_disparities % 16 != 0 || options.block_size < 1 ||
+      options.block_size % 2 == 0 || options.uniqueness_ratio < 0 ||
+      options.speckle_window_size < 0 || options.speckle_range < 0) {
+    throw std::invalid_argument("SGBM tuning parameters are invalid");
   }
   return options;
 }
@@ -123,6 +149,37 @@ void save_outputs(const std::filesystem::path& directory, const cv::Mat& left,
   std::ofstream raw(directory / "disparity_float32.bin", std::ios::binary);
   raw.write(reinterpret_cast<const char*>(disparity.data()),
             static_cast<std::streamsize>(disparity.size() * sizeof(float)));
+
+  cv::Mat depth(disparity_mat.size(), CV_32FC1,
+                cv::Scalar(std::numeric_limits<float>::quiet_NaN()));
+  const cv::Mat depth_valid = valid & (disparity_mat < 192.0F);
+  cv::divide(depthd::kRectifiedFocalLengthPx * depthd::kBaselineM,
+             disparity_mat, depth, 1.0, CV_32F);
+  depth.setTo(std::numeric_limits<float>::quiet_NaN(), depth_valid == 0);
+  std::ofstream depth_raw(directory / "depth_m_float32.bin", std::ios::binary);
+  depth_raw.write(reinterpret_cast<const char*>(depth.ptr<float>()),
+                  static_cast<std::streamsize>(depth.total() * sizeof(float)));
+
+  constexpr float minimum_depth_m = 0.4F;
+  constexpr float maximum_depth_m = 8.0F;
+  cv::Mat depth_normalized = cv::Mat::zeros(depth.size(), CV_8UC1);
+  for (int row = 0; row < depth.rows; ++row) {
+    const float* source = depth.ptr<float>(row);
+    std::uint8_t* destination = depth_normalized.ptr<std::uint8_t>(row);
+    for (int column = 0; column < depth.cols; ++column) {
+      if (std::isfinite(source[column])) {
+        const float clipped =
+            std::clamp(source[column], minimum_depth_m, maximum_depth_m);
+        destination[column] = static_cast<std::uint8_t>(std::lround(
+            255.0F * (maximum_depth_m - clipped) /
+            (maximum_depth_m - minimum_depth_m)));
+      }
+    }
+  }
+  cv::Mat depth_color;
+  cv::applyColorMap(depth_normalized, depth_color, cv::COLORMAP_TURBO);
+  depth_color.setTo(cv::Scalar(0, 0, 0), depth_valid == 0);
+  cv::imwrite((directory / "depth_color.png").string(), depth_color);
 }
 
 }  // namespace
@@ -141,6 +198,12 @@ int main(int argc, char** argv) {
 
     depthd::CpuSgbmConfig config;
     config.opencv_threads = options.opencv_threads;
+    config.working_disparities = options.working_disparities;
+    config.full_resolution_disparities = options.working_disparities * 2;
+    config.block_size = options.block_size;
+    config.uniqueness_ratio = options.uniqueness_ratio;
+    config.speckle_window_size = options.speckle_window_size;
+    config.speckle_range = options.speckle_range;
     auto backend = depthd::make_cpu_sgbm_backend(config);
     std::vector<float> disparity(static_cast<std::size_t>(left.total()),
                                  std::numeric_limits<float>::quiet_NaN());
@@ -192,7 +255,8 @@ int main(int argc, char** argv) {
 
     save_outputs(options.output_dir, left, right, disparity);
 
-    std::cout << std::fixed << std::setprecision(3)
+    std::ostringstream report;
+    report << std::fixed << std::setprecision(3)
               << "{\n"
               << "  \"backend\": \"" << backend->name() << "\",\n"
               << "  \"input_width\": " << left.cols << ",\n"
@@ -203,6 +267,11 @@ int main(int argc, char** argv) {
               << config.full_resolution_disparities << ",\n"
               << "  \"working_disparities\": " << config.working_disparities
               << ",\n"
+              << "  \"block_size\": " << config.block_size << ",\n"
+              << "  \"uniqueness_ratio\": " << config.uniqueness_ratio << ",\n"
+              << "  \"speckle_window_size\": "
+              << config.speckle_window_size << ",\n"
+              << "  \"speckle_range\": " << config.speckle_range << ",\n"
               << "  \"opencv_threads\": " << options.opencv_threads << ",\n"
               << "  \"target_hz\": " << options.target_hz << ",\n"
               << "  \"achieved_hz\": " << options.iterations / wall_seconds
@@ -217,12 +286,19 @@ int main(int argc, char** argv) {
               << "  \"postprocess_ms_p50\": "
               << percentile(postprocess, 0.50) << ",\n"
               << "  \"valid_fraction\": " << stats.valid_fraction << ",\n"
+              << "  \"searchable_valid_fraction\": "
+              << stats.searchable_valid_fraction << ",\n"
               << "  \"process_cpu_percent_one_core_100\": "
               << process_cpu_percent << ",\n"
               << "  \"soc_cpu_percent_four_core_100\": "
               << process_cpu_percent / logical_cpus << ",\n"
               << "  \"logical_cpus\": " << logical_cpus << "\n"
               << "}\n";
+    std::cout << report.str();
+    if (!options.output_dir.empty()) {
+      std::ofstream metrics(options.output_dir / "metrics.json");
+      metrics << report.str();
+    }
     return 0;
   } catch (const std::exception& error) {
     std::cerr << "depthd_sgbm_benchmark: " << error.what() << '\n';
