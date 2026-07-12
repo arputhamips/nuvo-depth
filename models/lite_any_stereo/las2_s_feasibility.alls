@@ -1,0 +1,7 @@
+# Fast feasibility profile. It disables QAT and the optional level-1 bias
+# correction pass; use a real Nuvo calibration set and a separately reviewed
+# accuracy profile for a production HEF.
+model_optimization_config(calibration, batch_size=1, calibset_size=64)
+pre_quantization_optimization(layer_norm_decomposition, equalization=disabled, bit_decomposition_mode=uniform_precision)
+model_optimization_flavor(optimization_level=0, compression_level=0)
+post_quantization_optimization(finetune, policy=disabled)

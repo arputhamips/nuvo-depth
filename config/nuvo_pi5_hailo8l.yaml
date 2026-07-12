@@ -30,7 +30,9 @@ inference:
   model_input_width: 736
   model_input_height: 544
   crop_output_width: 728
-  max_disparity: 96
+  # Released LAS2-S weights are structurally fixed at 48 quarter-resolution
+  # disparity channels, which corresponds to a full-resolution range of 192.
+  max_disparity: 192
 
 outputs:
   disparity_hz: 10

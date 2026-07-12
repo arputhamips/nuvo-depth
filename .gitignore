@@ -14,6 +14,8 @@
 *.npy
 /data/
 /artifacts/
+acceleras.log
+hailo_sdk.client.log
 
 # IDE and OS files
 .idea/

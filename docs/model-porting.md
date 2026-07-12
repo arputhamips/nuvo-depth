@@ -13,7 +13,10 @@ Hailo-8L. There is no upstream LAS2 ONNX or HEF. Therefore HEF generation is a
 feasibility deliverable, not an assumed build step.
 
 Primary target: **LAS2-S**, fixed two-input RGB shape `1x3x544x736`, max disparity
-96, cropped back to 728 x 544. LAS2 requires dimensions divisible by 32; the
+192, cropped back to 728 x 544. The released checkpoint is structurally fixed at
+48 quarter-resolution disparity channels; setting max disparity to 96 produces
+only 24 channels and is incompatible with the trained aggregation layers. LAS2
+requires dimensions divisible by 32; the
 existing 728 x 544 image is symmetrically padded by four columns on each side.
 LAS2-M is the second target only after S compiles and its Hailo-8L FPS is known.
 
@@ -52,6 +55,14 @@ Hailo-8/8L uses the Hailo Model Zoo 2.x / Dataflow Compiler 3.x line; current
 Model Zoo main targets newer Hailo devices. Compiler and HailoRT versions must be
 captured in every artifact manifest. HEF files are build artifacts and are not
 committed by default.
+
+The first hardware-matched toolchain is:
+
+- Ubuntu 22.04 WSL2, Python 3.10;
+- Dataflow Compiler 3.33.0;
+- Hailo Model Zoo 2.17.0;
+- Pi HailoRT and firmware 4.23.0;
+- target architecture `hailo8l`.
 
 ## Sources
 
