@@ -38,7 +38,10 @@ Ctrl+C; the camera must be released before starting capture or the depth daemon.
    one frame per camera and reports their sensor timestamp delta.
 7. `async_stereo_capture.py` implements leased Picamera2 completions, bounded
    latest-pair matching, and zero-copy `MappedArray` access. The corresponding
-   full pipeline measurement is `profile_async_zero_copy_pipeline.py`.
+   full pipeline measurement is `profile_async_zero_copy_pipeline.py`. The
+   profiler converts the mapped BGR views to grayscale before depth
+   rectification and rectifies the full-color left view only on the throttled
+   JPEG schedule.
 
 The ROS container must be stopped before using either tool so cameras and the
 Hailo device each have a single owner.

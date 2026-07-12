@@ -25,6 +25,10 @@ supersedes its free-running/copying capture measurements: hardware exposure is
 now synchronized to tens of microseconds and camera input buffers are leased
 rather than copied.
 
+The [60-second CPU soak](cpu-sgbm-60s-soak.md) then verifies
+grayscale-before-rectification at 10 Hz. Full-color left rectification runs only
+for the 2 Hz JPEG output, reducing normalized process CPU to 10.49%.
+
 ## Timing budget at 10 Hz
 
 | Stage | Initial budget |

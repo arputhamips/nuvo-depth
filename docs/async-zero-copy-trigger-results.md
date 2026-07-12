@@ -79,8 +79,11 @@ For historical context, the former free-running path had 43.59 ms median sensor
 skew and 107.64 / 64.05 ms left/right depth-ready age. Enabling the actual
 hardware trigger, rather than asynchronous capture itself, removed that skew.
 
-The next independent optimization remains grayscale-before-rectification. It
-does not alter this lease/pairing design.
+Grayscale-before-rectification was subsequently implemented without altering
+this lease/pairing design. A 60-second run retained the 10 Hz rate and clean
+pairing while reducing normalized process CPU from 12.03% to 10.49%. Full-color
+left rectification now runs only on the 2 Hz JPEG schedule. See
+`cpu-sgbm-60s-soak.md` for the before/after result.
 
 ## References
 

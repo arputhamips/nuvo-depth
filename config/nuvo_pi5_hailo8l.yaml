@@ -39,6 +39,11 @@ rectification:
   left_calibration: calibration/nuvo_reference/front_right.yaml
   right_calibration: calibration/nuvo_reference/front_left.yaml
   map_format: fixed_point
+  # The depth path converts the camera-owned BGR views to one-channel images
+  # before remapping. Full-color left rectification runs only when the
+  # throttled compressed-image output is due.
+  depth_preprocessing: grayscale_before_rectification
+  color_rectification: on_compressed_output_schedule
 
 stereo:
   backend: cpu_sgbm

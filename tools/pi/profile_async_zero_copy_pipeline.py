@@ -84,6 +84,7 @@ def main() -> None:
     sensor_deltas_ns: list[int] = []
     callback_deltas_ns: list[int] = []
     jpeg_sizes: list[int] = []
+    last_jpeg: np.ndarray | None = None
     last: dict[str, np.ndarray] = {}
     jpeg_period = max(1, round(args.fps / max(args.jpeg_hz, 1e-6)))
 
@@ -108,6 +109,10 @@ def main() -> None:
         total_frames = args.warmup_frames + args.frames
         for frame_index in range(total_frames):
             measured = frame_index >= args.warmup_frames
+            jpeg_due = (
+                measured
+                and (frame_index - args.warmup_frames) % jpeg_period == 0
+            )
             if frame_index == args.warmup_frames:
                 measured_wall_started_ns = time.perf_counter_ns()
                 measured_process_cpu_started = time.process_time()
@@ -132,34 +137,61 @@ def main() -> None:
                 )
 
             try:
+                left_color: np.ndarray | None = None
                 stage_started_ns = time.perf_counter_ns()
                 with pair.mapped_main() as (left_raw, right_raw):
                     record("camera_buffer_map_ms", stage_started_ns, measured)
+
                     stage_started_ns = time.perf_counter_ns()
-                    left = cv2.remap(
-                        left_raw,
+                    left_gray_raw = cv2.cvtColor(left_raw, cv2.COLOR_BGR2GRAY)
+                    right_gray_raw = cv2.cvtColor(
+                        right_raw, cv2.COLOR_BGR2GRAY
+                    )
+                    record(
+                        "grayscale_before_rectification_ms",
+                        stage_started_ns,
+                        measured,
+                    )
+
+                    stage_started_ns = time.perf_counter_ns()
+                    left_gray = cv2.remap(
+                        left_gray_raw,
                         left_maps[0],
                         left_maps[1],
                         cv2.INTER_LINEAR,
                     )
-                    right = cv2.remap(
-                        right_raw,
+                    right_gray = cv2.remap(
+                        right_gray_raw,
                         right_maps[0],
                         right_maps[1],
                         cv2.INTER_LINEAR,
                     )
-                    record("rectification_ms", stage_started_ns, measured)
+                    record(
+                        "grayscale_rectification_ms",
+                        stage_started_ns,
+                        measured,
+                    )
+
+                    if jpeg_due:
+                        stage_started_ns = time.perf_counter_ns()
+                        left_color = cv2.remap(
+                            left_raw,
+                            left_maps[0],
+                            left_maps[1],
+                            cv2.INTER_LINEAR,
+                        )
+                        record(
+                            "throttled_color_rectification_ms",
+                            stage_started_ns,
+                            True,
+                        )
+
                     # Do not retain exported DMABUF views beyond MappedArray.
-                    del left_raw, right_raw
+                    del left_raw, right_raw, left_gray_raw, right_gray_raw
             finally:
                 # Rectification owns its output, so camera DMABUFs can return to
-                # libcamera before grayscale, matching, and publication.
+                # libcamera before matching and publication.
                 pair.close()
-
-            stage_started_ns = time.perf_counter_ns()
-            left_gray = cv2.cvtColor(left, cv2.COLOR_BGR2GRAY)
-            right_gray = cv2.cvtColor(right, cv2.COLOR_BGR2GRAY)
-            record("grayscale_ms", stage_started_ns, measured)
 
             stage_started_ns = time.perf_counter_ns()
             left_working = cv2.resize(
@@ -208,16 +240,19 @@ def main() -> None:
             )
             record("metric_depth_ms", stage_started_ns, measured)
 
-            if measured and (frame_index - args.warmup_frames) % jpeg_period == 0:
+            if jpeg_due:
+                if left_color is None:
+                    raise RuntimeError("scheduled color frame was not rectified")
                 stage_started_ns = time.perf_counter_ns()
                 encoded, jpeg = cv2.imencode(
                     ".jpg",
-                    left,
+                    left_color,
                     [cv2.IMWRITE_JPEG_QUALITY, args.jpeg_quality],
                 )
                 if not encoded:
                     raise RuntimeError("JPEG encoding failed")
                 jpeg_sizes.append(int(jpeg.size))
+                last_jpeg = jpeg
                 record("jpeg_encode_ms", stage_started_ns, True)
 
             stage_started_ns = time.perf_counter_ns()
@@ -238,8 +273,8 @@ def main() -> None:
                     milliseconds(cycle_started_ns)
                 )
                 last = {
-                    "left": left,
-                    "right": right,
+                    "left": left_gray,
+                    "right": right_gray,
                     "disparity": published_disparity,
                     "depth": published_depth,
                 }
@@ -274,6 +309,8 @@ def main() -> None:
             "trigger_low_ms": args.trigger_low_ms,
             "pair_tolerance_us": args.pair_tolerance_us,
             "camera_input_copy_count": 0,
+            "depth_rectification_input": "grayscale",
+            "color_rectification_hz": args.jpeg_hz,
         },
         "capture_start_ms": capture_start_ms,
         "jpeg_warmup_ms": jpeg_warmup_ms,
@@ -309,6 +346,10 @@ def main() -> None:
 
     cv2.imwrite(str(args.output_dir / "left_rect.png"), last["left"])
     cv2.imwrite(str(args.output_dir / "right_rect.png"), last["right"])
+    if last_jpeg is not None:
+        (args.output_dir / "left_rect_color.jpg").write_bytes(
+            last_jpeg.tobytes()
+        )
     np.save(args.output_dir / "disparity_float32.npy", last["disparity"])
     np.save(args.output_dir / "depth_m_float32.npy", last["depth"])
     (args.output_dir / "async_zero_copy_profile.json").write_text(

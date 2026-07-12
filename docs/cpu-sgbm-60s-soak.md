@@ -68,29 +68,63 @@ already using the fastest previously tested OpenCV mode. The installed OpenCV
 4.10 build has AArch64 NEON/FP16 baseline code and NEON dot-product dispatch,
 so rebuilding merely to enable SIMD is not an optimization opportunity.
 
-## Recommended optimization order
+## Implemented grayscale-first result
 
-1. Convert the two camera views to grayscale before rectification. Rectify the
-   two grayscale depth inputs every frame, but rectify the left color image only
-   when the 2 Hz JPEG is due. Recorded replay tests reduce recurring depth
-   preprocessing from about 14.6 ms to 6.4 ms. Including the throttled color
-   output, the expected saving is about 6.4 ms per depth pair and should lower
-   normalized process CPU to roughly 10.4-10.7%. This is the safest next change;
-   its p95 working-disparity change was 0.313 pixel.
-2. Do not derive or copy metric depth in the production loop unless a subscriber
+The depth preprocessing was changed without changing the camera format. Both
+cameras remain `RGB888` (BGR byte order in Picamera/OpenCV memory). Every frame
+is converted to grayscale before remapping. The full-color left image is
+remapped only for the 2 Hz JPEG output.
+
+A second 600-frame run verified the change:
+
+| Metric | Color-first baseline | Grayscale-first | Change |
+| --- | ---: | ---: | ---: |
+| Output rate | 10.0000 Hz | 10.0000 Hz | unchanged |
+| Process CPU, one core = 100% | 48.14% | 41.96% | -12.8% |
+| Process CPU, normalized over four cores | 12.03% | 10.49% | -1.55 points |
+| Whole-SoC CPU | 11.94% | 10.96% | -0.98 points |
+| Recurring two-camera rectification | 13.538 ms | 5.355 ms | -8.183 ms |
+| Grayscale conversion | 0.899 ms | 0.894 ms | unchanged |
+| Throttled left-color rectification | included every frame | 6.774 ms at 2 Hz | scheduled |
+| SGBM match | 25.661 ms | 25.677 ms | unchanged |
+| Depth-ready age p50 | 64.8 ms | 56.6 ms | -8.2 ms |
+| Sensor delta p50 / max | 17 / 22 us | 17 / 20 us | stable |
+| Rejected or replaced pairs | 0 | 0 | stable |
+| Peak RSS | 218,880 KiB | 215,264 KiB | -3,616 KiB |
+| End temperature / throttling | 51.6 C / none | 50.5 C / none | stable |
+
+The process used 12.8% less CPU while preserving the exact 10 Hz cadence and
+bounded zero-copy capture behavior. The saved JPEG was visually checked: blue
+and red remain correctly ordered. The final-frame valid fraction is not a
+before/after quality metric because the physical scene changed between live
+runs. The controlled recorded-pair comparison remains the quality evidence: it
+measured zero median and 0.313 working-pixel p95 disparity change.
+
+The optimized JSON, grayscale rectified pair, color JPEG, disparity/depth arrays,
+and end-state log are under
+`artifacts/cpu_sgbm/cpu-sgbm-gray-first-60s-20260712/` on the workstation and
+`/home/cam/cpu-sgbm-gray-first-60s-20260712/` on the Pi.
+
+## Recommended next optimization order
+
+1. Do not derive or copy metric depth in the production loop unless a subscriber
    requires it. The required public output is disparity. Omitting metric depth
    and its output copy should save about 1.1 ms per frame.
-3. In the production C++ daemon, preallocate rectified images, grayscale images,
+2. In the production C++ daemon, preallocate rectified images, grayscale images,
    working images, fixed-point disparity, float disparity, validity masks, and
    publication buffers. The Python profiler allocates several of these per
    frame, contributing to its roughly 3.3 ms gap between measured stage time
    and total process CPU.
-4. Keep direct 364 x 272 rectification experimental. It saves another roughly
+3. Keep direct 364 x 272 rectification experimental. It saves another roughly
    4 ms, but the replay comparison changed p95 disparity by 2.125 working pixels
    (4.25 output pixels), which is too large to adopt without scene/range tests.
-5. Keep `SGBM_3WAY` and one OpenCV thread. The other OpenCV SGBM modes measured
+4. Keep `SGBM_3WAY` and one OpenCV thread. The other OpenCV SGBM modes measured
    between 40 and 54 ms versus 25.7 ms for `SGBM_3WAY`. More threads may reduce
    wall latency but do not serve the primary goal of minimum aggregate CPU.
+5. Evaluate a camera YUV/dual-stream mode separately. Reading an ISP-produced Y
+   plane may remove the remaining 0.9 ms grayscale conversion, but its plane
+   stride, buffer lifetime, color-output conversion, and synchronization must be
+   validated before replacing the stable `RGB888` capture contract.
 6. Measure ROS message wrapping, serialization, and publish time after the ROS
    bridge exists. Those costs were intentionally outside this test.
 

@@ -78,7 +78,8 @@ left frame should be produced only on the 2 Hz compressed-image schedule. That
 color output costs 6.795 ms to rectify and 2.434 ms to encode. Amortized across
 the 10 Hz depth stream, this layout should save about 6.8 ms of CPU time per
 pair and reduce normalized process CPU from roughly 12.44% to about 10.7%.
-That estimate must be replaced with a live measurement after integration.
+The later 60-second live measurement recorded 10.49% normalized process CPU;
+see `cpu-sgbm-60s-soak.md`.
 
 Direct working-resolution rectification saves another 3.98 ms over the safe
 layout, but it changes the effective resampling filter and produced a 2.125-pixel
