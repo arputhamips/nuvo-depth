@@ -87,7 +87,7 @@ def main() -> None:
         default=True,
         help="require each request's exposure to start after the capture call",
     )
-    parser.add_argument("--trigger-start-delay", type=float, default=4.0)
+    parser.add_argument("--trigger-start-delay", type=float, default=0.0)
     parser.add_argument("--gpiochip", default="/dev/gpiochip0")
     parser.add_argument("--line", type=int, default=17)
     args = parser.parse_args()
@@ -110,7 +110,8 @@ def main() -> None:
             round(1_000_000 / args.fps),
             round(1_000_000 / args.fps),
         ),
-        "SyncMode": 2,
+        "ExposureTime": 3000,
+        "AnalogueGain": 1.5,
     }
     transform = Transform(hflip=1, vflip=1)
     for camera in cameras:
@@ -352,10 +353,10 @@ def main() -> None:
         trigger_stop.set()
         if trigger_started:
             trigger_thread.join(timeout=1.0)
-        trigger.close()
         for camera in cameras:
             camera.stop()
             camera.close()
+        trigger.close()
 
     logical_cpus = 4
     process_cpu_percent = 100.0 * measured_cpu_s / measured_wall_s

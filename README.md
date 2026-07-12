@@ -27,7 +27,8 @@ See [architecture options](docs/architecture-options.md), the exact
 [Nuvo compatibility contract](docs/nuvo-compatibility.md), and the
 [LAS2-to-HEF gate plan](docs/model-porting.md). The first measured runtime is
 documented in the [CPU SGBM baseline](docs/cpu-sgbm-baseline.md), with the full
-live camera path in the [CPU pipeline profile](docs/cpu-live-pipeline-profile.md).
+live camera path in the [CPU pipeline profile](docs/cpu-live-pipeline-profile.md)
+and the corrected [async zero-copy trigger results](docs/async-zero-copy-trigger-results.md).
 
 ## Repository shape
 

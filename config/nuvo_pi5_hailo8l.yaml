@@ -14,15 +14,22 @@ capture:
   memory_order: BGR
   orientation_degrees: 180
   target_hz: 10
+  buffer_count: 4
+  handoff: async_latest_pair
+  zero_copy_camera_input: true
   hardware_trigger:
     enabled: true
+    driver_mode: external_xtrig
+    requires_always_on_overlay: true
     gpiochip: /dev/gpiochip0
     line: 17
-    pulse_width_us: 1000
-    active_high: true
-    start_delay_s: 4.0
-  exposure_time_us: 0
-  analogue_gain: 0.0
+    idle_level: high
+    active_level: low
+    pulse_width_us: 3000
+    startup_priming_pulses: 5
+    pair_tolerance_us: 500
+  exposure_time_us: 3000
+  analogue_gain: 1.5
 
 rectification:
   # Calibration files are tied to the camera units, not their current physical

@@ -40,7 +40,7 @@ class TriggerLine:
             from gpiod.line import Direction, Value
 
             settings = gpiod.LineSettings(
-                direction=Direction.OUTPUT, output_value=Value.INACTIVE
+                direction=Direction.OUTPUT, output_value=Value.ACTIVE
             )
             self.request = gpiod.request_lines(
                 chip, consumer="depthd_validation_trigger", config={offset: settings}
@@ -51,7 +51,7 @@ class TriggerLine:
             self.line.request(
                 consumer="depthd_validation_trigger",
                 type=gpiod.LINE_REQ_DIR_OUT,
-                default_vals=[0],
+                default_vals=[1],
             )
 
     def set(self, active: bool) -> None:
@@ -66,7 +66,9 @@ class TriggerLine:
             self.line.set_value(value)
 
     def close(self) -> None:
-        self.set(False)
+        # The IMX296 trigger input idles high. Cameras must be stopped before
+        # releasing the line so a pull-down cannot create a long exposure.
+        self.set(True)
         if self.request is not None:
             self.request.release()
         if self.line is not None:
@@ -75,13 +77,27 @@ class TriggerLine:
             self.chip.close()
 
 
-def pulse_loop(line: TriggerLine, stop: threading.Event) -> None:
+def pulse_loop(
+    line: TriggerLine,
+    stop: threading.Event,
+    frequency_hz: float = 10.0,
+    low_pulse_s: float = 0.003,
+) -> None:
+    if frequency_hz <= 0.0:
+        raise ValueError("trigger frequency must be positive")
+    period_s = 1.0 / frequency_hz
+    if low_pulse_s <= 0.0 or low_pulse_s >= period_s:
+        raise ValueError("trigger low pulse must be inside one trigger period")
+
+    # InnoMaker's isolated TRIG input idles high. The falling edge starts the
+    # global exposure and its duration is the low pulse plus about 14.26 us.
+    line.set(True)
     next_pulse = time.monotonic()
     while not stop.is_set():
-        line.set(True)
-        time.sleep(0.001)
         line.set(False)
-        next_pulse += 0.1
+        time.sleep(low_pulse_s)
+        line.set(True)
+        next_pulse += period_s
         stop.wait(max(0.0, next_pulse - time.monotonic()))
 
 
@@ -122,12 +138,16 @@ def main() -> None:
     parser.add_argument("--right-camera-index", type=int, default=0)
     parser.add_argument("--gpiochip", default="/dev/gpiochip0")
     parser.add_argument("--line", type=int, default=17)
-    parser.add_argument("--trigger-start-delay", type=float, default=4.0)
+    parser.add_argument("--trigger-start-delay", type=float, default=0.0)
     parser.add_argument("--pair-candidates", type=int, default=8)
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    controls = {"FrameDurationLimits": (100000, 100000), "SyncMode": 2}
+    controls = {
+        "FrameDurationLimits": (100000, 100000),
+        "ExposureTime": 3000,
+        "AnalogueGain": 1.5,
+    }
     transform = Transform(hflip=1, vflip=1)
     if args.left_camera_index == args.right_camera_index:
         parser.error("left and right camera indices must differ")
@@ -188,10 +208,10 @@ def main() -> None:
         stop.set()
         if trigger_started:
             thread.join(timeout=1.0)
-        trigger.close()
         for camera in cameras:
             camera.stop()
             camera.close()
+        trigger.close()
 
     # Keep the oriented but unrectified frames for calibration diagnostics.
     # Picamera2/libcamera's RGB888 is already B, G, R byte order for OpenCV.

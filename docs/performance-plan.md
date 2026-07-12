@@ -20,6 +20,11 @@ The subsequent [live CPU pipeline profile](cpu-live-pipeline-profile.md)
 measures capture through output-buffer readiness at 10 Hz, including
 rectification, metric depth, and throttled JPEG work.
 
+The [async zero-copy trigger result](async-zero-copy-trigger-results.md)
+supersedes its free-running/copying capture measurements: hardware exposure is
+now synchronized to tens of microseconds and camera input buffers are leased
+rather than copied.
+
 ## Timing budget at 10 Hz
 
 | Stage | Initial budget |

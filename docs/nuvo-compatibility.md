@@ -18,6 +18,13 @@ This document is derived from a read-only audit of
 - Manual exposure/gain are currently disabled in the production profile; depth
   validation notes suggest 6000 us and gain 1.5 as a tuning starting point.
 
+These bullets describe the audited ROS workspace, not the corrected daemon
+configuration. Hardware testing subsequently established that the ROS path did
+not enable IMX296 XTRIG mode and used the opposite pulse waveform. The corrected
+contract is an idle-high, 3 ms low pulse on GPIO17, persistent driver
+`trigger_mode=1`, `always-on` on both camera overlays, and a 500 us sensor-time
+pair tolerance. See [the trigger and zero-copy results](async-zero-copy-trigger-results.md).
+
 The right projection matrix yields a calibrated baseline of
 `79.6866968475 / 493.542046188 = 0.161458780 m`.
 

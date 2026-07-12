@@ -32,6 +32,13 @@ Ctrl+C; the camera must be released before starting capture or the depth daemon.
 4. `benchmark_preprocess_variants.py` replays one raw pair to compare color-first,
    grayscale-first, and direct-working-resolution rectification, including
    disparity differences and all OpenCV SGBM execution modes.
+5. `audit_imx296_trigger.sh` reports the loaded driver trigger parameter, boot
+   overlays, cameras, and GPIO17 state.
+6. `verify_external_trigger.py` proves that a primed single low pulse produces
+   one frame per camera and reports their sensor timestamp delta.
+7. `async_stereo_capture.py` implements leased Picamera2 completions, bounded
+   latest-pair matching, and zero-copy `MappedArray` access. The corresponding
+   full pipeline measurement is `profile_async_zero_copy_pipeline.py`.
 
 The ROS container must be stopped before using either tool so cameras and the
 Hailo device each have a single owner.
