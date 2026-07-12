@@ -42,12 +42,14 @@ void validate_config(const CpuSgbmConfig& config) {
     throw std::invalid_argument("SGBM working dimensions cannot exceed input");
   }
   if (config.working_disparities <= 0 ||
-      config.working_disparities % 16 != 0) {
+      config.working_disparities % 16 != 0 ||
+      config.working_disparities >= static_cast<std::int32_t>(config.working_width)) {
     throw std::invalid_argument(
-        "SGBM working disparity count must be a positive multiple of 16");
+        "SGBM working disparity count must be a positive multiple of 16 "
+        "smaller than the working width");
   }
-  if (config.full_resolution_disparities <= 0 ||
-      config.block_size < 1 || config.block_size % 2 == 0) {
+  if (config.full_resolution_disparities <= 0 || config.block_size < 1 ||
+      config.block_size % 2 == 0) {
     throw std::invalid_argument("invalid SGBM disparity range or block size");
   }
   if (config.opencv_threads < 1) {
@@ -82,6 +84,7 @@ class CpuSgbmBackend final : public StereoBackend {
     disparity_working_.create(working_size, CV_32FC1);
     valid_working_.create(working_size, CV_8UC1);
     valid_full_.create(input_size, CV_8UC1);
+    within_limit_full_.create(input_size, CV_8UC1);
   }
 
   [[nodiscard]] std::string_view name() const noexcept override {
@@ -121,6 +124,10 @@ class CpuSgbmBackend final : public StereoBackend {
     output_mat *= disparity_scale;
     cv::resize(valid_working_, valid_full_, valid_full_.size(), 0.0, 0.0,
                cv::INTER_NEAREST);
+    cv::compare(output_mat,
+                static_cast<float>(config_.full_resolution_disparities),
+                within_limit_full_, cv::CMP_LT);
+    cv::bitwise_and(valid_full_, within_limit_full_, valid_full_);
     output_mat.setTo(std::numeric_limits<float>::quiet_NaN(),
                      valid_full_ == 0);
 
@@ -132,10 +139,12 @@ class CpuSgbmBackend final : public StereoBackend {
     stats.valid_fraction = static_cast<float>(cv::countNonZero(valid_full_)) /
                            static_cast<float>(valid_full_.total());
     const int searchable_start = std::clamp(
-        config_.working_disparities, 0, valid_working_.cols - 1);
-    const cv::Mat searchable = valid_working_(
-        cv::Rect(searchable_start, 0, valid_working_.cols - searchable_start,
-                 valid_working_.rows));
+        static_cast<int>(std::ceil(
+            static_cast<float>(config_.working_disparities) * disparity_scale)),
+        0, valid_full_.cols - 1);
+    const cv::Mat searchable = valid_full_(
+        cv::Rect(searchable_start, 0, valid_full_.cols - searchable_start,
+                 valid_full_.rows));
     stats.searchable_valid_fraction =
         static_cast<float>(cv::countNonZero(searchable)) /
         static_cast<float>(searchable.total());
@@ -192,6 +201,7 @@ class CpuSgbmBackend final : public StereoBackend {
   cv::Mat disparity_working_;
   cv::Mat valid_working_;
   cv::Mat valid_full_;
+  cv::Mat within_limit_full_;
 };
 
 }  // namespace

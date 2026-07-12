@@ -58,6 +58,9 @@ The camera-order result must be reconfirmed after focus repair with a newly
 captured, correctly colored, synchronized pair. The old pair remains suitable
 for deterministic performance testing but not accuracy acceptance.
 
+The later resolution, disparity, filtering, and thread-count comparisons are
+recorded in [cpu-sgbm-test-matrix.md](cpu-sgbm-test-matrix.md).
+
 ## Focused-scene validation
 
 A new well-lit multi-depth scene was captured after both lenses were focused.

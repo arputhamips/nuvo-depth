@@ -35,7 +35,10 @@ struct Options {
   int warmup{5};
   int target_hz{10};
   int opencv_threads{1};
+  int working_width{364};
+  int working_height{272};
   int working_disparities{96};
+  int full_disparity_limit{192};
   int block_size{5};
   int uniqueness_ratio{5};
   int speckle_window_size{50};
@@ -68,8 +71,14 @@ struct Options {
       options.target_hz = std::stoi(require_value(index, argc, argv));
     } else if (argument == "--opencv-threads") {
       options.opencv_threads = std::stoi(require_value(index, argc, argv));
+    } else if (argument == "--working-width") {
+      options.working_width = std::stoi(require_value(index, argc, argv));
+    } else if (argument == "--working-height") {
+      options.working_height = std::stoi(require_value(index, argc, argv));
     } else if (argument == "--working-disparities") {
       options.working_disparities = std::stoi(require_value(index, argc, argv));
+    } else if (argument == "--full-disparity-limit") {
+      options.full_disparity_limit = std::stoi(require_value(index, argc, argv));
     } else if (argument == "--block-size") {
       options.block_size = std::stoi(require_value(index, argc, argv));
     } else if (argument == "--uniqueness-ratio") {
@@ -83,7 +92,9 @@ struct Options {
           << "Usage: depthd_sgbm_benchmark --left FILE --right FILE "
              "[--output-dir DIR] [--iterations N] [--warmup N] "
              "[--target-hz N] [--opencv-threads N] "
-             "[--working-disparities N] [--block-size N] "
+             "[--working-width N] [--working-height N] "
+             "[--working-disparities N] [--full-disparity-limit N] "
+             "[--block-size N] "
              "[--uniqueness-ratio N] [--speckle-window-size N] "
              "[--speckle-range N]\n";
       std::exit(0);
@@ -103,6 +114,11 @@ struct Options {
       options.block_size % 2 == 0 || options.uniqueness_ratio < 0 ||
       options.speckle_window_size < 0 || options.speckle_range < 0) {
     throw std::invalid_argument("SGBM tuning parameters are invalid");
+  }
+  if (options.working_width < 1 || options.working_width > 728 ||
+      options.working_height < 1 || options.working_height > 544 ||
+      options.full_disparity_limit < 1) {
+    throw std::invalid_argument("SGBM working geometry or output limit is invalid");
   }
   return options;
 }
@@ -127,7 +143,8 @@ struct Options {
 }
 
 void save_outputs(const std::filesystem::path& directory, const cv::Mat& left,
-                  const cv::Mat& right, const std::vector<float>& disparity) {
+                  const cv::Mat& right, const std::vector<float>& disparity,
+                  const int full_disparity_limit) {
   if (directory.empty()) {
     return;
   }
@@ -140,7 +157,8 @@ void save_outputs(const std::filesystem::path& directory, const cv::Mat& left,
   cv::Mat valid = disparity_mat == disparity_mat;
   valid &= disparity_mat > 0.0F;
   cv::Mat normalized = cv::Mat::zeros(disparity_mat.size(), CV_8UC1);
-  disparity_mat.convertTo(normalized, CV_8U, 255.0 / 192.0);
+  disparity_mat.convertTo(normalized, CV_8U,
+                          255.0 / static_cast<double>(full_disparity_limit));
   cv::Mat color;
   cv::applyColorMap(normalized, color, cv::COLORMAP_TURBO);
   color.setTo(cv::Scalar(0, 0, 0), valid == 0);
@@ -152,7 +170,8 @@ void save_outputs(const std::filesystem::path& directory, const cv::Mat& left,
 
   cv::Mat depth(disparity_mat.size(), CV_32FC1,
                 cv::Scalar(std::numeric_limits<float>::quiet_NaN()));
-  const cv::Mat depth_valid = valid & (disparity_mat < 192.0F);
+  const cv::Mat depth_valid =
+      valid & (disparity_mat < static_cast<float>(full_disparity_limit));
   cv::divide(depthd::kRectifiedFocalLengthPx * depthd::kBaselineM,
              disparity_mat, depth, 1.0, CV_32F);
   depth.setTo(std::numeric_limits<float>::quiet_NaN(), depth_valid == 0);
@@ -160,7 +179,9 @@ void save_outputs(const std::filesystem::path& directory, const cv::Mat& left,
   depth_raw.write(reinterpret_cast<const char*>(depth.ptr<float>()),
                   static_cast<std::streamsize>(depth.total() * sizeof(float)));
 
-  constexpr float minimum_depth_m = 0.4F;
+  const float minimum_depth_m =
+      depthd::kRectifiedFocalLengthPx * depthd::kBaselineM /
+      static_cast<float>(full_disparity_limit);
   constexpr float maximum_depth_m = 8.0F;
   cv::Mat depth_normalized = cv::Mat::zeros(depth.size(), CV_8UC1);
   for (int row = 0; row < depth.rows; ++row) {
@@ -198,8 +219,10 @@ int main(int argc, char** argv) {
 
     depthd::CpuSgbmConfig config;
     config.opencv_threads = options.opencv_threads;
+    config.working_width = static_cast<std::uint32_t>(options.working_width);
+    config.working_height = static_cast<std::uint32_t>(options.working_height);
     config.working_disparities = options.working_disparities;
-    config.full_resolution_disparities = options.working_disparities * 2;
+    config.full_resolution_disparities = options.full_disparity_limit;
     config.block_size = options.block_size;
     config.uniqueness_ratio = options.uniqueness_ratio;
     config.speckle_window_size = options.speckle_window_size;
@@ -253,7 +276,8 @@ int main(int argc, char** argv) {
         std::max(1U, std::thread::hardware_concurrency());
     const double process_cpu_percent = 100.0 * cpu_seconds / wall_seconds;
 
-    save_outputs(options.output_dir, left, right, disparity);
+    save_outputs(options.output_dir, left, right, disparity,
+                 config.full_resolution_disparities);
 
     std::ostringstream report;
     report << std::fixed << std::setprecision(3)
