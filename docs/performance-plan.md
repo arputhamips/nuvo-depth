@@ -16,6 +16,10 @@ The first isolated CPU SGBM replay baseline is recorded in
 normalized four-core CPU and no deadline misses, excluding live capture and
 rectification. It is a starting measurement, not final acceptance.
 
+The subsequent [live CPU pipeline profile](cpu-live-pipeline-profile.md)
+measures capture through output-buffer readiness at 10 Hz, including
+rectification, metric depth, and throttled JPEG work.
+
 ## Timing budget at 10 Hz
 
 | Stage | Initial budget |

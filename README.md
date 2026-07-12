@@ -26,7 +26,8 @@ stable C++ contract from the still-open deployment choice.
 See [architecture options](docs/architecture-options.md), the exact
 [Nuvo compatibility contract](docs/nuvo-compatibility.md), and the
 [LAS2-to-HEF gate plan](docs/model-porting.md). The first measured runtime is
-documented in the [CPU SGBM baseline](docs/cpu-sgbm-baseline.md).
+documented in the [CPU SGBM baseline](docs/cpu-sgbm-baseline.md), with the full
+live camera path in the [CPU pipeline profile](docs/cpu-live-pipeline-profile.md).
 
 ## Repository shape
 

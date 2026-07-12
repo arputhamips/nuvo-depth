@@ -26,6 +26,12 @@ Ctrl+C; the camera must be released before starting capture or the depth daemon.
    disparity, derives metric depth, and reports device and host-postprocess
    latency. With `--reference-disparity`, it also emits a difference image and
    pixel-error percentiles against a known ONNX output.
+3. `profile_cpu_pipeline.py` runs the live CPU SGBM path and records cold-start,
+   capture, per-stage, sensor-age, output-latency, and CPU measurements. Use
+   `--no-capture-flush` to model the bounded continuous production path.
+4. `benchmark_preprocess_variants.py` replays one raw pair to compare color-first,
+   grayscale-first, and direct-working-resolution rectification, including
+   disparity differences and all OpenCV SGBM execution modes.
 
 The ROS container must be stopped before using either tool so cameras and the
 Hailo device each have a single owner.
