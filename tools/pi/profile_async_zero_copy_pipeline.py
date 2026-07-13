@@ -72,6 +72,9 @@ def main() -> None:
     parser.add_argument("--ae-settle-frames", type=int, default=4)
     parser.add_argument("--ae-max-clipped-fraction", type=float, default=0.005)
     parser.add_argument("--pair-tolerance-us", type=float, default=500.0)
+    parser.add_argument("--working-width", type=int, default=WORKING_WIDTH)
+    parser.add_argument("--working-height", type=int, default=WORKING_HEIGHT)
+    parser.add_argument("--min-disparity", type=int, default=0)
     parser.add_argument(
         "--working-disparities",
         type=int,
@@ -97,7 +100,11 @@ def main() -> None:
     if (
         args.working_disparities < 16
         or args.working_disparities % 16 != 0
-        or args.working_disparities >= WORKING_WIDTH
+        or args.working_width < 1
+        or args.working_height < 1
+        or args.working_width > WIDTH
+        or args.working_height > HEIGHT
+        or args.working_disparities >= args.working_width
         or args.full_disparity_limit <= 0.0
         or args.block_size < 1
         or args.block_size % 2 == 0
@@ -117,6 +124,9 @@ def main() -> None:
             max_gain=args.ae_max_gain,
             update_interval_frames=args.ae_update_interval,
             settle_frames_after_update=args.ae_settle_frames,
+            roi_x_start=round(160 * args.working_width / WIDTH),
+            roi_y_start=round(96 * args.working_height / HEIGHT),
+            roi_y_end=round(420 * args.working_height / HEIGHT),
         )
         ae_config.validate()
         auto_exposure = (
@@ -137,7 +147,7 @@ def main() -> None:
     right_maps = make_maps(args.right_calibration)
     block_size = args.block_size
     matcher = cv2.StereoSGBM_create(
-        0,
+        args.min_disparity,
         args.working_disparities,
         block_size,
         8 * block_size * block_size,
@@ -284,16 +294,20 @@ def main() -> None:
                 pair.close()
 
             stage_started_ns = time.perf_counter_ns()
-            left_working = cv2.resize(
-                left_gray,
-                (WORKING_WIDTH, WORKING_HEIGHT),
-                interpolation=cv2.INTER_AREA,
-            )
-            right_working = cv2.resize(
-                right_gray,
-                (WORKING_WIDTH, WORKING_HEIGHT),
-                interpolation=cv2.INTER_AREA,
-            )
+            if args.working_width == WIDTH and args.working_height == HEIGHT:
+                left_working = left_gray
+                right_working = right_gray
+            else:
+                left_working = cv2.resize(
+                    left_gray,
+                    (args.working_width, args.working_height),
+                    interpolation=cv2.INTER_AREA,
+                )
+                right_working = cv2.resize(
+                    right_gray,
+                    (args.working_width, args.working_height),
+                    interpolation=cv2.INTER_AREA,
+                )
             record("downscale_ms", stage_started_ns, measured)
 
             if auto_exposure is not None:
@@ -313,14 +327,14 @@ def main() -> None:
             record("sgbm_match_ms", stage_started_ns, measured)
 
             stage_started_ns = time.perf_counter_ns()
-            valid_working = disparity_fixed > 0
+            valid_working = disparity_fixed > args.min_disparity * 16
             disparity_working = disparity_fixed.astype(np.float32) / 16.0
             disparity = cv2.resize(
                 disparity_working,
                 (WIDTH, HEIGHT),
                 interpolation=cv2.INTER_LINEAR,
             )
-            disparity *= WIDTH / WORKING_WIDTH
+            disparity *= WIDTH / args.working_width
             valid = cv2.resize(
                 valid_working.astype(np.uint8),
                 (WIDTH, HEIGHT),
@@ -407,8 +421,12 @@ def main() -> None:
     report = {
         "configuration": {
             "input": [WIDTH, HEIGHT],
-            "working": [WORKING_WIDTH, WORKING_HEIGHT],
+            "working": [args.working_width, args.working_height],
+            "working_resize_applied": not (
+                args.working_width == WIDTH and args.working_height == HEIGHT
+            ),
             "working_disparities": args.working_disparities,
+            "min_disparity": args.min_disparity,
             "full_disparity_limit": args.full_disparity_limit,
             "opencv_threads": cv2.getNumThreads(),
             "frames": args.frames,

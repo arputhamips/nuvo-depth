@@ -13,7 +13,7 @@
 int main() {
   constexpr int width = 728;
   constexpr int height = 544;
-  constexpr int expected_disparity = 16;
+  constexpr int expected_disparity = 24;
   cv::Mat left(height, width, CV_8UC1);
   cv::RNG random(20260712);
   random.fill(left, cv::RNG::UNIFORM, 0, 256);
@@ -22,6 +22,7 @@ int main() {
       .copyTo(right(cv::Rect(0, 0, width - expected_disparity, height)));
 
   depthd::CpuSgbmConfig config;
+  config.min_disparity = 8;
   config.opencv_threads = 1;
   auto backend = depthd::make_cpu_sgbm_backend(config);
   if (backend->name() != std::string_view("opencv_sgbm_cpu")) {

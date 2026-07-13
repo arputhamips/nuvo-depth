@@ -140,7 +140,9 @@ class CpuSgbmBackend final : public StereoBackend {
                            static_cast<float>(valid_full_.total());
     const int searchable_start = std::clamp(
         static_cast<int>(std::ceil(
-            static_cast<float>(config_.working_disparities) * disparity_scale)),
+            static_cast<float>(
+                config_.min_disparity + config_.working_disparities) *
+            disparity_scale)),
         0, valid_full_.cols - 1);
     const cv::Mat searchable = valid_full_(
         cv::Rect(searchable_start, 0, valid_full_.cols - searchable_start,

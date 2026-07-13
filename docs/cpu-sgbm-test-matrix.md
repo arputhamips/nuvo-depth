@@ -26,6 +26,11 @@ changing the scene geometry. Full-resolution matching retains finer spatial
 edges, but it exposes more high-frequency speckle and cannot meet the requested
 6-10 Hz rate on one core.
 
+A later auto-exposed native-resolution test with a smaller accepted interval
+does reach the 6 Hz lower bound. See
+[cpu-sgbm-native-min8-max128.md](cpu-sgbm-native-min8-max128.md) for its detail,
+latency, CPU, and frame-replacement tradeoffs.
+
 ## Depth consistency
 
 | Region | Test 1 | Test 2 | Test 3 |

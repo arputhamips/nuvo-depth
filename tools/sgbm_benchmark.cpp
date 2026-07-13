@@ -37,6 +37,7 @@ struct Options {
   int opencv_threads{1};
   int working_width{364};
   int working_height{272};
+  int min_disparity{0};
   int working_disparities{80};
   int full_disparity_limit{160};
   int disparity_12_max_diff{1};
@@ -78,6 +79,8 @@ struct Options {
       options.working_height = std::stoi(require_value(index, argc, argv));
     } else if (argument == "--working-disparities") {
       options.working_disparities = std::stoi(require_value(index, argc, argv));
+    } else if (argument == "--min-disparity") {
+      options.min_disparity = std::stoi(require_value(index, argc, argv));
     } else if (argument == "--full-disparity-limit") {
       options.full_disparity_limit = std::stoi(require_value(index, argc, argv));
     } else if (argument == "--disp12-max-diff") {
@@ -97,7 +100,8 @@ struct Options {
              "[--output-dir DIR] [--iterations N] [--warmup N] "
              "[--target-hz N] [--opencv-threads N] "
              "[--working-width N] [--working-height N] "
-             "[--working-disparities N] [--full-disparity-limit N] "
+             "[--min-disparity N] [--working-disparities N] "
+             "[--full-disparity-limit N] "
              "[--disp12-max-diff N] "
              "[--block-size N] "
              "[--uniqueness-ratio N] [--speckle-window-size N] "
@@ -224,6 +228,7 @@ int main(int argc, char** argv) {
 
     depthd::CpuSgbmConfig config;
     config.opencv_threads = options.opencv_threads;
+    config.min_disparity = options.min_disparity;
     config.working_width = static_cast<std::uint32_t>(options.working_width);
     config.working_height = static_cast<std::uint32_t>(options.working_height);
     config.working_disparities = options.working_disparities;
@@ -297,6 +302,7 @@ int main(int argc, char** argv) {
               << config.full_resolution_disparities << ",\n"
               << "  \"working_disparities\": " << config.working_disparities
               << ",\n"
+              << "  \"min_disparity\": " << config.min_disparity << ",\n"
               << "  \"disparity_12_max_diff\": "
               << config.disparity_12_max_diff << ",\n"
               << "  \"block_size\": " << config.block_size << ",\n"
