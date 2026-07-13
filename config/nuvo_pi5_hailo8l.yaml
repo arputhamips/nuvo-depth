@@ -56,8 +56,8 @@ rectification:
   # sides. Camera 1 uses the originally-right calibration and camera 0 uses the
   # originally-left calibration. This mapping gives 0.34 px median vertical
   # residual; assigning by side gives about 20 px and invalid stereo depth.
-  left_calibration: calibration/nuvo_reference/front_right.yaml
-  right_calibration: calibration/nuvo_reference/front_left.yaml
+  left_calibration: /var/lib/nuvo-depthd/current/config/calibration/nuvo_reference/front_right.yaml
+  right_calibration: /var/lib/nuvo-depthd/current/config/calibration/nuvo_reference/front_left.yaml
   map_format: fixed_point
   # The depth path converts the camera-owned BGR views to one-channel images
   # before remapping. Full-color left rectification runs only when the
@@ -105,9 +105,9 @@ outputs:
   result_ring_left_mono_enabled: false
 
 semantic:
-  # The portable module and ABI are production-ready. Keep hardware execution
-  # gated until both HEFs pass artifact verification and live Hailo-8L tests.
-  enabled: false
+  # Both HEFs and the asynchronous native Hailo-8L path passed live full-system
+  # validation. Semantics is part of the production service; preview stays off.
+  enabled: true
   backend: hailort
   frame_source: left_rectified_color_bgr
   queue_policy: latest_only
@@ -119,13 +119,13 @@ semantic:
   models:
     instances:
       name: yolov8s
-      hef_path: /home/cam/nuvo-base/data/models/hailo/front_semantic.hef
-      manifest: models/semantic/manifest.json
+      hef_path: /var/lib/nuvo-depthd/current/models/hailo/front_semantic.hef
+      manifest: /var/lib/nuvo-depthd/current/.depthd-manifest.json
       target_hz: 5
     dense_regions:
       name: segformer_b0_bn
-      hef_path: /home/cam/nuvo-base/data/models/hailo/segformer_b0_bn.hef
-      manifest: models/semantic/manifest.json
+      hef_path: /var/lib/nuvo-depthd/current/models/hailo/segformer_b0_bn.hef
+      manifest: /var/lib/nuvo-depthd/current/.depthd-manifest.json
       target_hz: 5
   preview:
     enabled: false

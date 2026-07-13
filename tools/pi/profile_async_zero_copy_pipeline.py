@@ -130,12 +130,16 @@ def main() -> None:
     parser.add_argument(
         "--semantic-yolo-hef",
         type=Path,
-        default=Path("/home/cam/nuvo-base/data/models/hailo/front_semantic.hef"),
+        default=Path(
+            "/var/lib/nuvo-depthd/current/models/hailo/front_semantic.hef"
+        ),
     )
     parser.add_argument(
         "--semantic-segformer-hef",
         type=Path,
-        default=Path("/home/cam/nuvo-base/data/models/hailo/segformer_b0_bn.hef"),
+        default=Path(
+            "/var/lib/nuvo-depthd/current/models/hailo/segformer_b0_bn.hef"
+        ),
     )
     parser.add_argument("--semantic-yolo-hz", type=float, default=5.0)
     parser.add_argument("--semantic-segformer-hz", type=float, default=5.0)

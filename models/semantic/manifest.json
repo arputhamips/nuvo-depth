@@ -16,7 +16,7 @@
       "artifact_bytes": 28905575,
       "sha256": "17270a35bcf3e27a8dcd1dfae8d328a31318bb7c5b7c7a725392b83d008642c6",
       "provenance": "currently validated robot artifact",
-      "installed_path": "/home/cam/nuvo-base/data/models/hailo/front_semantic.hef",
+      "installed_path": "/var/lib/nuvo-depthd/current/models/hailo/front_semantic.hef",
       "target_hz": 5,
       "class_mapping": {
         "person": "human",
@@ -38,6 +38,7 @@
       "expected_artifact_bytes": 16738258,
       "sha256": "2093951835BAFDB0585F93E3EDDFB13FAC2AA926C45475CCEDABE5B2DAA7A674",
       "verification_status": "verified",
+      "installed_path": "/var/lib/nuvo-depthd/current/models/hailo/segformer_b0_bn.hef",
       "target_hz": 5,
       "class_mapping": {
         "person": "human",

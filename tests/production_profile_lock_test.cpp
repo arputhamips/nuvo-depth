@@ -93,8 +93,8 @@ int main() {
            "line: 17", "pulse_width_us: 8000", "pair_tolerance_us: 500",
            "max_shutter_us: 8000", "max_analogue_gain: 3.0",
            "backend: cpu_opencv", "fallback_backend: cpu_opencv",
-           "left_calibration: calibration/nuvo_reference/front_right.yaml",
-           "right_calibration: calibration/nuvo_reference/front_left.yaml",
+           "left_calibration: /var/lib/nuvo-depthd/current/config/calibration/nuvo_reference/front_right.yaml",
+           "right_calibration: /var/lib/nuvo-depthd/current/config/calibration/nuvo_reference/front_left.yaml",
            "depth_preprocessing: grayscale_before_rectification",
            "backend: cpu_sgbm", "max_disparity: 128",
            "working_width: 364", "working_height: 272",
@@ -105,7 +105,10 @@ int main() {
            "compressed_image_hz: 2", "jpeg_quality: 75",
            "result_ring_path: /run/depthd/results.ring",
            "result_ring_slots: 4", "obstacle_cloud_enabled: true",
-           "obstacle_cloud_topic: /camera/front/obstacles"})) {
+           "obstacle_cloud_topic: /camera/front/obstacles",
+           "hef_path: /var/lib/nuvo-depthd/current/models/hailo/front_semantic.hef",
+           "hef_path: /var/lib/nuvo-depthd/current/models/hailo/segformer_b0_bn.hef",
+           "queue_policy: latest_only", "target_hz: 5"})) {
     return 3;
   }
 

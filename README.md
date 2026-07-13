@@ -42,6 +42,9 @@ The [semantic model comparison](docs/semantic-model-candidates.md) records the
 off-road GOOSE experiment and longer-term model path. The pinned workstation
 compiler is documented in the
 [Hailo WSL toolchain guide](docs/hailo-toolchain-wsl.md).
+Host packaging, daemon-owned model/calibration provisioning, systemd startup,
+and atomic rollback are documented in the
+[production deployment guide](deployment/README.md).
 
 Image rectification has its own backend registry, separate from stereo
 matching. The production `cpu_opencv` implementation is documented in the

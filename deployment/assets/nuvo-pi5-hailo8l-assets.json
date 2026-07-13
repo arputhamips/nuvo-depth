@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "release_id": "nuvo-pi5-hailo8l-assets-20260713",
+  "target": {
+    "board": "raspberry-pi-5",
+    "accelerator": "hailo-8l",
+    "camera_rig": "dual-innomaker-imx296-trigger"
+  },
+  "files": [
+    {
+      "source_group": "artifact",
+      "source": "models/hailo/front_semantic.hef",
+      "destination": "models/hailo/front_semantic.hef",
+      "bytes": 28905575,
+      "sha256": "17270a35bcf3e27a8dcd1dfae8d328a31318bb7c5b7c7a725392b83d008642c6"
+    },
+    {
+      "source_group": "artifact",
+      "source": "models/hailo/segformer_b0_bn.hef",
+      "destination": "models/hailo/segformer_b0_bn.hef",
+      "bytes": 16738258,
+      "sha256": "2093951835bafdb0585f93e3eddfb13fac2aa926c45475ccedabe5b2daa7a674"
+    },
+    {
+      "source_group": "artifact",
+      "source": "models/hailo/coco80.labels",
+      "destination": "models/hailo/coco80.labels",
+      "bytes": 621,
+      "sha256": "bd17f1ee35d5f3c862a4894605855abbb9dda4b0621fdb0ac4c2c8c7bb7e730a"
+    },
+    {
+      "source_group": "package",
+      "source": "config/nuvo_pi5_hailo8l.yaml",
+      "destination": "config/nuvo_pi5_hailo8l.yaml",
+      "bytes": 4692,
+      "sha256": "ac0429651239b290bee32549c1473f8b29f8e8c1ccb91b8fc94e05b617e15819"
+    },
+    {
+      "source_group": "package",
+      "source": "config/calibration/nuvo_reference/front_left.yaml",
+      "destination": "config/calibration/nuvo_reference/front_left.yaml",
+      "bytes": 686,
+      "sha256": "56a6c9cccde5f2e031986387cebc3582e2e272243053e597c553e100ec1c79f4"
+    },
+    {
+      "source_group": "package",
+      "source": "config/calibration/nuvo_reference/front_right.yaml",
+      "destination": "config/calibration/nuvo_reference/front_right.yaml",
+      "bytes": 701,
+      "sha256": "ae055b315051792bd638e4ba3ce972e97d014f07506655dcd6f2250c8316ea72"
+    }
+  ]
+}

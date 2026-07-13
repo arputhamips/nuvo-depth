@@ -82,9 +82,13 @@ verified HEFs:
 --semantic \
 --semantic-ring /run/depthd/semantic.ring \
 --semantic-runtime-library ./build/libdepthd_native_semantic.so \
---semantic-yolo-hef /home/cam/nuvo-base/data/models/hailo/front_semantic.hef \
---semantic-segformer-hef /home/cam/nuvo-base/data/models/hailo/segformer_b0_bn.hef
+--semantic-yolo-hef /var/lib/nuvo-depthd/current/models/hailo/front_semantic.hef \
+--semantic-segformer-hef /var/lib/nuvo-depthd/current/models/hailo/segformer_b0_bn.hef
 ```
+
+Production assets are installed and verified by `depthd-assets`; see the
+[deployment guide](../../deployment/README.md). ROS deployment never provisions
+these files.
 
 Build the Pi runtime against its installed HailoRT development package:
 

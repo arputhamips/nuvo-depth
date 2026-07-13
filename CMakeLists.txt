@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 project(depth_daemon VERSION 0.1.0 LANGUAGES CXX)
 
 include(CTest)
+include(GNUInstallDirs)
 option(DEPTHD_WITH_OPENCV "Build the OpenCV CPU processing backends" ON)
 option(DEPTHD_WITH_HAILORT_SEMANTICS
   "Build the native HailoRT semantic inference backend" OFF)
@@ -267,7 +268,62 @@ if(DEPTHD_WITH_HAILORT_SEMANTICS)
     "Native HailoRT semantics enabled: ${DEPTHD_HAILORT_LIBRARY}")
 endif()
 
+# This is a private runtime directory, not an ABI-dependent public library
+# location. Keep it stable across arm64 and build hosts so the unit never needs
+# a CMake multiarch triplet.
+set(DEPTHD_LIBEXEC_DIR "lib/nuvo-depthd")
+
+install(TARGETS depthd_native_output depthd_native_semantic
+  LIBRARY DESTINATION "${DEPTHD_LIBEXEC_DIR}"
+  RUNTIME DESTINATION "${DEPTHD_LIBEXEC_DIR}"
+)
+install(PROGRAMS
+  tools/pi/profile_async_zero_copy_pipeline.py
+  tools/pi/async_stereo_capture.py
+  tools/pi/capture_rectified_pair.py
+  tools/pi/profile_cpu_pipeline.py
+  tools/pi/stereo_auto_exposure.py
+  tools/pi/depthd_native_output.py
+  tools/pi/depthd_native_semantic.py
+  DESTINATION "${DEPTHD_LIBEXEC_DIR}"
+)
+install(PROGRAMS deployment/depthd_assets.py
+  DESTINATION "${CMAKE_INSTALL_SBINDIR}"
+  RENAME depthd-assets
+)
+install(FILES
+  config/nuvo_pi5_hailo8l.yaml
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depthd/runtime-seed/config"
+)
+install(FILES
+  config/calibration/nuvo_reference/front_left.yaml
+  config/calibration/nuvo_reference/front_right.yaml
+  DESTINATION
+    "${CMAKE_INSTALL_DATADIR}/nuvo-depthd/runtime-seed/config/calibration/nuvo_reference"
+)
+install(FILES deployment/assets/nuvo-pi5-hailo8l-assets.json
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depthd/runtime-seed"
+)
+install(FILES deployment/systemd/nuvo-depthd.service
+  DESTINATION "lib/systemd/system"
+)
+install(FILES deployment/systemd/nuvo-depthd.tmpfiles.conf
+  DESTINATION "lib/tmpfiles.d"
+)
+install(FILES deployment/README.md
+  DESTINATION "share/doc/nuvo-depthd"
+  RENAME deployment.md
+)
+
 if(BUILD_TESTING)
+  find_package(Python3 COMPONENTS Interpreter QUIET)
+  if(Python3_Interpreter_FOUND)
+    add_test(NAME depthd_assets_test
+      COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/depthd_assets_test.py
+    )
+  endif()
+
   add_executable(depthd_contract_test tests/contract_test.cpp)
   target_link_libraries(depthd_contract_test PRIVATE depthd::contract)
   add_test(NAME depthd_contract_test COMMAND depthd_contract_test)
@@ -412,3 +468,28 @@ if(BUILD_TESTING)
     add_test(NAME depthd_cpu_sgbm_test COMMAND depthd_cpu_sgbm_test)
   endif()
 endif()
+
+set(CPACK_GENERATOR "DEB")
+set(CPACK_PACKAGE_NAME "nuvo-depthd")
+set(CPACK_PACKAGE_CONTACT "Meridian Robotics")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Meridian Robotics")
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+set(DEPTHD_PACKAGE_REVISION "" CACHE STRING
+  "Clean Git revision embedded in the Debian package version")
+if(DEPTHD_PACKAGE_REVISION)
+  string(LENGTH "${DEPTHD_PACKAGE_REVISION}" DEPTHD_PACKAGE_REVISION_LENGTH)
+  if(NOT DEPTHD_PACKAGE_REVISION MATCHES "^[0-9a-f]+$" OR
+     DEPTHD_PACKAGE_REVISION_LENGTH LESS 7 OR
+     DEPTHD_PACKAGE_REVISION_LENGTH GREATER 40)
+    message(FATAL_ERROR "DEPTHD_PACKAGE_REVISION must be a lowercase Git SHA")
+  endif()
+  set(CPACK_PACKAGE_VERSION
+    "${PROJECT_VERSION}+git${DEPTHD_PACKAGE_REVISION}")
+endif()
+set(CPACK_DEBIAN_PACKAGE_DEPENDS
+  "python3, python3-numpy, python3-opencv, python3-yaml, python3-picamera2, hailort (>= 4.23.0), hailort-pcie-driver"
+)
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
+  "Native stereo depth and Hailo semantic perception daemon for Nuvo"
+)
+include(CPack)

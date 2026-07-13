@@ -1,0 +1,78 @@
+[Unit]
+Description=Nuvo native stereo and semantic Depth Daemon
+Documentation=file:///usr/share/doc/nuvo-depthd/deployment.md
+After=local-fs.target hailort.service
+Requires=hailort.service
+Before=docker.service
+
+[Service]
+Type=exec
+User=cam
+Group=cam
+WorkingDirectory=/usr/lib/nuvo-depthd
+RuntimeDirectory=depthd
+RuntimeDirectoryMode=0755
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/usr/sbin/depthd-assets preflight
+ExecStartPre=/usr/bin/rm -f /run/depthd/results.ring /run/depthd/semantic.ring
+ExecStart=/usr/bin/python3 /usr/lib/nuvo-depthd/profile_async_zero_copy_pipeline.py \
+  --left-calibration /var/lib/nuvo-depthd/current/config/calibration/nuvo_reference/front_right.yaml \
+  --right-calibration /var/lib/nuvo-depthd/current/config/calibration/nuvo_reference/front_left.yaml \
+  --output-dir /var/lib/nuvo-depthd/output \
+  --left-camera-index 1 \
+  --right-camera-index 0 \
+  --frames 2147483647 \
+  --warmup-frames 6 \
+  --fps 10.0 \
+  --jpeg-hz 2.0 \
+  --jpeg-quality 75 \
+  --trigger-low-ms 8.0 \
+  --analogue-gain 2.0 \
+  --colour-gains 2.4771 2.3425 \
+  --auto-exposure \
+  --ae-target-median 75 \
+  --ae-median-low 65 \
+  --ae-median-high 85 \
+  --ae-min-shutter-us 250 \
+  --ae-max-shutter-us 8000 \
+  --ae-max-gain 3.0 \
+  --ae-update-interval 2 \
+  --ae-settle-frames 4 \
+  --ae-max-clipped-fraction 0.005 \
+  --pair-tolerance-us 500.0 \
+  --working-width 364 \
+  --working-height 272 \
+  --min-disparity 0 \
+  --working-disparities 64 \
+  --full-disparity-limit 128.0 \
+  --block-size 5 \
+  --uniqueness-ratio 1 \
+  --speckle-window-size 30 \
+  --speckle-range 2 \
+  --disp12-max-diff 1 \
+  --gpiochip /dev/gpiochip0 \
+  --line 17 \
+  --result-ring /run/depthd/results.ring \
+  --native-output-library /usr/lib/nuvo-depthd/libdepthd_native_output.so \
+  --semantic \
+  --semantic-ring /run/depthd/semantic.ring \
+  --semantic-runtime-library /usr/lib/nuvo-depthd/libdepthd_native_semantic.so \
+  --semantic-yolo-hef /var/lib/nuvo-depthd/current/models/hailo/front_semantic.hef \
+  --semantic-segformer-hef /var/lib/nuvo-depthd/current/models/hailo/segformer_b0_bn.hef \
+  --semantic-yolo-hz 5 \
+  --semantic-segformer-hz 5
+ExecStartPost=/bin/bash -c "for i in $(seq 1 200); do test -s /run/depthd/results.ring -a -s /run/depthd/semantic.ring && exit 0; sleep 0.1; done; exit 1"
+Restart=on-failure
+RestartSec=2
+KillSignal=SIGINT
+TimeoutStartSec=30
+TimeoutStopSec=20
+UMask=0022
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/run/depthd /var/lib/nuvo-depthd/output
+
+[Install]
+WantedBy=multi-user.target
