@@ -138,16 +138,43 @@ def main() -> None:
     parser.add_argument("--right-camera-index", type=int, default=0)
     parser.add_argument("--gpiochip", default="/dev/gpiochip0")
     parser.add_argument("--line", type=int, default=17)
+    parser.add_argument("--frequency-hz", type=float, default=10.0)
+    parser.add_argument("--trigger-low-ms", type=float, default=3.0)
+    parser.add_argument("--analogue-gain", type=float, default=1.5)
+    parser.add_argument(
+        "--colour-gains",
+        type=float,
+        nargs=2,
+        metavar=("RED", "BLUE"),
+        help="fixed common red/blue gains; setting them disables AWB",
+    )
     parser.add_argument("--trigger-start-delay", type=float, default=0.0)
+    parser.add_argument("--settle-seconds", type=float, default=0.5)
     parser.add_argument("--pair-candidates", type=int, default=8)
     args = parser.parse_args()
+    if args.frequency_hz <= 0.0:
+        parser.error("frequency must be positive")
+    frame_duration_us = round(1_000_000.0 / args.frequency_hz)
+    exposure_us = round(args.trigger_low_ms * 1000.0)
+    if exposure_us <= 0 or exposure_us >= frame_duration_us:
+        parser.error("trigger low pulse must be inside one frame period")
+    if args.analogue_gain < 1.0:
+        parser.error("analogue gain must be at least 1.0")
+    if args.settle_seconds < 0.0 or args.pair_candidates < 1:
+        parser.error("settle time and pair candidate count are invalid")
+    if args.colour_gains is not None and any(
+        gain <= 0.0 for gain in args.colour_gains
+    ):
+        parser.error("colour gains must be positive")
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     controls = {
-        "FrameDurationLimits": (100000, 100000),
-        "ExposureTime": 3000,
-        "AnalogueGain": 1.5,
+        "FrameDurationLimits": (frame_duration_us, frame_duration_us),
+        "ExposureTime": exposure_us,
+        "AnalogueGain": args.analogue_gain,
     }
+    if args.colour_gains is not None:
+        controls["ColourGains"] = tuple(args.colour_gains)
     transform = Transform(hflip=1, vflip=1)
     if args.left_camera_index == args.right_camera_index:
         parser.error("left and right camera indices must differ")
@@ -166,7 +193,16 @@ def main() -> None:
 
     trigger = TriggerLine(args.gpiochip, args.line)
     stop = threading.Event()
-    thread = threading.Thread(target=pulse_loop, args=(trigger, stop), daemon=True)
+    thread = threading.Thread(
+        target=pulse_loop,
+        args=(
+            trigger,
+            stop,
+            args.frequency_hz,
+            args.trigger_low_ms / 1000.0,
+        ),
+        daemon=True,
+    )
     trigger_started = False
     try:
         for camera in cameras:
@@ -174,7 +210,7 @@ def main() -> None:
         time.sleep(args.trigger_start_delay)
         thread.start()
         trigger_started = True
-        time.sleep(0.5)
+        time.sleep(args.settle_seconds)
 
         def capture_candidates(camera: Picamera2) -> list[tuple[np.ndarray, dict[str, Any]]]:
             candidates = []
@@ -226,6 +262,12 @@ def main() -> None:
         "left_camera_index": args.left_camera_index,
         "right_camera_index": args.right_camera_index,
         "pixel_memory_order": "BGR",
+        "frequency_hz": args.frequency_hz,
+        "trigger_low_us": exposure_us,
+        "nominal_external_exposure_us": exposure_us + 14.26,
+        "requested_exposure_us": exposure_us,
+        "requested_analogue_gain": args.analogue_gain,
+        "requested_colour_gains": args.colour_gains,
         "left_metadata": metadata[0],
         "right_metadata": metadata[1],
         "sensor_timestamp_delta_ns": abs(

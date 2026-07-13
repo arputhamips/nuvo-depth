@@ -20,7 +20,9 @@ Ctrl+C; the camera must be released before starting capture or the depth daemon.
    RGB888 with 180-degree orientation, enables `SyncMode=2`, pulses GPIO 17 at
    10 Hz, captures one pair, and applies the Nuvo stereo calibration. It saves
    both oriented raw frames and rectified frames so camera/calibration mapping
-   errors can be diagnosed independently.
+   errors can be diagnosed independently. `--trigger-low-ms`,
+   `--analogue-gain`, and `--colour-gains RED BLUE` support repeatable exposure
+   sweeps while keeping the two cameras photometrically locked.
 2. `validate_hef.py` adapts the rectified pair to the HEF input geometry, runs
    either a one-output or split two-output model, restores 728 x 544 calibrated
    disparity, derives metric depth, and reports device and host-postprocess
