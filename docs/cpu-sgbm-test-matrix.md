@@ -31,6 +31,9 @@ does reach the 6 Hz lower bound. See
 [cpu-sgbm-native-min8-max128.md](cpu-sgbm-native-min8-max128.md) for its detail,
 latency, CPU, and frame-replacement tradeoffs.
 
+The current auto-exposed 80, 96, and 128-bin half-resolution comparison is in
+[cpu-sgbm-half-resolution-range-sweep.md](cpu-sgbm-half-resolution-range-sweep.md).
+
 ## Depth consistency
 
 | Region | Test 1 | Test 2 | Test 3 |
