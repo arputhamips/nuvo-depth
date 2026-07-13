@@ -107,6 +107,21 @@ if(BUILD_TESTING)
   endif()
 
   if(TARGET depthd_cpu_sgbm)
+    add_executable(depthd_production_profile_lock_test
+      tests/production_profile_lock_test.cpp
+    )
+    target_compile_features(depthd_production_profile_lock_test PRIVATE cxx_std_20)
+    target_compile_definitions(depthd_production_profile_lock_test PRIVATE
+      DEPTHD_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    target_link_libraries(depthd_production_profile_lock_test PRIVATE
+      depthd::cpu_sgbm
+    )
+    depthd_enable_warnings(depthd_production_profile_lock_test)
+    add_test(NAME depthd_production_profile_lock_test
+      COMMAND depthd_production_profile_lock_test
+    )
+
     add_executable(depthd_cpu_sgbm_test tests/cpu_sgbm_test.cpp)
     target_compile_features(depthd_cpu_sgbm_test PRIVATE cxx_std_20)
     target_include_directories(depthd_cpu_sgbm_test SYSTEM PRIVATE ${OpenCV_INCLUDE_DIRS})
