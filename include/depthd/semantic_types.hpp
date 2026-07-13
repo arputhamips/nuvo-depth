@@ -73,10 +73,16 @@ struct SemanticFrame {
   std::int64_t capture_realtime_ns{};
   std::int64_t submitted_steady_ns{};
   std::shared_ptr<const std::vector<std::uint8_t>> left_rectified_bgr{};
+  // Native callers can retain arbitrary image/disparity storage through one
+  // lease instead of copying it into std::vector. Vector-backed callers remain
+  // supported for tests and non-FFI integrations.
+  std::shared_ptr<const void> buffer_lease{};
+  const std::uint8_t* left_rectified_bgr_data{};
   std::uint32_t width{};
   std::uint32_t height{};
   std::size_t color_stride_bytes{};
   std::shared_ptr<const std::vector<float>> disparity{};
+  const float* disparity_data{};
   std::size_t disparity_stride_elements{};
   std::uint32_t valid_window_x{};
   std::uint32_t valid_window_y{};

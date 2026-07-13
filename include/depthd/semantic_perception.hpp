@@ -29,12 +29,16 @@ struct SemanticPerceptionStats {
   std::uint64_t worker_errors{};
   double last_frame_latency_ms{};
   double max_frame_latency_ms{};
+  bool pending_frame{};
   std::vector<SemanticBackendStats> backends{};
 };
 
 struct SemanticPerceptionConfig {
   SemanticFusionConfig fusion{};
-  std::function<void(const SemanticFrameResult&)> result_callback{};
+  std::function<std::shared_ptr<const std::vector<std::uint8_t>>(
+      const SemanticImageView&)> preview_encoder{};
+  std::function<void(const SemanticFrameResult&,
+                     const SemanticPerceptionStats&)> result_callback{};
 };
 
 class SemanticPerceptionModule {
@@ -49,6 +53,8 @@ class SemanticPerceptionModule {
 
   // Capacity-one latest-only handoff. This never waits for inference.
   [[nodiscard]] bool submit(SemanticFrame frame) noexcept;
+  [[nodiscard]] bool wants_frame(std::int64_t schedule_steady_ns) const
+      noexcept;
   [[nodiscard]] SemanticPerceptionStats stats() const;
   [[nodiscard]] std::optional<SemanticFrameResult> latest_result() const;
   [[nodiscard]] bool wait_for_result_after(

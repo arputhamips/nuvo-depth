@@ -3,6 +3,8 @@ project(depth_daemon VERSION 0.1.0 LANGUAGES CXX)
 
 include(CTest)
 option(DEPTHD_WITH_OPENCV "Build the OpenCV CPU processing backends" ON)
+option(DEPTHD_WITH_HAILORT_SEMANTICS
+  "Build the native HailoRT semantic inference backend" OFF)
 
 function(depthd_enable_warnings target)
   if(MSVC)
@@ -57,6 +59,10 @@ add_library(depthd_native_output SHARED
 
 add_library(depthd_semantic_output SHARED
   src/semantic_output_c.cpp
+)
+
+add_library(depthd_native_semantic SHARED
+  src/native_semantic_runtime.cpp
 )
 
 target_include_directories(depthd_contract
@@ -164,6 +170,20 @@ target_link_libraries(depthd_semantic_output PRIVATE
 )
 depthd_enable_warnings(depthd_semantic_output)
 
+target_include_directories(depthd_native_semantic
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_compile_features(depthd_native_semantic PUBLIC cxx_std_20)
+target_compile_definitions(depthd_native_semantic PRIVATE
+  DEPTHD_NATIVE_SEMANTIC_BUILD
+)
+target_link_libraries(depthd_native_semantic PRIVATE
+  depthd::semantic_core depthd::semantic_ring depthd::native_output_core
+)
+depthd_enable_warnings(depthd_native_semantic)
+
 add_executable(depthd_obstacle_cloud_benchmark
   tools/obstacle_cloud_benchmark.cpp
 )
@@ -217,6 +237,34 @@ if(DEPTHD_WITH_OPENCV)
   else()
     message(STATUS "OpenCV not found; skipping the CPU SGBM backend")
   endif()
+endif()
+
+if(DEPTHD_WITH_HAILORT_SEMANTICS)
+  if(NOT OpenCV_FOUND)
+    message(FATAL_ERROR
+      "DEPTHD_WITH_HAILORT_SEMANTICS requires OpenCV core/imgproc/imgcodecs")
+  endif()
+  find_path(DEPTHD_HAILORT_INCLUDE_DIR hailo/hailort.hpp)
+  find_library(DEPTHD_HAILORT_LIBRARY NAMES hailort
+    PATHS /lib /usr/lib /usr/lib/aarch64-linux-gnu)
+  if(NOT DEPTHD_HAILORT_INCLUDE_DIR OR NOT DEPTHD_HAILORT_LIBRARY)
+    message(FATAL_ERROR
+      "HailoRT headers/library not found; install the matching HailoRT dev package")
+  endif()
+  target_sources(depthd_native_semantic PRIVATE
+    src/hailort_semantic_backend.cpp
+  )
+  target_compile_definitions(depthd_native_semantic PRIVATE
+    DEPTHD_WITH_HAILORT_SEMANTICS=1
+  )
+  target_include_directories(depthd_native_semantic SYSTEM PRIVATE
+    ${OpenCV_INCLUDE_DIRS} ${DEPTHD_HAILORT_INCLUDE_DIR}
+  )
+  target_link_libraries(depthd_native_semantic PRIVATE
+    ${OpenCV_LIBS} ${DEPTHD_HAILORT_LIBRARY}
+  )
+  message(STATUS
+    "Native HailoRT semantics enabled: ${DEPTHD_HAILORT_LIBRARY}")
 endif()
 
 if(BUILD_TESTING)

@@ -34,7 +34,9 @@ Sources: [Hailo-8L detection models](https://raw.githubusercontent.com/hailo-ai/
 [Hailo-8L semantic models](https://raw.githubusercontent.com/hailo-ai/hailo_model_zoo/v2.17/docs/public_models/HAILO8L/HAILO8L_semantic_segmentation.rst).
 
 YOLO is filtered immediately to person, dog, cat, and bird. SegFormer keeps
-wall, fence, vegetation, terrain, person, and rider. Its Cityscapes domain is
+only wall, fence, vegetation, and terrain; its Cityscapes person/rider labels
+are deliberately discarded because living-obstacle safety belongs to the
+instance detector. Its Cityscapes domain is
 urban and its dataset/model redistribution terms require review; Cityscapes
 prohibits commercial use without permission. See the
 [Cityscapes license](https://www.cityscapes-dataset.com/license/).
@@ -111,3 +113,14 @@ heads. Sources: [Panoptic-DeepLab](https://research.google/pubs/panoptic-deeplab
 Geometry remains authoritative for every model: semantics may add a safety
 restriction or label an obstacle, but it never removes a stereo obstacle or
 marks unknown geometry safe.
+
+## Native Pi baseline
+
+The initial YOLOv8s + SegFormer-B0 pair now runs in the native semantic worker
+behind the capacity-one pointer/lease seam. A 60-second physical Pi 5 +
+Hailo-8L gate preserved the locked CPU SGBM profile at 9.999 Hz while both
+models were enabled at their 5 Hz configured cadence. The combined process used
+13.89% normalized four-core CPU; semantic submission was 0.103 ms median and
+0.132 ms maximum. There were no camera-pair drops, pending-frame replacements,
+semantic errors, or outstanding leases. Preview remained disabled for the
+production measurement.

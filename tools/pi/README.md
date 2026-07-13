@@ -68,9 +68,11 @@ leaving its default path unchanged. Build `libdepthd_native_output.so` and add:
 ```
 
 Add `--publish-left-mono-to-ring` only for an explicit grayscale diagnostic
-consumer. Native semantics uses the owned full-color rectification. Disparity, CameraInfo metadata, and
-the compact `base_link` cloud are present on every native result; JPEG is
-present only on its existing 2 Hz schedule.
+consumer. Native semantics branches from the owned full-resolution rectified
+BGR frame before SGBM; it never consumes rectified grayscale or the 2 Hz JPEG.
+SGBM continues independently on rectified grayscale. Disparity, CameraInfo
+metadata, and the compact `base_link` cloud are present on every native result;
+JPEG is present only on its existing 2 Hz schedule.
 
 Native semantic perception is separately gated and remains off unless
 `--semantic` is supplied. It requires both the native result ring and the two
@@ -79,15 +81,32 @@ verified HEFs:
 ```bash
 --semantic \
 --semantic-ring /run/depthd/semantic.ring \
---semantic-output-library ./build/libdepthd_semantic_output.so \
+--semantic-runtime-library ./build/libdepthd_native_semantic.so \
 --semantic-yolo-hef /home/cam/nuvo-base/data/models/hailo/front_semantic.hef \
 --semantic-segformer-hef /home/cam/nuvo-base/data/models/hailo/segformer_b0_bn.hef
 ```
 
-The same owned color remap feeds JPEG and the latest-only semantic worker.
-BGR-to-RGB conversion happens only after resizing to model input. The Hailo
-VDevice, configured network groups, and VStreams persist for the process
-lifetime, with one owner serializing both networks. Raw masks never enter mmap.
+Build the Pi runtime against its installed HailoRT development package:
+
+```bash
+cmake -S . -B build \
+  -DDEPTHD_WITH_HAILORT_SEMANTICS=ON \
+  -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+```
+
+Python retains only a capacity-one lease containing the existing NumPy color
+and disparity owners. A short `ctypes` call passes their pointers to C++; it
+does not copy either full-resolution buffer. Replaced and completed leases are
+released exactly once. Resize and BGR-to-RGB conversion happen only in
+model-sized native staging buffers. One persistent Hailo `VDevice`, two
+persistent configured `InferModel` bindings, native post-processing, same-frame
+depth fusion, and `semantic.ring` publication all live behind that seam. The
+worker serializes the two models on the single Hailo-8L, and raw masks never
+enter mmap.
+
+`--semantic-preview` optionally adds a diagnostic JPEG to `semantic.ring`; it
+is disabled by default and does not change the normal 2 Hz ROS JPEG product.
 
 The legacy ROS camera/depth stack must be stopped before the native profiler so
 the cameras have one owner. The small read-only ROS bridge and its validator do

@@ -843,8 +843,6 @@ _CITYSCAPES_MAPPING = {
     4: ("fence", CLASS_FENCE),
     8: ("vegetation", CLASS_VEGETATION),
     9: ("terrain", CLASS_TERRAIN),
-    11: ("person", CLASS_HUMAN),
-    12: ("rider", CLASS_HUMAN),
 }
 
 

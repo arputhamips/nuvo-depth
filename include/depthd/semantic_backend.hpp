@@ -15,12 +15,20 @@ struct SemanticBackendInfo {
   SemanticSourceKind output_kind{SemanticSourceKind::kInstance};
 };
 
+struct SemanticBackendTiming {
+  double inference_latency_ms{};
+  double postprocess_latency_ms{};
+};
+
 class ISemanticBackend {
  public:
   virtual ~ISemanticBackend() = default;
   [[nodiscard]] virtual SemanticBackendInfo info() const = 0;
   [[nodiscard]] virtual SemanticBackendOutput infer(
       const SemanticImageView& image) = 0;
+  [[nodiscard]] virtual SemanticBackendTiming last_timing() const noexcept {
+    return {};
+  }
 };
 
 struct SemanticBackendRegistration {

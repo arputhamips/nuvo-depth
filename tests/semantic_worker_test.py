@@ -18,6 +18,7 @@ from depthd_semantic import (
     CLASS_VEGETATION,
     Observation,
     HailoSemanticOwner,
+    HailoSegformerBackend,
     HailoYoloBackend,
     SemanticWorker,
     SOURCE_DENSE_REGION,
@@ -243,6 +244,22 @@ def main() -> None:
     assert len(parsed) == 2
     assert np.allclose(parsed[0].box, (145.6, 54.4, 509.6, 272.0))
     assert parsed[1].box == (20.0, 10.0, 70.0, 50.0)
+
+    class FakeSegformerOwner:
+        def infer(self, _name: str, _image: np.ndarray) -> dict[str, np.ndarray]:
+            mask = np.zeros((512, 1024), dtype=np.uint8)
+            mask[0:20, 0:20] = 11  # person: owned by the instance detector
+            mask[30:50, 0:20] = 12  # rider: owned by the instance detector
+            mask[60:80, 0:20] = 8  # vegetation: dense "stuff"
+            return {"mask": mask}
+
+        def close(self) -> None:
+            return None
+
+    segformer_backend = HailoSegformerBackend(FakeSegformerOwner())
+    dense_regions = segformer_backend.infer(parser_image)
+    assert [item.model_label for item in dense_regions] == ["vegetation"]
+    assert all(item.semantic_class != CLASS_HUMAN for item in dense_regions)
 
     fake_hailo = FakeHailoModule()
     previous_hailo = sys.modules.get("hailo_platform")

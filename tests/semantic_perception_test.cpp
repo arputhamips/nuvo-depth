@@ -111,9 +111,35 @@ depthd::SemanticFrame frame(const std::uint64_t sequence,
   return value;
 }
 
+struct BorrowedStorage {
+  explicit BorrowedStorage(std::shared_ptr<std::atomic<std::uint64_t>> released)
+      : released_count(std::move(released)), color(16U * 12U * 3U, 80U),
+        disparity(16U * 12U, 10.0F) {}
+  ~BorrowedStorage() { ++*released_count; }
+
+  std::shared_ptr<std::atomic<std::uint64_t>> released_count;
+  std::vector<std::uint8_t> color;
+  std::vector<float> disparity;
+};
+
+depthd::SemanticFrame borrowed_frame(
+    const std::uint64_t sequence, const std::int64_t schedule_ns,
+    const std::shared_ptr<std::atomic<std::uint64_t>>& released) {
+  auto value = frame(sequence, schedule_ns);
+  value.left_rectified_bgr.reset();
+  value.disparity.reset();
+  auto storage = std::make_shared<BorrowedStorage>(released);
+  value.left_rectified_bgr_data = storage->color.data();
+  value.disparity_data = storage->disparity.data();
+  value.buffer_lease = std::move(storage);
+  return value;
+}
+
 }  // namespace
 
 int main() {
+  auto released_borrowed_frames =
+      std::make_shared<std::atomic<std::uint64_t>>();
   {
     auto fast = std::make_shared<BackendControl>();
     auto slow_cadence = std::make_shared<BackendControl>();
@@ -177,10 +203,15 @@ int main() {
       std::unique_lock lock(blocked->mutex);
       blocked->condition.wait_for(lock, 1s, [&] { return blocked->entered; });
     }
-    expect(module.submit(frame(11U, 2'020'000'000LL)) &&
-               module.submit(frame(12U, 2'040'000'000LL)) &&
-               module.submit(frame(13U, 2'060'000'000LL)),
+    expect(module.submit(borrowed_frame(11U, 2'020'000'000LL,
+                                        released_borrowed_frames)) &&
+               module.submit(borrowed_frame(12U, 2'040'000'000LL,
+                                            released_borrowed_frames)) &&
+               module.submit(borrowed_frame(13U, 2'060'000'000LL,
+                                            released_borrowed_frames)),
            "depth-side submits remain nonblocking during inference");
+    expect(released_borrowed_frames->load() >= 2U,
+           "replaced borrowed frames release their pointer leases promptly");
     {
       std::lock_guard lock(blocked->mutex);
       blocked->release = true;
@@ -195,6 +226,8 @@ int main() {
     expect(module.stats().replaced_pending_frames >= 2U,
            "replaced frames are counted explicitly");
   }
+  expect(released_borrowed_frames->load() == 3U,
+         "every accepted borrowed frame lease is released exactly once");
 
   return failures == 0 ? 0 : 1;
 }

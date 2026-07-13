@@ -121,9 +121,11 @@ def main() -> None:
         default=Path("/run/depthd/semantic.ring"),
     )
     parser.add_argument(
+        "--semantic-runtime-library",
         "--semantic-output-library",
+        dest="semantic_runtime_library",
         type=Path,
-        help="path to libdepthd_semantic_output.so",
+        help="path to libdepthd_native_semantic.so",
     )
     parser.add_argument(
         "--semantic-yolo-hef",
@@ -238,31 +240,19 @@ def main() -> None:
         )
         sensor_to_realtime_ns = sensor_monotonic_to_realtime_ns
     if args.semantic:
-        from depthd_semantic import (
-            SemanticOutputPublisher,
-            SemanticWorker,
-            make_hailo_backends,
-        )
+        from depthd_native_semantic import NativeSemanticWorker
 
         try:
-            registrations, hailo_owner = make_hailo_backends(
-                args.semantic_yolo_hef,
-                args.semantic_segformer_hef,
+            semantic_worker = NativeSemanticWorker(
+                semantic_ring=args.semantic_ring,
+                yolo_hef=args.semantic_yolo_hef,
+                segformer_hef=args.semantic_segformer_hef,
                 yolo_hz=args.semantic_yolo_hz,
                 segformer_hz=args.semantic_segformer_hz,
-            )
-            semantic_output = SemanticOutputPublisher(
-                args.semantic_ring,
-                args.semantic_output_library,
-            )
-            semantic_worker = SemanticWorker(
-                registrations,
-                semantic_output,
                 preview_enabled=args.semantic_preview,
+                runtime_library=args.semantic_runtime_library,
             )
         except Exception:
-            if "hailo_owner" in locals():
-                hailo_owner.close()
             if native_output is not None:
                 native_output.close()
             raise
@@ -601,7 +591,11 @@ def main() -> None:
             "pair_tolerance_us": args.pair_tolerance_us,
             "camera_input_copy_count": 0,
             "depth_rectification_input": "grayscale",
-            "color_rectification_hz": args.jpeg_hz,
+            "color_rectification_hz": max(
+                args.jpeg_hz,
+                args.semantic_yolo_hz if args.semantic else 0.0,
+                args.semantic_segformer_hz if args.semantic else 0.0,
+            ),
             "metric_depth_enabled": args.metric_depth,
             "block_size": args.block_size,
             "uniqueness_ratio": args.uniqueness_ratio,
@@ -614,6 +608,7 @@ def main() -> None:
             ),
             "native_result_ring_left_mono": args.publish_left_mono_to_ring,
             "semantic_enabled": args.semantic,
+            "semantic_runtime": "native_hailort_cpp" if args.semantic else None,
             "semantic_ring_path": str(args.semantic_ring) if args.semantic else None,
             "semantic_yolo_hz": args.semantic_yolo_hz,
             "semantic_segformer_hz": args.semantic_segformer_hz,

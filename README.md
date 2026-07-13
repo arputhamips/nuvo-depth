@@ -69,6 +69,13 @@ Semantic output uses a second ABI at `/run/depthd/semantic.ring`, defined in
 `include/depthd/ipc/semantic_ring_layout.hpp`. It never changes the locked depth
 ring and carries no raw segmentation mask by default.
 
+The optional Pi semantic runtime is `libdepthd_native_semantic.so`. It branches
+from the full-resolution rectified color owner before CPU SGBM, keeps only a
+capacity-one latest frame, and runs persistent serialized Hailo models plus
+post-processing and same-frame depth fusion outside the Python GIL. Enable its
+conditional build with `-DDEPTHD_WITH_HAILORT_SEMANTICS=ON`; normal workstation
+builds and tests do not require HailoRT.
+
 ## Build the current contract test
 
 ```bash

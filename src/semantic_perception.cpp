@@ -24,22 +24,51 @@ std::int64_t realtime_now_ns() noexcept {
       .count();
 }
 
+bool cadence_due(const std::int64_t now_ns, const std::int64_t last_ns,
+                 const std::int64_t period_ns) noexcept {
+  if (last_ns == 0) {
+    return true;
+  }
+  // Camera callbacks land a little either side of their nominal boundary.
+  // A bounded 5 ms grace prevents a 5 Hz model on a 10 Hz camera from
+  // accidentally falling to 3.3 Hz when the second frame is slightly early.
+  const auto grace_ns = std::min<std::int64_t>(5'000'000LL, period_ns / 20);
+  return now_ns - last_ns >= period_ns - grace_ns;
+}
+
 bool valid_frame(const SemanticFrame& frame) noexcept {
+  if ((frame.left_rectified_bgr_data != nullptr ||
+       frame.disparity_data != nullptr) &&
+      frame.buffer_lease == nullptr) {
+    return false;
+  }
+  const auto* color = frame.left_rectified_bgr_data != nullptr
+      ? frame.left_rectified_bgr_data
+      : (frame.left_rectified_bgr != nullptr
+             ? frame.left_rectified_bgr->data()
+             : nullptr);
   if (frame.source_sequence == 0U || frame.capture_realtime_ns <= 0 ||
-      frame.left_rectified_bgr == nullptr || frame.width == 0U ||
+      color == nullptr || frame.width == 0U ||
       frame.height == 0U || frame.color_stride_bytes < frame.width * 3U) {
     return false;
   }
   const auto required_color = frame.color_stride_bytes * frame.height;
-  if (frame.left_rectified_bgr->size() < required_color) {
+  if (frame.left_rectified_bgr != nullptr &&
+      frame.left_rectified_bgr->size() < required_color) {
     return false;
   }
-  if (frame.disparity == nullptr || frame.disparity->empty()) {
+  const auto* disparity = frame.disparity_data != nullptr
+      ? frame.disparity_data
+      : (frame.disparity != nullptr && !frame.disparity->empty()
+             ? frame.disparity->data()
+             : nullptr);
+  if (disparity == nullptr) {
     return true;
   }
   return frame.disparity_stride_elements >= frame.width &&
-         frame.disparity->size() >=
-             frame.disparity_stride_elements * frame.height;
+         (frame.disparity == nullptr ||
+          frame.disparity->size() >=
+              frame.disparity_stride_elements * frame.height);
 }
 
 }  // namespace
@@ -48,7 +77,9 @@ class SemanticPerceptionModule::Impl {
  public:
   Impl(std::vector<SemanticBackendRegistration> registrations,
        SemanticPerceptionConfig config)
-      : fusion_(config.fusion), callback_(std::move(config.result_callback)) {
+      : fusion_(config.fusion),
+        preview_encoder_(std::move(config.preview_encoder)),
+        callback_(std::move(config.result_callback)) {
     if (registrations.empty()) {
       throw std::invalid_argument(
           "semantic perception requires at least one backend");
@@ -109,9 +140,25 @@ class SemanticPerceptionModule::Impl {
     return true;
   }
 
+  bool wants_frame(const std::int64_t schedule_steady_ns) const noexcept {
+    if (schedule_steady_ns <= 0) {
+      return false;
+    }
+    std::lock_guard lock(mutex_);
+    if (stopping_) {
+      return false;
+    }
+    return std::any_of(backends_.begin(), backends_.end(),
+                       [schedule_steady_ns](const BackendState& backend) {
+      return cadence_due(schedule_steady_ns, backend.last_run_steady_ns,
+                         backend.period_ns);
+    });
+  }
+
   SemanticPerceptionStats stats() const {
     std::lock_guard lock(mutex_);
     auto output = stats_;
+    output.pending_frame = pending_.has_value();
     output.backends.reserve(backends_.size());
     for (const auto& backend : backends_) {
       output.backends.push_back(backend.stats);
@@ -166,15 +213,24 @@ class SemanticPerceptionModule::Impl {
     std::uint32_t successful_runs = 0U;
     std::uint32_t failed_runs = 0U;
 
-    const SemanticImageView image{
-        frame.left_rectified_bgr->data(), frame.width, frame.height,
-        frame.color_stride_bytes};
+    const auto* color = frame.left_rectified_bgr_data != nullptr
+        ? frame.left_rectified_bgr_data
+        : frame.left_rectified_bgr->data();
+    const SemanticImageView image{color, frame.width, frame.height,
+                                  frame.color_stride_bytes};
     for (auto& backend : backends_) {
-      if (backend.last_run_steady_ns != 0 &&
-          schedule_ns - backend.last_run_steady_ns < backend.period_ns) {
+      bool due = false;
+      {
+        std::lock_guard lock(mutex_);
+        due = cadence_due(schedule_ns, backend.last_run_steady_ns,
+                          backend.period_ns);
+        if (due) {
+          backend.last_run_steady_ns = schedule_ns;
+        }
+      }
+      if (!due) {
         continue;
       }
-      backend.last_run_steady_ns = schedule_ns;
       const auto started_ns = steady_now_ns();
       SemanticModelRun run;
       run.model_name = backend.info.model_name;
@@ -221,7 +277,10 @@ class SemanticPerceptionModule::Impl {
         }
       }
       run.latency_ms = static_cast<double>(steady_now_ns() - started_ns) / 1e6;
-      run.inference_latency_ms = run.latency_ms;
+      const auto timing = backend.backend->last_timing();
+      run.inference_latency_ms = timing.inference_latency_ms > 0.0
+          ? timing.inference_latency_ms : run.latency_ms;
+      run.postprocess_latency_ms = timing.postprocess_latency_ms;
       {
         std::lock_guard lock(mutex_);
         backend.stats.last_latency_ms = run.latency_ms;
@@ -250,8 +309,13 @@ class SemanticPerceptionModule::Impl {
                                  : SemanticHealthState::kDegraded);
 
     DisparityFrameView disparity;
-    if (frame.disparity != nullptr && !frame.disparity->empty()) {
-      disparity.data = frame.disparity->data();
+    const auto* disparity_data = frame.disparity_data != nullptr
+        ? frame.disparity_data
+        : (frame.disparity != nullptr && !frame.disparity->empty()
+               ? frame.disparity->data()
+               : nullptr);
+    if (disparity_data != nullptr) {
+      disparity.data = disparity_data;
       disparity.width = frame.width;
       disparity.height = frame.height;
       disparity.stride_elements = frame.disparity_stride_elements;
@@ -266,9 +330,18 @@ class SemanticPerceptionModule::Impl {
         observations, disparity, frame.camera, frame.optical_to_target);
     result.hazard = fusion_.evaluate_hazard(
         result.objects, result.health != SemanticHealthState::kOk);
+    if (preview_encoder_) {
+      try {
+        result.preview_jpeg = preview_encoder_(image);
+      } catch (...) {
+        std::lock_guard lock(mutex_);
+        ++stats_.worker_errors;
+      }
+    }
 
     const auto frame_latency_ms =
         static_cast<double>(steady_now_ns() - frame_started_ns) / 1e6;
+    SemanticPerceptionStats callback_stats;
     {
       std::lock_guard lock(mutex_);
       latest_result_ = result;
@@ -276,11 +349,17 @@ class SemanticPerceptionModule::Impl {
       stats_.last_frame_latency_ms = frame_latency_ms;
       stats_.max_frame_latency_ms =
           std::max(stats_.max_frame_latency_ms, frame_latency_ms);
+      callback_stats = stats_;
+      callback_stats.pending_frame = pending_.has_value();
+      callback_stats.backends.reserve(backends_.size());
+      for (const auto& backend : backends_) {
+        callback_stats.backends.push_back(backend.stats);
+      }
     }
     result_condition_.notify_all();
     if (callback_) {
       try {
-        callback_(result);
+        callback_(result, callback_stats);
       } catch (...) {
         std::lock_guard lock(mutex_);
         ++stats_.worker_errors;
@@ -289,7 +368,10 @@ class SemanticPerceptionModule::Impl {
   }
 
   SemanticDepthFusion fusion_;
-  std::function<void(const SemanticFrameResult&)> callback_;
+  std::function<std::shared_ptr<const std::vector<std::uint8_t>>(
+      const SemanticImageView&)> preview_encoder_;
+  std::function<void(const SemanticFrameResult&,
+                     const SemanticPerceptionStats&)> callback_;
   std::vector<BackendState> backends_{};
   std::thread worker_{};
   mutable std::mutex mutex_{};
@@ -310,6 +392,11 @@ SemanticPerceptionModule::~SemanticPerceptionModule() = default;
 
 bool SemanticPerceptionModule::submit(SemanticFrame frame) noexcept {
   return impl_->submit(std::move(frame));
+}
+
+bool SemanticPerceptionModule::wants_frame(
+    const std::int64_t schedule_steady_ns) const noexcept {
+  return impl_->wants_frame(schedule_steady_ns);
 }
 
 SemanticPerceptionStats SemanticPerceptionModule::stats() const {
