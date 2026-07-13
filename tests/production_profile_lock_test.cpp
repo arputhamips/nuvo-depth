@@ -1,4 +1,5 @@
 #include "depthd/contract.hpp"
+#include "depthd/obstacle_cloud.hpp"
 #include "depthd/stereo_backend.hpp"
 
 #include <fstream>
@@ -44,6 +45,18 @@ int main() {
       depthd::kLeftOpticalFrame != "camera_front_left_optical" ||
       depthd::kRightOpticalFrame != "camera_front_right_optical") {
     return 2;
+  }
+  const depthd::CompactObstacleCloudConfig cloud;
+  if (cloud.roi_y_min != 96 || cloud.roi_y_max != 420 ||
+      cloud.row_step != 2 || cloud.col_step != 2 ||
+      cloud.depth_min_m != 0.75 || cloud.depth_max_m != 6.0 ||
+      cloud.min_height_m != 0.18 || cloud.max_height_m != 1.20 ||
+      cloud.angle_min_rad != -0.70 || cloud.angle_max_rad != 0.70 ||
+      cloud.voxel_leaf_size_m != 0.05 ||
+      cloud.min_points_per_voxel != 5 ||
+      cloud.min_cluster_voxels != 12 ||
+      cloud.min_cluster_raw_points != 60 || cloud.max_voxels != 32768) {
+    return 5;
   }
 
   const std::string config =

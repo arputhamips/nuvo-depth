@@ -22,6 +22,11 @@ add_library(depthd_rectification STATIC
 )
 add_library(depthd::rectification ALIAS depthd_rectification)
 
+add_library(depthd_obstacle_cloud STATIC
+  src/obstacle_cloud.cpp
+)
+add_library(depthd::obstacle_cloud ALIAS depthd_obstacle_cloud)
+
 target_include_directories(depthd_contract
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -37,6 +42,23 @@ target_include_directories(depthd_rectification
 )
 target_compile_features(depthd_rectification PUBLIC cxx_std_20)
 depthd_enable_warnings(depthd_rectification)
+
+target_include_directories(depthd_obstacle_cloud
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_compile_features(depthd_obstacle_cloud PUBLIC cxx_std_20)
+depthd_enable_warnings(depthd_obstacle_cloud)
+
+add_executable(depthd_obstacle_cloud_benchmark
+  tools/obstacle_cloud_benchmark.cpp
+)
+target_compile_features(depthd_obstacle_cloud_benchmark PRIVATE cxx_std_20)
+target_link_libraries(depthd_obstacle_cloud_benchmark PRIVATE
+  depthd::obstacle_cloud
+)
+depthd_enable_warnings(depthd_obstacle_cloud_benchmark)
 
 if(DEPTHD_WITH_OPENCV)
   find_package(OpenCV 4 QUIET COMPONENTS core imgproc imgcodecs calib3d)
@@ -93,6 +115,13 @@ if(BUILD_TESTING)
     COMMAND depthd_rectification_backend_test
   )
 
+  add_executable(depthd_obstacle_cloud_test tests/obstacle_cloud_test.cpp)
+  target_link_libraries(depthd_obstacle_cloud_test PRIVATE
+    depthd::obstacle_cloud
+  )
+  depthd_enable_warnings(depthd_obstacle_cloud_test)
+  add_test(NAME depthd_obstacle_cloud_test COMMAND depthd_obstacle_cloud_test)
+
   if(TARGET depthd_opencv_rectification)
     add_executable(depthd_opencv_rectification_backend_test
       tests/opencv_rectification_backend_test.cpp
@@ -115,7 +144,7 @@ if(BUILD_TESTING)
       DEPTHD_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
     )
     target_link_libraries(depthd_production_profile_lock_test PRIVATE
-      depthd::cpu_sgbm
+      depthd::cpu_sgbm depthd::obstacle_cloud
     )
     depthd_enable_warnings(depthd_production_profile_lock_test)
     add_test(NAME depthd_production_profile_lock_test
