@@ -53,6 +53,11 @@ Ctrl+C; the camera must be released before starting capture or the depth daemon.
 9. `benchmark_stereo_bm.py` replays a rectified pair through OpenCV StereoBM
    with explicit range, block, uniqueness, speckle, consistency, and texture
    settings. It is an experiment tool and is not a production backend.
+10. `validate_ros_bridge.py` subscribes to the native ROS bridge outputs and
+    fails on topic-contract, calibration, rate, timestamp, compact-cloud,
+    diagnostics, duplicate-publisher, or disabled-output regressions. Run it in
+    a ROS Jazzy environment while the native producer and `depthd_ros_bridge`
+    are active.
 
 The async profiler can also exercise the additive native output boundary while
 leaving its default path unchanged. Build `libdepthd_native_output.so` and add:
@@ -67,5 +72,7 @@ already-computed rectified grayscale plane. Disparity, CameraInfo metadata, and
 the compact `base_link` cloud are present on every native result; JPEG is
 present only on its existing 2 Hz schedule.
 
-The ROS container must be stopped before using either tool so cameras and the
-Hailo device each have a single owner.
+The legacy ROS camera/depth stack must be stopped before the native profiler so
+the cameras have one owner. The small read-only ROS bridge and its validator do
+not own camera or Hailo devices and are intended to run alongside the native
+producer.

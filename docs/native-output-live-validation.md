@@ -58,3 +58,46 @@ Pi artifacts:
 /home/cam/depthd-native-output-live-20260712/async_zero_copy_profile.json
 /run/depthd/results.ring
 ```
+
+## ROS bridge validation
+
+Date: 2026-07-13
+
+The same locked native pipeline was then run for 260 measured frames while the
+isolated `nuvo_depth_bridge` ARM64 build mapped the ring read-only and published
+the ROS contract. `tools/pi/validate_ros_bridge.py` subscribed before capture
+started and checked the message schema, rates, capture stamps, calibration,
+publisher counts, compact-cloud layout, diagnostics, and disabled outputs.
+
+| ROS integration metric | Result |
+|---|---:|
+| Validation duration | 30 s |
+| Disparity / CameraInfo / cloud messages | 266 each |
+| Depth product rate | 9.99998 Hz |
+| Throttled JPEG messages / rate | 52 / 2.00000 Hz |
+| Mono messages | 0 |
+| Maximum compact cloud points | 331 |
+| Healthy active-capture diagnostics | 27 |
+| Torn / schema / dropped / overwritten | 0 / 0 / 0 / 0 |
+| Required topic publisher count | exactly 1 each |
+| Legacy dense cloud / scan publishers | 0 / 0 |
+| Bridge container CPU sample, one core = 100% | 7.92% |
+| Validator result | passed |
+
+The three non-healthy diagnostic samples occurred before the producer started
+and after it stopped. They were `stale_sequence` warnings from the configured
+0.5-second freshness timeout, which is the intended fail-safe behavior.
+
+The live ROS run preserved the production profile: 9.9966 Hz native output,
+9.88% normalized four-core process CPU, no metric depth, 64/128 half-resolution
+SGBM, and the existing 2 Hz JPEG schedule. The final native cloud contained 292
+points and reported no voxel-capacity overflow.
+
+Final Pi artifacts:
+
+```text
+/home/cam/depthd-ros-bridge-live-20260713-final2/ros_bridge_validation.json
+/home/cam/depthd-ros-bridge-live-20260713-final2/native-profile/async_zero_copy_profile.json
+/home/cam/depthd-ros-bridge-live-20260713-final2/bridge-docker-stats.txt
+/home/cam/depthd-ros-bridge-live-20260713-final2/validator.log
+```
