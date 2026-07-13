@@ -50,6 +50,9 @@ Ctrl+C; the camera must be released before starting capture or the depth daemon.
 8. `stereo_auto_exposure.py` meters both working grayscale images as one stereo
    instrument and updates the shared XTR shutter plus matched camera gain. It
    enforces absolute 8 ms shutter and 3x gain ceilings.
+9. `benchmark_stereo_bm.py` replays a rectified pair through OpenCV StereoBM
+   with explicit range, block, uniqueness, speckle, consistency, and texture
+   settings. It is an experiment tool and is not a production backend.
 
 The ROS container must be stopped before using either tool so cameras and the
 Hailo device each have a single owner.

@@ -33,6 +33,8 @@ latency, CPU, and frame-replacement tradeoffs.
 
 The current auto-exposed 80, 96, and 128-bin half-resolution comparison is in
 [cpu-sgbm-half-resolution-range-sweep.md](cpu-sgbm-half-resolution-range-sweep.md).
+The matched full-resolution StereoBM comparison is in
+[cpu-stereo-bm-full-resolution-test.md](cpu-stereo-bm-full-resolution-test.md).
 
 ## Depth consistency
 
