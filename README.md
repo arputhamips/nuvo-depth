@@ -2,8 +2,8 @@
 
 Native stereo-depth runtime for the Nuvo Raspberry Pi 5 and dual
 hardware-triggered IMX296 cameras. Stereo processing is selected through a
-ROS-free backend interface; the first working backend is OpenCV CPU SGBM, with
-Vulkan and Hailo backends able to implement the same contract later. Capture,
+ROS-free backend interface; the production backend is OpenCV CPU SGBM, with a
+Hailo backend able to implement the same contract later. Capture,
 pair validation, rectification, matching, and buffer management happen outside
 DDS. A small boundary adapter publishes only finished products.
 
@@ -32,9 +32,8 @@ and the corrected [async zero-copy trigger results](docs/async-zero-copy-trigger
 The settled navigation matcher settings and the complete geometry/filter sweep
 are recorded in the [CPU SGBM production profile](docs/cpu-sgbm-production-profile.md).
 
-Image rectification has its own switchable backend registry, separate from
-stereo matching. The default `cpu_opencv` implementation and optional GPU
-module contract are documented in the
+Image rectification has its own backend registry, separate from stereo
+matching. The production `cpu_opencv` implementation is documented in the
 [rectification backend guide](docs/rectification-backends.md).
 
 ## Repository shape
@@ -49,7 +48,7 @@ models/               Model provenance and conversion instructions
 third_party/          Pinned upstream sources (git submodules)
 ```
 
-The camera runtime, Vulkan/Hailo backends, IPC transport, and ROS bridge remain
+The camera runtime, Hailo backend, IPC transport, and ROS bridge remain
 to be added. The core is a normal CMake project; the bridge will be the only
 ROS/ament package.
 
