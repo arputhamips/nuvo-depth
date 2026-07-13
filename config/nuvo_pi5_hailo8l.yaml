@@ -73,6 +73,7 @@ stereo:
 outputs:
   disparity_hz: 10
   disparity_topic: /camera/front/disparity
+  metric_depth_enabled: false
   compressed_image_hz: 2
   compressed_image_topic: /camera/front/left/image_rect/compressed
   jpeg_quality: 75

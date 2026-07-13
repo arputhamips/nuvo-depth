@@ -41,7 +41,8 @@ Ctrl+C; the camera must be released before starting capture or the depth daemon.
    full pipeline measurement is `profile_async_zero_copy_pipeline.py`. The
    profiler converts the mapped BGR views to grayscale before depth
    rectification and rectifies the full-color left view only on the throttled
-   JPEG schedule.
+   JPEG schedule. Metric depth is disabled by default; pass `--metric-depth`
+   only for validation runs that need a depth array.
 
 The ROS container must be stopped before using either tool so cameras and the
 Hailo device each have a single owner.

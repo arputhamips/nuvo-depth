@@ -42,31 +42,49 @@ def main() -> None:
     parser.add_argument("--fps", type=float, default=10.0)
     parser.add_argument("--jpeg-hz", type=float, default=2.0)
     parser.add_argument("--jpeg-quality", type=int, default=75)
+    parser.add_argument(
+        "--metric-depth",
+        action="store_true",
+        help="derive and save metric depth in addition to disparity",
+    )
     parser.add_argument("--trigger-low-ms", type=float, default=3.0)
     parser.add_argument("--analogue-gain", type=float, default=1.5)
     parser.add_argument("--pair-tolerance-us", type=float, default=500.0)
+    parser.add_argument("--block-size", type=int, default=5)
+    parser.add_argument("--uniqueness-ratio", type=int, default=5)
+    parser.add_argument("--speckle-window-size", type=int, default=50)
+    parser.add_argument("--speckle-range", type=int, default=2)
+    parser.add_argument("--disp12-max-diff", type=int, default=1)
     parser.add_argument("--gpiochip", default="/dev/gpiochip0")
     parser.add_argument("--line", type=int, default=17)
     args = parser.parse_args()
     if args.frames < 1 or args.warmup_frames < 0 or args.fps <= 0.0:
         parser.error("frame counts and fps must be positive")
+    if (
+        args.block_size < 1
+        or args.block_size % 2 == 0
+        or args.uniqueness_ratio < 0
+        or args.speckle_window_size < 0
+        or args.speckle_range < 0
+    ):
+        parser.error("invalid SGBM filtering parameters")
     args.output_dir.mkdir(parents=True, exist_ok=True)
     cv2.setNumThreads(1)
 
     left_maps = make_maps(args.left_calibration)
     right_maps = make_maps(args.right_calibration)
-    block_size = 5
+    block_size = args.block_size
     matcher = cv2.StereoSGBM_create(
         0,
         WORKING_DISPARITIES,
         block_size,
         8 * block_size * block_size,
         32 * block_size * block_size,
-        1,
+        args.disp12_max_diff,
         31,
-        5,
-        50,
-        2,
+        args.uniqueness_ratio,
+        args.speckle_window_size,
+        args.speckle_range,
         cv2.STEREO_SGBM_MODE_SGBM_3WAY,
     )
     capture = AsyncStereoCapture(
@@ -84,6 +102,7 @@ def main() -> None:
     sensor_deltas_ns: list[int] = []
     callback_deltas_ns: list[int] = []
     jpeg_sizes: list[int] = []
+    valid_fractions: list[float] = []
     last_jpeg: np.ndarray | None = None
     last: dict[str, np.ndarray] = {}
     jpeg_period = max(1, round(args.fps / max(args.jpeg_hz, 1e-6)))
@@ -228,17 +247,21 @@ def main() -> None:
             valid &= disparity > 0.0
             valid &= disparity < FULL_DISPARITY_LIMIT
             disparity[~valid] = np.nan
+            if measured:
+                valid_fractions.append(float(valid.mean()))
             record("disparity_restore_and_mask_ms", stage_started_ns, measured)
 
-            stage_started_ns = time.perf_counter_ns()
-            depth = np.full(disparity.shape, np.nan, dtype=np.float32)
-            np.divide(
-                FOCAL_LENGTH_PX * BASELINE_M,
-                disparity,
-                out=depth,
-                where=valid,
-            )
-            record("metric_depth_ms", stage_started_ns, measured)
+            depth: np.ndarray | None = None
+            if args.metric_depth:
+                stage_started_ns = time.perf_counter_ns()
+                depth = np.full(disparity.shape, np.nan, dtype=np.float32)
+                np.divide(
+                    FOCAL_LENGTH_PX * BASELINE_M,
+                    disparity,
+                    out=depth,
+                    where=valid,
+                )
+                record("metric_depth_ms", stage_started_ns, measured)
 
             if jpeg_due:
                 if left_color is None:
@@ -257,7 +280,7 @@ def main() -> None:
 
             stage_started_ns = time.perf_counter_ns()
             published_disparity = disparity.copy()
-            published_depth = depth.copy()
+            published_depth = depth.copy() if depth is not None else None
             record("output_buffer_copy_ms", stage_started_ns, measured)
             if measured:
                 output_ready_ns = time.monotonic_ns()
@@ -276,8 +299,9 @@ def main() -> None:
                     "left": left_gray,
                     "right": right_gray,
                     "disparity": published_disparity,
-                    "depth": published_depth,
                 }
+                if published_depth is not None:
+                    last["depth"] = published_depth
 
         measured_wall_s = (
             time.perf_counter_ns() - measured_wall_started_ns
@@ -311,6 +335,12 @@ def main() -> None:
             "camera_input_copy_count": 0,
             "depth_rectification_input": "grayscale",
             "color_rectification_hz": args.jpeg_hz,
+            "metric_depth_enabled": args.metric_depth,
+            "block_size": args.block_size,
+            "uniqueness_ratio": args.uniqueness_ratio,
+            "speckle_window_size": args.speckle_window_size,
+            "speckle_range": args.speckle_range,
+            "disp12_max_diff": args.disp12_max_diff,
         },
         "capture_start_ms": capture_start_ms,
         "jpeg_warmup_ms": jpeg_warmup_ms,
@@ -338,7 +368,15 @@ def main() -> None:
             },
             "jpeg_samples": len(jpeg_sizes),
             "jpeg_mean_bytes": float(np.mean(jpeg_sizes)) if jpeg_sizes else 0.0,
-            "valid_fraction": float(np.isfinite(last["depth"]).mean()),
+            "valid_fraction": float(
+                np.isfinite(last["disparity"]).mean()
+            ),
+            "valid_fraction_distribution": {
+                "min": min(valid_fractions),
+                "p50": percentile(valid_fractions, 50),
+                "p95": percentile(valid_fractions, 95),
+                "max": max(valid_fractions),
+            },
             "max_rss_kib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
             "async_capture": capture_stats,
         },
@@ -351,7 +389,8 @@ def main() -> None:
             last_jpeg.tobytes()
         )
     np.save(args.output_dir / "disparity_float32.npy", last["disparity"])
-    np.save(args.output_dir / "depth_m_float32.npy", last["depth"])
+    if "depth" in last:
+        np.save(args.output_dir / "depth_m_float32.npy", last["depth"])
     (args.output_dir / "async_zero_copy_profile.json").write_text(
         json.dumps(report, indent=2) + "\n"
     )

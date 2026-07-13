@@ -107,25 +107,26 @@ and end-state log are under
 
 ## Recommended next optimization order
 
-1. Do not derive or copy metric depth in the production loop unless a subscriber
-   requires it. The required public output is disparity. Omitting metric depth
-   and its output copy should save about 1.1 ms per frame.
-2. In the production C++ daemon, preallocate rectified images, grayscale images,
+Metric-depth generation is now disabled by default in the live validation
+profile and runtime configuration. A 600-frame verification retained disparity
+and the 2 Hz JPEG stream at 10 Hz, with no depth array emitted.
+
+1. In the production C++ daemon, preallocate rectified images, grayscale images,
    working images, fixed-point disparity, float disparity, validity masks, and
    publication buffers. The Python profiler allocates several of these per
    frame, contributing to its roughly 3.3 ms gap between measured stage time
    and total process CPU.
-3. Keep direct 364 x 272 rectification experimental. It saves another roughly
+2. Keep direct 364 x 272 rectification experimental. It saves another roughly
    4 ms, but the replay comparison changed p95 disparity by 2.125 working pixels
    (4.25 output pixels), which is too large to adopt without scene/range tests.
-4. Keep `SGBM_3WAY` and one OpenCV thread. The other OpenCV SGBM modes measured
+3. Keep `SGBM_3WAY` and one OpenCV thread. The other OpenCV SGBM modes measured
    between 40 and 54 ms versus 25.7 ms for `SGBM_3WAY`. More threads may reduce
    wall latency but do not serve the primary goal of minimum aggregate CPU.
-5. Evaluate a camera YUV/dual-stream mode separately. Reading an ISP-produced Y
+4. Evaluate a camera YUV/dual-stream mode separately. Reading an ISP-produced Y
    plane may remove the remaining 0.9 ms grayscale conversion, but its plane
    stride, buffer lifetime, color-output conversion, and synchronization must be
    validated before replacing the stable `RGB888` capture contract.
-6. Measure ROS message wrapping, serialization, and publish time after the ROS
+5. Measure ROS message wrapping, serialization, and publish time after the ROS
    bridge exists. Those costs were intentionally outside this test.
 
 The full JSON report, final rectified pair, disparity/depth arrays, and camera

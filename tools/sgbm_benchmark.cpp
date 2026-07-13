@@ -39,6 +39,7 @@ struct Options {
   int working_height{272};
   int working_disparities{96};
   int full_disparity_limit{192};
+  int disparity_12_max_diff{1};
   int block_size{5};
   int uniqueness_ratio{5};
   int speckle_window_size{50};
@@ -79,6 +80,9 @@ struct Options {
       options.working_disparities = std::stoi(require_value(index, argc, argv));
     } else if (argument == "--full-disparity-limit") {
       options.full_disparity_limit = std::stoi(require_value(index, argc, argv));
+    } else if (argument == "--disp12-max-diff") {
+      options.disparity_12_max_diff =
+          std::stoi(require_value(index, argc, argv));
     } else if (argument == "--block-size") {
       options.block_size = std::stoi(require_value(index, argc, argv));
     } else if (argument == "--uniqueness-ratio") {
@@ -94,6 +98,7 @@ struct Options {
              "[--target-hz N] [--opencv-threads N] "
              "[--working-width N] [--working-height N] "
              "[--working-disparities N] [--full-disparity-limit N] "
+             "[--disp12-max-diff N] "
              "[--block-size N] "
              "[--uniqueness-ratio N] [--speckle-window-size N] "
              "[--speckle-range N]\n";
@@ -223,6 +228,7 @@ int main(int argc, char** argv) {
     config.working_height = static_cast<std::uint32_t>(options.working_height);
     config.working_disparities = options.working_disparities;
     config.full_resolution_disparities = options.full_disparity_limit;
+    config.disparity_12_max_diff = options.disparity_12_max_diff;
     config.block_size = options.block_size;
     config.uniqueness_ratio = options.uniqueness_ratio;
     config.speckle_window_size = options.speckle_window_size;
@@ -291,6 +297,8 @@ int main(int argc, char** argv) {
               << config.full_resolution_disparities << ",\n"
               << "  \"working_disparities\": " << config.working_disparities
               << ",\n"
+              << "  \"disparity_12_max_diff\": "
+              << config.disparity_12_max_diff << ",\n"
               << "  \"block_size\": " << config.block_size << ",\n"
               << "  \"uniqueness_ratio\": " << config.uniqueness_ratio << ",\n"
               << "  \"speckle_window_size\": "
