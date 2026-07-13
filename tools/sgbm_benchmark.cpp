@@ -37,12 +37,12 @@ struct Options {
   int opencv_threads{1};
   int working_width{364};
   int working_height{272};
-  int working_disparities{96};
-  int full_disparity_limit{192};
+  int working_disparities{80};
+  int full_disparity_limit{160};
   int disparity_12_max_diff{1};
   int block_size{5};
-  int uniqueness_ratio{5};
-  int speckle_window_size{50};
+  int uniqueness_ratio{1};
+  int speckle_window_size{30};
   int speckle_range{2};
 };
 

@@ -23,8 +23,8 @@ WIDTH = 728
 HEIGHT = 544
 WORKING_WIDTH = 364
 WORKING_HEIGHT = 272
-WORKING_DISPARITIES = 96
-FULL_DISPARITY_LIMIT = 192.0
+WORKING_DISPARITIES = 80
+FULL_DISPARITY_LIMIT = 160.0
 FOCAL_LENGTH_PX = 493.542046188
 BASELINE_M = 0.161458780
 
@@ -134,8 +134,8 @@ def main() -> None:
         32 * block_size * block_size,
         1,
         31,
-        5,
-        50,
+        1,
+        30,
         2,
         cv2.STEREO_SGBM_MODE_SGBM_3WAY,
     )

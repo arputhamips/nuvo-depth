@@ -50,9 +50,21 @@ def main() -> None:
     parser.add_argument("--trigger-low-ms", type=float, default=3.0)
     parser.add_argument("--analogue-gain", type=float, default=1.5)
     parser.add_argument("--pair-tolerance-us", type=float, default=500.0)
+    parser.add_argument(
+        "--working-disparities",
+        type=int,
+        default=WORKING_DISPARITIES,
+        help="SGBM disparity search range at working resolution (multiple of 16)",
+    )
+    parser.add_argument(
+        "--full-disparity-limit",
+        type=float,
+        default=FULL_DISPARITY_LIMIT,
+        help="maximum accepted disparity after restoration to input resolution",
+    )
     parser.add_argument("--block-size", type=int, default=5)
-    parser.add_argument("--uniqueness-ratio", type=int, default=5)
-    parser.add_argument("--speckle-window-size", type=int, default=50)
+    parser.add_argument("--uniqueness-ratio", type=int, default=1)
+    parser.add_argument("--speckle-window-size", type=int, default=30)
     parser.add_argument("--speckle-range", type=int, default=2)
     parser.add_argument("--disp12-max-diff", type=int, default=1)
     parser.add_argument("--gpiochip", default="/dev/gpiochip0")
@@ -61,7 +73,11 @@ def main() -> None:
     if args.frames < 1 or args.warmup_frames < 0 or args.fps <= 0.0:
         parser.error("frame counts and fps must be positive")
     if (
-        args.block_size < 1
+        args.working_disparities < 16
+        or args.working_disparities % 16 != 0
+        or args.working_disparities >= WORKING_WIDTH
+        or args.full_disparity_limit <= 0.0
+        or args.block_size < 1
         or args.block_size % 2 == 0
         or args.uniqueness_ratio < 0
         or args.speckle_window_size < 0
@@ -76,7 +92,7 @@ def main() -> None:
     block_size = args.block_size
     matcher = cv2.StereoSGBM_create(
         0,
-        WORKING_DISPARITIES,
+        args.working_disparities,
         block_size,
         8 * block_size * block_size,
         32 * block_size * block_size,
@@ -245,7 +261,7 @@ def main() -> None:
             ).astype(bool)
             valid &= np.isfinite(disparity)
             valid &= disparity > 0.0
-            valid &= disparity < FULL_DISPARITY_LIMIT
+            valid &= disparity < args.full_disparity_limit
             disparity[~valid] = np.nan
             if measured:
                 valid_fractions.append(float(valid.mean()))
@@ -325,7 +341,8 @@ def main() -> None:
         "configuration": {
             "input": [WIDTH, HEIGHT],
             "working": [WORKING_WIDTH, WORKING_HEIGHT],
-            "working_disparities": WORKING_DISPARITIES,
+            "working_disparities": args.working_disparities,
+            "full_disparity_limit": args.full_disparity_limit,
             "opencv_threads": cv2.getNumThreads(),
             "frames": args.frames,
             "warmup_frames": args.warmup_frames,

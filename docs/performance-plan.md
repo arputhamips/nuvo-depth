@@ -30,9 +30,11 @@ grayscale-before-rectification at 10 Hz. Full-color left rectification runs only
 for the 2 Hz JPEG output, reducing normalized process CPU to 10.49%.
 
 The [invalid-pixel coverage study](cpu-sgbm-coverage-research.md) evaluates
-confidence-preserving SGBM tuning. A speckle window of 10 adds about 3.25
-percentage points of live coverage without a timing penalty, but remains a
-tentative tier pending multi-scene validation.
+confidence-preserving SGBM tuning. The selected 80/160-disparity,
+uniqueness-1, speckle-30 configuration adds 7.50 percentage points of median
+live coverage, lowers normalized process CPU from 10.29% to 9.77%, and moves
+the calibrated near limit from approximately 0.42 m to 0.50 m. It remains
+subject to multi-scene validation.
 
 ## Timing budget at 10 Hz
 
@@ -40,7 +42,7 @@ tentative tier pending multi-scene validation.
 | --- | ---: |
 | Pair acquisition and validation | 5 ms |
 | Rectification/preprocess | 20 ms |
-| Hailo inference | 55 ms |
+| Hailoer infence | 55 ms |
 | Crop/mask/result finalization | 5 ms |
 | ROS/IPC handoff | 5 ms |
 | Slack | 10 ms |
