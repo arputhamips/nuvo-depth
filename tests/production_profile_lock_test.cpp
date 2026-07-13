@@ -1,5 +1,6 @@
 #include "depthd/contract.hpp"
 #include "depthd/ipc/result_ring_layout.hpp"
+#include "depthd/native_output.hpp"
 #include "depthd/obstacle_cloud.hpp"
 #include "depthd/stereo_backend.hpp"
 
@@ -68,6 +69,17 @@ int main() {
       depthd::ipc::kDisparityCapacityBytes != 1584128 ||
       depthd::ipc::kObstaclePointCapacity != 32768) {
     return 6;
+  }
+  const auto optical_to_base =
+      depthd::make_nuvo_left_optical_to_base_transform();
+  if (optical_to_base.matrix[0] != 0.0 ||
+      optical_to_base.matrix[2] != 1.0 ||
+      optical_to_base.matrix[3] != 0.760 ||
+      optical_to_base.matrix[4] != -1.0 ||
+      optical_to_base.matrix[7] != 0.080 ||
+      optical_to_base.matrix[9] != -1.0 ||
+      optical_to_base.matrix[11] != 0.180) {
+    return 7;
   }
 
   const std::string config =

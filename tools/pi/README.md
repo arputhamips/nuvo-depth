@@ -54,5 +54,18 @@ Ctrl+C; the camera must be released before starting capture or the depth daemon.
    with explicit range, block, uniqueness, speckle, consistency, and texture
    settings. It is an experiment tool and is not a production backend.
 
+The async profiler can also exercise the additive native output boundary while
+leaving its default path unchanged. Build `libdepthd_native_output.so` and add:
+
+```bash
+--result-ring /run/depthd/results.ring \
+--native-output-library ./build/libdepthd_native_output.so
+```
+
+Add `--publish-left-mono-to-ring` only when semantic perception needs the
+already-computed rectified grayscale plane. Disparity, CameraInfo metadata, and
+the compact `base_link` cloud are present on every native result; JPEG is
+present only on its existing 2 Hz schedule.
+
 The ROS container must be stopped before using either tool so cameras and the
 Hailo device each have a single owner.

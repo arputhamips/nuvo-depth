@@ -94,6 +94,21 @@ def main() -> None:
     parser.add_argument("--disp12-max-diff", type=int, default=1)
     parser.add_argument("--gpiochip", default="/dev/gpiochip0")
     parser.add_argument("--line", type=int, default=17)
+    parser.add_argument(
+        "--result-ring",
+        type=Path,
+        help="publish native disparity/cloud/image products to this mmap ring",
+    )
+    parser.add_argument(
+        "--native-output-library",
+        type=Path,
+        help="path to libdepthd_native_output.so",
+    )
+    parser.add_argument(
+        "--publish-left-mono-to-ring",
+        action="store_true",
+        help="include rectified mono for semantic consumers",
+    )
     args = parser.parse_args()
     if args.frames < 1 or args.warmup_frames < 0 or args.fps <= 0.0:
         parser.error("frame counts and fps must be positive")
@@ -170,6 +185,19 @@ def main() -> None:
         colour_gains=tuple(args.colour_gains),
         pair_tolerance_us=args.pair_tolerance_us,
     )
+    native_output = None
+    sensor_to_realtime_ns = None
+    if args.result_ring is not None:
+        from depthd_native_output import (
+            NativeOutputPublisher,
+            sensor_monotonic_to_realtime_ns,
+        )
+
+        native_output = NativeOutputPublisher(
+            args.result_ring,
+            args.native_output_library,
+        )
+        sensor_to_realtime_ns = sensor_monotonic_to_realtime_ns
 
     samples: dict[str, list[float]] = {}
     sensor_deltas_ns: list[int] = []
@@ -181,6 +209,7 @@ def main() -> None:
     applied_gain_deltas: list[float] = []
     last_jpeg: np.ndarray | None = None
     last: dict[str, np.ndarray] = {}
+    last_native_output: dict[str, float | int] | None = None
     jpeg_period = max(1, round(args.fps / max(args.jpeg_hz, 1e-6)))
 
     def record(name: str, started_ns: int, measured: bool) -> None:
@@ -198,7 +227,12 @@ def main() -> None:
     jpeg_warmup_ms = milliseconds(jpeg_warmup_started_ns)
 
     capture_started_ns = time.perf_counter_ns()
-    capture.start()
+    try:
+        capture.start()
+    except Exception:
+        if native_output is not None:
+            native_output.close()
+        raise
     capture_start_ms = milliseconds(capture_started_ns)
     try:
         total_frames = args.warmup_frames + args.frames
@@ -218,6 +252,11 @@ def main() -> None:
             pair = capture.take(timeout_s=2.0)
             if pair is None:
                 raise RuntimeError("timed out waiting for a synchronized stereo pair")
+            capture_realtime_ns = (
+                sensor_to_realtime_ns(pair.left.sensor_timestamp_ns)
+                if sensor_to_realtime_ns is not None
+                else None
+            )
             record("pair_wait_ms", stage_started_ns, measured)
             if measured:
                 sensor_deltas_ns.append(pair.sensor_delta_ns)
@@ -360,6 +399,7 @@ def main() -> None:
                 )
                 record("metric_depth_ms", stage_started_ns, measured)
 
+            jpeg_payload: np.ndarray | None = None
             if jpeg_due:
                 if left_color is None:
                     raise RuntimeError("scheduled color frame was not rectified")
@@ -373,7 +413,33 @@ def main() -> None:
                     raise RuntimeError("JPEG encoding failed")
                 jpeg_sizes.append(int(jpeg.size))
                 last_jpeg = jpeg
+                jpeg_payload = jpeg
                 record("jpeg_encode_ms", stage_started_ns, True)
+
+            if native_output is not None:
+                if capture_realtime_ns is None:
+                    raise RuntimeError("native output capture stamp is missing")
+                stage_started_ns = time.perf_counter_ns()
+                last_native_output = native_output.publish(
+                    capture_realtime_ns=capture_realtime_ns,
+                    disparity=disparity,
+                    left_rectified_mono=(
+                        left_gray if args.publish_left_mono_to_ring else None
+                    ),
+                    left_rectified_jpeg=jpeg_payload,
+                )
+                record(
+                    "native_cloud_and_result_ring_ms",
+                    stage_started_ns,
+                    measured,
+                )
+                if measured:
+                    samples.setdefault("native_obstacle_cloud_ms", []).append(
+                        float(last_native_output["obstacle_cloud_ms"])
+                    )
+                    samples.setdefault("native_result_ring_publish_ms", []).append(
+                        float(last_native_output["result_ring_publish_ms"])
+                    )
 
             stage_started_ns = time.perf_counter_ns()
             published_disparity = disparity.copy()
@@ -410,6 +476,8 @@ def main() -> None:
         capture_stats = capture.stats()
     finally:
         capture.stop()
+        if native_output is not None:
+            native_output.close()
 
     process_cpu_percent = 100.0 * measured_process_cpu_s / measured_wall_s
     system_total_delta = (
@@ -446,6 +514,11 @@ def main() -> None:
             "speckle_window_size": args.speckle_window_size,
             "speckle_range": args.speckle_range,
             "disp12_max_diff": args.disp12_max_diff,
+            "native_result_ring_enabled": native_output is not None,
+            "native_result_ring_path": (
+                str(args.result_ring) if args.result_ring is not None else None
+            ),
+            "native_result_ring_left_mono": args.publish_left_mono_to_ring,
         },
         "capture_start_ms": capture_start_ms,
         "jpeg_warmup_ms": jpeg_warmup_ms,
@@ -493,6 +566,7 @@ def main() -> None:
                 "right_p50": percentile(right_applied_gains, 50),
                 "pair_delta_max": max(applied_gain_deltas, default=0.0),
             },
+            "native_output_last": last_native_output,
         },
     }
 

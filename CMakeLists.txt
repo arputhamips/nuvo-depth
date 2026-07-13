@@ -32,6 +32,15 @@ add_library(depthd_result_ring STATIC
 )
 add_library(depthd::result_ring ALIAS depthd_result_ring)
 
+add_library(depthd_native_output_core STATIC
+  src/native_output.cpp
+)
+add_library(depthd::native_output_core ALIAS depthd_native_output_core)
+
+add_library(depthd_native_output SHARED
+  src/native_output_c.cpp
+)
+
 target_include_directories(depthd_contract
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -54,6 +63,9 @@ target_include_directories(depthd_obstacle_cloud
     $<INSTALL_INTERFACE:include>
 )
 target_compile_features(depthd_obstacle_cloud PUBLIC cxx_std_20)
+set_target_properties(depthd_obstacle_cloud PROPERTIES
+  POSITION_INDEPENDENT_CODE ON
+)
 depthd_enable_warnings(depthd_obstacle_cloud)
 
 target_include_directories(depthd_result_ring
@@ -63,7 +75,36 @@ target_include_directories(depthd_result_ring
 )
 target_compile_features(depthd_result_ring PUBLIC cxx_std_20)
 target_link_libraries(depthd_result_ring PUBLIC depthd::obstacle_cloud)
+set_target_properties(depthd_result_ring PROPERTIES
+  POSITION_INDEPENDENT_CODE ON
+)
 depthd_enable_warnings(depthd_result_ring)
+
+target_include_directories(depthd_native_output_core
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_compile_features(depthd_native_output_core PUBLIC cxx_std_20)
+target_link_libraries(depthd_native_output_core PUBLIC
+  depthd::obstacle_cloud depthd::result_ring
+)
+set_target_properties(depthd_native_output_core PROPERTIES
+  POSITION_INDEPENDENT_CODE ON
+)
+depthd_enable_warnings(depthd_native_output_core)
+
+target_include_directories(depthd_native_output
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_compile_features(depthd_native_output PUBLIC cxx_std_20)
+target_compile_definitions(depthd_native_output PRIVATE
+  DEPTHD_NATIVE_OUTPUT_BUILD
+)
+target_link_libraries(depthd_native_output PRIVATE depthd::native_output_core)
+depthd_enable_warnings(depthd_native_output)
 
 add_executable(depthd_obstacle_cloud_benchmark
   tools/obstacle_cloud_benchmark.cpp
@@ -73,6 +114,13 @@ target_link_libraries(depthd_obstacle_cloud_benchmark PRIVATE
   depthd::obstacle_cloud
 )
 depthd_enable_warnings(depthd_obstacle_cloud_benchmark)
+
+add_executable(depthd_result_ring_inspect
+  tools/result_ring_inspect.cpp
+)
+target_compile_features(depthd_result_ring_inspect PRIVATE cxx_std_20)
+target_link_libraries(depthd_result_ring_inspect PRIVATE depthd::result_ring)
+depthd_enable_warnings(depthd_result_ring_inspect)
 
 if(DEPTHD_WITH_OPENCV)
   find_package(OpenCV 4 QUIET COMPONENTS core imgproc imgcodecs calib3d)
@@ -141,6 +189,36 @@ if(BUILD_TESTING)
   depthd_enable_warnings(depthd_result_ring_test)
   add_test(NAME depthd_result_ring_test COMMAND depthd_result_ring_test)
 
+  add_executable(depthd_native_output_test tests/native_output_test.cpp)
+  target_link_libraries(depthd_native_output_test PRIVATE
+    depthd::native_output_core depthd_native_output
+  )
+  depthd_enable_warnings(depthd_native_output_test)
+  add_test(NAME depthd_native_output_test COMMAND depthd_native_output_test)
+
+  if(UNIX)
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(Python3_Interpreter_FOUND)
+      execute_process(
+        COMMAND ${Python3_EXECUTABLE} -c "import numpy"
+        RESULT_VARIABLE DEPTHD_PYTHON_NUMPY_RESULT
+        OUTPUT_QUIET
+        ERROR_QUIET
+      )
+      if(DEPTHD_PYTHON_NUMPY_RESULT EQUAL 0)
+        add_test(NAME depthd_native_output_python_test
+          COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/native_output_python_test.py
+            --library $<TARGET_FILE:depthd_native_output>
+        )
+        set_tests_properties(depthd_native_output_python_test PROPERTIES
+          ENVIRONMENT
+            "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/tools/pi"
+        )
+      endif()
+    endif()
+  endif()
+
   if(TARGET depthd_opencv_rectification)
     add_executable(depthd_opencv_rectification_backend_test
       tests/opencv_rectification_backend_test.cpp
@@ -163,7 +241,7 @@ if(BUILD_TESTING)
       DEPTHD_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
     )
     target_link_libraries(depthd_production_profile_lock_test PRIVATE
-      depthd::cpu_sgbm depthd::obstacle_cloud
+      depthd::cpu_sgbm depthd::obstacle_cloud depthd::native_output_core
     )
     depthd_enable_warnings(depthd_production_profile_lock_test)
     add_test(NAME depthd_production_profile_lock_test

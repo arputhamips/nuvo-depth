@@ -37,3 +37,9 @@ and dense XYZ are deliberately absent.
 The mmap transport adds copies only at the final process boundary. Camera
 buffers, rectification outputs, working disparity, and the compact-cloud
 accumulator remain outside the ring.
+
+`depthd::NativeOutputPublisher` is the single downstream integration point. It
+consumes the already-finished disparity, calculates the compact cloud, and
+publishes the ring snapshot. `libdepthd_native_output.so` exposes the same path
+through a small C ABI so the validated Picamera2 loop can be used for initial
+robot integration without moving or retuning that loop.

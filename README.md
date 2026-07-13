@@ -32,7 +32,9 @@ and the corrected [async zero-copy trigger results](docs/async-zero-copy-trigger
 The settled navigation matcher settings and the complete geometry/filter sweep
 are recorded in the [CPU SGBM production profile](docs/cpu-sgbm-production-profile.md).
 The downstream ROS-free projection and voxel/cluster filtering contract is in
-the [native compact obstacle cloud](docs/compact-obstacle-cloud.md).
+the [native compact obstacle cloud](docs/compact-obstacle-cloud.md). The first
+camera-to-mmap run is recorded in the
+[native output live validation](docs/native-output-live-validation.md).
 
 Image rectification has its own backend registry, separate from stereo
 matching. The production `cpu_opencv` implementation is documented in the
