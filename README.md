@@ -29,6 +29,8 @@ See [architecture options](docs/architecture-options.md), the exact
 documented in the [CPU SGBM baseline](docs/cpu-sgbm-baseline.md), with the full
 live camera path in the [CPU pipeline profile](docs/cpu-live-pipeline-profile.md)
 and the corrected [async zero-copy trigger results](docs/async-zero-copy-trigger-results.md).
+The settled navigation matcher settings and the complete geometry/filter sweep
+are recorded in the [CPU SGBM production profile](docs/cpu-sgbm-production-profile.md).
 
 Image rectification has its own switchable backend registry, separate from
 stereo matching. The default `cpu_opencv` implementation and optional GPU

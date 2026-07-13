@@ -38,8 +38,8 @@ struct Options {
   int working_width{364};
   int working_height{272};
   int min_disparity{0};
-  int working_disparities{80};
-  int full_disparity_limit{160};
+  int working_disparities{64};
+  int full_disparity_limit{128};
   int disparity_12_max_diff{1};
   int block_size{5};
   int uniqueness_ratio{1};

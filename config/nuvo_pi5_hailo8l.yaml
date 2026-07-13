@@ -69,12 +69,12 @@ stereo:
   backend: cpu_sgbm
   output_width: 728
   output_height: 544
-  max_disparity: 160
+  max_disparity: 128
   backends:
     cpu_sgbm:
       working_width: 364
       working_height: 272
-      working_disparities: 80
+      working_disparities: 64
       block_size: 5
       mode: sgbm_3way
       uniqueness_ratio: 1

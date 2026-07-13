@@ -53,8 +53,8 @@ struct CpuSgbmConfig {
   std::uint32_t working_width{364};
   std::uint32_t working_height{272};
   std::int32_t min_disparity{0};
-  std::int32_t full_resolution_disparities{160};
-  std::int32_t working_disparities{80};
+  std::int32_t full_resolution_disparities{128};
+  std::int32_t working_disparities{64};
   std::int32_t block_size{5};
   std::int32_t uniqueness_ratio{1};
   std::int32_t speckle_window_size{30};

@@ -29,12 +29,12 @@ The [60-second CPU soak](cpu-sgbm-60s-soak.md) then verifies
 grayscale-before-rectification at 10 Hz. Full-color left rectification runs only
 for the 2 Hz JPEG output, reducing normalized process CPU to 10.49%.
 
-The [invalid-pixel coverage study](cpu-sgbm-coverage-research.md) evaluates
-confidence-preserving SGBM tuning. The selected 80/160-disparity,
-uniqueness-1, speckle-30 configuration adds 7.50 percentage points of median
-live coverage, lowers normalized process CPU from 10.29% to 9.77%, and moves
-the calibrated near limit from approximately 0.42 m to 0.50 m. It remains
-subject to multi-scene validation.
+The [production-profile sweep](cpu-sgbm-production-profile.md) evaluates 16
+range/block geometries and 58 staged confidence and aggregation profiles. The
+selected 64/128-disparity, block-5, uniqueness-1, speckle-30/2 configuration
+covers the 0.75--6.0 m navigation band. An adjacent live comparison against
+the previous 80/160 profile reduced normalized process CPU from 9.97% to
+9.37% and median depth-ready age from 54.64 ms to 52.28 ms at 10 Hz.
 
 The [shared stereo auto-exposure result](stereo-auto-exposure.md) replaces the
 fixed 3 ms / 1.5x camera setting. One controller meters both images, drives the
