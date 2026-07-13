@@ -35,6 +35,13 @@ The downstream ROS-free projection and voxel/cluster filtering contract is in
 the [native compact obstacle cloud](docs/compact-obstacle-cloud.md). The first
 camera-to-mmap run is recorded in the
 [native output live validation](docs/native-output-live-validation.md).
+The optional native detector/segmenter, same-frame disparity fusion, and its
+separate compact mmap contract are described in the
+[semantic perception architecture](docs/semantic-perception-architecture.md).
+The [semantic model comparison](docs/semantic-model-candidates.md) records the
+off-road GOOSE experiment and longer-term model path. The pinned workstation
+compiler is documented in the
+[Hailo WSL toolchain guide](docs/hailo-toolchain-wsl.md).
 
 Image rectification has its own backend registry, separate from stereo
 matching. The production `cpu_opencv` implementation is documented in the
@@ -57,6 +64,10 @@ The result transport is a dependency-free, versioned four-slot mmap ring under
 `include/depthd/ipc/result_ring_layout.hpp`; the ROS bridge vendors that exact
 ABI and publishes only the newest complete sequence. Camera runtime and the
 Hailo backend remain separate from the ROS/ament bridge.
+
+Semantic output uses a second ABI at `/run/depthd/semantic.ring`, defined in
+`include/depthd/ipc/semantic_ring_layout.hpp`. It never changes the locked depth
+ring and carries no raw segmentation mask by default.
 
 ## Build the current contract test
 

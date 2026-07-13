@@ -32,6 +32,20 @@ add_library(depthd_result_ring STATIC
 )
 add_library(depthd::result_ring ALIAS depthd_result_ring)
 
+find_package(Threads REQUIRED)
+
+add_library(depthd_semantic_core STATIC
+  src/semantic_types.cpp
+  src/semantic_fusion.cpp
+  src/semantic_perception.cpp
+)
+add_library(depthd::semantic_core ALIAS depthd_semantic_core)
+
+add_library(depthd_semantic_ring STATIC
+  src/semantic_ring.cpp
+)
+add_library(depthd::semantic_ring ALIAS depthd_semantic_ring)
+
 add_library(depthd_native_output_core STATIC
   src/native_output.cpp
 )
@@ -39,6 +53,10 @@ add_library(depthd::native_output_core ALIAS depthd_native_output_core)
 
 add_library(depthd_native_output SHARED
   src/native_output_c.cpp
+)
+
+add_library(depthd_semantic_output SHARED
+  src/semantic_output_c.cpp
 )
 
 target_include_directories(depthd_contract
@@ -80,6 +98,32 @@ set_target_properties(depthd_result_ring PROPERTIES
 )
 depthd_enable_warnings(depthd_result_ring)
 
+target_include_directories(depthd_semantic_core
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_compile_features(depthd_semantic_core PUBLIC cxx_std_20)
+target_link_libraries(depthd_semantic_core PUBLIC
+  depthd::obstacle_cloud Threads::Threads
+)
+set_target_properties(depthd_semantic_core PROPERTIES
+  POSITION_INDEPENDENT_CODE ON
+)
+depthd_enable_warnings(depthd_semantic_core)
+
+target_include_directories(depthd_semantic_ring
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_compile_features(depthd_semantic_ring PUBLIC cxx_std_20)
+target_link_libraries(depthd_semantic_ring PUBLIC depthd::semantic_core)
+set_target_properties(depthd_semantic_ring PROPERTIES
+  POSITION_INDEPENDENT_CODE ON
+)
+depthd_enable_warnings(depthd_semantic_ring)
+
 target_include_directories(depthd_native_output_core
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -105,6 +149,20 @@ target_compile_definitions(depthd_native_output PRIVATE
 )
 target_link_libraries(depthd_native_output PRIVATE depthd::native_output_core)
 depthd_enable_warnings(depthd_native_output)
+
+target_include_directories(depthd_semantic_output
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_compile_features(depthd_semantic_output PUBLIC cxx_std_20)
+target_compile_definitions(depthd_semantic_output PRIVATE
+  DEPTHD_SEMANTIC_OUTPUT_BUILD
+)
+target_link_libraries(depthd_semantic_output PRIVATE
+  depthd::semantic_core depthd::semantic_ring depthd::native_output_core
+)
+depthd_enable_warnings(depthd_semantic_output)
 
 add_executable(depthd_obstacle_cloud_benchmark
   tools/obstacle_cloud_benchmark.cpp
@@ -189,6 +247,40 @@ if(BUILD_TESTING)
   depthd_enable_warnings(depthd_result_ring_test)
   add_test(NAME depthd_result_ring_test COMMAND depthd_result_ring_test)
 
+  add_executable(depthd_semantic_fusion_test tests/semantic_fusion_test.cpp)
+  target_link_libraries(depthd_semantic_fusion_test PRIVATE
+    depthd::semantic_core
+  )
+  depthd_enable_warnings(depthd_semantic_fusion_test)
+  add_test(NAME depthd_semantic_fusion_test
+    COMMAND depthd_semantic_fusion_test
+  )
+
+  add_executable(depthd_semantic_perception_test
+    tests/semantic_perception_test.cpp
+  )
+  target_link_libraries(depthd_semantic_perception_test PRIVATE
+    depthd::semantic_core
+  )
+  depthd_enable_warnings(depthd_semantic_perception_test)
+  add_test(NAME depthd_semantic_perception_test
+    COMMAND depthd_semantic_perception_test
+  )
+
+  add_executable(depthd_semantic_ring_test tests/semantic_ring_test.cpp)
+  target_link_libraries(depthd_semantic_ring_test PRIVATE
+    depthd::semantic_ring
+  )
+  depthd_enable_warnings(depthd_semantic_ring_test)
+  add_test(NAME depthd_semantic_ring_test COMMAND depthd_semantic_ring_test)
+
+  add_executable(depthd_semantic_output_test tests/semantic_output_test.cpp)
+  target_link_libraries(depthd_semantic_output_test PRIVATE
+    depthd_semantic_output depthd::semantic_ring
+  )
+  depthd_enable_warnings(depthd_semantic_output_test)
+  add_test(NAME depthd_semantic_output_test COMMAND depthd_semantic_output_test)
+
   add_executable(depthd_native_output_test tests/native_output_test.cpp)
   target_link_libraries(depthd_native_output_test PRIVATE
     depthd::native_output_core depthd_native_output
@@ -212,6 +304,22 @@ if(BUILD_TESTING)
             --library $<TARGET_FILE:depthd_native_output>
         )
         set_tests_properties(depthd_native_output_python_test PROPERTIES
+          ENVIRONMENT
+            "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/tools/pi"
+        )
+      endif()
+      execute_process(
+        COMMAND ${Python3_EXECUTABLE} -c "import numpy, cv2"
+        RESULT_VARIABLE DEPTHD_PYTHON_SEMANTIC_RESULT
+        OUTPUT_QUIET
+        ERROR_QUIET
+      )
+      if(DEPTHD_PYTHON_SEMANTIC_RESULT EQUAL 0)
+        add_test(NAME depthd_semantic_worker_test
+          COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/semantic_worker_test.py
+        )
+        set_tests_properties(depthd_semantic_worker_test PROPERTIES
           ENVIRONMENT
             "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/tools/pi"
         )

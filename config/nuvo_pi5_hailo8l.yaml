@@ -61,9 +61,9 @@ rectification:
   map_format: fixed_point
   # The depth path converts the camera-owned BGR views to one-channel images
   # before remapping. Full-color left rectification runs only when the
-  # throttled compressed-image output is due.
+  # throttled JPEG or an enabled semantic model is due.
   depth_preprocessing: grayscale_before_rectification
-  color_rectification: on_compressed_output_schedule
+  color_rectification: on_jpeg_or_semantic_schedule
 
 stereo:
   backend: cpu_sgbm
@@ -100,6 +100,44 @@ outputs:
   obstacle_cloud_topic: /camera/front/obstacles
   result_ring_path: /run/depthd/results.ring
   result_ring_slots: 4
-  # Off by default. Enable only when a semantic consumer needs the already
-  # rectified grayscale plane.
+  # Off by default. Native semantics consumes the owned rectified color frame;
+  # this plane is retained only for an explicit grayscale diagnostic consumer.
   result_ring_left_mono_enabled: false
+
+semantic:
+  # The portable module and ABI are production-ready. Keep hardware execution
+  # gated until both HEFs pass artifact verification and live Hailo-8L tests.
+  enabled: false
+  backend: hailort
+  frame_source: left_rectified_color_bgr
+  queue_policy: latest_only
+  queue_capacity: 1
+  result_ring_path: /run/depthd/semantic.ring
+  result_ring_slots: 4
+  output_library: build/libdepthd_semantic_output.so
+  target_frame: base_link
+  models:
+    instances:
+      name: yolov8s
+      hef_path: /home/cam/nuvo-base/data/models/hailo/front_semantic.hef
+      manifest: models/semantic/manifest.json
+      target_hz: 5
+    dense_regions:
+      name: segformer_b0_bn
+      hef_path: /home/cam/nuvo-base/data/models/hailo/segformer_b0_bn.hef
+      manifest: models/semantic/manifest.json
+      target_hz: 5
+  preview:
+    enabled: false
+    max_jpeg_bytes: 524288
+  fusion:
+    min_range_m: 0.50
+    max_range_m: 6.00
+    sample_step_px: 2
+    inner_box_fraction: 0.60
+    min_valid_samples: 12
+    min_valid_fraction: 0.05
+    max_range_stddev_m: 0.50
+    living_stop_range_m: 3.00
+    living_stop_bearing_abs_rad: 0.90
+    stop_on_unranged_living: true

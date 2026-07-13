@@ -107,11 +107,49 @@ def main() -> None:
     parser.add_argument(
         "--publish-left-mono-to-ring",
         action="store_true",
-        help="include rectified mono for semantic consumers",
+        help="include rectified mono for an explicit diagnostic consumer",
+    )
+    parser.add_argument(
+        "--semantic",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="run native semantic perception (disabled by default)",
+    )
+    parser.add_argument(
+        "--semantic-ring",
+        type=Path,
+        default=Path("/run/depthd/semantic.ring"),
+    )
+    parser.add_argument(
+        "--semantic-output-library",
+        type=Path,
+        help="path to libdepthd_semantic_output.so",
+    )
+    parser.add_argument(
+        "--semantic-yolo-hef",
+        type=Path,
+        default=Path("/home/cam/nuvo-base/data/models/hailo/front_semantic.hef"),
+    )
+    parser.add_argument(
+        "--semantic-segformer-hef",
+        type=Path,
+        default=Path("/home/cam/nuvo-base/data/models/hailo/segformer_b0_bn.hef"),
+    )
+    parser.add_argument("--semantic-yolo-hz", type=float, default=5.0)
+    parser.add_argument("--semantic-segformer-hz", type=float, default=5.0)
+    parser.add_argument(
+        "--semantic-preview",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="include a diagnostic JPEG in semantic.ring",
     )
     args = parser.parse_args()
     if args.frames < 1 or args.warmup_frames < 0 or args.fps <= 0.0:
         parser.error("frame counts and fps must be positive")
+    if args.semantic and args.result_ring is None:
+        parser.error("--semantic requires --result-ring for source sequence parity")
+    if args.semantic_yolo_hz <= 0.0 or args.semantic_segformer_hz <= 0.0:
+        parser.error("semantic model rates must be positive")
     if (
         args.working_disparities < 16
         or args.working_disparities % 16 != 0
@@ -186,6 +224,7 @@ def main() -> None:
         pair_tolerance_us=args.pair_tolerance_us,
     )
     native_output = None
+    semantic_worker = None
     sensor_to_realtime_ns = None
     if args.result_ring is not None:
         from depthd_native_output import (
@@ -198,6 +237,35 @@ def main() -> None:
             args.native_output_library,
         )
         sensor_to_realtime_ns = sensor_monotonic_to_realtime_ns
+    if args.semantic:
+        from depthd_semantic import (
+            SemanticOutputPublisher,
+            SemanticWorker,
+            make_hailo_backends,
+        )
+
+        try:
+            registrations, hailo_owner = make_hailo_backends(
+                args.semantic_yolo_hef,
+                args.semantic_segformer_hef,
+                yolo_hz=args.semantic_yolo_hz,
+                segformer_hz=args.semantic_segformer_hz,
+            )
+            semantic_output = SemanticOutputPublisher(
+                args.semantic_ring,
+                args.semantic_output_library,
+            )
+            semantic_worker = SemanticWorker(
+                registrations,
+                semantic_output,
+                preview_enabled=args.semantic_preview,
+            )
+        except Exception:
+            if "hailo_owner" in locals():
+                hailo_owner.close()
+            if native_output is not None:
+                native_output.close()
+            raise
 
     samples: dict[str, list[float]] = {}
     sensor_deltas_ns: list[int] = []
@@ -230,6 +298,8 @@ def main() -> None:
     try:
         capture.start()
     except Exception:
+        if semantic_worker is not None:
+            semantic_worker.close()
         if native_output is not None:
             native_output.close()
         raise
@@ -247,6 +317,12 @@ def main() -> None:
                 measured_process_cpu_started = time.process_time()
                 measured_system_ticks_started = system_cpu_ticks()
             cycle_started_ns = time.perf_counter_ns()
+            semantic_schedule_ns = time.monotonic_ns()
+            semantic_due = (
+                semantic_worker.wants_frame(semantic_schedule_ns)
+                if semantic_worker is not None
+                else False
+            )
 
             stage_started_ns = time.perf_counter_ns()
             pair = capture.take(timeout_s=2.0)
@@ -311,7 +387,7 @@ def main() -> None:
                         measured,
                     )
 
-                    if jpeg_due:
+                    if jpeg_due or semantic_due:
                         stage_started_ns = time.perf_counter_ns()
                         left_color = cv2.remap(
                             left_raw,
@@ -441,6 +517,22 @@ def main() -> None:
                         float(last_native_output["result_ring_publish_ms"])
                     )
 
+            if semantic_due:
+                if semantic_worker is None or left_color is None:
+                    raise RuntimeError("scheduled semantic color frame is missing")
+                if capture_realtime_ns is None or last_native_output is None:
+                    raise RuntimeError("semantic source sequence/stamp is missing")
+                stage_started_ns = time.perf_counter_ns()
+                if not semantic_worker.submit(
+                    source_sequence=int(last_native_output["sequence"]),
+                    capture_realtime_ns=capture_realtime_ns,
+                    color_bgr=left_color,
+                    disparity=disparity,
+                    submitted_ns=semantic_schedule_ns,
+                ):
+                    raise RuntimeError("semantic worker rejected a scheduled frame")
+                record("semantic_nonblocking_submit_ms", stage_started_ns, measured)
+
             stage_started_ns = time.perf_counter_ns()
             published_disparity = disparity.copy()
             published_depth = depth.copy() if depth is not None else None
@@ -476,6 +568,8 @@ def main() -> None:
         capture_stats = capture.stats()
     finally:
         capture.stop()
+        if semantic_worker is not None:
+            semantic_worker.close()
         if native_output is not None:
             native_output.close()
 
@@ -519,6 +613,11 @@ def main() -> None:
                 str(args.result_ring) if args.result_ring is not None else None
             ),
             "native_result_ring_left_mono": args.publish_left_mono_to_ring,
+            "semantic_enabled": args.semantic,
+            "semantic_ring_path": str(args.semantic_ring) if args.semantic else None,
+            "semantic_yolo_hz": args.semantic_yolo_hz,
+            "semantic_segformer_hz": args.semantic_segformer_hz,
+            "semantic_preview_enabled": args.semantic_preview,
         },
         "capture_start_ms": capture_start_ms,
         "jpeg_warmup_ms": jpeg_warmup_ms,
@@ -567,6 +666,9 @@ def main() -> None:
                 "pair_delta_max": max(applied_gain_deltas, default=0.0),
             },
             "native_output_last": last_native_output,
+            "semantic": (
+                semantic_worker.stats() if semantic_worker is not None else None
+            ),
         },
     }
 

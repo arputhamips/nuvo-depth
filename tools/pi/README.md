@@ -42,8 +42,8 @@ Ctrl+C; the camera must be released before starting capture or the depth daemon.
    latest-pair matching, and zero-copy `MappedArray` access. The corresponding
    full pipeline measurement is `profile_async_zero_copy_pipeline.py`. The
    profiler converts the mapped BGR views to grayscale before depth
-   rectification and rectifies the full-color left view only on the throttled
-   JPEG schedule. Metric depth is disabled by default; pass `--metric-depth`
+   rectification and rectifies the full-color left view only when JPEG or an
+   enabled semantic model is due. Metric depth is disabled by default; pass `--metric-depth`
    only for validation runs that need a depth array. `--working-width`,
    `--working-height`, and `--min-disparity` support native-resolution and
    bounded-range experiments without changing production defaults.
@@ -67,10 +67,27 @@ leaving its default path unchanged. Build `libdepthd_native_output.so` and add:
 --native-output-library ./build/libdepthd_native_output.so
 ```
 
-Add `--publish-left-mono-to-ring` only when semantic perception needs the
-already-computed rectified grayscale plane. Disparity, CameraInfo metadata, and
+Add `--publish-left-mono-to-ring` only for an explicit grayscale diagnostic
+consumer. Native semantics uses the owned full-color rectification. Disparity, CameraInfo metadata, and
 the compact `base_link` cloud are present on every native result; JPEG is
 present only on its existing 2 Hz schedule.
+
+Native semantic perception is separately gated and remains off unless
+`--semantic` is supplied. It requires both the native result ring and the two
+verified HEFs:
+
+```bash
+--semantic \
+--semantic-ring /run/depthd/semantic.ring \
+--semantic-output-library ./build/libdepthd_semantic_output.so \
+--semantic-yolo-hef /home/cam/nuvo-base/data/models/hailo/front_semantic.hef \
+--semantic-segformer-hef /home/cam/nuvo-base/data/models/hailo/segformer_b0_bn.hef
+```
+
+The same owned color remap feeds JPEG and the latest-only semantic worker.
+BGR-to-RGB conversion happens only after resizing to model input. The Hailo
+VDevice, configured network groups, and VStreams persist for the process
+lifetime, with one owner serializing both networks. Raw masks never enter mmap.
 
 The legacy ROS camera/depth stack must be stopped before the native profiler so
 the cameras have one owner. The small read-only ROS bridge and its validator do
