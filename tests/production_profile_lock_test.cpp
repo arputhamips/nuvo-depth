@@ -1,4 +1,5 @@
 #include "depthd/contract.hpp"
+#include "depthd/ipc/result_ring_layout.hpp"
 #include "depthd/obstacle_cloud.hpp"
 #include "depthd/stereo_backend.hpp"
 
@@ -58,6 +59,16 @@ int main() {
       cloud.min_cluster_raw_points != 60 || cloud.max_voxels != 32768) {
     return 5;
   }
+  if (depthd::ipc::kResultRingSchemaVersion != 1 ||
+      depthd::ipc::kResultRingSlotCount != 4 ||
+      depthd::ipc::kResultRingFileBytes != 11620352ULL ||
+      depthd::ipc::kImageWidth != 728 ||
+      depthd::ipc::kImageHeight != 544 ||
+      depthd::ipc::kDisparityStrideBytes != 2912 ||
+      depthd::ipc::kDisparityCapacityBytes != 1584128 ||
+      depthd::ipc::kObstaclePointCapacity != 32768) {
+    return 6;
+  }
 
   const std::string config =
       read_file(std::string(DEPTHD_SOURCE_DIR) +
@@ -79,7 +90,10 @@ int main() {
            "uniqueness_ratio: 1", "speckle_window_size: 30",
            "speckle_range: 2", "opencv_threads: 1",
            "disparity_hz: 10", "metric_depth_enabled: false",
-           "compressed_image_hz: 2", "jpeg_quality: 75"})) {
+           "compressed_image_hz: 2", "jpeg_quality: 75",
+           "result_ring_path: /run/depthd/results.ring",
+           "result_ring_slots: 4", "obstacle_cloud_enabled: true",
+           "obstacle_cloud_topic: /camera/front/obstacles"})) {
     return 3;
   }
 

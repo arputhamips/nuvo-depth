@@ -18,10 +18,10 @@ stable C++ contract from the still-open deployment choice.
   trigger on GPIO 17.
 - Rectified focal length: 493.542046188 px.
 - Calibrated baseline: 0.161458780 m.
-- Required ROS data: `/camera/front/disparity` plus a throttled JPEG view.
+- Required ROS data: `/camera/front/disparity`, compact voxelized
+  `/camera/front/obstacles`, and a throttled JPEG view.
 - Required support data: left camera info and health/latency diagnostics.
-- Future extension: compact voxelized `/camera/front/obstacles`; no dense cloud
-  in the default path.
+- No metric-depth image or dense point cloud in the default path.
 
 See [architecture options](docs/architecture-options.md), the exact
 [Nuvo compatibility contract](docs/nuvo-compatibility.md), and the
@@ -50,9 +50,11 @@ models/               Model provenance and conversion instructions
 third_party/          Pinned upstream sources (git submodules)
 ```
 
-The camera runtime, Hailo backend, IPC transport, and ROS bridge remain
-to be added. The core is a normal CMake project; the bridge will be the only
-ROS/ament package.
+The result transport is a dependency-free, versioned four-slot mmap ring under
+`/run/depthd`. Its authoritative cross-process layout lives in
+`include/depthd/ipc/result_ring_layout.hpp`; the ROS bridge vendors that exact
+ABI and publishes only the newest complete sequence. Camera runtime and the
+Hailo backend remain separate from the ROS/ament bridge.
 
 ## Build the current contract test
 

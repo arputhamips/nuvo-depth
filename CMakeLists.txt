@@ -27,6 +27,11 @@ add_library(depthd_obstacle_cloud STATIC
 )
 add_library(depthd::obstacle_cloud ALIAS depthd_obstacle_cloud)
 
+add_library(depthd_result_ring STATIC
+  src/result_ring.cpp
+)
+add_library(depthd::result_ring ALIAS depthd_result_ring)
+
 target_include_directories(depthd_contract
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -50,6 +55,15 @@ target_include_directories(depthd_obstacle_cloud
 )
 target_compile_features(depthd_obstacle_cloud PUBLIC cxx_std_20)
 depthd_enable_warnings(depthd_obstacle_cloud)
+
+target_include_directories(depthd_result_ring
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_compile_features(depthd_result_ring PUBLIC cxx_std_20)
+target_link_libraries(depthd_result_ring PUBLIC depthd::obstacle_cloud)
+depthd_enable_warnings(depthd_result_ring)
 
 add_executable(depthd_obstacle_cloud_benchmark
   tools/obstacle_cloud_benchmark.cpp
@@ -121,6 +135,11 @@ if(BUILD_TESTING)
   )
   depthd_enable_warnings(depthd_obstacle_cloud_test)
   add_test(NAME depthd_obstacle_cloud_test COMMAND depthd_obstacle_cloud_test)
+
+  add_executable(depthd_result_ring_test tests/result_ring_test.cpp)
+  target_link_libraries(depthd_result_ring_test PRIVATE depthd::result_ring)
+  depthd_enable_warnings(depthd_result_ring_test)
+  add_test(NAME depthd_result_ring_test COMMAND depthd_result_ring_test)
 
   if(TARGET depthd_opencv_rectification)
     add_executable(depthd_opencv_rectification_backend_test

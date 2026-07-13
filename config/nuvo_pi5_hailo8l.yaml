@@ -96,4 +96,10 @@ outputs:
   jpeg_quality: 75
   left_camera_info_topic: /camera/front/left/camera_info
   diagnostics_topic: /camera/front/depthd/diagnostics
-  future_obstacle_cloud_topic: /camera/front/obstacles
+  obstacle_cloud_enabled: true
+  obstacle_cloud_topic: /camera/front/obstacles
+  result_ring_path: /run/depthd/results.ring
+  result_ring_slots: 4
+  # Off by default. Enable only when a semantic consumer needs the already
+  # rectified grayscale plane.
+  result_ring_left_mono_enabled: false
