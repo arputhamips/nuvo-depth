@@ -45,6 +45,9 @@ Ctrl+C; the camera must be released before starting capture or the depth daemon.
    rectification and rectifies the full-color left view only on the throttled
    JPEG schedule. Metric depth is disabled by default; pass `--metric-depth`
    only for validation runs that need a depth array.
+8. `stereo_auto_exposure.py` meters both working grayscale images as one stereo
+   instrument and updates the shared XTR shutter plus matched camera gain. It
+   enforces absolute 8 ms shutter and 3x gain ceilings.
 
 The ROS container must be stopped before using either tool so cameras and the
 Hailo device each have a single owner.

@@ -36,6 +36,12 @@ live coverage, lowers normalized process CPU from 10.29% to 9.77%, and moves
 the calibrated near limit from approximately 0.42 m to 0.50 m. It remains
 subject to multi-scene validation.
 
+The [shared stereo auto-exposure result](stereo-auto-exposure.md) replaces the
+fixed 3 ms / 1.5x camera setting. One controller meters both images, drives the
+common external-trigger shutter, and applies matched gain. Hard limits are
+8 ms (1/125 s) and 3.0x. A 60-second run sustained 10 Hz with 9.84% normalized
+process CPU and zero left/right applied-gain difference.
+
 ## Timing budget at 10 Hz
 
 | Stage | Initial budget |

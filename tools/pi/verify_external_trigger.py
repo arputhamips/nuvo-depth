@@ -14,6 +14,7 @@ from libcamera import Transform
 from picamera2 import Picamera2
 
 from capture_rectified_pair import HEIGHT, WIDTH, TriggerLine
+from stereo_auto_exposure import ABSOLUTE_MAX_SHUTTER_US
 
 
 def main() -> None:
@@ -43,10 +44,11 @@ def main() -> None:
         parser.error("left and right camera indices must differ")
     if (
         args.low_pulse_ms <= 0.0
+        or args.low_pulse_ms * 1000.0 > ABSOLUTE_MAX_SHUTTER_US
         or args.priming_pulses < 1
         or args.pulse_count < 1
     ):
-        parser.error("low pulse and pulse count must be positive")
+        parser.error("low pulse must be positive and no longer than 8 ms")
     if args.pulse_period_ms <= args.low_pulse_ms:
         parser.error("pulse period must be longer than pulse width")
 

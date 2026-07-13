@@ -25,11 +25,28 @@ capture:
     line: 17
     idle_level: high
     active_level: low
-    pulse_width_us: 3000
+    # Physical IMX296 exposure is the shared XTR low pulse. Never exceed
+    # 8000 us (1/125 s) while the robot is operating.
+    pulse_width_us: 8000
     startup_priming_pulses: 5
     pair_tolerance_us: 500
-  exposure_time_us: 3000
-  analogue_gain: 1.5
+  exposure_time_us: 8000
+  analogue_gain: 2.0
+  colour_gains: [2.4771, 2.3425]
+  auto_exposure:
+    enabled: true
+    metering_roi: [160, 96, 728, 420]
+    target_median: 75
+    median_deadband: [65, 85]
+    dark_threshold: 16
+    clipping_threshold: 245
+    max_clipped_fraction: 0.005
+    min_shutter_us: 250
+    max_shutter_us: 8000
+    min_analogue_gain: 1.0
+    max_analogue_gain: 3.0
+    update_interval_frames: 2
+    settle_frames_after_update: 4
 
 rectification:
   backend: cpu_opencv

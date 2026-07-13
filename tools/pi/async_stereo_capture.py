@@ -14,6 +14,7 @@ from libcamera import Transform
 from picamera2 import MappedArray, Picamera2
 
 from capture_rectified_pair import HEIGHT, WIDTH, TriggerLine, pulse_loop
+from stereo_auto_exposure import ABSOLUTE_MAX_SHUTTER_US
 
 
 class FrameLease:
@@ -204,19 +205,29 @@ class AsyncStereoCapture:
         gpiochip: str = "/dev/gpiochip0",
         trigger_line: int = 17,
         frequency_hz: float = 10.0,
-        trigger_low_ms: float = 3.0,
-        analogue_gain: float = 1.5,
+        trigger_low_ms: float = 8.0,
+        analogue_gain: float = 2.0,
+        colour_gains: tuple[float, float] | None = (2.4771, 2.3425),
         pair_tolerance_us: float = 500.0,
         buffer_count: int = 4,
     ) -> None:
         if left_camera_index == right_camera_index:
             raise ValueError("left and right camera indices must differ")
+        if not 0.0 < trigger_low_ms <= ABSOLUTE_MAX_SHUTTER_US / 1000.0:
+            raise ValueError("trigger exposure must stay at or below 8 ms")
+        if not 1.0 <= analogue_gain <= 3.0:
+            raise ValueError("analogue gain must stay between 1x and 3x")
+        if colour_gains is not None and any(gain <= 0.0 for gain in colour_gains):
+            raise ValueError("colour gains must be positive")
         self._camera_indices = (left_camera_index, right_camera_index)
         self._gpiochip = gpiochip
         self._trigger_line = trigger_line
         self._frequency_hz = frequency_hz
         self._trigger_low_s = trigger_low_ms / 1000.0
         self._analogue_gain = analogue_gain
+        self._colour_gains = colour_gains
+        self._control_lock = threading.Lock()
+        self._exposure_updates = 0
         self._buffer_count = buffer_count
         self._slot = LatestStereoPairSlot(
             round(pair_tolerance_us * 1000.0)
@@ -239,6 +250,10 @@ class AsyncStereoCapture:
                 frame.close()
             return
 
+    def _current_trigger_low_s(self) -> float:
+        with self._control_lock:
+            return self._trigger_low_s
+
     def start(self) -> None:
         if self._running:
             raise RuntimeError("capture is already running")
@@ -254,16 +269,19 @@ class AsyncStereoCapture:
             frame_duration_us = round(1_000_000.0 / self._frequency_hz)
             exposure_us = round(self._trigger_low_s * 1_000_000.0)
             for side, camera in zip(("left", "right"), self._cameras):
+                controls: dict[str, Any] = {
+                    "FrameDurationLimits": (
+                        frame_duration_us,
+                        frame_duration_us,
+                    ),
+                    "ExposureTime": exposure_us,
+                    "AnalogueGain": self._analogue_gain,
+                }
+                if self._colour_gains is not None:
+                    controls["ColourGains"] = self._colour_gains
                 configuration = camera.create_video_configuration(
                     main={"size": (WIDTH, HEIGHT), "format": "RGB888"},
-                    controls={
-                        "FrameDurationLimits": (
-                            frame_duration_us,
-                            frame_duration_us,
-                        ),
-                        "ExposureTime": exposure_us,
-                        "AnalogueGain": self._analogue_gain,
-                    },
+                    controls=controls,
                     transform=transform,
                     buffer_count=self._buffer_count,
                 )
@@ -283,7 +301,7 @@ class AsyncStereoCapture:
                     self._trigger,
                     self._trigger_stop,
                     self._frequency_hz,
-                    self._trigger_low_s,
+                    self._current_trigger_low_s,
                 ),
                 daemon=True,
             )
@@ -295,6 +313,33 @@ class AsyncStereoCapture:
 
     def take(self, timeout_s: float | None = None) -> StereoPairLease | None:
         return self._slot.take(timeout_s)
+
+    def set_exposure(self, shutter_us: int, analogue_gain: float) -> None:
+        if not 0 < shutter_us <= ABSOLUTE_MAX_SHUTTER_US:
+            raise ValueError("trigger exposure must stay at or below 8 ms")
+        if not 1.0 <= analogue_gain <= 3.0:
+            raise ValueError("analogue gain must stay between 1x and 3x")
+        controls = {
+            "ExposureTime": int(shutter_us),
+            "AnalogueGain": float(analogue_gain),
+        }
+        for camera in self._cameras:
+            camera.set_controls(controls)
+        with self._control_lock:
+            self._trigger_low_s = shutter_us / 1_000_000.0
+            self._analogue_gain = analogue_gain
+            self._exposure_updates += 1
+
+    def exposure_state(self) -> dict[str, Any]:
+        with self._control_lock:
+            return {
+                "requested_shutter_us": round(
+                    self._trigger_low_s * 1_000_000.0
+                ),
+                "requested_analogue_gain": self._analogue_gain,
+                "fixed_colour_gains": self._colour_gains,
+                "update_count": self._exposure_updates,
+            }
 
     def stats(self) -> dict[str, int]:
         return self._slot.stats()

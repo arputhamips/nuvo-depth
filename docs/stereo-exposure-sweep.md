@@ -59,12 +59,12 @@ without deadline misses:
 
 ## Decision
 
-Use 8 ms / 2.0x as the initial mobile-robot exposure seed. It recovers most of
-the useful shadow signal while limiting motion exposure to 8 ms. Use
-12 ms / 1.5x only as a stationary or very-low-speed preference, where its lower
-gain is worth the additional motion-blur risk. Do not prefer 3.0x gain: it adds
-little gradient information over the two preferred settings and visibly
-increases noise/color distortion.
+Use 8 ms / 2.0x as the initial robot exposure seed. It recovers most of the
+useful shadow signal while limiting motion exposure to 8 ms. The 12 ms result
+is retained only as experimental evidence; production and validation tools now
+enforce an absolute 8 ms (1/125 s) ceiling even while stationary. Gain is
+allowed to rise dynamically when the shutter reaches that ceiling, but is
+hard-limited to 3.0x.
 
 The future shared exposure controller should initially target:
 
@@ -72,7 +72,7 @@ The future shared exposure controller should initially target:
 - fewer than 10% of ROI pixels below 16;
 - fewer than 1% of ROI pixels above 245;
 - one common trigger pulse and matched camera gain;
-- an 8 ms moving shutter ceiling, optionally raised to 12 ms while stationary;
+- an absolute 8 ms shutter ceiling;
 - fast exposure reduction on clipping and damped increases in darkness.
 
 The complete ignored artifacts are stored locally under

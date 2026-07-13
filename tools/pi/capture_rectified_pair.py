@@ -14,13 +14,15 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import cv2
 import numpy as np
 import yaml
 from libcamera import Transform
 from picamera2 import Picamera2
+
+from stereo_auto_exposure import ABSOLUTE_MAX_SHUTTER_US
 
 
 WIDTH = 728
@@ -81,12 +83,14 @@ def pulse_loop(
     line: TriggerLine,
     stop: threading.Event,
     frequency_hz: float = 10.0,
-    low_pulse_s: float = 0.003,
+    low_pulse_s: float | Callable[[], float] = 0.003,
 ) -> None:
     if frequency_hz <= 0.0:
         raise ValueError("trigger frequency must be positive")
     period_s = 1.0 / frequency_hz
-    if low_pulse_s <= 0.0 or low_pulse_s >= period_s:
+    if not callable(low_pulse_s) and (
+        low_pulse_s <= 0.0 or low_pulse_s >= period_s
+    ):
         raise ValueError("trigger low pulse must be inside one trigger period")
 
     # InnoMaker's isolated TRIG input idles high. The falling edge starts the
@@ -94,8 +98,13 @@ def pulse_loop(
     line.set(True)
     next_pulse = time.monotonic()
     while not stop.is_set():
+        current_low_pulse_s = (
+            low_pulse_s() if callable(low_pulse_s) else low_pulse_s
+        )
+        if current_low_pulse_s <= 0.0 or current_low_pulse_s >= period_s:
+            raise RuntimeError("dynamic trigger pulse left the valid period")
         line.set(False)
-        time.sleep(low_pulse_s)
+        time.sleep(current_low_pulse_s)
         line.set(True)
         next_pulse += period_s
         stop.wait(max(0.0, next_pulse - time.monotonic()))
@@ -139,13 +148,14 @@ def main() -> None:
     parser.add_argument("--gpiochip", default="/dev/gpiochip0")
     parser.add_argument("--line", type=int, default=17)
     parser.add_argument("--frequency-hz", type=float, default=10.0)
-    parser.add_argument("--trigger-low-ms", type=float, default=3.0)
-    parser.add_argument("--analogue-gain", type=float, default=1.5)
+    parser.add_argument("--trigger-low-ms", type=float, default=8.0)
+    parser.add_argument("--analogue-gain", type=float, default=2.0)
     parser.add_argument(
         "--colour-gains",
         type=float,
         nargs=2,
         metavar=("RED", "BLUE"),
+        default=(2.4771, 2.3425),
         help="fixed common red/blue gains; setting them disables AWB",
     )
     parser.add_argument("--trigger-start-delay", type=float, default=0.0)
@@ -156,10 +166,14 @@ def main() -> None:
         parser.error("frequency must be positive")
     frame_duration_us = round(1_000_000.0 / args.frequency_hz)
     exposure_us = round(args.trigger_low_ms * 1000.0)
-    if exposure_us <= 0 or exposure_us >= frame_duration_us:
-        parser.error("trigger low pulse must be inside one frame period")
-    if args.analogue_gain < 1.0:
-        parser.error("analogue gain must be at least 1.0")
+    if (
+        exposure_us <= 0
+        or exposure_us > ABSOLUTE_MAX_SHUTTER_US
+        or exposure_us >= frame_duration_us
+    ):
+        parser.error("trigger exposure must stay between zero and 8 ms")
+    if not 1.0 <= args.analogue_gain <= 3.0:
+        parser.error("analogue gain must stay between 1x and 3x")
     if args.settle_seconds < 0.0 or args.pair_candidates < 1:
         parser.error("settle time and pair candidate count are invalid")
     if args.colour_gains is not None and any(

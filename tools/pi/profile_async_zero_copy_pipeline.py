@@ -28,6 +28,7 @@ from profile_cpu_pipeline import (
     summaries,
     system_cpu_ticks,
 )
+from stereo_auto_exposure import AutoExposureConfig, StereoAutoExposure
 
 
 def main() -> None:
@@ -47,8 +48,29 @@ def main() -> None:
         action="store_true",
         help="derive and save metric depth in addition to disparity",
     )
-    parser.add_argument("--trigger-low-ms", type=float, default=3.0)
-    parser.add_argument("--analogue-gain", type=float, default=1.5)
+    parser.add_argument("--trigger-low-ms", type=float, default=8.0)
+    parser.add_argument("--analogue-gain", type=float, default=2.0)
+    parser.add_argument(
+        "--colour-gains",
+        type=float,
+        nargs=2,
+        metavar=("RED", "BLUE"),
+        default=(2.4771, 2.3425),
+    )
+    parser.add_argument(
+        "--auto-exposure",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument("--ae-target-median", type=float, default=75.0)
+    parser.add_argument("--ae-median-low", type=float, default=65.0)
+    parser.add_argument("--ae-median-high", type=float, default=85.0)
+    parser.add_argument("--ae-min-shutter-us", type=int, default=250)
+    parser.add_argument("--ae-max-shutter-us", type=int, default=8000)
+    parser.add_argument("--ae-max-gain", type=float, default=3.0)
+    parser.add_argument("--ae-update-interval", type=int, default=2)
+    parser.add_argument("--ae-settle-frames", type=int, default=4)
+    parser.add_argument("--ae-max-clipped-fraction", type=float, default=0.005)
     parser.add_argument("--pair-tolerance-us", type=float, default=500.0)
     parser.add_argument(
         "--working-disparities",
@@ -84,6 +106,30 @@ def main() -> None:
         or args.speckle_range < 0
     ):
         parser.error("invalid SGBM filtering parameters")
+    try:
+        ae_config = AutoExposureConfig(
+            target_median=args.ae_target_median,
+            median_low=args.ae_median_low,
+            median_high=args.ae_median_high,
+            max_clipped_fraction=args.ae_max_clipped_fraction,
+            min_shutter_us=args.ae_min_shutter_us,
+            max_shutter_us=args.ae_max_shutter_us,
+            max_gain=args.ae_max_gain,
+            update_interval_frames=args.ae_update_interval,
+            settle_frames_after_update=args.ae_settle_frames,
+        )
+        ae_config.validate()
+        auto_exposure = (
+            StereoAutoExposure(
+                ae_config,
+                initial_shutter_us=round(args.trigger_low_ms * 1000.0),
+                initial_gain=args.analogue_gain,
+            )
+            if args.auto_exposure
+            else None
+        )
+    except ValueError as error:
+        parser.error(str(error))
     args.output_dir.mkdir(parents=True, exist_ok=True)
     cv2.setNumThreads(1)
 
@@ -111,6 +157,7 @@ def main() -> None:
         frequency_hz=args.fps,
         trigger_low_ms=args.trigger_low_ms,
         analogue_gain=args.analogue_gain,
+        colour_gains=tuple(args.colour_gains),
         pair_tolerance_us=args.pair_tolerance_us,
     )
 
@@ -119,6 +166,9 @@ def main() -> None:
     callback_deltas_ns: list[int] = []
     jpeg_sizes: list[int] = []
     valid_fractions: list[float] = []
+    left_applied_gains: list[float] = []
+    right_applied_gains: list[float] = []
+    applied_gain_deltas: list[float] = []
     last_jpeg: np.ndarray | None = None
     last: dict[str, np.ndarray] = {}
     jpeg_period = max(1, round(args.fps / max(args.jpeg_hz, 1e-6)))
@@ -170,6 +220,11 @@ def main() -> None:
                     (pair.ready_monotonic_ns - pair.right.sensor_timestamp_ns)
                     / 1_000_000.0
                 )
+                left_gain = float(pair.left.metadata.get("AnalogueGain", 0.0))
+                right_gain = float(pair.right.metadata.get("AnalogueGain", 0.0))
+                left_applied_gains.append(left_gain)
+                right_applied_gains.append(right_gain)
+                applied_gain_deltas.append(abs(left_gain - right_gain))
 
             try:
                 left_color: np.ndarray | None = None
@@ -240,6 +295,18 @@ def main() -> None:
                 interpolation=cv2.INTER_AREA,
             )
             record("downscale_ms", stage_started_ns, measured)
+
+            if auto_exposure is not None:
+                stage_started_ns = time.perf_counter_ns()
+                exposure_command = auto_exposure.observe(
+                    left_working, right_working
+                )
+                if exposure_command is not None:
+                    capture.set_exposure(
+                        exposure_command.shutter_us,
+                        exposure_command.gain,
+                    )
+                record("auto_exposure_ms", stage_started_ns, measured)
 
             stage_started_ns = time.perf_counter_ns()
             disparity_fixed = matcher.compute(left_working, right_working)
@@ -348,6 +415,9 @@ def main() -> None:
             "warmup_frames": args.warmup_frames,
             "capture_fps": args.fps,
             "trigger_low_ms": args.trigger_low_ms,
+            "initial_analogue_gain": args.analogue_gain,
+            "fixed_colour_gains": list(args.colour_gains),
+            "auto_exposure_enabled": args.auto_exposure,
             "pair_tolerance_us": args.pair_tolerance_us,
             "camera_input_copy_count": 0,
             "depth_rectification_input": "grayscale",
@@ -396,6 +466,15 @@ def main() -> None:
             },
             "max_rss_kib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
             "async_capture": capture_stats,
+            "exposure_state": capture.exposure_state(),
+            "auto_exposure": (
+                auto_exposure.report() if auto_exposure is not None else None
+            ),
+            "applied_gain": {
+                "left_p50": percentile(left_applied_gains, 50),
+                "right_p50": percentile(right_applied_gains, 50),
+                "pair_delta_max": max(applied_gain_deltas, default=0.0),
+            },
         },
     }
 
