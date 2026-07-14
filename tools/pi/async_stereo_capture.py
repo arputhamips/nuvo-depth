@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 from contextlib import ExitStack, contextmanager
@@ -59,6 +60,29 @@ class MappedStereoViews:
     left_color: np.ndarray | None
 
 
+DMABUF_MODIFIER_INVALID = (1 << 64) - 1
+
+
+@dataclass(frozen=True)
+class DmabufPlaneMetadata:
+    """One importable camera plane, valid while its FrameLease is live."""
+
+    fd: int
+    buffer_id: int
+    request_id: int
+    width: int
+    height: int
+    stride_bytes: int
+    offset_bytes: int
+    modifier: int = DMABUF_MODIFIER_INVALID
+
+
+@dataclass(frozen=True)
+class StereoDmabufViews:
+    left: DmabufPlaneMetadata
+    right: DmabufPlaneMetadata
+
+
 class StereoPairLease:
     """Own left/right requests until the consumer releases the pair."""
 
@@ -78,6 +102,81 @@ class StereoPairLease:
     def callback_delta_ns(self) -> int:
         return abs(
             self.left.callback_monotonic_ns - self.right.callback_monotonic_ns
+        )
+
+    @staticmethod
+    def _dmabuf_plane(
+        frame: FrameLease,
+        stream_name: str,
+        *,
+        width: int,
+        height: int,
+    ) -> DmabufPlaneMetadata:
+        if frame._closed:
+            raise RuntimeError("camera request lease is already closed")
+        completed = frame.request
+        picam2 = completed.picam2
+        stream = picam2.stream_map[stream_name]
+        framebuffer = completed.request.buffers[stream]
+        if not framebuffer.planes:
+            raise RuntimeError("camera framebuffer contains no planes")
+        plane = framebuffer.planes[0]
+        configuration = picam2.camera_configuration()[stream_name]
+        stride = int(configuration["stride"])
+        fd = int(plane.fd)
+        offset = int(plane.offset)
+        if fd < 0 or stride < width or offset < 0:
+            raise RuntimeError(
+                "invalid camera DMABUF fd/stride/offset metadata"
+            )
+        # Linux exposes a stable inode per DMA allocation. The native backend
+        # fstat()s again and also compares fd/layout metadata, so descriptor
+        # reuse or allocator-pool replacement forces a safe re-import.
+        status = os.fstat(fd)
+        buffer_id = (
+            ((int(status.st_dev) & 0xFFFFFFFF) << 32)
+            ^ int(status.st_ino)
+        ) & ((1 << 64) - 1)
+        if buffer_id == 0:
+            buffer_id = id(framebuffer)
+        modifier = int(
+            getattr(framebuffer, "modifier", DMABUF_MODIFIER_INVALID)
+        )
+        request_id = int(frame.sensor_timestamp_ns)
+        if buffer_id == 0 or request_id == 0:
+            raise RuntimeError("camera DMABUF identity is unavailable")
+        return DmabufPlaneMetadata(
+            fd=fd,
+            buffer_id=buffer_id,
+            request_id=request_id,
+            width=width,
+            height=height,
+            stride_bytes=stride,
+            offset_bytes=offset,
+            modifier=modifier,
+        )
+
+    def dmabuf_luma_views(self, *, stream_profile: str) -> StereoDmabufViews:
+        """Return Y-plane import metadata without CPU-mapping either buffer."""
+        left_plan = camera_stream_plan(stream_profile, "left")
+        right_plan = camera_stream_plan(stream_profile, "right")
+        if not left_plan.depth_is_gray or not right_plan.depth_is_gray:
+            raise RuntimeError(
+                "egl_gl_dmabuf requires the isp_luma_rgb_left profile"
+            )
+        return StereoDmabufViews(
+            left=self._dmabuf_plane(
+                self.left,
+                left_plan.depth_stream,
+                width=WIDTH,
+                height=HEIGHT,
+            ),
+            right=self._dmabuf_plane(
+                self.right,
+                right_plan.depth_stream,
+                width=WIDTH,
+                height=HEIGHT,
+            ),
         )
 
     @contextmanager

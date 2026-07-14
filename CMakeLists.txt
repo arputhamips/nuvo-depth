@@ -6,6 +6,8 @@ include(GNUInstallDirs)
 option(DEPTHD_WITH_OPENCV "Build the OpenCV CPU processing backends" ON)
 option(DEPTHD_WITH_HAILORT_SEMANTICS
   "Build the native HailoRT semantic inference backend" OFF)
+option(DEPTHD_WITH_EGL_GL_DMABUF_RECTIFICATION
+  "Build the Pi EGL/OpenGL ES DMABUF rectification backend" OFF)
 
 function(depthd_enable_warnings target)
   if(MSVC)
@@ -22,6 +24,7 @@ add_library(depthd::contract ALIAS depthd_contract)
 
 add_library(depthd_rectification STATIC
   src/rectification_backend.cpp
+  src/egl_gl_dmabuf_rectification_backend.cpp
 )
 add_library(depthd::rectification ALIAS depthd_rectification)
 
@@ -80,6 +83,9 @@ target_include_directories(depthd_rectification
     $<INSTALL_INTERFACE:include>
 )
 target_compile_features(depthd_rectification PUBLIC cxx_std_20)
+set_target_properties(depthd_rectification PROPERTIES
+  POSITION_INDEPENDENT_CODE ON
+)
 depthd_enable_warnings(depthd_rectification)
 
 target_include_directories(depthd_obstacle_cloud
@@ -216,6 +222,9 @@ if(DEPTHD_WITH_OPENCV)
     target_compile_features(depthd_opencv_rectification PUBLIC cxx_std_20)
     target_include_directories(depthd_opencv_rectification SYSTEM PRIVATE ${OpenCV_INCLUDE_DIRS})
     target_link_libraries(depthd_opencv_rectification PUBLIC depthd::rectification PRIVATE ${OpenCV_LIBS})
+    set_target_properties(depthd_opencv_rectification PROPERTIES
+      POSITION_INDEPENDENT_CODE ON
+    )
     depthd_enable_warnings(depthd_opencv_rectification)
 
     add_library(depthd_cpu_sgbm STATIC src/cpu_sgbm_backend.cpp)
@@ -238,6 +247,60 @@ if(DEPTHD_WITH_OPENCV)
   else()
     message(STATUS "OpenCV not found; skipping the CPU SGBM backend")
   endif()
+endif()
+
+if(DEPTHD_WITH_EGL_GL_DMABUF_RECTIFICATION)
+  if(NOT UNIX)
+    message(FATAL_ERROR
+      "DEPTHD_WITH_EGL_GL_DMABUF_RECTIFICATION requires Linux DMABUF support")
+  endif()
+  if(NOT TARGET depthd_opencv_rectification)
+    message(FATAL_ERROR
+      "DEPTHD_WITH_EGL_GL_DMABUF_RECTIFICATION requires the cpu_opencv fallback")
+  endif()
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(DEPTHD_EGL REQUIRED IMPORTED_TARGET egl)
+  pkg_check_modules(DEPTHD_GLESV2 REQUIRED IMPORTED_TARGET glesv2)
+
+  add_library(depthd_egl_gl_dmabuf_rectification STATIC
+    src/egl_gl_dmabuf_platform.cpp
+  )
+  add_library(depthd::egl_gl_dmabuf_rectification ALIAS
+    depthd_egl_gl_dmabuf_rectification)
+  target_include_directories(depthd_egl_gl_dmabuf_rectification
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:include>
+  )
+  target_compile_features(depthd_egl_gl_dmabuf_rectification PUBLIC cxx_std_20)
+  target_link_libraries(depthd_egl_gl_dmabuf_rectification
+    PUBLIC depthd::rectification
+    PRIVATE
+      depthd::opencv_rectification
+      PkgConfig::DEPTHD_EGL
+      PkgConfig::DEPTHD_GLESV2
+  )
+  set_target_properties(depthd_egl_gl_dmabuf_rectification PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+  )
+  depthd_enable_warnings(depthd_egl_gl_dmabuf_rectification)
+
+  add_library(depthd_egl_gl_dmabuf_rectification_c SHARED
+    src/egl_gl_dmabuf_rectification_c.cpp
+  )
+  target_include_directories(depthd_egl_gl_dmabuf_rectification_c
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:include>
+  )
+  target_compile_features(depthd_egl_gl_dmabuf_rectification_c PUBLIC cxx_std_20)
+  target_link_libraries(depthd_egl_gl_dmabuf_rectification_c PRIVATE
+    depthd::egl_gl_dmabuf_rectification
+  )
+  set_target_properties(depthd_egl_gl_dmabuf_rectification_c PROPERTIES
+    OUTPUT_NAME depthd_egl_gl_dmabuf_rectification
+  )
+  depthd_enable_warnings(depthd_egl_gl_dmabuf_rectification_c)
 endif()
 
 if(DEPTHD_WITH_HAILORT_SEMANTICS)
@@ -286,8 +349,14 @@ install(PROGRAMS
   tools/pi/stereo_auto_exposure.py
   tools/pi/depthd_native_output.py
   tools/pi/depthd_native_semantic.py
+  tools/pi/depthd_egl_gl_rectification.py
   DESTINATION "${DEPTHD_LIBEXEC_DIR}"
 )
+if(TARGET depthd_egl_gl_dmabuf_rectification_c)
+  install(TARGETS depthd_egl_gl_dmabuf_rectification_c
+    LIBRARY DESTINATION "${DEPTHD_LIBEXEC_DIR}"
+  )
+endif()
 install(PROGRAMS deployment/depthd_assets.py
   DESTINATION "${CMAKE_INSTALL_SBINDIR}"
   RENAME depthd-assets
@@ -338,6 +407,17 @@ if(BUILD_TESTING)
   depthd_enable_warnings(depthd_rectification_backend_test)
   add_test(NAME depthd_rectification_backend_test
     COMMAND depthd_rectification_backend_test
+  )
+
+  add_executable(depthd_egl_gl_dmabuf_rectification_backend_test
+    tests/egl_gl_dmabuf_rectification_backend_test.cpp
+  )
+  target_link_libraries(depthd_egl_gl_dmabuf_rectification_backend_test
+    PRIVATE depthd::rectification
+  )
+  depthd_enable_warnings(depthd_egl_gl_dmabuf_rectification_backend_test)
+  add_test(NAME depthd_egl_gl_dmabuf_rectification_backend_test
+    COMMAND depthd_egl_gl_dmabuf_rectification_backend_test
   )
 
   add_executable(depthd_obstacle_cloud_test tests/obstacle_cloud_test.cpp)
@@ -403,6 +483,21 @@ if(BUILD_TESTING)
         ERROR_QUIET
       )
       if(DEPTHD_PYTHON_NUMPY_RESULT EQUAL 0)
+        add_test(NAME depthd_dmabuf_capture_adapter_test
+          COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/dmabuf_capture_adapter_test.py
+        )
+        if(TARGET depthd_egl_gl_dmabuf_rectification_c)
+          add_test(NAME depthd_egl_gl_ctypes_fallback_test
+            COMMAND ${Python3_EXECUTABLE}
+              ${CMAKE_CURRENT_SOURCE_DIR}/tests/egl_gl_ctypes_fallback_test.py
+              --library $<TARGET_FILE:depthd_egl_gl_dmabuf_rectification_c>
+          )
+          set_tests_properties(depthd_egl_gl_ctypes_fallback_test PROPERTIES
+            ENVIRONMENT
+              "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/tools/pi"
+          )
+        endif()
         add_test(NAME depthd_native_output_python_test
           COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/native_output_python_test.py

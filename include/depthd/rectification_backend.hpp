@@ -61,6 +61,64 @@ struct RectificationStats {
   double total_ms{};
 };
 
+// Capture-native luma input. This is deliberately separate from ImageView:
+// an fd is an importable allocation, not a CPU pointer. The caller must retain
+// the associated camera request lease for the complete synchronous call.
+inline constexpr std::uint64_t kDmabufModifierInvalid =
+    UINT64_MAX;
+
+enum class DmabufPlaneFormat : std::uint8_t {
+  kR8,
+};
+
+class DmabufRequestLease {
+ public:
+  virtual ~DmabufRequestLease() = default;
+  [[nodiscard]] virtual bool valid() const noexcept = 0;
+  [[nodiscard]] virtual std::uint64_t request_id() const noexcept = 0;
+};
+
+struct DmabufPlaneView {
+  int fd{-1};
+  // Stable identity assigned by the capture adapter for one libcamera pool
+  // allocation. fd alone is insufficient because descriptor numbers can be
+  // reused after a camera restart.
+  std::uint64_t buffer_id{};
+  std::uint32_t width{};
+  std::uint32_t height{};
+  std::uint32_t stride_bytes{};
+  std::uint32_t offset_bytes{};
+  std::uint64_t modifier{kDmabufModifierInvalid};
+  DmabufPlaneFormat format{DmabufPlaneFormat::kR8};
+  const DmabufRequestLease* lease{};
+};
+
+struct DmabufStereoInput {
+  DmabufPlaneView left;
+  DmabufPlaneView right;
+
+  // Optional zero-copy CPU mappings of the same leased planes. They may be
+  // null on the fast path. A backend uses them only after a configured GPU
+  // initialization/import/runtime failure.
+  ImageView left_cpu_fallback;
+  ImageView right_cpu_fallback;
+};
+
+struct DmabufRectificationDiagnostics {
+  std::string selected_backend;
+  std::string fallback_reason;
+  std::size_t cache_size{};
+  std::size_t cache_capacity{};
+  std::uint64_t import_count{};
+  std::uint64_t stale_reimport_count{};
+  std::uint64_t eviction_count{};
+  std::uint64_t failure_count{};
+  std::size_t owned_fd_count{};
+  double submit_wait_ms{};
+  bool gpu_timer_supported{};
+  RectificationStats last_stats;
+};
+
 class RectificationBackend {
  public:
   virtual ~RectificationBackend() = default;
@@ -78,6 +136,19 @@ class RectificationBackend {
                             const MutableImageView& left_output,
                             const MutableImageView& right_output,
                             RectificationStats& stats);
+
+  [[nodiscard]] virtual bool supports_dmabuf_pair() const noexcept {
+    return false;
+  }
+
+  virtual void rectify_dmabuf_pair(
+      const DmabufStereoInput& input,
+      const MutableImageView& left_output,
+      const MutableImageView& right_output,
+      RectificationStats& stats);
+
+  [[nodiscard]] virtual DmabufRectificationDiagnostics
+  dmabuf_diagnostics() const;
 };
 
 using RectificationBackendFactory = std::function<

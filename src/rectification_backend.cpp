@@ -30,6 +30,20 @@ void RectificationBackend::rectify_pair(
   add_stats(stats, right_stats);
 }
 
+void RectificationBackend::rectify_dmabuf_pair(
+    const DmabufStereoInput&, const MutableImageView&,
+    const MutableImageView&, RectificationStats&) {
+  throw std::runtime_error(
+      "rectification backend does not accept DMABUF input");
+}
+
+DmabufRectificationDiagnostics RectificationBackend::dmabuf_diagnostics()
+    const {
+  DmabufRectificationDiagnostics diagnostics;
+  diagnostics.selected_backend = std::string(name());
+  return diagnostics;
+}
+
 void RectificationBackendRegistry::register_backend(
     std::string name, RectificationBackendFactory factory) {
   if (name.empty()) {
