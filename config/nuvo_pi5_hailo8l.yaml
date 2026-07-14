@@ -9,9 +9,18 @@ capture:
   right_camera_index: 0
   width: 728
   height: 544
-  pixel_format: RGB888
+  stream_profile: isp_luma_rgb_left
+  # PiSP produces both streams from the same left-camera request. The Y plane
+  # is full resolution; only U/V are subsampled. The right camera has no color
+  # stream because it is not consumed by depth, preview, or semantics.
+  main_pixel_format: YUV420
+  depth_plane: Y
+  left_color_stream: lores
+  left_color_pixel_format: RGB888
   # Picamera2/libcamera's RGB888 name is B, G, R byte order in memory.
-  memory_order: BGR
+  left_color_memory_order: BGR
+  right_color_stream_enabled: false
+  colour_space: sYCC
   orientation_degrees: 180
   target_hz: 10
   buffer_count: 4
@@ -59,10 +68,10 @@ rectification:
   left_calibration: /var/lib/nuvo-depthd/current/config/calibration/nuvo_reference/front_right.yaml
   right_calibration: /var/lib/nuvo-depthd/current/config/calibration/nuvo_reference/front_left.yaml
   map_format: fixed_point
-  # The depth path converts the camera-owned BGR views to one-channel images
-  # before remapping. Full-color left rectification runs only when the
-  # throttled JPEG or an enabled semantic model is due.
-  depth_preprocessing: grayscale_before_rectification
+  # The depth path rectifies the camera-owned PiSP Y-plane view directly.
+  # Full-color left rectification runs only when the throttled JPEG or an
+  # enabled semantic model is due.
+  depth_preprocessing: isp_luma_before_rectification
   color_rectification: on_jpeg_or_semantic_schedule
 
 stereo:

@@ -187,6 +187,7 @@ class ProductionDeploymentFilesTest(unittest.TestCase):
             "ExecStartPre=/usr/sbin/depthd-assets preflight",
             "--left-camera-index 1",
             "--right-camera-index 0",
+            "--capture-stream-profile isp_luma_rgb_left",
             "--fps 10.0",
             "--jpeg-hz 2.0",
             "--ae-max-shutter-us 8000",

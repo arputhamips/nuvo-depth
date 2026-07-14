@@ -41,12 +41,15 @@ Ctrl+C; the camera must be released before starting capture or the depth daemon.
 7. `async_stereo_capture.py` implements leased Picamera2 completions, bounded
    latest-pair matching, and zero-copy `MappedArray` access. The corresponding
    full pipeline measurement is `profile_async_zero_copy_pipeline.py`. The
-   profiler converts the mapped BGR views to grayscale before depth
-   rectification and rectifies the full-color left view only when JPEG or an
-   enabled semantic model is due. Metric depth is disabled by default; pass `--metric-depth`
-   only for validation runs that need a depth array. `--working-width`,
-   `--working-height`, and `--min-disparity` support native-resolution and
-   bounded-range experiments without changing production defaults.
+   production `isp_luma_rgb_left` profile maps each camera's full-resolution
+   YUV420 Y plane directly for depth and creates a secondary RGB stream only
+   on the left camera. The left RGB view is rectified only when JPEG or an
+   enabled semantic model is due. `rgb_gray` retains the earlier two-camera
+   RGB capture as an explicit rollback profile. Metric depth is disabled by
+   default; pass `--metric-depth` only for validation runs that need a depth
+   array. `--working-width`, `--working-height`, and `--min-disparity` support
+   native-resolution and bounded-range experiments without changing
+   production defaults.
 8. `stereo_auto_exposure.py` meters both working grayscale images as one stereo
    instrument and updates the shared XTR shutter plus matched camera gain. It
    enforces absolute 8 ms shutter and 3x gain ceilings.

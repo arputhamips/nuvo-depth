@@ -32,8 +32,8 @@
       "source_group": "package",
       "source": "config/nuvo_pi5_hailo8l.yaml",
       "destination": "config/nuvo_pi5_hailo8l.yaml",
-      "bytes": 4692,
-      "sha256": "ac0429651239b290bee32549c1473f8b29f8e8c1ccb91b8fc94e05b617e15819"
+      "bytes": 5085,
+      "sha256": "1dd3733c8424128f85a4ce099962529d65e608a7e574b8aaa33978b951ccf429"
     },
     {
       "source_group": "package",

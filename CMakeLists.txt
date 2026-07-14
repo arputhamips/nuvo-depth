@@ -280,6 +280,7 @@ install(TARGETS depthd_native_output depthd_native_semantic
 install(PROGRAMS
   tools/pi/profile_async_zero_copy_pipeline.py
   tools/pi/async_stereo_capture.py
+  tools/pi/capture_stream_profile.py
   tools/pi/capture_rectified_pair.py
   tools/pi/profile_cpu_pipeline.py
   tools/pi/stereo_auto_exposure.py

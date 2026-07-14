@@ -21,6 +21,7 @@ ExecStart=/usr/bin/python3 /usr/lib/nuvo-depthd/profile_async_zero_copy_pipeline
   --output-dir /var/lib/nuvo-depthd/output \
   --left-camera-index 1 \
   --right-camera-index 0 \
+  --capture-stream-profile isp_luma_rgb_left \
   --frames 2147483647 \
   --warmup-frames 6 \
   --fps 10.0 \

@@ -13,6 +13,10 @@ import cv2
 import numpy as np
 
 from async_stereo_capture import AsyncStereoCapture
+from capture_stream_profile import (
+    CAPTURE_STREAM_PROFILES,
+    ISP_LUMA_RGB_LEFT_PROFILE,
+)
 from profile_cpu_pipeline import (
     BASELINE_M,
     FOCAL_LENGTH_PX,
@@ -72,6 +76,15 @@ def main() -> None:
     parser.add_argument("--ae-settle-frames", type=int, default=4)
     parser.add_argument("--ae-max-clipped-fraction", type=float, default=0.005)
     parser.add_argument("--pair-tolerance-us", type=float, default=500.0)
+    parser.add_argument(
+        "--capture-stream-profile",
+        choices=CAPTURE_STREAM_PROFILES,
+        default=ISP_LUMA_RGB_LEFT_PROFILE,
+        help=(
+            "camera processed-stream layout (production uses ISP YUV luma "
+            "for depth and a left-only RGB stream for scheduled color work)"
+        ),
+    )
     parser.add_argument("--working-width", type=int, default=WORKING_WIDTH)
     parser.add_argument("--working-height", type=int, default=WORKING_HEIGHT)
     parser.add_argument("--min-disparity", type=int, default=0)
@@ -228,6 +241,7 @@ def main() -> None:
         analogue_gain=args.analogue_gain,
         colour_gains=tuple(args.colour_gains),
         pair_tolerance_us=args.pair_tolerance_us,
+        stream_profile=args.capture_stream_profile,
     )
     native_output = None
     semantic_worker = None
@@ -348,14 +362,23 @@ def main() -> None:
             try:
                 left_color: np.ndarray | None = None
                 stage_started_ns = time.perf_counter_ns()
-                with pair.mapped_main() as (left_raw, right_raw):
+                with pair.mapped_views(
+                    stream_profile=args.capture_stream_profile,
+                    need_left_color=jpeg_due or semantic_due,
+                ) as views:
                     record("camera_buffer_map_ms", stage_started_ns, measured)
 
                     stage_started_ns = time.perf_counter_ns()
-                    left_gray_raw = cv2.cvtColor(left_raw, cv2.COLOR_BGR2GRAY)
-                    right_gray_raw = cv2.cvtColor(
-                        right_raw, cv2.COLOR_BGR2GRAY
-                    )
+                    if views.depth_is_gray:
+                        left_gray_raw = views.left_depth
+                        right_gray_raw = views.right_depth
+                    else:
+                        left_gray_raw = cv2.cvtColor(
+                            views.left_depth, cv2.COLOR_BGR2GRAY
+                        )
+                        right_gray_raw = cv2.cvtColor(
+                            views.right_depth, cv2.COLOR_BGR2GRAY
+                        )
                     record(
                         "grayscale_before_rectification_ms",
                         stage_started_ns,
@@ -382,9 +405,13 @@ def main() -> None:
                     )
 
                     if jpeg_due or semantic_due:
+                        if views.left_color is None:
+                            raise RuntimeError(
+                                "scheduled color work has no left color view"
+                            )
                         stage_started_ns = time.perf_counter_ns()
                         left_color = cv2.remap(
-                            left_raw,
+                            views.left_color,
                             left_maps[0],
                             left_maps[1],
                             cv2.INTER_LINEAR,
@@ -396,7 +423,7 @@ def main() -> None:
                         )
 
                     # Do not retain exported DMABUF views beyond MappedArray.
-                    del left_raw, right_raw, left_gray_raw, right_gray_raw
+                    del left_gray_raw, right_gray_raw, views
             finally:
                 # Rectification owns its output, so camera DMABUFs can return to
                 # libcamera before matching and publication.
@@ -594,6 +621,7 @@ def main() -> None:
             "auto_exposure_enabled": args.auto_exposure,
             "pair_tolerance_us": args.pair_tolerance_us,
             "camera_input_copy_count": 0,
+            "capture_stream_profile": args.capture_stream_profile,
             "depth_rectification_input": "grayscale",
             "color_rectification_hz": max(
                 args.jpeg_hz,

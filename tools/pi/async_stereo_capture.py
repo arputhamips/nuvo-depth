@@ -5,15 +5,23 @@ from __future__ import annotations
 
 import threading
 import time
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator
 
 import numpy as np
-from libcamera import Transform
+from libcamera import ColorSpace, Transform
 from picamera2 import MappedArray, Picamera2
 
 from capture_rectified_pair import HEIGHT, WIDTH, TriggerLine, pulse_loop
+from capture_stream_profile import (
+    RGB_GRAY_PROFILE,
+    CameraStreamPlan,
+    camera_stream_plan,
+    visible_bgr,
+    visible_y_plane,
+)
 from stereo_auto_exposure import ABSOLUTE_MAX_SHUTTER_US
 
 
@@ -39,6 +47,16 @@ class FrameLease:
         if not self._closed:
             self._closed = True
             self.request.release()
+
+
+@dataclass(frozen=True)
+class MappedStereoViews:
+    """Camera-owned views valid only inside ``mapped_views``."""
+
+    left_depth: np.ndarray
+    right_depth: np.ndarray
+    depth_is_gray: bool
+    left_color: np.ndarray | None
 
 
 class StereoPairLease:
@@ -73,6 +91,86 @@ class StereoPairLease:
             if left_mapping.array is None or right_mapping.array is None:
                 raise RuntimeError("camera buffer mapping returned no array")
             yield left_mapping.array, right_mapping.array
+
+    @contextmanager
+    def mapped_views(
+        self,
+        *,
+        stream_profile: str,
+        need_left_color: bool,
+    ) -> Iterator[MappedStereoViews]:
+        """Map the selected depth inputs and optional left color view."""
+        left_plan = camera_stream_plan(stream_profile, "left")
+        right_plan = camera_stream_plan(stream_profile, "right")
+        with ExitStack() as stack:
+            left_main = stack.enter_context(
+                MappedArray(
+                    self.left.request,
+                    left_plan.depth_stream,
+                    write=False,
+                )
+            ).array
+            right_main = stack.enter_context(
+                MappedArray(
+                    self.right.request,
+                    right_plan.depth_stream,
+                    write=False,
+                )
+            ).array
+            if left_main is None or right_main is None:
+                raise RuntimeError("camera depth stream mapping returned no array")
+
+            if left_plan.depth_is_gray:
+                left_depth = visible_y_plane(
+                    left_main, width=WIDTH, height=HEIGHT
+                )
+                right_depth = visible_y_plane(
+                    right_main, width=WIDTH, height=HEIGHT
+                )
+            else:
+                left_depth = visible_bgr(
+                    left_main, width=WIDTH, height=HEIGHT
+                )
+                right_depth = visible_bgr(
+                    right_main, width=WIDTH, height=HEIGHT
+                )
+
+            left_color = None
+            left_color_mapping = None
+            if need_left_color:
+                if left_plan.color_stream is None:
+                    raise RuntimeError("capture profile has no left color stream")
+                if left_plan.color_stream == left_plan.depth_stream:
+                    left_color = visible_bgr(
+                        left_main, width=WIDTH, height=HEIGHT
+                    )
+                else:
+                    left_color_mapping = stack.enter_context(
+                        MappedArray(
+                            self.left.request,
+                            left_plan.color_stream,
+                            write=False,
+                        )
+                    ).array
+                    if left_color_mapping is None:
+                        raise RuntimeError(
+                            "left color stream mapping returned no array"
+                        )
+                    left_color = visible_bgr(
+                        left_color_mapping, width=WIDTH, height=HEIGHT
+                    )
+
+            views = MappedStereoViews(
+                left_depth=left_depth,
+                right_depth=right_depth,
+                depth_is_gray=left_plan.depth_is_gray,
+                left_color=left_color,
+            )
+            try:
+                yield views
+            finally:
+                del views, left_depth, right_depth, left_color
+                del left_main, right_main, left_color_mapping
 
     def close(self) -> None:
         if not self._closed:
@@ -210,6 +308,7 @@ class AsyncStereoCapture:
         colour_gains: tuple[float, float] | None = (2.4771, 2.3425),
         pair_tolerance_us: float = 500.0,
         buffer_count: int = 4,
+        stream_profile: str = RGB_GRAY_PROFILE,
     ) -> None:
         if left_camera_index == right_camera_index:
             raise ValueError("left and right camera indices must differ")
@@ -229,6 +328,10 @@ class AsyncStereoCapture:
         self._control_lock = threading.Lock()
         self._exposure_updates = 0
         self._buffer_count = buffer_count
+        # Validate once before any camera or GPIO resource is acquired.
+        camera_stream_plan(stream_profile, "left")
+        camera_stream_plan(stream_profile, "right")
+        self._stream_profile = stream_profile
         self._slot = LatestStereoPairSlot(
             round(pair_tolerance_us * 1000.0)
         )
@@ -269,6 +372,9 @@ class AsyncStereoCapture:
             frame_duration_us = round(1_000_000.0 / self._frequency_hz)
             exposure_us = round(self._trigger_low_s * 1_000_000.0)
             for side, camera in zip(("left", "right"), self._cameras):
+                plan: CameraStreamPlan = camera_stream_plan(
+                    self._stream_profile, side
+                )
                 controls: dict[str, Any] = {
                     "FrameDurationLimits": (
                         frame_duration_us,
@@ -279,8 +385,20 @@ class AsyncStereoCapture:
                 }
                 if self._colour_gains is not None:
                     controls["ColourGains"] = self._colour_gains
+                stream_arguments: dict[str, Any] = {
+                    "main": {
+                        "size": (WIDTH, HEIGHT),
+                        "format": plan.main_format,
+                    }
+                }
+                if plan.lores_format is not None:
+                    stream_arguments["lores"] = {
+                        "size": (WIDTH, HEIGHT),
+                        "format": plan.lores_format,
+                    }
                 configuration = camera.create_video_configuration(
-                    main={"size": (WIDTH, HEIGHT), "format": "RGB888"},
+                    **stream_arguments,
+                    colour_space=ColorSpace.Sycc(),
                     controls=controls,
                     transform=transform,
                     buffer_count=self._buffer_count,
@@ -343,6 +461,10 @@ class AsyncStereoCapture:
 
     def stats(self) -> dict[str, int]:
         return self._slot.stats()
+
+    @property
+    def stream_profile(self) -> str:
+        return self._stream_profile
 
     def stop(self) -> None:
         self._trigger_stop.set()
