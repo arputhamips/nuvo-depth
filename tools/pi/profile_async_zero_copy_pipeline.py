@@ -35,6 +35,44 @@ from profile_cpu_pipeline import (
 from stereo_auto_exposure import AutoExposureConfig, StereoAutoExposure
 
 
+def disparity_to_obstacle_voxels(disparity: np.ndarray) -> set[tuple[int, int, int]]:
+    """Camera-model/rig-transform voxel proxy used by the A/B harness."""
+    rows = np.arange(96, 420, 2)
+    columns = np.arange(0, WIDTH, 2)
+    u, v = np.meshgrid(columns, rows)
+    values = disparity[v, u]
+    valid = np.isfinite(values) & (values > 0.0)
+    depth = np.full(values.shape, np.nan, dtype=np.float32)
+    np.divide(FOCAL_LENGTH_PX * BASELINE_M, values, out=depth, where=valid)
+    valid &= (depth >= 0.75) & (depth <= 6.0)
+    optical_x = (u - 348.240810394) * depth / 493.542046188
+    optical_y = (v - 266.509811401) * depth / 493.542046188
+    base_x = depth + 0.760
+    base_y = -optical_x + 0.080
+    base_z = -optical_y + 0.180
+    valid &= (base_z >= 0.18) & (base_z <= 1.20)
+    valid &= base_x > 0.0
+    planar = np.hypot(base_x, base_y)
+    angle = np.arctan2(base_y, base_x)
+    valid &= (planar >= 0.75) & (planar <= 6.0)
+    valid &= (angle >= -0.70) & (angle <= 0.70)
+    return set(
+        zip(
+            np.floor(base_x[valid] / 0.05).astype(np.int32).tolist(),
+            np.floor(base_y[valid] / 0.05).astype(np.int32).tolist(),
+            np.floor(base_z[valid] / 0.05).astype(np.int32).tolist(),
+        )
+    )
+
+
+def histogram_percentile(histogram: np.ndarray, quantile: float) -> float:
+    total = int(histogram.sum())
+    if total == 0:
+        return 0.0
+    target = max(1, int(np.ceil(total * quantile / 100.0)))
+    return float(np.searchsorted(np.cumsum(histogram), target))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--left-calibration", type=Path, required=True)
@@ -84,6 +122,32 @@ def main() -> None:
             "camera processed-stream layout (production uses ISP YUV luma "
             "for depth and a left-only RGB stream for scheduled color work)"
         ),
+    )
+    parser.add_argument(
+        "--rectification-backend",
+        choices=("cpu_opencv", "egl_gl_dmabuf"),
+        default="cpu_opencv",
+        help="depth rectifier; production default remains cpu_opencv",
+    )
+    parser.add_argument(
+        "--rectification-fallback-backend",
+        choices=("cpu_opencv",),
+        default="cpu_opencv",
+    )
+    parser.add_argument(
+        "--allow-rectification-fallback",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument(
+        "--egl-gl-rectification-library",
+        type=Path,
+        help="path to libdepthd_egl_gl_dmabuf_rectification.so",
+    )
+    parser.add_argument(
+        "--compare-rectification-backends",
+        action="store_true",
+        help="run CPU remap on the same leased pairs and report pixel parity",
     )
     parser.add_argument("--working-width", type=int, default=WORKING_WIDTH)
     parser.add_argument("--working-height", type=int, default=WORKING_HEIGHT)
@@ -167,6 +231,16 @@ def main() -> None:
         parser.error("frame counts and fps must be positive")
     if args.semantic and args.result_ring is None:
         parser.error("--semantic requires --result-ring for source sequence parity")
+    if (
+        args.rectification_backend == "egl_gl_dmabuf"
+        and args.capture_stream_profile != ISP_LUMA_RGB_LEFT_PROFILE
+    ):
+        parser.error("egl_gl_dmabuf requires isp_luma_rgb_left capture")
+    if (
+        args.rectification_backend == "egl_gl_dmabuf"
+        and args.egl_gl_rectification_library is None
+    ):
+        parser.error("egl_gl_dmabuf requires --egl-gl-rectification-library")
     if args.semantic_yolo_hz <= 0.0 or args.semantic_segformer_hz <= 0.0:
         parser.error("semantic model rates must be positive")
     if (
@@ -217,6 +291,17 @@ def main() -> None:
 
     left_maps = make_maps(args.left_calibration)
     right_maps = make_maps(args.right_calibration)
+    egl_rectifier = None
+    if args.rectification_backend == "egl_gl_dmabuf":
+        from depthd_egl_gl_rectification import EglGlDmabufRectifier
+
+        egl_rectifier = EglGlDmabufRectifier(
+            left_maps,
+            right_maps,
+            library=args.egl_gl_rectification_library,
+            cache_capacity=8,
+            allow_cpu_fallback=args.allow_rectification_fallback,
+        )
     block_size = args.block_size
     matcher = cv2.StereoSGBM_create(
         args.min_disparity,
@@ -230,6 +315,23 @@ def main() -> None:
         args.speckle_window_size,
         args.speckle_range,
         cv2.STEREO_SGBM_MODE_SGBM_3WAY,
+    )
+    comparison_matcher = (
+        cv2.StereoSGBM_create(
+            args.min_disparity,
+            args.working_disparities,
+            block_size,
+            8 * block_size * block_size,
+            32 * block_size * block_size,
+            args.disp12_max_diff,
+            31,
+            args.uniqueness_ratio,
+            args.speckle_window_size,
+            args.speckle_range,
+            cv2.STEREO_SGBM_MODE_SGBM_3WAY,
+        )
+        if args.compare_rectification_backends
+        else None
     )
     capture = AsyncStereoCapture(
         left_camera_index=args.left_camera_index,
@@ -283,9 +385,26 @@ def main() -> None:
     left_applied_gains: list[float] = []
     right_applied_gains: list[float] = []
     applied_gain_deltas: list[float] = []
+    left_applied_exposures_us: list[float] = []
+    right_applied_exposures_us: list[float] = []
+    applied_exposure_deltas_us: list[float] = []
     last_jpeg: np.ndarray | None = None
     last: dict[str, np.ndarray] = {}
     last_native_output: dict[str, float | int] | None = None
+    rectification_exact_pixels = 0
+    rectification_within_one_pixels = 0
+    rectification_compared_pixels = 0
+    rectification_abs_error_sum = 0
+    rectification_max_error = 0
+    rectification_error_hist = np.zeros(256, dtype=np.int64)
+    comparison_valid_agreement = 0
+    comparison_valid_pixels = 0
+    comparison_joint_valid = 0
+    comparison_disparity_hist = np.zeros(
+        args.working_disparities * 16 + 1, dtype=np.int64
+    )
+    comparison_cloud: dict[str, float | int] | None = None
+    egl_diagnostics: dict[str, object] | None = None
     jpeg_period = max(1, round(args.fps / max(args.jpeg_hz, 1e-6)))
 
     def record(name: str, started_ns: int, measured: bool) -> None:
@@ -310,6 +429,8 @@ def main() -> None:
             semantic_worker.close()
         if native_output is not None:
             native_output.close()
+        if egl_rectifier is not None:
+            egl_rectifier.close()
         raise
     capture_start_ms = milliseconds(capture_started_ns)
     try:
@@ -358,72 +479,193 @@ def main() -> None:
                 left_applied_gains.append(left_gain)
                 right_applied_gains.append(right_gain)
                 applied_gain_deltas.append(abs(left_gain - right_gain))
+                left_exposure = float(
+                    pair.left.metadata.get("ExposureTime", 0.0)
+                )
+                right_exposure = float(
+                    pair.right.metadata.get("ExposureTime", 0.0)
+                )
+                left_applied_exposures_us.append(left_exposure)
+                right_applied_exposures_us.append(right_exposure)
+                applied_exposure_deltas_us.append(
+                    abs(left_exposure - right_exposure)
+                )
 
             try:
                 left_color: np.ndarray | None = None
-                stage_started_ns = time.perf_counter_ns()
-                with pair.mapped_views(
-                    stream_profile=args.capture_stream_profile,
-                    need_left_color=jpeg_due or semantic_due,
-                ) as views:
-                    record("camera_buffer_map_ms", stage_started_ns, measured)
-
+                cpu_comparison: tuple[np.ndarray, np.ndarray] | None = None
+                if egl_rectifier is not None:
+                    dmabufs = pair.dmabuf_luma_views(
+                        stream_profile=args.capture_stream_profile
+                    )
                     stage_started_ns = time.perf_counter_ns()
-                    if views.depth_is_gray:
-                        left_gray_raw = views.left_depth
-                        right_gray_raw = views.right_depth
-                    else:
-                        left_gray_raw = cv2.cvtColor(
-                            views.left_depth, cv2.COLOR_BGR2GRAY
+                    try:
+                        gpu_timing = egl_rectifier.rectify_pair(
+                            dmabufs.left, dmabufs.right
                         )
-                        right_gray_raw = cv2.cvtColor(
-                            views.right_depth, cv2.COLOR_BGR2GRAY
-                        )
-                    record(
-                        "grayscale_before_rectification_ms",
-                        stage_started_ns,
-                        measured,
-                    )
-
-                    stage_started_ns = time.perf_counter_ns()
-                    left_gray = cv2.remap(
-                        left_gray_raw,
-                        left_maps[0],
-                        left_maps[1],
-                        cv2.INTER_LINEAR,
-                    )
-                    right_gray = cv2.remap(
-                        right_gray_raw,
-                        right_maps[0],
-                        right_maps[1],
-                        cv2.INTER_LINEAR,
-                    )
-                    record(
-                        "grayscale_rectification_ms",
-                        stage_started_ns,
-                        measured,
-                    )
-
-                    if jpeg_due or semantic_due:
-                        if views.left_color is None:
-                            raise RuntimeError(
-                                "scheduled color work has no left color view"
+                    except RuntimeError:
+                        if not args.allow_rectification_fallback:
+                            raise
+                        # The native backend has switched permanently to its
+                        # cpu_opencv fallback. Map the still-active requests
+                        # only now, then retry this same accepted pair.
+                        with pair.mapped_views(
+                            stream_profile=args.capture_stream_profile,
+                            need_left_color=jpeg_due or semantic_due,
+                        ) as fallback_views:
+                            gpu_timing = egl_rectifier.rectify_pair(
+                                dmabufs.left,
+                                dmabufs.right,
+                                cpu_left=fallback_views.left_depth,
+                                cpu_right=fallback_views.right_depth,
                             )
+                            if jpeg_due or semantic_due:
+                                if fallback_views.left_color is None:
+                                    raise RuntimeError(
+                                        "scheduled color work has no left color view"
+                                    )
+                                left_color = cv2.remap(
+                                    fallback_views.left_color,
+                                    left_maps[0],
+                                    left_maps[1],
+                                    cv2.INTER_LINEAR,
+                                )
+                    record("grayscale_rectification_ms", stage_started_ns, measured)
+                    if measured:
+                        for key, value in gpu_timing.items():
+                            samples.setdefault(
+                                f"egl_gl_rectification_{key}", []
+                            ).append(value)
+                    left_gray = egl_rectifier.left_output
+                    right_gray = egl_rectifier.right_output
+
+                    needs_mapping = (
+                        args.compare_rectification_backends
+                        or (jpeg_due or semantic_due) and left_color is None
+                    )
+                    if needs_mapping:
                         stage_started_ns = time.perf_counter_ns()
-                        left_color = cv2.remap(
-                            views.left_color,
+                        with pair.mapped_views(
+                            stream_profile=args.capture_stream_profile,
+                            need_left_color=jpeg_due or semantic_due,
+                        ) as views:
+                            record("camera_buffer_map_ms", stage_started_ns, measured)
+                            if args.compare_rectification_backends:
+                                comparison_left = cv2.remap(
+                                    views.left_depth,
+                                    left_maps[0],
+                                    left_maps[1],
+                                    cv2.INTER_LINEAR,
+                                )
+                                comparison_right = cv2.remap(
+                                    views.right_depth,
+                                    right_maps[0],
+                                    right_maps[1],
+                                    cv2.INTER_LINEAR,
+                                )
+                                cpu_comparison = (
+                                    comparison_left,
+                                    comparison_right,
+                                )
+                                if measured:
+                                    for gpu_image, cpu_image in (
+                                        (left_gray, comparison_left),
+                                        (right_gray, comparison_right),
+                                    ):
+                                        error = np.abs(
+                                            gpu_image.astype(np.int16)
+                                            - cpu_image.astype(np.int16)
+                                        )
+                                        rectification_compared_pixels += error.size
+                                        rectification_exact_pixels += int(
+                                            np.count_nonzero(error == 0)
+                                        )
+                                        rectification_within_one_pixels += int(
+                                            np.count_nonzero(error <= 1)
+                                        )
+                                        rectification_abs_error_sum += int(error.sum())
+                                        rectification_error_hist += np.bincount(
+                                            error.ravel(), minlength=256
+                                        )
+                                        rectification_max_error = max(
+                                            rectification_max_error,
+                                            int(error.max()),
+                                        )
+                            if jpeg_due or semantic_due:
+                                if views.left_color is None:
+                                    raise RuntimeError(
+                                        "scheduled color work has no left color view"
+                                    )
+                                stage_started_ns = time.perf_counter_ns()
+                                left_color = cv2.remap(
+                                    views.left_color,
+                                    left_maps[0],
+                                    left_maps[1],
+                                    cv2.INTER_LINEAR,
+                                )
+                                record(
+                                    "throttled_color_rectification_ms",
+                                    stage_started_ns,
+                                    True,
+                                )
+                else:
+                    stage_started_ns = time.perf_counter_ns()
+                    with pair.mapped_views(
+                        stream_profile=args.capture_stream_profile,
+                        need_left_color=jpeg_due or semantic_due,
+                    ) as views:
+                        record("camera_buffer_map_ms", stage_started_ns, measured)
+                        stage_started_ns = time.perf_counter_ns()
+                        if views.depth_is_gray:
+                            left_gray_raw = views.left_depth
+                            right_gray_raw = views.right_depth
+                        else:
+                            left_gray_raw = cv2.cvtColor(
+                                views.left_depth, cv2.COLOR_BGR2GRAY
+                            )
+                            right_gray_raw = cv2.cvtColor(
+                                views.right_depth, cv2.COLOR_BGR2GRAY
+                            )
+                        record(
+                            "grayscale_before_rectification_ms",
+                            stage_started_ns,
+                            measured,
+                        )
+                        stage_started_ns = time.perf_counter_ns()
+                        left_gray = cv2.remap(
+                            left_gray_raw,
                             left_maps[0],
                             left_maps[1],
                             cv2.INTER_LINEAR,
                         )
-                        record(
-                            "throttled_color_rectification_ms",
-                            stage_started_ns,
-                            True,
+                        right_gray = cv2.remap(
+                            right_gray_raw,
+                            right_maps[0],
+                            right_maps[1],
+                            cv2.INTER_LINEAR,
                         )
-
-                    # Do not retain exported DMABUF views beyond MappedArray.
-                    del left_gray_raw, right_gray_raw, views
+                        record(
+                            "grayscale_rectification_ms",
+                            stage_started_ns,
+                            measured,
+                        )
+                        if jpeg_due or semantic_due:
+                            if views.left_color is None:
+                                raise RuntimeError(
+                                    "scheduled color work has no left color view"
+                                )
+                            stage_started_ns = time.perf_counter_ns()
+                            left_color = cv2.remap(
+                                views.left_color,
+                                left_maps[0],
+                                left_maps[1],
+                                cv2.INTER_LINEAR,
+                            )
+                            record(
+                                "throttled_color_rectification_ms",
+                                stage_started_ns,
+                                True,
+                            )
             finally:
                 # Rectification owns its output, so camera DMABUFs can return to
                 # libcamera before matching and publication.
@@ -462,6 +704,50 @@ def main() -> None:
             disparity_fixed = matcher.compute(left_working, right_working)
             record("sgbm_match_ms", stage_started_ns, measured)
 
+            comparison_disparity_fixed: np.ndarray | None = None
+            if cpu_comparison is not None:
+                cpu_left, cpu_right = cpu_comparison
+                if args.working_width != WIDTH or args.working_height != HEIGHT:
+                    cpu_left = cv2.resize(
+                        cpu_left,
+                        (args.working_width, args.working_height),
+                        interpolation=cv2.INTER_AREA,
+                    )
+                    cpu_right = cv2.resize(
+                        cpu_right,
+                        (args.working_width, args.working_height),
+                        interpolation=cv2.INTER_AREA,
+                    )
+                stage_started_ns = time.perf_counter_ns()
+                comparison_disparity_fixed = comparison_matcher.compute(
+                    cpu_left, cpu_right
+                )
+                record("comparison_cpu_sgbm_ms", stage_started_ns, measured)
+                if measured:
+                    gpu_valid = disparity_fixed > args.min_disparity * 16
+                    cpu_valid = (
+                        comparison_disparity_fixed > args.min_disparity * 16
+                    )
+                    comparison_valid_pixels += gpu_valid.size
+                    comparison_valid_agreement += int(
+                        np.count_nonzero(gpu_valid == cpu_valid)
+                    )
+                    joint = gpu_valid & cpu_valid
+                    comparison_joint_valid += int(np.count_nonzero(joint))
+                    fixed_difference = np.abs(
+                        disparity_fixed[joint].astype(np.int32)
+                        - comparison_disparity_fixed[joint].astype(np.int32)
+                    )
+                    if fixed_difference.size:
+                        fixed_difference = np.minimum(
+                            fixed_difference,
+                            comparison_disparity_hist.size - 1,
+                        )
+                        comparison_disparity_hist += np.bincount(
+                            fixed_difference,
+                            minlength=comparison_disparity_hist.size,
+                        )
+
             stage_started_ns = time.perf_counter_ns()
             valid_working = disparity_fixed > args.min_disparity * 16
             disparity_working = disparity_fixed.astype(np.float32) / 16.0
@@ -483,6 +769,47 @@ def main() -> None:
             if measured:
                 valid_fractions.append(float(valid.mean()))
             record("disparity_restore_and_mask_ms", stage_started_ns, measured)
+
+            if measured and comparison_disparity_fixed is not None:
+                comparison_valid_working = (
+                    comparison_disparity_fixed > args.min_disparity * 16
+                )
+                comparison_working = (
+                    comparison_disparity_fixed.astype(np.float32) / 16.0
+                )
+                comparison_disparity = cv2.resize(
+                    comparison_working,
+                    (WIDTH, HEIGHT),
+                    interpolation=cv2.INTER_LINEAR,
+                )
+                comparison_disparity *= WIDTH / args.working_width
+                comparison_valid = cv2.resize(
+                    comparison_valid_working.astype(np.uint8),
+                    (WIDTH, HEIGHT),
+                    interpolation=cv2.INTER_NEAREST,
+                ).astype(bool)
+                comparison_valid &= np.isfinite(comparison_disparity)
+                comparison_valid &= comparison_disparity > 0.0
+                comparison_valid &= (
+                    comparison_disparity < args.full_disparity_limit
+                )
+                comparison_disparity[~comparison_valid] = np.nan
+                gpu_voxels = disparity_to_obstacle_voxels(disparity)
+                cpu_voxels = disparity_to_obstacle_voxels(comparison_disparity)
+                union = gpu_voxels | cpu_voxels
+                comparison_cloud = {
+                    "gpu_camera_frame_voxels": len(gpu_voxels),
+                    "cpu_camera_frame_voxels": len(cpu_voxels),
+                    "voxel_jaccard": (
+                        len(gpu_voxels & cpu_voxels) / len(union)
+                        if union
+                        else 1.0
+                    ),
+                    "note": (
+                        "5 cm pre-support spatial proxy; native compact-cloud "
+                        "counts remain in native_output_last"
+                    ),
+                }
 
             depth: np.ndarray | None = None
             if args.metric_depth:
@@ -587,12 +914,16 @@ def main() -> None:
         )
         measured_system_ticks_finished = system_cpu_ticks()
         capture_stats = capture.stats()
+        if egl_rectifier is not None:
+            egl_diagnostics = egl_rectifier.diagnostics()
     finally:
         capture.stop()
         if semantic_worker is not None:
             semantic_worker.close()
         if native_output is not None:
             native_output.close()
+        if egl_rectifier is not None:
+            egl_rectifier.close()
 
     process_cpu_percent = 100.0 * measured_process_cpu_s / measured_wall_s
     system_total_delta = (
@@ -622,6 +953,16 @@ def main() -> None:
             "pair_tolerance_us": args.pair_tolerance_us,
             "camera_input_copy_count": 0,
             "capture_stream_profile": args.capture_stream_profile,
+            "rectification_backend": args.rectification_backend,
+            "rectification_fallback_backend": (
+                args.rectification_fallback_backend
+            ),
+            "allow_rectification_fallback": (
+                args.allow_rectification_fallback
+            ),
+            "compare_rectification_backends": (
+                args.compare_rectification_backends
+            ),
             "depth_rectification_input": "grayscale",
             "color_rectification_hz": max(
                 args.jpeg_hz,
@@ -683,6 +1024,55 @@ def main() -> None:
             },
             "max_rss_kib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
             "async_capture": capture_stats,
+            "rectification_backend_diagnostics": egl_diagnostics,
+            "rectification_comparison": (
+                {
+                    "pixel_equal_fraction": (
+                        rectification_exact_pixels
+                        / rectification_compared_pixels
+                    ),
+                    "pixel_within_one_fraction": (
+                        rectification_within_one_pixels
+                        / rectification_compared_pixels
+                    ),
+                    "pixel_mae_lsb": (
+                        rectification_abs_error_sum
+                        / rectification_compared_pixels
+                    ),
+                    "pixel_p95_lsb": histogram_percentile(
+                        rectification_error_hist, 95
+                    ),
+                    "pixel_max_lsb": rectification_max_error,
+                    "disparity_valid_mask_agreement": (
+                        comparison_valid_agreement / comparison_valid_pixels
+                    ),
+                    "disparity_joint_valid_pixels": comparison_joint_valid,
+                    "disparity_difference_working_px": {
+                        "p50": histogram_percentile(
+                            comparison_disparity_hist, 50
+                        )
+                        / 16.0,
+                        "p95": histogram_percentile(
+                            comparison_disparity_hist, 95
+                        )
+                        / 16.0,
+                        "max": float(
+                            np.flatnonzero(comparison_disparity_hist)[-1]
+                        )
+                        / 16.0
+                        if comparison_disparity_hist.any()
+                        else 0.0,
+                    },
+                    "compact_cloud_spatial_proxy_last": comparison_cloud,
+                }
+                if rectification_compared_pixels > 0
+                and comparison_valid_pixels > 0
+                else None
+            ),
+            "deadline_misses": sum(
+                value > 1000.0 / args.fps
+                for value in samples.get("cycle_ms", [])
+            ),
             "exposure_state": capture.exposure_state(),
             "auto_exposure": (
                 auto_exposure.report() if auto_exposure is not None else None
@@ -691,6 +1081,13 @@ def main() -> None:
                 "left_p50": percentile(left_applied_gains, 50),
                 "right_p50": percentile(right_applied_gains, 50),
                 "pair_delta_max": max(applied_gain_deltas, default=0.0),
+            },
+            "applied_exposure_us": {
+                "left_p50": percentile(left_applied_exposures_us, 50),
+                "right_p50": percentile(right_applied_exposures_us, 50),
+                "pair_delta_max": max(
+                    applied_exposure_deltas_us, default=0.0
+                ),
             },
             "native_output_last": last_native_output,
             "semantic": (

@@ -1,4 +1,4 @@
-# CPU rectification backend
+# Rectification backends
 
 ## Boundary
 
@@ -42,7 +42,17 @@ uses `cv::remap` with linear interpolation. The measured grayscale pair costs
 5.35 ms p50 on the supplied Pi 5. The separately scheduled full-color left
 rectification costs 6.77 ms p50 at 2 Hz.
 
-The CPU implementation is the only supported rectification path. Its identity,
+The CPU implementation remains the only production-selected rectification
+path. Its identity,
 subpixel, border, padded-stride, grayscale, BGR, and RGB behavior remains under
 regression testing. Capture, camera ordering, calibration mapping, and the
 locked SGBM production profile must not depend on optional acceleration code.
+
+## Optional capture-native GPU candidate
+
+`egl_gl_dmabuf` is an opt-in direct EGL/OpenGL ES backend for paired YUV420
+luma only. It extends the boundary with explicit DMABUF plane and request-lease
+metadata without treating an fd as an `ImageView`; the host-buffer CPU API is
+unchanged. Build, selection, cache/lifetime rules, diagnostics, comparison
+mode, rollback, prototype evidence, and pending live gates are documented in
+`docs/egl-gl-dmabuf-rectification.md`.

@@ -50,6 +50,12 @@ Ctrl+C; the camera must be released before starting capture or the depth daemon.
    array. `--working-width`, `--working-height`, and `--min-disparity` support
    native-resolution and bounded-range experiments without changing
    production defaults.
+   An optional `egl_gl_dmabuf` selection imports the leased Y planes directly
+   into EGL/OpenGL without entering `MappedArray`; its native library path is
+   supplied with `--egl-gl-rectification-library`. CPU mapping is lazy and
+   occurs only for explicit `cpu_opencv`, `--compare-rectification-backends`,
+   or a configured GPU failure fallback. See
+   `docs/egl-gl-dmabuf-rectification.md`; this candidate is default off.
 8. `stereo_auto_exposure.py` meters both working grayscale images as one stereo
    instrument and updates the shared XTR shutter plus matched camera gain. It
    enforces absolute 8 ms shutter and 3x gain ceilings.
