@@ -43,19 +43,22 @@ Ctrl+C; the camera must be released before starting capture or the depth daemon.
    full pipeline measurement is `profile_async_zero_copy_pipeline.py`. The
    production `isp_luma_rgb_left` profile maps each camera's full-resolution
    YUV420 Y plane directly for depth and creates a secondary RGB stream only
-   on the left camera. The left RGB view is rectified only when JPEG or an
-   enabled semantic model is due. `rgb_gray` retains the earlier two-camera
-   RGB capture as an explicit rollback profile. Metric depth is disabled by
-   default; pass `--metric-depth` only for validation runs that need a depth
-   array. `--working-width`, `--working-height`, and `--min-disparity` support
-   native-resolution and bounded-range experiments without changing
-   production defaults.
-   An optional `egl_gl_dmabuf` selection imports the leased Y planes directly
+   on the left camera. `--preview-source raw` encodes the unrectified left
+   color view, while `--preview-source rectified` preserves the existing result
+   ring/ROS image contract. Native semantics always receives rectified color
+   aligned with disparity, independently of the preview selection. `rgb_gray`
+   retains the earlier two-camera RGB capture as an explicit rollback profile.
+   Metric depth is disabled by default; pass `--metric-depth` only for
+   validation runs that need a depth array. `--working-width`,
+   `--working-height`, and `--min-disparity` support native-resolution and
+   bounded-range experiments without changing production defaults.
+   The production `egl_gl_dmabuf` selection imports the leased Y planes directly
    into EGL/OpenGL without entering `MappedArray`; its native library path is
    supplied with `--egl-gl-rectification-library`. CPU mapping is lazy and
    occurs only for explicit `cpu_opencv`, `--compare-rectification-backends`,
    or a configured GPU failure fallback. See
-   `docs/egl-gl-dmabuf-rectification.md`; this candidate is default off.
+   `docs/egl-gl-dmabuf-rectification.md`; CPU is the automatic fallback and a
+   one-setting rollback.
 8. `stereo_auto_exposure.py` meters both working grayscale images as one stereo
    instrument and updates the shared XTR shutter plus matched camera gain. It
    enforces absolute 8 ms shutter and 3x gain ceilings.

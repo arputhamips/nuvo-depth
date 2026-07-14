@@ -13,6 +13,9 @@ WorkingDirectory=/usr/lib/nuvo-depthd
 RuntimeDirectory=depthd
 RuntimeDirectoryMode=0755
 Environment=PYTHONUNBUFFERED=1
+# One-setting rollback: override this value with cpu_opencv in a systemd
+# drop-in. The CPU backend and maps remain installed and tested.
+Environment=DEPTHD_RECTIFICATION_BACKEND=egl_gl_dmabuf
 ExecStartPre=/usr/sbin/depthd-assets preflight
 ExecStartPre=/usr/bin/rm -f /run/depthd/results.ring /run/depthd/semantic.ring
 ExecStart=/usr/bin/python3 /usr/lib/nuvo-depthd/profile_async_zero_copy_pipeline.py \
@@ -41,6 +44,10 @@ ExecStart=/usr/bin/python3 /usr/lib/nuvo-depthd/profile_async_zero_copy_pipeline
   --ae-settle-frames 4 \
   --ae-max-clipped-fraction 0.005 \
   --pair-tolerance-us 500.0 \
+  --rectification-backend ${DEPTHD_RECTIFICATION_BACKEND} \
+  --rectification-fallback-backend cpu_opencv \
+  --allow-rectification-fallback \
+  --egl-gl-rectification-library /usr/lib/nuvo-depthd/libdepthd_egl_gl_dmabuf_rectification.so \
   --working-width 364 \
   --working-height 272 \
   --min-disparity 0 \

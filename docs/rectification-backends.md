@@ -5,7 +5,7 @@
 Rectification is independent from stereo matching. It consumes oriented camera
 views plus immutable inverse-remap coordinates and produces rectified views in
 the same pixel encoding. The selected `StereoBackend` always receives images
-rectified by the production OpenCV CPU implementation.
+through this boundary, regardless of whether EGL/GLES or OpenCV is selected.
 
 The common API is `include/depthd/rectification_backend.hpp`. The OpenCV module
 registers its factory explicitly in a caller-owned
@@ -15,7 +15,7 @@ The locked runtime configuration is:
 
 ```yaml
 rectification:
-  backend: cpu_opencv
+  backend: egl_gl_dmabuf
   fallback_backend: cpu_opencv
   allow_fallback: true
 ```
@@ -42,17 +42,17 @@ uses `cv::remap` with linear interpolation. The measured grayscale pair costs
 5.35 ms p50 on the supplied Pi 5. The separately scheduled full-color left
 rectification costs 6.77 ms p50 at 2 Hz.
 
-The CPU implementation remains the only production-selected rectification
-path. Its identity,
-subpixel, border, padded-stride, grayscale, BGR, and RGB behavior remains under
-regression testing. Capture, camera ordering, calibration mapping, and the
-locked SGBM production profile must not depend on optional acceleration code.
+The CPU implementation remains installed, is the automatic runtime fallback,
+and is selectable with one configuration value. Its identity, subpixel,
+border, padded-stride, grayscale, BGR, and RGB behavior remains under regression
+testing. Capture, camera ordering, calibration mapping, and the locked SGBM
+production profile do not depend on the selected accelerator.
 
-## Optional capture-native GPU candidate
+## Production capture-native GPU backend
 
-`egl_gl_dmabuf` is an opt-in direct EGL/OpenGL ES backend for paired YUV420
+`egl_gl_dmabuf` is the selected direct EGL/OpenGL ES backend for paired YUV420
 luma only. It extends the boundary with explicit DMABUF plane and request-lease
 metadata without treating an fd as an `ImageView`; the host-buffer CPU API is
 unchanged. Build, selection, cache/lifetime rules, diagnostics, comparison
-mode, rollback, prototype evidence, and pending live gates are documented in
+mode, rollback, live equivalence, and complete-pipeline evidence are documented in
 `docs/egl-gl-dmabuf-rectification.md`.

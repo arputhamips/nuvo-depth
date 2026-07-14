@@ -591,8 +591,13 @@ if(DEPTHD_PACKAGE_REVISION)
     "${PROJECT_VERSION}+git${DEPTHD_PACKAGE_REVISION}")
 endif()
 set(CPACK_DEBIAN_PACKAGE_DEPENDS
-  "python3, python3-numpy, python3-opencv, python3-yaml, python3-picamera2, hailort (>= 4.23.0), hailort-pcie-driver"
+  "python3, python3-numpy, python3-opencv, python3-yaml, python3-picamera2, libegl1, libgles2, hailort (>= 4.23.0), hailort-pcie-driver"
 )
+if(DEPTHD_PACKAGE_REVISION AND
+   NOT DEPTHD_WITH_EGL_GL_DMABUF_RECTIFICATION)
+  message(FATAL_ERROR
+    "Production packages require DEPTHD_WITH_EGL_GL_DMABUF_RECTIFICATION=ON")
+endif()
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
   "Native stereo depth and Hailo semantic perception daemon for Nuvo"
 )

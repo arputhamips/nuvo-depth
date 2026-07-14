@@ -95,7 +95,7 @@ int main() {
            "orientation_degrees: 180", "target_hz: 10", "buffer_count: 4",
            "line: 17", "pulse_width_us: 8000", "pair_tolerance_us: 500",
            "max_shutter_us: 8000", "max_analogue_gain: 3.0",
-           "backend: cpu_opencv", "fallback_backend: cpu_opencv",
+           "backend: egl_gl_dmabuf", "fallback_backend: cpu_opencv",
            "left_calibration: /var/lib/nuvo-depthd/current/config/calibration/nuvo_reference/front_right.yaml",
            "right_calibration: /var/lib/nuvo-depthd/current/config/calibration/nuvo_reference/front_left.yaml",
            "depth_preprocessing: isp_luma_before_rectification",

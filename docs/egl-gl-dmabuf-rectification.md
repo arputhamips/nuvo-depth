@@ -1,11 +1,11 @@
-# EGL/OpenGL DMABUF rectification candidate
+# EGL/OpenGL DMABUF rectification
 
 ## Status and rollback
 
-`egl_gl_dmabuf` is a production-candidate depth rectifier, default off. The
-checked-in production configuration and systemd command still select
-`cpu_opencv`; rollback is therefore either omitting the experimental command
-line flags or setting `--rectification-backend cpu_opencv`.
+`egl_gl_dmabuf` is the selected production depth rectifier. The systemd unit
+keeps the selection in `DEPTHD_RECTIFICATION_BACKEND`; setting that single value
+to `cpu_opencv` restores the CPU path. GPU initialization or import failure also
+selects `cpu_opencv` permanently for that process.
 
 No Vulkan rectification code is restored. This module implements the successful
 direct path tested on the Pi:
@@ -181,9 +181,51 @@ All ten selected V3D `egl_gl_dmabuf`, reported zero deadline misses and zero
 backend failures, held exactly eight cached imports/eight owned fds, emitted no
 allocator `BufferError` or traceback, and left no profiler process running.
 
-The live gates pass. The checked-in selection intentionally remains
-`cpu_opencv`; `egl_gl_dmabuf` is an accepted default-off module until a separate
-deployment decision changes the production profile.
+## Complete-pipeline default-selection matrix
+
+Two 600-pair matrices ran the complete stereo, compact-cloud, asynchronous
+Hailo semantics, and unrectified preview workload at 2, 5, and 10 Hz. Matrix A
+ran CPU before GPU; matrix B reversed that order. Raw evidence is stored at:
+
+```text
+/home/cam/rect-final-matrix-f89e307a
+/home/cam/rect-final-matrix-f89e307b
+```
+
+| Preview | CPU daemon | GPU daemon | Relative reduction | CPU/GPU previews |
+| --- | ---: | ---: | ---: | ---: |
+| 2 Hz, A | 12.767% | 12.088% | 5.32% | 120 / 120 |
+| 2 Hz, B | 12.744% | 12.090% | 5.14% | 120 / 120 |
+| 5 Hz, A | 12.968% | 12.562% | 3.13% | 300 / 300 |
+| 5 Hz, B | 13.174% | 12.671% | 3.81% | 300 / 300 |
+| 10 Hz, A | 13.311% | 12.436% | 6.57% | 600 / 600 |
+| 10 Hz, B | 13.325% | 12.360% | 7.24% | 600 / 600 |
+
+The averages of the two test orderings make the whole-system comparison easier
+to read:
+
+| Preview | CPU daemon | GPU daemon | CPU whole SoC | GPU whole SoC |
+| --- | ---: | ---: | ---: | ---: |
+| 2 Hz | 12.756% | 12.089% | 12.530% | 11.976% |
+| 5 Hz | 13.071% | 12.617% | 13.196% | 12.117% |
+| 10 Hz | 13.318% | 12.398% | 13.158% | 12.861% |
+
+Across all six pairs, daemon CPU fell from 13.048% to 12.368% of total
+four-core capacity: a 0.680 percentage-point or 5.21% relative reduction.
+Whole-SoC CPU averaged 12.961% on CPU rectification and 12.318% on GPU
+rectification, a 4.96% relative reduction. Whole-SoC CPU was lower in five of
+six pairs; daemon CPU was lower in all six, including both test orderings.
+
+Every run produced approximately 10 Hz depth with zero missing periods, zero
+ready-pair replacements, the exact expected JPEG count, and 305-308 completed
+semantic frames with zero worker errors or pending replacements. GPU runs kept
+the import cache at eight entries/eight owned fds with zero backend failures or
+fallbacks. The clean confirmation matrix emitted no allocator or shutdown
+errors.
+
+The repeatable complete-pipeline reduction satisfies the selection gate, so
+`egl_gl_dmabuf` is now the default while `cpu_opencv` remains installed,
+automatically available on failure, and one configuration change away.
 
 ## Existing feasibility evidence
 

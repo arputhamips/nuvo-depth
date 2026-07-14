@@ -73,8 +73,8 @@ Git under `artifacts/isp-luma-soak-20260714T203750Z/`.
 
 ## Rectification backend boundary
 
-This capture change does not select GPU rectification. `cpu_opencv` remains the
-default and fallback. The YUV/DMABUF profile creates the required zero-copy
-input boundary for a separately gated `egl_gl_dmabuf` backend, which must pass
-live pixel, disparity, compact-cloud, latency, FD-cache, and restart acceptance
-tests before it can be enabled.
+This capture-only change originally retained `cpu_opencv`. The YUV/DMABUF
+profile created the zero-copy boundary later accepted by
+`egl_gl_dmabuf`. The pixel, disparity, compact-cloud, latency, FD-cache,
+restart, and complete-pipeline results are recorded in
+`docs/egl-gl-dmabuf-rectification.md`; `cpu_opencv` remains the fallback.

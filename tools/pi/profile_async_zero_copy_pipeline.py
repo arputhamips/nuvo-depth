@@ -106,6 +106,15 @@ def main() -> None:
     parser.add_argument("--jpeg-hz", type=float, default=2.0)
     parser.add_argument("--jpeg-quality", type=int, default=75)
     parser.add_argument(
+        "--preview-source",
+        choices=("rectified", "raw"),
+        default="rectified",
+        help=(
+            "JPEG preview input; raw skips color rectification while semantics "
+            "continues to consume rectified color"
+        ),
+    )
+    parser.add_argument(
         "--metric-depth",
         action="store_true",
         help="derive and save metric depth in addition to disparity",
@@ -477,6 +486,42 @@ def main() -> None:
         if measured:
             samples.setdefault(name, []).append(milliseconds(started_ns))
 
+    def prepare_scheduled_color(
+        color_view: np.ndarray,
+        *,
+        jpeg_due: bool,
+        semantic_due: bool,
+        measured: bool,
+    ) -> tuple[np.ndarray | None, np.ndarray | None]:
+        """Own the scheduled preview and semantic color products."""
+        preview_color = None
+        semantic_color = None
+        rectified_color = None
+        if jpeg_due and args.preview_source == "raw":
+            stage_started_ns = time.perf_counter_ns()
+            preview_color = color_view.copy()
+            record("raw_preview_copy_ms", stage_started_ns, measured)
+        if semantic_due or (
+            jpeg_due and args.preview_source == "rectified"
+        ):
+            stage_started_ns = time.perf_counter_ns()
+            rectified_color = cv2.remap(
+                color_view,
+                left_maps[0],
+                left_maps[1],
+                cv2.INTER_LINEAR,
+            )
+            record(
+                "throttled_color_rectification_ms",
+                stage_started_ns,
+                measured,
+            )
+        if semantic_due:
+            semantic_color = rectified_color
+        if jpeg_due and args.preview_source == "rectified":
+            preview_color = rectified_color
+        return preview_color, semantic_color
+
     jpeg_warmup_started_ns = time.perf_counter_ns()
     warmed, _ = cv2.imencode(
         ".jpg",
@@ -564,7 +609,8 @@ def main() -> None:
                 )
 
             try:
-                left_color: np.ndarray | None = None
+                preview_color: np.ndarray | None = None
+                semantic_color: np.ndarray | None = None
                 cpu_comparison: tuple[np.ndarray, np.ndarray] | None = None
                 if egl_rectifier is not None:
                     dmabufs = pair.dmabuf_luma_views(
@@ -596,11 +642,13 @@ def main() -> None:
                                     raise RuntimeError(
                                         "scheduled color work has no left color view"
                                     )
-                                left_color = cv2.remap(
-                                    fallback_views.left_color,
-                                    left_maps[0],
-                                    left_maps[1],
-                                    cv2.INTER_LINEAR,
+                                preview_color, semantic_color = (
+                                    prepare_scheduled_color(
+                                        fallback_views.left_color,
+                                        jpeg_due=jpeg_due,
+                                        semantic_due=semantic_due,
+                                        measured=measured,
+                                    )
                                 )
                         del fallback_views
                     record("grayscale_rectification_ms", stage_started_ns, measured)
@@ -614,7 +662,8 @@ def main() -> None:
 
                     needs_mapping = (
                         args.compare_rectification_backends
-                        or (jpeg_due or semantic_due) and left_color is None
+                        or (jpeg_due and preview_color is None)
+                        or (semantic_due and semantic_color is None)
                     )
                     if needs_mapping:
                         stage_started_ns = time.perf_counter_ns()
@@ -669,17 +718,13 @@ def main() -> None:
                                     raise RuntimeError(
                                         "scheduled color work has no left color view"
                                     )
-                                stage_started_ns = time.perf_counter_ns()
-                                left_color = cv2.remap(
-                                    views.left_color,
-                                    left_maps[0],
-                                    left_maps[1],
-                                    cv2.INTER_LINEAR,
-                                )
-                                record(
-                                    "throttled_color_rectification_ms",
-                                    stage_started_ns,
-                                    True,
+                                preview_color, semantic_color = (
+                                    prepare_scheduled_color(
+                                        views.left_color,
+                                        jpeg_due=jpeg_due,
+                                        semantic_due=semantic_due,
+                                        measured=measured,
+                                    )
                                 )
                         del views
                 else:
@@ -728,19 +773,16 @@ def main() -> None:
                                 raise RuntimeError(
                                     "scheduled color work has no left color view"
                                 )
-                            stage_started_ns = time.perf_counter_ns()
-                            left_color = cv2.remap(
-                                views.left_color,
-                                left_maps[0],
-                                left_maps[1],
-                                cv2.INTER_LINEAR,
-                            )
-                            record(
-                                "throttled_color_rectification_ms",
-                                stage_started_ns,
-                                True,
+                            preview_color, semantic_color = (
+                                prepare_scheduled_color(
+                                    views.left_color,
+                                    jpeg_due=jpeg_due,
+                                    semantic_due=semantic_due,
+                                    measured=measured,
+                                )
                             )
                     del views
+                    del left_gray_raw, right_gray_raw
             finally:
                 # Rectification owns its output, so camera DMABUFs can return to
                 # libcamera before matching and publication.
@@ -960,12 +1002,12 @@ def main() -> None:
 
             jpeg_payload: np.ndarray | None = None
             if jpeg_due:
-                if left_color is None:
-                    raise RuntimeError("scheduled color frame was not rectified")
+                if preview_color is None:
+                    raise RuntimeError("scheduled preview color frame is missing")
                 stage_started_ns = time.perf_counter_ns()
                 encoded, jpeg = cv2.imencode(
                     ".jpg",
-                    left_color,
+                    preview_color,
                     [cv2.IMWRITE_JPEG_QUALITY, args.jpeg_quality],
                 )
                 if not encoded:
@@ -1027,7 +1069,7 @@ def main() -> None:
                 )
 
             if semantic_due:
-                if semantic_worker is None or left_color is None:
+                if semantic_worker is None or semantic_color is None:
                     raise RuntimeError("scheduled semantic color frame is missing")
                 if capture_realtime_ns is None or last_native_output is None:
                     raise RuntimeError("semantic source sequence/stamp is missing")
@@ -1035,7 +1077,7 @@ def main() -> None:
                 if not semantic_worker.submit(
                     source_sequence=int(last_native_output["sequence"]),
                     capture_realtime_ns=capture_realtime_ns,
-                    color_bgr=left_color,
+                    color_bgr=semantic_color,
                     disparity=disparity,
                     submitted_ns=semantic_schedule_ns,
                 ):
@@ -1109,6 +1151,7 @@ def main() -> None:
             "frames": args.frames,
             "warmup_frames": args.warmup_frames,
             "capture_fps": args.fps,
+            "preview_source": args.preview_source,
             "trigger_low_ms": args.trigger_low_ms,
             "initial_analogue_gain": args.analogue_gain,
             "fixed_colour_gains": list(args.colour_gains),
@@ -1128,7 +1171,7 @@ def main() -> None:
             ),
             "depth_rectification_input": "grayscale",
             "color_rectification_hz": max(
-                args.jpeg_hz,
+                args.jpeg_hz if args.preview_source == "rectified" else 0.0,
                 args.semantic_yolo_hz if args.semantic else 0.0,
                 args.semantic_segformer_hz if args.semantic else 0.0,
             ),
@@ -1312,9 +1355,12 @@ def main() -> None:
     cv2.imwrite(str(args.output_dir / "left_rect.png"), last["left"])
     cv2.imwrite(str(args.output_dir / "right_rect.png"), last["right"])
     if last_jpeg is not None:
-        (args.output_dir / "left_rect_color.jpg").write_bytes(
-            last_jpeg.tobytes()
+        preview_filename = (
+            "left_raw_preview.jpg"
+            if args.preview_source == "raw"
+            else "left_rect_color.jpg"
         )
+        (args.output_dir / preview_filename).write_bytes(last_jpeg.tobytes())
     np.save(args.output_dir / "disparity_float32.npy", last["disparity"])
     if "depth" in last:
         np.save(args.output_dir / "depth_m_float32.npy", last["depth"])

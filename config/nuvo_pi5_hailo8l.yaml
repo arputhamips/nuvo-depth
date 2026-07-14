@@ -58,7 +58,9 @@ capture:
     settle_frames_after_update: 4
 
 rectification:
-  backend: cpu_opencv
+  # Selected after two complete 600-pair CPU/GPU matrices at 2/5/10 Hz
+  # preview. CPU remains the automatic fallback and one-setting rollback.
+  backend: egl_gl_dmabuf
   fallback_backend: cpu_opencv
   allow_fallback: true
   # Calibration files are tied to the camera units, not their current physical

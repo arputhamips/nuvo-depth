@@ -20,13 +20,14 @@ artifacts, not source files and never belong in NuvoBase or its ROS image.
 
 ## Build and install the host package
 
-Build on a compatible arm64 Pi image with the HailoRT development package and
-OpenCV installed:
+Build on a compatible arm64 Pi image with the HailoRT development package,
+OpenCV, `libegl-dev`, and `libgles-dev` installed:
 
 ```bash
 cmake -S . -B build -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DDEPTHD_WITH_HAILORT_SEMANTICS=ON \
+  -DDEPTHD_WITH_EGL_GL_DMABUF_RECTIFICATION=ON \
   -DDEPTHD_PACKAGE_REVISION=$(git rev-parse --short=12 HEAD) \
   -DCMAKE_INSTALL_PREFIX=/usr
 cmake --build build -j
@@ -37,8 +38,28 @@ sudo systemd-tmpfiles --create nuvo-depthd.tmpfiles.conf
 ```
 
 The Debian package declares the system Python camera/image dependencies plus
-HailoRT 4.23 and its PCIe driver. Build release packages from a clean, tagged
-Depth Daemon checkout so the source revision remains reproducible.
+EGL/GLES, HailoRT 4.23, and its PCIe driver. A revisioned production package
+fails configuration if the EGL/GLES backend is omitted. Build release packages
+from a clean, tagged Depth Daemon checkout so the source revision remains
+reproducible.
+
+GPU rectification is the selected production default. CPU rollback is one
+systemd environment override and does not require rebuilding or removing the
+GPU library:
+
+```bash
+sudo systemctl edit nuvo-depthd.service
+```
+
+```ini
+[Service]
+Environment=DEPTHD_RECTIFICATION_BACKEND=cpu_opencv
+```
+
+Then run `sudo systemctl daemon-reload && sudo systemctl restart
+nuvo-depthd.service`. Remove the drop-in to return to `egl_gl_dmabuf`. Runtime
+GPU initialization/import failures also fail over permanently to the same CPU
+backend for that daemon process.
 
 The package does not contain HEFs. Installing or upgrading it cannot silently
 replace the active model/calibration release.
