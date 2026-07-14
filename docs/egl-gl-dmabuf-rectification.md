@@ -118,15 +118,72 @@ the same leased requests. The JSON report includes:
 - cadence/deadline misses and process/whole-SoC CPU;
 - cache/import/fd/fallback diagnostics and normal capture shutdown statistics.
 
-The spatial voxel comparison is deliberately labeled a pre-support proxy; the
-root acceptance run must also compare the two native compact-cloud outputs.
+The spatial voxel comparison is deliberately labeled a pre-support proxy. When
+native output is enabled, comparison mode now also creates a private second
+result ring and sends the CPU disparity through the real compact-cloud builder.
+The report contains same-pair point, raw-point, voxel, supported-voxel, cluster,
+and overflow distributions for both backends.
 
-No live acceptance was run from this implementation worktree. The root task
-owns the required >=600-pair Pi test. Selection must remain off unless that run
-confirms 10 Hz with zero deadline misses, paired total below 5.35 ms p50 and
-6.0 ms p95, every pixel within one LSB, disparity p95 below 0.5 working pixel,
-no meaningful native compact-cloud regression, a bounded fd cache, and clean
-repeated restarts.
+## Pi 5 live acceptance
+
+Live acceptance was completed on CamMow with the frozen half-resolution SGBM
+profile, PiSP luma capture, shared auto exposure, and CPU fallback disabled.
+Production `/run/depthd` rings and the installed service were not used.
+
+The 600-pair same-lease comparison is stored at:
+
+```text
+/home/cam/egl-gl-compare-89bd720-600c
+```
+
+| Gate | Result |
+| --- | ---: |
+| Output rate | 9.9945 Hz |
+| Actual deadline misses | 0 |
+| GPU total p50 / p95 | 4.256 / 4.277 ms |
+| Pixels within one LSB / maximum error | 100% / 1 LSB |
+| Exact pixels | 98.249% |
+| Disparity difference p50 / p95 | 0.000 / 0.375 working px |
+| AE control mismatches | 0 of 600 decisions |
+| AE maximum shutter / gain delta | 0 us / 0.0x |
+| Compact points p50, GPU / CPU | 426 / 427 |
+| Supported voxels p50, GPU / CPU | 526 / 525 |
+| Accepted clusters p50, GPU / CPU | 8 / 8 |
+| Compact-point absolute delta p50 / p95 | 7 / 21 points |
+| Voxel capacity overflow, GPU / CPU | 0 / 0 |
+| Cache size / capacity / owned fds | 8 / 8 / 8 |
+| Imports / failures / fallbacks | 8 / 0 / 0 |
+
+`deadline_misses` counts missing sensor periods or overwritten ready pairs.
+Pacing-loop samples slightly above 100 ms are retained separately as
+`cycle_over_period_samples`; they are not frame loss when the following camera
+wait contracts and sensor timestamps remain consecutive.
+
+The full 600-pair GPU + native cloud + 2 Hz JPEG + asynchronous Hailo semantic
+run is stored at:
+
+```text
+/home/cam/egl-gl-full-semantic-89bd720-600a
+```
+
+It produced 9.9988 Hz with zero deadline misses. GPU total was 4.301/4.460 ms
+p50/p95. The process used 11.63% of total four-core capacity. The semantic
+worker published 251 results with zero errors or pending-frame replacements and
+released all 251 submitted leases during clean shutdown.
+
+Ten additional independent start/stop cycles are stored under:
+
+```text
+/home/cam/egl-gl-restarts-89bd720
+```
+
+All ten selected V3D `egl_gl_dmabuf`, reported zero deadline misses and zero
+backend failures, held exactly eight cached imports/eight owned fds, emitted no
+allocator `BufferError` or traceback, and left no profiler process running.
+
+The live gates pass. The checked-in selection intentionally remains
+`cpu_opencv`; `egl_gl_dmabuf` is an accepted default-off module until a separate
+deployment decision changes the production profile.
 
 ## Existing feasibility evidence
 

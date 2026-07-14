@@ -73,6 +73,26 @@ def histogram_percentile(histogram: np.ndarray, quantile: float) -> float:
     return float(np.searchsorted(np.cumsum(histogram), target))
 
 
+def count_deadline_misses(
+    sensor_timestamps_ns: list[int],
+    *,
+    fps: float,
+    ready_pair_replaced: int,
+) -> int:
+    """Count actual skipped capture periods, not pacing-loop jitter."""
+    period_ns = 1_000_000_000.0 / fps
+    timestamp_misses = sum(
+        max(0, int((current - previous) / period_ns + 0.5) - 1)
+        for previous, current in zip(
+            sensor_timestamps_ns, sensor_timestamps_ns[1:]
+        )
+    )
+    # A replaced ready pair normally appears as the same timestamp gap. Taking
+    # the maximum also covers a replacement at the measurement boundary without
+    # double-counting it.
+    return max(timestamp_misses, ready_pair_replaced)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--left-calibration", type=Path, required=True)
@@ -227,8 +247,13 @@ def main() -> None:
         help="include a diagnostic JPEG in semantic.ring",
     )
     args = parser.parse_args()
-    if args.frames < 1 or args.warmup_frames < 0 or args.fps <= 0.0:
-        parser.error("frame counts and fps must be positive")
+    if (
+        args.frames < 1
+        or args.warmup_frames < 0
+        or args.fps <= 0.0
+        or args.jpeg_hz < 0.0
+    ):
+        parser.error("invalid frame counts or output rates")
     if args.semantic and args.result_ring is None:
         parser.error("--semantic requires --result-ring for source sequence parity")
     if (
@@ -282,6 +307,15 @@ def main() -> None:
                 initial_gain=args.analogue_gain,
             )
             if args.auto_exposure
+            else None
+        )
+        comparison_auto_exposure = (
+            StereoAutoExposure(
+                ae_config,
+                initial_shutter_us=round(args.trigger_low_ms * 1000.0),
+                initial_gain=args.analogue_gain,
+            )
+            if args.auto_exposure and args.compare_rectification_backends
             else None
         )
     except ValueError as error:
@@ -346,6 +380,7 @@ def main() -> None:
         stream_profile=args.capture_stream_profile,
     )
     native_output = None
+    comparison_native_output = None
     semantic_worker = None
     sensor_to_realtime_ns = None
     if args.result_ring is not None:
@@ -354,10 +389,22 @@ def main() -> None:
             sensor_monotonic_to_realtime_ns,
         )
 
-        native_output = NativeOutputPublisher(
-            args.result_ring,
-            args.native_output_library,
-        )
+        try:
+            native_output = NativeOutputPublisher(
+                args.result_ring,
+                args.native_output_library,
+            )
+            if args.compare_rectification_backends:
+                comparison_native_output = NativeOutputPublisher(
+                    args.output_dir / "comparison-cpu-results.ring",
+                    args.native_output_library,
+                )
+        except Exception:
+            if comparison_native_output is not None:
+                comparison_native_output.close()
+            if native_output is not None:
+                native_output.close()
+            raise
         sensor_to_realtime_ns = sensor_monotonic_to_realtime_ns
     if args.semantic:
         from depthd_native_semantic import NativeSemanticWorker
@@ -373,12 +420,15 @@ def main() -> None:
                 runtime_library=args.semantic_runtime_library,
             )
         except Exception:
+            if comparison_native_output is not None:
+                comparison_native_output.close()
             if native_output is not None:
                 native_output.close()
             raise
 
     samples: dict[str, list[float]] = {}
     sensor_deltas_ns: list[int] = []
+    measured_sensor_timestamps_ns: list[int] = []
     callback_deltas_ns: list[int] = []
     jpeg_sizes: list[int] = []
     valid_fractions: list[float] = []
@@ -391,6 +441,7 @@ def main() -> None:
     last_jpeg: np.ndarray | None = None
     last: dict[str, np.ndarray] = {}
     last_native_output: dict[str, float | int] | None = None
+    last_comparison_native_output: dict[str, float | int] | None = None
     rectification_exact_pixels = 0
     rectification_within_one_pixels = 0
     rectification_compared_pixels = 0
@@ -404,6 +455,21 @@ def main() -> None:
         args.working_disparities * 16 + 1, dtype=np.int64
     )
     comparison_cloud: dict[str, float | int] | None = None
+    comparison_native_cloud: dict[str, dict[str, list[float]]] = {
+        name: {"gpu": [], "cpu": [], "absolute_delta": []}
+        for name in (
+            "obstacle_point_count",
+            "accepted_raw_points",
+            "accumulated_voxels",
+            "supported_voxels",
+            "accepted_clusters",
+        )
+    }
+    comparison_native_overflow = {"gpu": 0, "cpu": 0}
+    comparison_ae_decisions = 0
+    comparison_ae_mismatches = 0
+    comparison_ae_max_shutter_delta_us = 0
+    comparison_ae_max_gain_delta = 0.0
     egl_diagnostics: dict[str, object] | None = None
     jpeg_period = max(1, round(args.fps / max(args.jpeg_hz, 1e-6)))
 
@@ -427,6 +493,8 @@ def main() -> None:
     except Exception:
         if semantic_worker is not None:
             semantic_worker.close()
+        if comparison_native_output is not None:
+            comparison_native_output.close()
         if native_output is not None:
             native_output.close()
         if egl_rectifier is not None:
@@ -438,7 +506,8 @@ def main() -> None:
         for frame_index in range(total_frames):
             measured = frame_index >= args.warmup_frames
             jpeg_due = (
-                measured
+                args.jpeg_hz > 0.0
+                and measured
                 and (frame_index - args.warmup_frames) % jpeg_period == 0
             )
             if frame_index == args.warmup_frames:
@@ -465,6 +534,9 @@ def main() -> None:
             record("pair_wait_ms", stage_started_ns, measured)
             if measured:
                 sensor_deltas_ns.append(pair.sensor_delta_ns)
+                measured_sensor_timestamps_ns.append(
+                    pair.left.sensor_timestamp_ns
+                )
                 callback_deltas_ns.append(pair.callback_delta_ns)
                 samples.setdefault("pair_ready_left_frame_age_ms", []).append(
                     (pair.ready_monotonic_ns - pair.left.sensor_timestamp_ns)
@@ -530,6 +602,7 @@ def main() -> None:
                                     left_maps[1],
                                     cv2.INTER_LINEAR,
                                 )
+                        del fallback_views
                     record("grayscale_rectification_ms", stage_started_ns, measured)
                     if measured:
                         for key, value in gpu_timing.items():
@@ -608,6 +681,7 @@ def main() -> None:
                                     stage_started_ns,
                                     True,
                                 )
+                        del views
                 else:
                     stage_started_ns = time.perf_counter_ns()
                     with pair.mapped_views(
@@ -666,6 +740,7 @@ def main() -> None:
                                 stage_started_ns,
                                 True,
                             )
+                    del views
             finally:
                 # Rectification owns its output, so camera DMABUFs can return to
                 # libcamera before matching and publication.
@@ -688,11 +763,77 @@ def main() -> None:
                 )
             record("downscale_ms", stage_started_ns, measured)
 
+            comparison_left_working: np.ndarray | None = None
+            comparison_right_working: np.ndarray | None = None
+            if cpu_comparison is not None:
+                comparison_left_working, comparison_right_working = (
+                    cpu_comparison
+                )
+                if args.working_width != WIDTH or args.working_height != HEIGHT:
+                    comparison_left_working = cv2.resize(
+                        comparison_left_working,
+                        (args.working_width, args.working_height),
+                        interpolation=cv2.INTER_AREA,
+                    )
+                    comparison_right_working = cv2.resize(
+                        comparison_right_working,
+                        (args.working_width, args.working_height),
+                        interpolation=cv2.INTER_AREA,
+                    )
+
             if auto_exposure is not None:
                 stage_started_ns = time.perf_counter_ns()
                 exposure_command = auto_exposure.observe(
                     left_working, right_working
                 )
+                comparison_exposure_command = None
+                if comparison_auto_exposure is not None:
+                    if (
+                        comparison_left_working is None
+                        or comparison_right_working is None
+                    ):
+                        raise RuntimeError("CPU AE comparison images are missing")
+                    comparison_exposure_command = (
+                        comparison_auto_exposure.observe(
+                            comparison_left_working,
+                            comparison_right_working,
+                        )
+                    )
+                    if measured:
+                        comparison_ae_decisions += 1
+                        controls_match = (
+                            exposure_command is None
+                            and comparison_exposure_command is None
+                        ) or (
+                            exposure_command is not None
+                            and comparison_exposure_command is not None
+                            and exposure_command.shutter_us
+                            == comparison_exposure_command.shutter_us
+                            and exposure_command.gain
+                            == comparison_exposure_command.gain
+                            and exposure_command.reason
+                            == comparison_exposure_command.reason
+                        )
+                        if not controls_match:
+                            comparison_ae_mismatches += 1
+                        if (
+                            exposure_command is not None
+                            and comparison_exposure_command is not None
+                        ):
+                            comparison_ae_max_shutter_delta_us = max(
+                                comparison_ae_max_shutter_delta_us,
+                                abs(
+                                    exposure_command.shutter_us
+                                    - comparison_exposure_command.shutter_us
+                                ),
+                            )
+                            comparison_ae_max_gain_delta = max(
+                                comparison_ae_max_gain_delta,
+                                abs(
+                                    exposure_command.gain
+                                    - comparison_exposure_command.gain
+                                ),
+                            )
                 if exposure_command is not None:
                     capture.set_exposure(
                         exposure_command.shutter_us,
@@ -706,21 +847,14 @@ def main() -> None:
 
             comparison_disparity_fixed: np.ndarray | None = None
             if cpu_comparison is not None:
-                cpu_left, cpu_right = cpu_comparison
-                if args.working_width != WIDTH or args.working_height != HEIGHT:
-                    cpu_left = cv2.resize(
-                        cpu_left,
-                        (args.working_width, args.working_height),
-                        interpolation=cv2.INTER_AREA,
-                    )
-                    cpu_right = cv2.resize(
-                        cpu_right,
-                        (args.working_width, args.working_height),
-                        interpolation=cv2.INTER_AREA,
-                    )
+                if (
+                    comparison_left_working is None
+                    or comparison_right_working is None
+                ):
+                    raise RuntimeError("CPU disparity comparison images are missing")
                 stage_started_ns = time.perf_counter_ns()
                 comparison_disparity_fixed = comparison_matcher.compute(
-                    cpu_left, cpu_right
+                    comparison_left_working, comparison_right_working
                 )
                 record("comparison_cpu_sgbm_ms", stage_started_ns, measured)
                 if measured:
@@ -770,6 +904,7 @@ def main() -> None:
                 valid_fractions.append(float(valid.mean()))
             record("disparity_restore_and_mask_ms", stage_started_ns, measured)
 
+            comparison_disparity: np.ndarray | None = None
             if measured and comparison_disparity_fixed is not None:
                 comparison_valid_working = (
                     comparison_disparity_fixed > args.min_disparity * 16
@@ -865,6 +1000,32 @@ def main() -> None:
                         float(last_native_output["result_ring_publish_ms"])
                     )
 
+            if comparison_native_output is not None and measured:
+                if capture_realtime_ns is None or comparison_disparity is None:
+                    raise RuntimeError(
+                        "native cloud comparison disparity/stamp is missing"
+                    )
+                last_comparison_native_output = comparison_native_output.publish(
+                    capture_realtime_ns=capture_realtime_ns,
+                    disparity=comparison_disparity,
+                )
+                if last_native_output is None:
+                    raise RuntimeError("selected native cloud output is missing")
+                for name, values in comparison_native_cloud.items():
+                    gpu_value = float(last_native_output[name])
+                    cpu_value = float(last_comparison_native_output[name])
+                    values["gpu"].append(gpu_value)
+                    values["cpu"].append(cpu_value)
+                    values["absolute_delta"].append(
+                        abs(gpu_value - cpu_value)
+                    )
+                comparison_native_overflow["gpu"] += int(
+                    last_native_output["voxel_capacity_overflow"]
+                )
+                comparison_native_overflow["cpu"] += int(
+                    last_comparison_native_output["voxel_capacity_overflow"]
+                )
+
             if semantic_due:
                 if semantic_worker is None or left_color is None:
                     raise RuntimeError("scheduled semantic color frame is missing")
@@ -922,6 +1083,8 @@ def main() -> None:
             semantic_worker.close()
         if native_output is not None:
             native_output.close()
+        if comparison_native_output is not None:
+            comparison_native_output.close()
         if egl_rectifier is not None:
             egl_rectifier.close()
 
@@ -1064,12 +1227,62 @@ def main() -> None:
                         else 0.0,
                     },
                     "compact_cloud_spatial_proxy_last": comparison_cloud,
+                    "auto_exposure_same_pair": {
+                        "decisions_compared": comparison_ae_decisions,
+                        "control_mismatches": comparison_ae_mismatches,
+                        "max_shutter_delta_us": (
+                            comparison_ae_max_shutter_delta_us
+                        ),
+                        "max_gain_delta": comparison_ae_max_gain_delta,
+                        "gpu_controller": (
+                            auto_exposure.report()
+                            if auto_exposure is not None
+                            else None
+                        ),
+                        "cpu_controller": (
+                            comparison_auto_exposure.report()
+                            if comparison_auto_exposure is not None
+                            else None
+                        ),
+                    },
+                    "native_compact_cloud_same_pair": {
+                        "frames": len(
+                            comparison_native_cloud[
+                                "obstacle_point_count"
+                            ]["gpu"]
+                        ),
+                        "counts": {
+                            name: {
+                                "gpu_p50": percentile(values["gpu"], 50),
+                                "cpu_p50": percentile(values["cpu"], 50),
+                                "absolute_delta_p50": percentile(
+                                    values["absolute_delta"], 50
+                                ),
+                                "absolute_delta_p95": percentile(
+                                    values["absolute_delta"], 95
+                                ),
+                                "absolute_delta_max": max(
+                                    values["absolute_delta"], default=0.0
+                                ),
+                            }
+                            for name, values in comparison_native_cloud.items()
+                        },
+                        "voxel_capacity_overflow": comparison_native_overflow,
+                        "cpu_last": last_comparison_native_output,
+                    },
                 }
                 if rectification_compared_pixels > 0
                 and comparison_valid_pixels > 0
                 else None
             ),
-            "deadline_misses": sum(
+            "deadline_misses": count_deadline_misses(
+                measured_sensor_timestamps_ns,
+                fps=args.fps,
+                ready_pair_replaced=int(
+                    capture_stats.get("ready_pair_replaced", 0)
+                ),
+            ),
+            "cycle_over_period_samples": sum(
                 value > 1000.0 / args.fps
                 for value in samples.get("cycle_ms", [])
             ),

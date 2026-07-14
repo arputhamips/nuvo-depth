@@ -7,6 +7,7 @@ import ctypes
 from pathlib import Path
 from typing import Any
 
+import cv2
 import numpy as np
 
 from async_stereo_capture import DmabufPlaneMetadata
@@ -68,6 +69,36 @@ def _plane(metadata: DmabufPlaneMetadata) -> _Plane:
     )
 
 
+def _float_maps(
+    maps: tuple[np.ndarray, np.ndarray],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Normalize OpenCV float or fixed-point remap maps for the native ABI."""
+    map1, map2 = maps
+    if (
+        map1.dtype == np.float32
+        and map2.dtype == np.float32
+        and map1.ndim == 2
+        and map2.ndim == 2
+    ):
+        x_map, y_map = map1, map2
+    elif (
+        map1.dtype == np.int16
+        and map1.ndim == 3
+        and map1.shape[2] == 2
+        and map2.dtype == np.uint16
+        and map2.ndim == 2
+    ):
+        x_map, y_map = cv2.convertMaps(map1, map2, cv2.CV_32FC1)
+    else:
+        raise ValueError("unsupported OpenCV rectification map representation")
+    if x_map.shape != y_map.shape:
+        raise ValueError("rectification x/y maps must have equal shapes")
+    return (
+        np.ascontiguousarray(x_map, dtype=np.float32),
+        np.ascontiguousarray(y_map, dtype=np.float32),
+    )
+
+
 class EglGlDmabufRectifier:
     """Own the native backend and fixed caller-visible output arrays."""
 
@@ -82,15 +113,9 @@ class EglGlDmabufRectifier:
     ) -> None:
         self._library = ctypes.CDLL(str(library))
         self._configure_abi()
-        left_x, left_y = (
-            np.ascontiguousarray(value, dtype=np.float32) for value in left_maps
-        )
-        right_x, right_y = (
-            np.ascontiguousarray(value, dtype=np.float32) for value in right_maps
-        )
-        if left_x.shape != left_y.shape or left_x.shape != right_x.shape or (
-            left_x.shape != right_y.shape
-        ):
+        left_x, left_y = _float_maps(left_maps)
+        right_x, right_y = _float_maps(right_maps)
+        if left_x.shape != right_x.shape:
             raise ValueError("left/right rectification maps must have equal shapes")
         self.height, self.width = left_x.shape
         float_pointer = ctypes.POINTER(ctypes.c_float)

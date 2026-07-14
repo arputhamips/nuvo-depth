@@ -392,6 +392,10 @@ if(BUILD_TESTING)
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/depthd_assets_test.py
     )
+    add_test(NAME depthd_pipeline_deadline_accounting_test
+      COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/pipeline_deadline_accounting_test.py
+    )
   endif()
 
   add_executable(depthd_contract_test tests/contract_test.cpp)
@@ -515,6 +519,10 @@ if(BUILD_TESTING)
         ERROR_QUIET
       )
       if(DEPTHD_PYTHON_SEMANTIC_RESULT EQUAL 0)
+        add_test(NAME depthd_egl_gl_map_adapter_test
+          COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/egl_gl_map_adapter_test.py
+        )
         add_test(NAME depthd_semantic_worker_test
           COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/semantic_worker_test.py
