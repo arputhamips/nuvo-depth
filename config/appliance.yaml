@@ -1,0 +1,19 @@
+schema_version: 1
+gateway:
+  listen_address: 0.0.0.0
+  https_port: 7443
+  maximum_sessions: 16
+  preview_hz: 5
+transport:
+  preference: ethernet
+  ethernet_qualified_payload_bytes_per_second: 0
+  usb_qualified_payload_bytes_per_second: 0
+security:
+  certificate: /var/lib/nuvo-depth/identity/device.crt
+  private_key: /var/lib/nuvo-depth/identity/device.key
+  claim_token: /var/lib/nuvo-depth/identity/claim.token
+  session_limit: 32
+  cors: deny
+calibration:
+  active_namespace_order: [factory, user]
+  state_root: /var/lib/nuvo-depth

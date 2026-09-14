@@ -234,6 +234,13 @@ class MesaEglGlDmabufPlatform final : public EglGlDmabufPlatform {
     try {
       initialize_egl();
       initialize_gl(maps);
+      // Construction happens on the daemon thread, while all frame work runs
+      // on the scheduler's single processing thread. EGL contexts are bound
+      // to a thread, so release it here and let the worker acquire it on the
+      // first import/rectification call.
+      require_egl(eglMakeCurrent(display_, EGL_NO_SURFACE, EGL_NO_SURFACE,
+                                 EGL_NO_CONTEXT) == EGL_TRUE,
+                  "eglReleaseCurrent");
     } catch (...) {
       shutdown();
       throw;

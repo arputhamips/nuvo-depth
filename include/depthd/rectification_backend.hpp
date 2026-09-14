@@ -93,6 +93,13 @@ struct DmabufPlaneView {
   const DmabufRequestLease* lease{};
 };
 
+struct CpuFallbackStereoInput {
+  std::shared_ptr<const void> left_owner;
+  std::shared_ptr<const void> right_owner;
+  ImageView left;
+  ImageView right;
+};
+
 struct DmabufStereoInput {
   DmabufPlaneView left;
   DmabufPlaneView right;
@@ -102,6 +109,7 @@ struct DmabufStereoInput {
   // initialization/import/runtime failure.
   ImageView left_cpu_fallback;
   ImageView right_cpu_fallback;
+  std::function<CpuFallbackStereoInput()> acquire_cpu_fallback;
 };
 
 struct DmabufRectificationDiagnostics {

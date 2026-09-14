@@ -1,0 +1,25 @@
+# Provisional seed for the logical-left camera in the 100 mm product rig.
+# Intrinsics/rectification originate from the existing camera unit. Re-run
+# stereo calibration after final mechanical assembly.
+calibration_status: provisional_recalibration_required
+baseline_m: 0.100
+image_width: 728
+image_height: 544
+camera_name: front_left
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [475.256118788, 0, 359.394530204, 0, 473.979044593, 269.214194577, 0, 0, 1]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [-0.437251988499, 0.22253397986, 0.00178221314897, -0.000279608360624, -0.0580303094243]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [0.999899187982, -0.0119521415928, 0.00766551912023, 0.0119817857279, 0.999920869293, -0.00383300961735, -0.00761909986861, 0.0039244698115, 0.999963273253]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [493.542046188, 0, 348.240810394, 0, 0, 493.542046188, 266.509811401, 0, 0, 0, 1, 0]

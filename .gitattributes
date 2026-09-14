@@ -5,3 +5,5 @@
 *.pth binary
 *.jpg binary
 *.png binary
+# Markdown uses two trailing spaces for hard line breaks.
+*.md whitespace=-trailing-space

@@ -1,0 +1,12 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>
+  <name replace-wildcards="yes">Nuvo Depth on %h</name>
+  <service>
+    <type>_nuvo-depth._tcp</type>
+    <port>7443</port>
+    <txt-record>protocol=NuvoStream/1.0</txt-record>
+    <txt-record>tls=required</txt-record>
+    <txt-record>products=stereo,disparity,depth,confidence,validity</txt-record>
+  </service>
+</service-group>

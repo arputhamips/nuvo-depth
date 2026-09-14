@@ -226,14 +226,26 @@ int main() {
          "runtime fallback did not release/import/report correctly");
 
   auto init_cpu_state = std::make_shared<CpuState>();
+  auto lazy_left = std::make_shared<std::array<std::uint8_t, 12>>();
+  auto lazy_right = std::make_shared<std::array<std::uint8_t, 12>>();
+  std::uint64_t lazy_acquisitions{};
+  input.left_cpu_fallback = {};
+  input.right_cpu_fallback = {};
+  input.acquire_cpu_fallback = [&] {
+    ++lazy_acquisitions;
+    return depthd::CpuFallbackStereoInput{
+        lazy_left, lazy_right,
+        {lazy_left->data(), 4, 3, 4, depthd::ImageEncoding::kGray8},
+        {lazy_right->data(), 4, 3, 4, depthd::ImageEncoding::kGray8}};
+  };
   auto init_fallback = depthd::make_egl_gl_dmabuf_rectification_backend(
       config, options, {}, std::make_unique<FakeCpu>(init_cpu_state),
       "injected initialization failure");
   init_fallback->rectify_dmabuf_pair(input, left_view, right_view, stats);
   expect(init_fallback->dmabuf_diagnostics().fallback_reason ==
              "injected initialization failure" &&
-             init_cpu_state->calls == 2,
-         "initialization fallback failed");
+             init_cpu_state->calls == 2 && lazy_acquisitions == 1,
+         "lazy initialization fallback failed");
 
   options.allow_cpu_fallback = false;
   try {

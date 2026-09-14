@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package nuvo.stream.v1;
+
+enum ClockDomain {
+  CLOCK_DOMAIN_UNSPECIFIED = 0;
+  CLOCK_DOMAIN_BOOTTIME = 1;
+}
+
+enum ProductKind {
+  PRODUCT_KIND_UNSPECIFIED = 0;
+  PRODUCT_KIND_LEFT_RECTIFIED = 1;
+  PRODUCT_KIND_RIGHT_RECTIFIED = 2;
+  PRODUCT_KIND_DISPARITY = 3;
+  PRODUCT_KIND_DEPTH = 4;
+  PRODUCT_KIND_CONFIDENCE = 5;
+  PRODUCT_KIND_VALIDITY = 6;
+}
+
+message PixelGrid {
+  uint32 width = 1;
+  uint32 height = 2;
+  uint32 reference_width = 3;
+  uint32 reference_height = 4;
+  double x_scale_to_reference = 5;
+  double y_scale_to_reference = 6;
+  double x_offset_to_reference = 7;
+  double y_offset_to_reference = 8;
+}
+
+message Region {
+  uint32 x = 1;
+  uint32 y = 2;
+  uint32 width = 3;
+  uint32 height = 4;
+}
+
+message CameraTiming {
+  string stable_camera_id = 1;
+  uint64 camera_sequence = 2;
+  sint64 sensor_timestamp_ns = 3;
+  ClockDomain sensor_clock = 4;
+  uint32 commanded_exposure_us = 5;
+  uint32 applied_exposure_us = 6;
+  double commanded_analogue_gain = 7;
+  double applied_analogue_gain = 8;
+}
+
+message ProductDescriptor {
+  ProductKind kind = 1;
+  PixelGrid grid = 2;
+  Region valid_roi = 3;
+  string format = 4;
+  string endianness = 5;
+  string unit = 6;
+  string invalid_convention = 7;
+  uint64 payload_offset = 8;
+  uint64 payload_bytes = 9;
+  repeated uint64 plane_offsets = 10;
+  repeated uint64 plane_strides = 11;
+  string camera_role = 12;
+  string calibration_sha256 = 13;
+  string derivation = 14;
+}
+
+message FrameSetMetadata {
+  uint32 schema_version = 1;
+  bytes device_uuid = 2;
+  bytes run_uuid = 3;
+  uint64 capture_epoch = 4;
+  uint64 capture_sequence = 5;
+  uint64 configuration_epoch = 6;
+  uint64 trigger_epoch = 7;
+  uint64 trigger_sequence = 8;
+  string trigger_association = 9;
+  sint64 capture_timestamp_ns = 10;
+  ClockDomain capture_clock = 11;
+  CameraTiming left_camera = 12;
+  CameraTiming right_camera = 13;
+  sint64 compute_ready_timestamp_ns = 14;
+  sint64 publish_ready_timestamp_ns = 15;
+  string calibration_sha256 = 16;
+  string operating_preset_hash = 17;
+  string rectification_backend = 18;
+  string stereo_backend = 19;
+  repeated string degradation_flags = 20;
+  repeated ProductDescriptor products = 21;
+}
+
+message Gap {
+  uint64 first_missing_stream_sequence = 1;
+  uint64 last_missing_stream_sequence = 2;
+  string reason = 3;
+}
+
+message Error {
+  uint32 code = 1;
+  string message = 2;
+  bool retryable = 3;
+}

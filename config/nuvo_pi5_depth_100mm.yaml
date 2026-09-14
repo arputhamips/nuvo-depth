@@ -1,0 +1,111 @@
+schema_version: 1
+
+product:
+  platform: raspberry-pi-5
+  role: standalone_depth_camera
+  profile_id: balanced_728x544_10
+
+rig:
+  sensor: imx296
+  camera_count: 2
+  baseline_m: 0.100
+  calibration_status: provisional_recalibration_required
+
+capture:
+  backend: libcamera
+  # Logical assignments proven on the current dual-IMX296 Pi topology.
+  left_camera_index: 1
+  right_camera_index: 0
+  width: 728
+  height: 544
+  stream_profile: isp_luma_rgb_left
+  main_pixel_format: YUV420
+  depth_plane: Y
+  left_color_stream: lores
+  left_color_pixel_format: RGB888
+  left_color_memory_order: BGR
+  right_color_stream_enabled: false
+  colour_space: sYCC
+  orientation_degrees: 180
+  target_hz: 10
+  buffer_count: 4
+  handoff: async_latest_pair
+  zero_copy_camera_input: true
+  hardware_trigger:
+    enabled: true
+    driver_mode: external_xtrig
+    requires_always_on_overlay: true
+    gpiochip: /dev/gpiochip0
+    line: 17
+    idle_level: high
+    active_level: low
+    pulse_width_us: 8000
+    startup_priming_pulses: 5
+    pair_tolerance_us: 500
+  exposure_time_us: 8000
+  analogue_gain: 2.0
+  colour_gains: [2.4771, 2.3425]
+  auto_exposure:
+    # Native v1 applies one fixed, shared exposure/gain set to both cameras.
+    # Adaptive exposure remains a separately qualified future feature.
+    enabled: false
+    metering_roi: [160, 96, 728, 420]
+    target_median: 75
+    median_deadband: [65, 85]
+    dark_threshold: 16
+    clipping_threshold: 245
+    max_clipped_fraction: 0.005
+    min_shutter_us: 250
+    max_shutter_us: 8000
+    min_analogue_gain: 1.0
+    max_analogue_gain: 3.0
+    update_interval_frames: 2
+    settle_frames_after_update: 4
+
+rectification:
+  backend: egl_gl_dmabuf
+  fallback_backend: cpu_opencv
+  allow_fallback: true
+  # These seed files retain the existing camera-unit intrinsics and encode the
+  # new nominal 100 mm projection. Recalibrate the assembled 100 mm rig before
+  # treating metric depth as production-calibrated.
+  left_calibration: /var/lib/nuvo-depthd/current/config/calibration/nuvo_depth_100mm/front_left.yaml
+  right_calibration: /var/lib/nuvo-depthd/current/config/calibration/nuvo_depth_100mm/front_right.yaml
+  map_format: fixed_point
+  depth_preprocessing: isp_luma_before_rectification
+  color_rectification: on_preview_schedule
+
+stereo:
+  backend: cpu_sgbm
+  baseline_m: 0.100
+  rectified_focal_length_px: 493.542046188
+  output_width: 728
+  output_height: 544
+  min_disparity: 0
+  max_disparity: 128
+  working_width: 728
+  working_height: 544
+  working_disparities: 128
+  block_size: 5
+  mode: sgbm_3way
+  uniqueness_ratio: 1
+  speckle_window_size: 30
+  speckle_range: 2
+  disparity_12_max_diff: 1
+  pre_filter_cap: 31
+  opencv_threads: 4
+
+outputs:
+  disparity_hz: 10
+  disparity_topic: /camera/front/disparity
+  metric_depth_enabled: false
+  compressed_image_hz: 2
+  compressed_image_topic: /camera/front/left/image_rect/compressed
+  jpeg_quality: 75
+  left_camera_info_topic: /camera/front/left/camera_info
+  diagnostics_topic: /camera/front/depthd/diagnostics
+  obstacle_cloud_enabled: true
+  obstacle_cloud_topic: /camera/front/obstacles
+  result_ring_path: /run/depthd/results.ring
+  result_ring_slots: 4
+  result_ring_left_mono_enabled: false

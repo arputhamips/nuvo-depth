@@ -1,0 +1,7 @@
+[Unit]
+Description=Nuvo Depth camera appliance
+Wants=nuvo-depthd-native.service nuvo-gateway.service nuvo-system-agent.socket nuvo-transport-rollback.timer
+After=network.target
+
+[Install]
+WantedBy=multi-user.target

@@ -29,7 +29,7 @@ RigidTransform make_nuvo_left_optical_to_base_transform() noexcept {
   // plus the current rig pose and logical-left half-baseline.
   transform.matrix = {
       0.0, 0.0, 1.0, 0.760,
-      -1.0, 0.0, 0.0, 0.080,
+      -1.0, 0.0, 0.0, 0.050,
       0.0, -1.0, 0.0, 0.180,
       0.0, 0.0, 0.0, 1.0,
   };

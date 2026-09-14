@@ -273,13 +273,23 @@ class EglGlDmabufRectificationBackend final : public RectificationBackend {
     if (!options_.allow_cpu_fallback || cpu_fallback_ == nullptr) {
       throw std::runtime_error("CPU rectification fallback is disabled");
     }
-    if (input.left_cpu_fallback.data == nullptr ||
-        input.right_cpu_fallback.data == nullptr) {
+    if (input.left_cpu_fallback.data != nullptr &&
+        input.right_cpu_fallback.data != nullptr) {
+      cpu_fallback_->rectify_pair(input.left_cpu_fallback,
+                                  input.right_cpu_fallback, left_output,
+                                  right_output, stats);
+      return;
+    }
+    if (!input.acquire_cpu_fallback) {
       throw std::runtime_error(
           "GPU fallback requires lazy CPU mappings from the active leases");
     }
-    cpu_fallback_->rectify_pair(input.left_cpu_fallback,
-                                input.right_cpu_fallback, left_output,
+    const auto fallback = input.acquire_cpu_fallback();
+    if (!fallback.left_owner || !fallback.right_owner ||
+        fallback.left.data == nullptr || fallback.right.data == nullptr) {
+      throw std::runtime_error("lazy CPU fallback returned invalid mappings");
+    }
+    cpu_fallback_->rectify_pair(fallback.left, fallback.right, left_output,
                                 right_output, stats);
   }
 

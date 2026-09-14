@@ -1,0 +1,13 @@
+[Unit]
+Description=Nuvo Depth privileged control socket
+
+[Socket]
+ListenSequentialPacket=/run/nuvo-depth/system-agent.sock
+SocketMode=0660
+SocketUser=root
+SocketGroup=nuvo-control
+Accept=yes
+MaxConnections=8
+
+[Install]
+WantedBy=sockets.target

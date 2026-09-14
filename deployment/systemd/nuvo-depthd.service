@@ -1,8 +1,7 @@
 [Unit]
-Description=Nuvo native stereo and semantic Depth Daemon
+Description=Nuvo 100 mm stereo Depth Camera
 Documentation=file:///usr/share/doc/nuvo-depthd/deployment.md
-After=local-fs.target hailort.service
-Requires=hailort.service
+After=local-fs.target
 Before=docker.service
 
 [Service]
@@ -17,10 +16,10 @@ Environment=PYTHONUNBUFFERED=1
 # drop-in. The CPU backend and maps remain installed and tested.
 Environment=DEPTHD_RECTIFICATION_BACKEND=egl_gl_dmabuf
 ExecStartPre=/usr/sbin/depthd-assets preflight
-ExecStartPre=/usr/bin/rm -f /run/depthd/results.ring /run/depthd/semantic.ring
+ExecStartPre=/usr/bin/rm -f /run/depthd/results.ring
 ExecStart=/usr/bin/python3 /usr/lib/nuvo-depthd/profile_async_zero_copy_pipeline.py \
-  --left-calibration /var/lib/nuvo-depthd/current/config/calibration/nuvo_reference/front_right.yaml \
-  --right-calibration /var/lib/nuvo-depthd/current/config/calibration/nuvo_reference/front_left.yaml \
+  --left-calibration /var/lib/nuvo-depthd/current/config/calibration/nuvo_depth_100mm/front_left.yaml \
+  --right-calibration /var/lib/nuvo-depthd/current/config/calibration/nuvo_depth_100mm/front_right.yaml \
   --output-dir /var/lib/nuvo-depthd/output \
   --left-camera-index 1 \
   --right-camera-index 0 \
@@ -61,15 +60,8 @@ ExecStart=/usr/bin/python3 /usr/lib/nuvo-depthd/profile_async_zero_copy_pipeline
   --gpiochip /dev/gpiochip0 \
   --line 17 \
   --result-ring /run/depthd/results.ring \
-  --native-output-library /usr/lib/nuvo-depthd/libdepthd_native_output.so \
-  --semantic \
-  --semantic-ring /run/depthd/semantic.ring \
-  --semantic-runtime-library /usr/lib/nuvo-depthd/libdepthd_native_semantic.so \
-  --semantic-yolo-hef /var/lib/nuvo-depthd/current/models/hailo/front_semantic.hef \
-  --semantic-segformer-hef /var/lib/nuvo-depthd/current/models/hailo/segformer_b0_bn.hef \
-  --semantic-yolo-hz 5 \
-  --semantic-segformer-hz 5
-ExecStartPost=/bin/bash -c "for i in $(seq 1 200); do test -s /run/depthd/results.ring -a -s /run/depthd/semantic.ring && exit 0; sleep 0.1; done; exit 1"
+  --native-output-library /usr/lib/nuvo-depthd/libdepthd_native_output.so
+ExecStartPost=/bin/bash -c "for i in $(seq 1 200); do test -s /run/depthd/results.ring && exit 0; sleep 0.1; done; exit 1"
 Restart=on-failure
 RestartSec=2
 KillSignal=SIGINT

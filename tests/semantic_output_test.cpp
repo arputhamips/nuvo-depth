@@ -50,7 +50,7 @@ int main() {
   }
 
   std::vector<float> disparity(728U * 544U,
-      static_cast<float>(493.542046188 * 0.161458780 / 2.0));
+      static_cast<float>(493.542046188 * 0.100 / 2.0));
   depthd_semantic_observation observation{};
   observation.struct_size = sizeof(observation);
   observation.source_kind = 1U;

@@ -1,0 +1,4 @@
+usr/lib/nuvo-depth/nuvo-gateway
+usr/share/nuvo-depth/web/
+usr/share/avahi/services/nuvo-depth.service
+usr/lib/systemd/system/nuvo-gateway.service

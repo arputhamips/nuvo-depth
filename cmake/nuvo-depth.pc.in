@@ -1,0 +1,10 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: nuvo-depth
+Description: Nuvo Depth bounded stream decoder ABI
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -lnuvo-depth
+Cflags: -I${includedir}

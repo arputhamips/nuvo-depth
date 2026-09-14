@@ -1,0 +1,6 @@
+Installing this package does not grant factory authority. Factory calibration
+activation cryptographically verifies an Ed25519 signature from a separately
+provisioned and audited signing system. Provision trusted raw public keys as
+base64 values in `/etc/nuvo-depth/factory-trust.json` under a version-1 `keys`
+mapping. Private signing keys must never be placed on camera units or in this
+source tree.

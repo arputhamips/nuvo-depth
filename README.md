@@ -2,30 +2,77 @@
 
 Native stereo-depth runtime for the Nuvo Raspberry Pi 5 and dual
 hardware-triggered IMX296 cameras. Stereo processing is selected through a
-ROS-free backend interface; the production backend is OpenCV CPU SGBM, with a
-Hailo backend able to implement the same contract later. Capture,
+ROS-free backend interface; the production backend is OpenCV CPU SGBM. Capture,
 pair validation, rectification, matching, and buffer management happen outside
 DDS. A small boundary adapter publishes only finished products.
 
-This initial commit is decision-ready rather than hardware-complete. It records
-the existing Nuvo contract, pins the LAS2 investigation, and isolates the small
-stable C++ contract from the still-open deployment choice.
+The product build is depth-only. Semantic perception and accelerator experiments
+are not built, installed, provisioned, or required by the Debian package.
 
-## Fixed compatibility target
+## Appliance status
 
-- Capture/output geometry: **728 x 544** at **6-10 Hz**.
+The repository now contains the complete software skeleton for a Pi 5 beta:
+native dual-libcamera capture and GPIO-trigger ownership, strict stereo pairing,
+calibration-aware rectification and CPU SGBM, associated left/right/disparity/
+depth/confidence/validity products, bounded local IPC, a TLS gateway and web
+console, C and Python SDKs, calibration/recording tools, systemd units, and
+split Debian packaging. `CaptureSource` is the platform boundary for a future
+Luckfox Aura adapter; product semantics above that boundary remain shared.
+
+This is not yet a factory release. The September 9, 2026 Pi 5 rig run passed all
+four automated installed-package gates, including 3 x 1,000 hardware-triggered
+pairs and 1,000 zero-gap native depth frames. The checked-in calibration remains
+provisional, the higher-rate presets are unqualified, and trigger electrical
+evidence, powered USB-C, wired throughput, metric accuracy, thermal endurance,
+full package lifecycle, and recovery tests remain pending. See
+[`docs/pi5-hil-qualification-20260909.md`](docs/pi5-hil-qualification-20260909.md).
+The qualification report is the release authority; source code or a successful
+automated run cannot waive a manual gate.
+
+Useful entry points:
+
+Build presets, dependencies, and the consolidated history of the old
+`build-step*` folders are in the [build and test guide](docs/build-and-test.md).
+
+```bash
+cmake --preset development-full
+cmake --build --preset development-full -j
+ctest --preset development-full
+
+depthd --check-config config/nuvo_pi5_depth_100mm.yaml
+depthd --pipeline-check config/nuvo_pi5_depth_100mm.yaml \
+  --left LEFT.png --right RIGHT.png --output-dir replay-output \
+  --allow-provisional-depth
+
+sudo nuvoctl identity provision
+sudo nuvoctl platform preflight
+sudo nuvoctl platform prepare --platform pi5 --apply
+```
+
+The native appliance target is deliberately not enabled during package
+installation. Enable it only on a provisioned engineering unit, then remove the
+provisional-depth override from the shipping service after a validated per-unit
+calibration is active.
+
+For a fresh review session, use
+[`docs/nuvo-depth-production-oracle-prompt.md`](docs/nuvo-depth-production-oracle-prompt.md).
+For the assembled Pi, use
+[`docs/hardware-qualification-handoff-prompt.md`](docs/hardware-qualification-handoff-prompt.md).
+
+## Current Pi 5 candidate profile
+
+- Product profile: `balanced_728x544_10` at **728 x 544 / 10 Hz**.
 - Current camera profile: RGB888, 180-degree orientation, 10 Hz shared hardware
   trigger on GPIO 17.
 - Rectified focal length: 493.542046188 px.
-- Calibrated baseline: 0.161458780 m.
-- Required ROS data: `/camera/front/disparity`, compact voxelized
-  `/camera/front/obstacles`, and a throttled JPEG view.
-- Required support data: left camera info and health/latency diagnostics.
-- No metric-depth image or dense point cloud in the default path.
+- Nominal product baseline: **0.100 m**.
+- Appliance frame sets contain associated rectified left and right images,
+  disparity, metric optical-axis depth, confidence, and validity.
+- The legacy ROS/native-output adapter remains available for compatibility, but
+  it is not the appliance API or the configuration authority.
 
-See [architecture options](docs/architecture-options.md), the exact
-[Nuvo compatibility contract](docs/nuvo-compatibility.md), and the
-[LAS2-to-HEF gate plan](docs/model-porting.md). The first measured runtime is
+See [architecture options](docs/architecture-options.md) and the historical
+[Nuvo compatibility contract](docs/nuvo-compatibility.md). The first measured runtime is
 documented in the [CPU SGBM baseline](docs/cpu-sgbm-baseline.md), with the full
 live camera path in the [CPU pipeline profile](docs/cpu-live-pipeline-profile.md)
 and the corrected [async zero-copy trigger results](docs/async-zero-copy-trigger-results.md).
@@ -35,16 +82,22 @@ The downstream ROS-free projection and voxel/cluster filtering contract is in
 the [native compact obstacle cloud](docs/compact-obstacle-cloud.md). The first
 camera-to-mmap run is recorded in the
 [native output live validation](docs/native-output-live-validation.md).
-The optional native detector/segmenter, same-frame disparity fusion, and its
-separate compact mmap contract are described in the
-[semantic perception architecture](docs/semantic-perception-architecture.md).
-The [semantic model comparison](docs/semantic-model-candidates.md) records the
-off-road GOOSE experiment and longer-term model path. The pinned workstation
-compiler is documented in the
-[Hailo WSL toolchain guide](docs/hailo-toolchain-wsl.md).
-Host packaging, daemon-owned model/calibration provisioning, systemd startup,
+Host packaging, daemon-owned calibration provisioning, systemd startup,
 and atomic rollback are documented in the
 [production deployment guide](deployment/README.md).
+The current product geometry, operating point, and hardware acceptance gates
+are recorded in the [Pi 5 100 mm depth profile](docs/pi5-depth-100mm-profile.md).
+The opt-in native scheduler, IPC v2 ownership core, common Ethernet/USB-IP wire
+protocol, and SDK decoder skeleton are tracked in the
+[native runtime/IPC/gateway status](docs/native-runtime-ipc-gateway.md).
+The optional post-depth H.264/MJPEG path, raw/encoded/both modes, web controls,
+wire envelope, and measured Pi 5 profiles are documented in the
+[Pi 5 image-stream encoding guide](docs/pi5-image-stream-encoding.md).
+
+The checked-in 100 mm calibration files are explicitly provisional. They retain
+the existing camera-unit intrinsics and encode the new projection baseline, but
+the assembled 100 mm product must be stereo-calibrated before metric depth is
+treated as production-calibrated.
 
 Image rectification has its own backend registry, separate from stereo
 matching. The production `cpu_opencv` implementation is documented in the
@@ -58,26 +111,23 @@ src/                  ROS-free backend implementations
 tests/                Dependency-light contract tests
 config/               Runtime profile and reference calibration
 docs/                 Decisions, audit notes, and acceptance criteria
-models/               Model provenance and conversion instructions
-third_party/          Pinned upstream sources (git submodules)
+models/               Optional research model sources (not in product package)
+third_party/          Optional research sources (not in product package)
 ```
 
-The result transport is a dependency-free, versioned four-slot mmap ring under
+The installed compatibility result transport is a dependency-free, versioned four-slot mmap ring under
 `/run/depthd`. Its authoritative cross-process layout lives in
 `include/depthd/ipc/result_ring_layout.hpp`; the ROS bridge vendors that exact
-ABI and publishes only the newest complete sequence. Camera runtime and the
-Hailo backend remain separate from the ROS/ament bridge.
+ABI and publishes only the newest complete sequence. Camera runtime remains
+separate from the ROS/ament bridge.
 
-Semantic output uses a second ABI at `/run/depthd/semantic.ring`, defined in
-`include/depthd/ipc/semantic_ring_layout.hpp`. It never changes the locked depth
-ring and carries no raw segmentation mask by default.
+IPC v2 is the native appliance boundary under `/run/nuvo-depth`. The original
+IPC v1/Python service is retained only as a rollback comparator until hardware
+parity qualification authorizes final removal.
 
-The optional Pi semantic runtime is `libdepthd_native_semantic.so`. It branches
-from the full-resolution rectified color owner before CPU SGBM, keeps only a
-capacity-one latest frame, and runs persistent serialized Hailo models plus
-post-processing and same-frame depth fusion outside the Python GIL. Enable its
-conditional build with `-DDEPTHD_WITH_HAILORT_SEMANTICS=ON`; normal workstation
-builds and tests do not require HailoRT.
+Legacy semantic research code remains available only when explicitly building
+with `-DDEPTHD_WITH_SEMANTICS=ON`. Those targets are excluded from product
+installation and Debian packages.
 
 ## Build the current contract test
 
@@ -96,5 +146,4 @@ per-stage latency plus process and normalized four-core CPU utilization.
 - No raw left/right ROS image loop.
 - No Python in the Pi frame loop.
 - No full-rate dense `PointCloud2`.
-- No claim that LAS2 compiles for Hailo-8L until the compiler and hardware gates
-  pass.
+- No semantic perception or Hailo dependency in the product package.

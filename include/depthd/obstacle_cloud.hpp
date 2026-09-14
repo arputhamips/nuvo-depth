@@ -30,7 +30,7 @@ struct StereoCameraModel {
   double fy{493.542046188};
   double cx{348.240810394};
   double cy{266.509811401};
-  double baseline_m{0.161458780};
+  double baseline_m{0.100};
 };
 
 struct DisparityFrameView {

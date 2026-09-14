@@ -1,0 +1,3 @@
+usr/include/nuvo/
+usr/lib/*/libnuvo-depth.so
+usr/lib/*/pkgconfig/nuvo-depth.pc

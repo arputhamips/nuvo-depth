@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Nuvo Depth</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="mark" aria-hidden="true"></span><span><span class="brand-name">NUVO <b>DEPTH</b></span><small class="brand-subtitle">Vision systems / Device console</small></span></div>
+    <div id="connection" class="pill offline">Not connected</div>
+  </header>
+  <div class="shell">
+    <nav aria-label="Device pages">
+      <p class="nav-label">Monitor</p>
+      <button data-page="overview" class="active">Overview</button>
+      <button data-page="viewer">Live viewer</button>
+      <button data-page="streaming">Streaming</button>
+      <p class="nav-label">Configure</p>
+      <button data-page="algorithm">Depth algorithm</button>
+      <button data-page="presets">Presets</button>
+      <button data-page="exposure">Exposure & trigger</button>
+      <button data-page="network">Connections</button>
+      <button data-page="calibration">Calibration</button>
+      <p class="nav-label">System</p>
+      <button data-page="diagnostics">Diagnostics</button>
+      <button data-page="recovery">Update & recovery</button>
+    </nav>
+    <main>
+      <section id="overview" class="page active">
+        <p class="eyebrow">STEREO CAMERA APPLIANCE</p>
+        <h1>Depth, in view.</h1>
+        <p class="lede">One place to inspect synchronized capture, native-resolution depth, and stream delivery.</p>
+        <div class="cards">
+          <article><span>Camera</span><strong id="cameraState">Waiting</strong><small id="cameraDetail">No health report yet</small></article>
+          <article><span>Frame</span><strong id="frameRate">—</strong><small id="frameDetail">Associated stereo + depth</small></article>
+          <article><span>Calibration</span><strong id="calibrationState">—</strong><small id="calibrationHash">Not loaded</small></article>
+          <article><span>Processing</span><strong id="processingTime">—</strong><small>Capture-to-products compute</small></article>
+        </div>
+        <div class="notice" id="calibrationNotice">Depth remains unavailable until a camera frame and accepted calibration are active.</div>
+        <button class="primary" data-open="viewer">Open live viewer</button>
+        <div class="section-head"><h2>Pipeline timing</h2><small>Latest processed frame</small></div>
+        <div class="panel">
+          <dl class="timing-list">
+            <div><dt>GPU rectification</dt><dd id="rectificationTime">—</dd><span class="timing-track"><i id="rectificationBar"></i></span></div>
+            <div><dt>Stereo preparation</dt><dd id="preprocessTime">—</dd><span class="timing-track"><i id="preprocessBar"></i></span></div>
+            <div><dt>Stereo match</dt><dd id="matchTime">—</dd><span class="timing-track"><i id="matchBar"></i></span></div>
+            <div><dt>Disparity filtering</dt><dd id="postprocessTime">—</dd><span class="timing-track"><i id="postprocessBar"></i></span></div>
+            <div><dt>Depth + overhead</dt><dd id="otherTime">—</dd><span class="timing-track"><i id="otherBar"></i></span></div>
+          </dl>
+          <p class="timing-note">Capture wait, snapshot I/O, and network delivery are outside this compute timer. Encoder time appears on the Streaming page.</p>
+        </div>
+      </section>
+
+      <section id="viewer" class="page">
+        <p class="eyebrow">SYNCHRONIZED PRODUCTS</p><h1>Live viewer</h1>
+        <div id="viewerModeNotice" class="notice compact" hidden>Raw products are disabled in encoded-only mode. Select Raw + encoded or Raw only on the Streaming page to view all four products.</div>
+        <div class="viewer-grid">
+          <figure><figcaption>Left rectified</figcaption><canvas id="leftCanvas"></canvas></figure>
+          <figure><figcaption>Right rectified</figcaption><canvas id="rightCanvas"></canvas></figure>
+          <figure><figcaption>Disparity <span>matcher pixels</span></figcaption><canvas id="disparityCanvas"></canvas></figure>
+          <figure class="depth"><figcaption>Optical-axis depth <span>metres</span></figcaption><canvas id="depthCanvas"></canvas></figure>
+        </div>
+        <div class="telemetry"><span id="sequence">Frame —</span><span id="validity">Valid —</span><span id="age">Waiting for products</span><span id="frameError" class="error"></span></div>
+      </section>
+
+      <section id="streaming" class="page">
+        <p class="eyebrow">RAW + ENCODED DELIVERY</p><h1>Image streaming</h1>
+        <p class="lede">Configure the stream without changing capture or stereo matching. The frame-rate setting is an encoder ceiling, not a promise of 60 depth results per second.</p>
+        <div class="stream-layout">
+          <form id="encodingForm" class="settings-form">
+            <label>Output mode<select id="streamMode"><option value="raw">Raw only</option><option value="encoded">Encoded only</option><option value="both">Raw + encoded</option></select></label>
+            <label>Codec<select id="streamCodec"><option value="h264">H.264 · efficient</option><option value="jpeg">MJPEG · universal</option></select></label>
+            <label>Image source<select id="streamSource"><option value="left_rectified">Left rectified</option><option value="right_rectified">Right rectified</option><option value="disparity">Disparity</option><option value="depth">Depth</option></select></label>
+            <label>Width <small>0 keeps native</small><input id="streamWidth" type="number" min="0" max="1920" step="2" required></label>
+            <label>Height <small>0 keeps native</small><input id="streamHeight" type="number" min="0" max="1080" step="2" required></label>
+            <label>Frames per second<input id="streamFps" type="number" min="1" max="60" required></label>
+            <label>H.264 bitrate<input id="streamBitrate" type="number" min="100000" max="50000000" step="100000" required></label>
+            <label>JPEG quality<input id="streamQuality" type="number" min="1" max="100" required></label>
+            <label>Keyframe interval<small>Use 1 for artifact-free latest-frame preview</small><input id="streamKeyframes" type="number" min="1" max="600" required></label>
+            <label>Encoder threads<select id="streamThreads"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label>
+            <label>Speed/quality preset<select id="streamPreset"><option value="ultrafast">Ultra-fast</option><option value="superfast">Super-fast</option><option value="veryfast">Very fast</option><option value="faster">Faster</option><option value="fast">Fast / higher quality</option></select></label>
+            <label class="check"><input id="streamLowLatency" type="checkbox"> Low latency, no delayed frames</label>
+            <div class="form-actions"><button class="primary" type="submit">Apply streaming settings</button><span id="encodingSaveState"></span></div>
+          </form>
+          <div>
+            <figure class="encoded-preview"><figcaption>Encoded preview <span id="encodedFormat">Waiting</span></figcaption><canvas id="encodedCanvas"></canvas></figure>
+            <div class="telemetry"><span id="encodedSequence">Frame —</span><span id="encodedSize">—</span><span id="encodedLatency">—</span><span id="encodedAge">Waiting</span></div>
+            <p id="encodingError" class="error"></p>
+            <div class="notice compact">The encoder is downstream of depth processing. If it falls behind, stale preview frames are replaced; camera capture and depth continue.</div>
+            <p class="endpoint" id="encodedEndpoint"></p>
+          </div>
+        </div>
+      </section>
+
+      <section id="algorithm" class="page">
+        <p class="eyebrow">FULL-RESOLUTION STEREO</p><h1>Depth algorithm</h1>
+        <div class="notice compact">Stereo matching runs on the native 728 × 544 capture grid. The cameras may trigger at 60 Hz while full-resolution depth publishes more slowly. Changes apply on the next processed frame without restarting capture.</div>
+        <p id="algorithmActive">Active matcher: loading…</p>
+        <form id="algorithmForm" class="settings-form algorithm-form">
+          <label>Matcher<select id="algorithmType"><option value="sgbm">Semi-global block matching (SGBM)</option><option value="bm">Block matching (StereoBM)</option></select></label>
+          <label>Minimum disparity <small>First pixel offset searched</small><input id="minDisparity" type="number" min="0" max="512" step="1" required></label>
+          <label>Search range <small>Number of offsets; multiple of 16</small><input id="searchRange" type="number" min="16" max="512" step="16" required></label>
+          <label>Maximum disparity <small>Accepted upper bound, exclusive</small><input id="maxDisparity" type="number" min="1" max="727" step="1" required></label>
+          <label>Block size <small>Odd, 5–31 pixels</small><input id="blockSize" type="number" min="5" max="31" step="2" required></label>
+          <label>Uniqueness ratio <small>0 disables ambiguity rejection</small><input id="uniquenessRatio" type="number" min="0" max="100" required></label>
+          <label>Speckle window <small>Remove small isolated disparity regions; 0 off</small><input id="speckleWindow" type="number" min="0" max="10000" required></label>
+          <label>Speckle range <small>Allowed disparity change in those regions</small><input id="speckleRange" type="number" min="0" max="256" required></label>
+          <label>Left-right consistency <small>Maximum difference; −1 disables</small><input id="disparity12Diff" type="number" min="-1" max="256" required></label>
+          <label>Pre-filter cap<input id="preFilterCap" type="number" min="1" max="63" required></label>
+          <label>Saturated-pixel threshold <small>256 disables bright-pixel rejection</small><input id="specularThreshold" type="number" min="1" max="256" required></label>
+          <label>OpenCV CPU threads<select id="algorithmThreads"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4 · all Pi 5 cores</option></select></label>
+          <label class="bm-only">BM pre-filter size <small>Odd, 5–255 pixels</small><input id="bmPreFilterSize" type="number" min="5" max="255" step="2" required></label>
+          <label class="bm-only">BM texture threshold <small>0 disables low-texture rejection</small><input id="bmTextureThreshold" type="number" min="0" max="255" required></label>
+          <div class="form-actions"><button class="primary" type="submit">Apply depth settings</button><span id="algorithmSaveState"></span></div>
+        </form>
+        <p id="algorithmError" class="error"></p>
+      </section>
+
+      <section id="presets" class="page"><p class="eyebrow">OPERATING MODE</p><h1>Presets</h1><div class="settings"><article><h2>Native-resolution depth</h2><p>728 × 544 capture, rectification, disparity, and depth. The 10 Hz and experimental 60 Hz capture profiles both use full-resolution matching; depth output rate depends on the selected algorithm and settings.</p></article><article><h2>More presets</h2><p>Only hardware-qualified modes will appear here. The service never silently changes resolution or cadence.</p></article></div></section>
+      <section id="exposure" class="page"><p class="eyebrow">CAPTURE CONTROL</p><h1>Exposure & trigger</h1><p class="lede">Read-only capture policy. The running gateway does not yet expose safe, live sensor controls.</p><div class="settings"><article><h2>Hardware synchronization</h2><p>The experimental Pi 5 profile requests one external XTRIG pulse per stereo pair at 60 Hz. Pulse-width and lighting validation are still required to diagnose the ISP brightness swings.</p></article><article><h2>Manual exposure</h2><p>The native capture path disables AE and AWB and requests matched shutter and analogue gain. The 60-frame trace reported a fixed 7,999 µs exposure and near-constant gain; the brightness flicker was present before depth matching.</p></article></div></section>
+      <section id="network" class="page"><p class="eyebrow">HOST CONNECTIONS</p><h1>Ethernet & USB-C</h1><div class="settings"><article><h2>One secure protocol</h2><p>NuvoStream over TLS is shared by physical Ethernet and USB Ethernet. Interface selection is explicit and capacity-admitted.</p></article><article><h2>Current listener</h2><p id="originLabel"></p></article><article><h2>Connection preference</h2><p id="transportState">Loading…</p><div class="button-row"><button class="primary" data-transport="ethernet">Ethernet preferred</button><button class="primary" data-transport="usb">USB preferred</button><button class="primary" data-transport="both">Both</button></div><p class="error" id="transportError"></p><button id="confirmTransport" class="primary">Confirm new connection</button></article><article><h2>Safe rollback</h2><p>A changed preference is provisional for 60 seconds. Confirm through the new path or restore the previous setting.</p><button id="rollbackTransport" class="primary">Roll back</button></article></div></section>
+      <section id="calibration" class="page"><p class="eyebrow">PER-UNIT GEOMETRY</p><h1>Calibration</h1><div class="steps"><b>1 Identify cameras</b><b>2 Capture target</b><b>3 Solve stereo</b><b>4 Validate</b><b>5 Activate or roll back</b></div><div class="notice">Factory and user calibrations are stored separately. A provisional seed is never presented as production metric authority.</div></section>
+      <section id="diagnostics" class="page"><p class="eyebrow">SUPPORT</p><h1>Diagnostics</h1><p class="lede">Live health from the device. Copy this snapshot when reporting an issue; no credentials are included.</p><button id="copyDiagnostics" class="primary" type="button">Copy health JSON</button><span id="copyDiagnosticsState" role="status"></span><pre id="diagnosticJson">Waiting for authenticated health data…</pre></section>
+      <section id="recovery" class="page"><p class="eyebrow">SAFE MAINTENANCE</p><h1>Update & recovery</h1><div class="settings"><article><h2>Package channel</h2><p>Signed APT repository support is prepared; publishing keys and an arm64 release cohort are release inputs.</p></article><article><h2>Calibration protection</h2><p>Package removal preserves per-unit identity, factory calibration, and recordings.</p></article></div></section>
+    </main>
+  </div>
+
+  <dialog id="claimDialog">
+    <form method="dialog" id="claimForm">
+      <p class="eyebrow">FIRST CONNECTION</p><h2>Claim this Nuvo camera</h2>
+      <p>Enter the one-time code supplied with the device. It is exchanged for a secure browser session and is not stored by this page.</p>
+      <label>Device claim code<input id="claimToken" type="password" minlength="32" autocomplete="one-time-code" required></label>
+      <p id="claimError" class="error"></p>
+      <button class="primary" type="submit">Connect securely</button>
+    </form>
+  </dialog>
+  <script src="/app.js" defer></script>
+</body>
+</html>

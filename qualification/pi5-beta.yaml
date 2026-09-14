@@ -1,0 +1,20 @@
+schema_version: 1
+qualification_id: pi5-imx296-100mm-beta-v1
+platform: raspberry-pi-5
+required_profile: balanced_728x544_10
+automated_gates:
+  - {id: config, command: [depthd, --check-config, /etc/nuvo-depth/daemon.yaml], timeout_seconds: 30}
+  - {id: paired_capture, command: [depthd, --capture-check, /etc/nuvo-depth/daemon.yaml, --pairs, "1000", --cycles, "3", --pair-timeout-ms, "3000"], timeout_seconds: 600}
+  - {id: runtime_directories, command: [systemd-tmpfiles, --create, /usr/lib/tmpfiles.d/nuvo-depth.conf], timeout_seconds: 30}
+  - {id: native_pipeline, command: [depthd, --run, /etc/nuvo-depth/daemon.yaml, --frames, "1000", --pair-timeout-ms, "3000", --status, /run/nuvo-depth/status.json, --snapshot-dir, /run/nuvo-depth/snapshots, --device-identity, /var/lib/nuvo-depth/identity/device.uuid, --allow-provisional-depth], timeout_seconds: 900}
+manual_evidence_gates:
+  - {id: electrical_review, artifact: electrical-approval.json}
+  - {id: trigger_scope, artifact: trigger-scope.json}
+  - {id: per_unit_calibration, artifact: calibration-validation.json}
+  - {id: depth_accuracy, artifact: depth-accuracy.json}
+  - {id: ethernet_tls_throughput, artifact: ethernet-throughput.json}
+  - {id: usb_power_and_tls_throughput, artifact: usb-throughput.json}
+  - {id: thermal_soak, artifact: thermal-soak.json}
+  - {id: arm64_package_lifecycle, artifact: package-lifecycle.json}
+  - {id: recovery_power_cut, artifact: recovery-power-cut.json}
+release_rule: every gate must pass on the frozen hardware/software cohort

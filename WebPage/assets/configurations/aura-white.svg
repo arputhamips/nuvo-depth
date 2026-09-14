@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 620" role="img" aria-labelledby="title desc">
+<title id="title">Nuvo Vision One LUCKFOX AURA with WHITE case</title>
+<desc id="desc">Illustrative product placeholder showing a dual-lens camera and compute option. Final product photography will replace it.</desc>
+<defs>
+  <pattern id="grid" width="42" height="42" patternUnits="userSpaceOnUse"><path d="M42 0H0V42" fill="none" stroke="#dde3eb" stroke-width="1"/></pattern>
+  <linearGradient id="case" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ffffff"/><stop offset=".42" stop-color="#f8fafc"/><stop offset="1" stop-color="#a6b0bc"/></linearGradient>
+  <filter id="shadow" x="-20%" y="-35%" width="140%" height="190%"><feGaussianBlur stdDeviation="18"/></filter>
+</defs>
+<rect width="720" height="620" fill="#f2f5f9"/>
+<rect width="720" height="620" fill="url(#grid)" opacity=".7"/>
+<ellipse cx="358" cy="354" rx="267" ry="28" fill="#566273" opacity=".22" filter="url(#shadow)"/>
+<rect x="76" y="209" width="568" height="136" rx="19" fill="#a6b0bc"/>
+<rect x="82" y="208" width="556" height="126" rx="16" fill="url(#case)" stroke="#a6b0bc" stroke-width="2"/>
+<rect x="91" y="217" width="538" height="108" rx="11" fill="none" stroke="#ffffff" opacity=".42"/>
+<circle cx="163" cy="271" r="42" fill="#a6b0bc" stroke="#aeb8c5" stroke-width="7"/>
+<circle cx="163" cy="271" r="29" fill="#111923" stroke="#677a94" stroke-width="3"/>
+<circle cx="163" cy="271" r="16" fill="#294565" stroke="#080d14" stroke-width="7"/>
+<circle cx="557" cy="271" r="42" fill="#a6b0bc" stroke="#aeb8c5" stroke-width="7"/>
+<circle cx="557" cy="271" r="29" fill="#111923" stroke="#677a94" stroke-width="3"/>
+<circle cx="557" cy="271" r="16" fill="#294565" stroke="#080d14" stroke-width="7"/>
+<text x="360" y="276" text-anchor="middle" fill="#273243" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="700" letter-spacing="3.2">VISION ONE</text>
+<g transform="translate(-185 0)">
+
+      <rect x="472" y="388" width="146" height="84" rx="8" fill="#27678d" stroke="#1b4a69" stroke-width="2"/>
+      <rect x="490" y="404" width="59" height="51" rx="5" fill="#183c58"/>
+      <rect x="558" y="399" width="47" height="12" rx="2" fill="#d9e5ed"/>
+      <rect x="558" y="418" width="47" height="12" rx="2" fill="#d9e5ed"/>
+      <circle cx="571" cy="450" r="6" fill="#75adff"/><circle cx="593" cy="450" r="6" fill="#75adff"/>
+      <path d="M481 463h125" stroke="#b7d4e9" stroke-width="5" stroke-dasharray="4 3"/>
+
+</g>
+</svg>

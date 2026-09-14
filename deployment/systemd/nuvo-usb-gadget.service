@@ -1,0 +1,16 @@
+[Unit]
+Description=Nuvo Depth explicitly provisioned USB Ethernet gadget
+After=sys-kernel-config.mount local-fs.target
+Requires=sys-kernel-config.mount
+ConditionPathExists=/etc/nuvo-depth/usb-gadget.json
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# This unit is deliberately not enabled by package installation. Reapply the
+# reviewed VID/PID and electrical approval with nuvoctl before enabling it.
+ExecStart=/usr/bin/nuvoctl usb apply-saved
+ExecStop=/usr/bin/nuvoctl usb disable --apply
+
+[Install]
+WantedBy=multi-user.target

@@ -10,7 +10,7 @@ inline constexpr std::uint32_t kImageHeight = 544;
 inline constexpr std::uint32_t kModelInputWidth = 736;
 inline constexpr std::uint32_t kModelInputHeight = 544;
 inline constexpr float kRectifiedFocalLengthPx = 493.542046188F;
-inline constexpr float kBaselineM = 0.161458780F;
+inline constexpr float kBaselineM = 0.100F;
 inline constexpr std::string_view kLeftOpticalFrame = "camera_front_left_optical";
 inline constexpr std::string_view kRightOpticalFrame = "camera_front_right_optical";
 

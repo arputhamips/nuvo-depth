@@ -1,54 +1,82 @@
 # Production deployment
 
-Depth Daemon is a native, systemd-managed hardware service. The ROS container
-does not install, update, or own its binaries, camera calibration, Hailo HEFs,
-labels, configuration, or runtime state. ROS receives only the read-only mmap
-products in `/run/depthd`.
+The product package is a depth-only, systemd-managed Raspberry Pi 5 appliance
+for the 100 mm dual-IMX296 rig. It contains no Hailo dependency, model artifact,
+or semantic runtime. The native daemon alone owns the cameras and trigger. Local
+clients use sealed frame descriptors; remote clients use the authenticated TLS
+gateway over Ethernet or USB Ethernet.
 
 ## Canonical paths
 
-- Executable support files and native libraries: `/usr/lib/nuvo-depthd`
-- Asset management command: `/usr/sbin/depthd-assets`
-- Package-owned provisioning seed: `/usr/share/nuvo-depthd/runtime-seed`
-- Immutable data releases: `/var/lib/nuvo-depthd/releases/<release-id>`
-- Active/rollback pointers: `/var/lib/nuvo-depthd/current` and `previous`
-- Daemon-owned generated output: `/var/lib/nuvo-depthd/output`
-- Ephemeral ROS boundary rings: `/run/depthd`
+- Native executables: `/usr/bin/depthd`, `/usr/lib/nuvo-depth/nuvo-gateway`
+- Appliance configuration: `/etc/nuvo-depth/`
+- Identity and calibration state: `/var/lib/nuvo-depth/`
+- Status, snapshots, and local socket: `/run/nuvo-depth/`
+- Web console and presets: `/usr/share/nuvo-depth/`
+- Qualification plan: `/usr/share/nuvo-depth/qualification/pi5-beta.yaml`
+- Legacy comparison service/assets: `/usr/lib/nuvo-depthd` and
+  `/var/lib/nuvo-depthd`; these are not the new appliance API.
 
-The Git repository deliberately ignores `*.hef`. Model binaries are release
-artifacts, not source files and never belong in NuvoBase or its ROS image.
+`/etc/nuvo-depth/encoding.json` controls the optional downstream H.264/MJPEG
+stream. It can select raw-only, encoded-only, or simultaneous delivery and is
+applied without restarting camera capture. See the
+[Pi 5 image-stream encoding guide](../docs/pi5-image-stream-encoding.md).
 
-## Build and install the host package
+`/etc/nuvo-depth/stereo.json` controls the native SGBM/StereoBM matcher and
+its full-resolution search/filter settings without restarting capture. See the
+[60-frame flicker trace guide](../docs/pi5-fullres-stereo-flicker-trace.md).
 
-Build on a compatible arm64 Pi image with the HailoRT development package,
-OpenCV, `libegl-dev`, and `libgles-dev` installed:
+## Build the Debian package
+
+Build on the frozen 64-bit Raspberry Pi OS cohort. Debian resolves the declared
+OpenCV, libcamera, EGL/GLES, Boost, OpenSSL, systemd, Python, and calibration
+dependencies:
 
 ```bash
-cmake -S . -B build -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DDEPTHD_WITH_HAILORT_SEMANTICS=ON \
-  -DDEPTHD_WITH_EGL_GL_DMABUF_RECTIFICATION=ON \
-  -DDEPTHD_PACKAGE_REVISION=$(git rev-parse --short=12 HEAD) \
-  -DCMAKE_INSTALL_PREFIX=/usr
-cmake --build build -j
-ctest --test-dir build --output-on-failure
-cpack --config build/CPackConfig.cmake -G DEB
-sudo apt install ./build/nuvo-depthd_*.deb
-sudo systemd-tmpfiles --create nuvo-depthd.tmpfiles.conf
+sudo apt build-dep ./
+dpkg-buildpackage --no-sign --build=binary
+sudo apt install ../nuvo-depth_0.1.0_arm64.deb
 ```
 
-The Debian package declares the system Python camera/image dependencies plus
-EGL/GLES, HailoRT 4.23, and its PCIe driver. A revisioned production package
-fails configuration if the EGL/GLES backend is omitted. Build release packages
-from a clean, tagged Depth Daemon checkout so the source revision remains
-reproducible.
+For publication, build in a clean reproducible environment, generate and review
+the SPDX artifact, sign the `.changes`/repository with the release identity,
+and install from the staged repository on a clean Pi. Production configuration
+fails closed if the Pi capture, GPU rectifier, gateway, systemd integration, or
+depth semantics are missing. Semantic/Hailo targets are forbidden.
 
-GPU rectification is the selected production default. CPU rollback is one
-systemd environment override and does not require rebuilding or removing the
-GPU library:
+## First installation
+
+Package installation creates the service accounts and device identity but does
+not modify boot configuration or enable camera services. On an engineering
+unit:
 
 ```bash
-sudo systemctl edit nuvo-depthd.service
+sudo nuvoctl platform preflight
+sudo nuvoctl platform prepare --platform pi5 --apply
+sudo reboot
+sudo nuvoctl platform preflight
+sudo systemctl enable --now nuvo-depth.target
+```
+
+The seed calibration is marked `provisional_recalibration_required`. It keeps
+the existing camera-unit intrinsics and changes the projection to a nominal
+100 mm baseline. Perform a new stereo calibration on the final mechanical
+assembly before using metric range as calibrated product output. Factory
+activation also requires a valid Ed25519 signature chained to the separately
+provisioned public-key trust store. Remove the service's explicit provisional
+engineering override before a customer release.
+
+Do not enable USB gadget mode until the product's USB-C power design, approved
+VID/PID, descriptors, and target hosts pass the qualification plan. Transport
+changes made in the web console roll back automatically unless confirmed within
+60 seconds.
+
+## GPU rollback
+
+The CPU rectifier remains installed. To select it without rebuilding:
+
+```bash
+sudo systemctl edit nuvo-depthd-native.service
 ```
 
 ```ini
@@ -56,64 +84,29 @@ sudo systemctl edit nuvo-depthd.service
 Environment=DEPTHD_RECTIFICATION_BACKEND=cpu_opencv
 ```
 
-Then run `sudo systemctl daemon-reload && sudo systemctl restart
-nuvo-depthd.service`. Remove the drop-in to return to `egl_gl_dmabuf`. Runtime
-GPU initialization/import failures also fail over permanently to the same CPU
-backend for that daemon process.
-
-The package does not contain HEFs. Installing or upgrading it cannot silently
-replace the active model/calibration release.
-
-## Provision a new Pi
-
-Obtain the external model bundle from the controlled Depth Daemon release or,
-for the current migration only, copy the checksum-verified workstation seed to
-the Pi. Its directory must contain `models/hailo/front_semantic.hef`,
-`segformer_b0_bn.hef`, and `coco80.labels`.
-
-Verify all package and external inputs before changing `/var/lib`:
-
-```bash
-sudo depthd-assets verify-source --artifact-source /path/to/seed
-```
-
-Install the immutable release and atomically activate it:
-
-```bash
-sudo depthd-assets install --artifact-source /path/to/seed
-sudo depthd-assets preflight
-sudo systemctl enable --now nuvo-depthd.service
-```
-
-`install` first verifies every byte and SHA-256, copies into a temporary
-release, verifies the copy, renames it atomically, and only then updates
-`current`. An existing release is never overwritten. Re-running the command is
-safe when the existing release is intact and fails closed if it differs.
-
-After the daemon creates both rings and the ROS bridge validates its topics,
-the old `/home/cam/nuvo-base/data` copies may be archived manually. The
-installer never removes them.
+Run `sudo systemctl daemon-reload && sudo systemctl restart
+nuvo-depthd-native.service`. Remove the drop-in to return to `egl_gl_dmabuf`. Runtime
+GPU initialization/import failures also fall back to the CPU backend.
 
 ## Upgrade and rollback
 
-Install a new signed/versioned host package and a new asset manifest, then run
-the same `depthd-assets install` command with that release's external artifact
-bundle. Activation preserves the former target in `previous`; all releases are
-retained.
-
-To roll back the complete model/calibration/profile set:
+After installing a new signed package cohort:
 
 ```bash
-sudo systemctl stop nuvo-depthd.service
-sudo depthd-assets rollback
-sudo depthd-assets preflight
-sudo systemctl start nuvo-depthd.service
+depthd --check-config /etc/nuvo-depth/daemon.yaml
+sudo systemctl restart nuvo-depthd-native.service nuvo-gateway.service
+sudo systemctl --no-pager --full status nuvo-depth.target
 ```
 
-Rollback swaps `current` and `previous`; it does not copy, edit, or delete any
-payload. Roll back the Debian package separately with `apt install` if native
-code compatibility also changed.
+User calibration activation is immutable and independently reversible:
 
-The production unit keeps the frozen CPU SGBM and exposure arguments explicit.
-It verifies the active data release before opening cameras or Hailo and refuses
-startup on missing/tampered data.
+```bash
+sudo systemctl stop nuvo-depthd-native.service
+sudo -u nuvo-depth /usr/lib/nuvo-depth/nuvo-calibration rollback \
+  --namespace user --state-root /var/lib/nuvo-depth
+sudo systemctl start nuvo-depthd-native.service
+```
+
+Package rollback uses the previous signed APT version and must be exercised by
+the arm64 lifecycle gate. Do not improvise a file-level downgrade over an
+installed cohort.

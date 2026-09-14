@@ -1,0 +1,32 @@
+[Unit]
+Description=Nuvo Depth secure web and data gateway
+Wants=nuvo-depthd-native.service nuvo-system-agent.socket
+After=network.target nuvo-depthd-native.service nuvo-system-agent.socket
+ConditionPathExists=/var/lib/nuvo-depth/identity/device.crt
+
+[Service]
+Type=exec
+User=nuvo-gateway
+Group=nuvo-gateway
+SupplementaryGroups=nuvo-video
+ExecStart=/usr/lib/nuvo-depth/nuvo-gateway --address 0.0.0.0 --port 7443 --certificate /var/lib/nuvo-depth/identity/device.crt --private-key /var/lib/nuvo-depth/identity/device.key --token-file /var/lib/nuvo-depth/identity/claim.token --web-root /usr/share/nuvo-depth/web --status-file /run/nuvo-depth/status.json --snapshot-file /run/nuvo-depth/snapshots/latest.nuv --encoded-file /run/nuvo-depth/snapshots/latest.nve --encoding-config-file /etc/nuvo-depth/encoding.json --stereo-control-file /etc/nuvo-depth/stereo.json --maximum-sessions 16
+Restart=on-failure
+RestartSec=2s
+UMask=0027
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ReadOnlyPaths=/run/nuvo-depth /var/lib/nuvo-depth/identity /etc/nuvo-depth
+MemoryMax=192M
+TasksMax=96
+
+[Install]
+WantedBy=nuvo-depth.target

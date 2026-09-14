@@ -1,0 +1,13 @@
+usr/bin/nuvoctl
+usr/bin/nuvo-record
+usr/bin/nuvo-replay
+usr/lib/nuvo-depth/nuvo-system-agent
+usr/lib/systemd/system/nuvo-system-agent.socket
+usr/lib/systemd/system/nuvo-system-agent@.service
+usr/lib/systemd/system/nuvo-transport-rollback.service
+usr/lib/systemd/system/nuvo-transport-rollback.timer
+usr/lib/nuvo-depth/run_qualification.py
+usr/lib/nuvo-depth/analyze_depth_accuracy.py
+usr/lib/nuvo-depth/generate_spdx.py
+usr/lib/nuvo-depth/stage_apt_repository.py
+usr/share/nuvo-depth/qualification/

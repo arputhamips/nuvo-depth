@@ -1,29 +1,81 @@
-# Build output
+# CMake builds, install/package staging, and generated metadata
 /build/
 /build-*/
 /install/
 /log/
 /out/
+/CMakeFiles/
+/CMakeCache.txt
+/CTestTestfile.cmake
+/cmake_install.cmake
+/compile_commands.json
+/Testing/
+/CPackConfig.cmake
+/CPackSourceConfig.cmake
+/CMakeUserPresets.json
+/debian/.debhelper/
+/debian/tmp/
+/debian/files
+/debian/*.substvars
+/debian/*.debhelper.log
+*.deb
+*.dsc
+*.buildinfo
+*.changes
 
-# Model artifacts and captured data are reproducible or device-local.
+# Local data, generated handoffs, recordings, and model binaries
+/deliverables/
+/oracle-bundles/
+/replay-output/
+/recordings/
+/captures/
+/artifacts/
+/data/
 *.har
 *.hef
 *.onnx
 *.pth
 *.npz
 *.npy
-/data/
-/artifacts/
+*.nuv
+*.nve
+*.f32
+*.zip
+*.tar.gz
+*.spdx.json
+*.log
+*.stderr
+*.stdout
 acceleras.log
 hailo_sdk.client.log
 
-# IDE and OS files
+# Local credentials and machine-specific settings
+*.key
+*.pem
+*.p12
+*.pfx
+*.token
+.env
+.env.*
+!.env.example
+
+# Editors and operating-system files
 .idea/
 .vscode/
 .DS_Store
 Thumbs.db
+*.swp
+*~
 
-# Python tooling used only by the model conversion workflow
+# Python tooling and test caches
 __pycache__/
 *.py[cod]
 .venv/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+/dist/

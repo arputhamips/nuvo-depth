@@ -1,0 +1,20 @@
+[Unit]
+Description=Nuvo Depth bounded privileged control request
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/nuvo-depth/nuvo-system-agent
+StandardInput=socket
+StandardOutput=journal
+User=root
+Group=root
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/nuvo-depth /var/lib/nuvo-depth/transactions
+RestrictAddressFamilies=AF_UNIX
+MemoryMax=64M
+TasksMax=16
+TimeoutStartSec=35s

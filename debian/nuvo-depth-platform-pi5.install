@@ -1,0 +1,2 @@
+usr/share/nuvo-depth/platform/pi5/
+usr/lib/systemd/system/nuvo-usb-gadget.service

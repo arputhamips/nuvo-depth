@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nuvo-depth"
+version = "0.1.0"
+description = "Bounded Nuvo Depth camera client and recorder"
+requires-python = ">=3.11"
+license = {text = "Proprietary"}
+
+[project.scripts]
+nuvo-record = "nuvo_depth.recorder:main"
+nuvo-replay = "nuvo_depth.replay:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["nuvo_depth*"]

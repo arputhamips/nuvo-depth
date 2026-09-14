@@ -1,0 +1,7 @@
+schema_version: 1
+preset_id: fast_728x544_15
+qualification: unqualified_candidate
+capture: {width: 728, height: 544, target_hz: 15}
+matching: {width: 364, height: 272, disparities: 64, block_size: 5}
+outputs: [left_rectified, right_rectified, disparity, depth, confidence, validity]
+notes: Higher-cadence candidate; exposure, trigger, USB, and thermal behavior are not yet qualified.

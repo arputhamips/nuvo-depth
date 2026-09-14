@@ -37,7 +37,7 @@ def main() -> None:
     path.unlink(missing_ok=True)
     disparity = np.full(
         (544, 728),
-        493.542046188 * 0.161458780 / 2.0,
+        493.542046188 * 0.100 / 2.0,
         dtype=np.float32,
     )
     mono = np.full((544, 728), 75, dtype=np.uint8)

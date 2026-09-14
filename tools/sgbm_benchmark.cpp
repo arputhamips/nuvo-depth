@@ -228,11 +228,18 @@ int main(int argc, char** argv) {
 
     depthd::CpuSgbmConfig config;
     config.opencv_threads = options.opencv_threads;
-    config.min_disparity = options.min_disparity;
+    const auto disparity_scale =
+        static_cast<float>(config.input_width) / config.working_width;
+    config.working_min_disparity = static_cast<std::int32_t>(
+        std::floor(static_cast<float>(options.min_disparity) /
+                   disparity_scale));
     config.working_width = static_cast<std::uint32_t>(options.working_width);
     config.working_height = static_cast<std::uint32_t>(options.working_height);
     config.working_disparities = options.working_disparities;
-    config.full_resolution_disparities = options.full_disparity_limit;
+    config.accepted_min_disparity_px =
+        static_cast<float>(options.min_disparity) / disparity_scale;
+    config.accepted_max_disparity_px =
+        static_cast<float>(options.full_disparity_limit) / disparity_scale;
     config.disparity_12_max_diff = options.disparity_12_max_diff;
     config.block_size = options.block_size;
     config.uniqueness_ratio = options.uniqueness_ratio;
@@ -288,7 +295,7 @@ int main(int argc, char** argv) {
     const double process_cpu_percent = 100.0 * cpu_seconds / wall_seconds;
 
     save_outputs(options.output_dir, left, right, disparity,
-                 config.full_resolution_disparities);
+                 options.full_disparity_limit);
 
     std::ostringstream report;
     report << std::fixed << std::setprecision(3)
@@ -298,11 +305,14 @@ int main(int argc, char** argv) {
               << "  \"input_height\": " << left.rows << ",\n"
               << "  \"working_width\": " << config.working_width << ",\n"
               << "  \"working_height\": " << config.working_height << ",\n"
-              << "  \"full_resolution_disparities\": "
-              << config.full_resolution_disparities << ",\n"
+              << "  \"full_resolution_disparity_limit\": "
+              << options.full_disparity_limit << ",\n"
               << "  \"working_disparities\": " << config.working_disparities
               << ",\n"
-              << "  \"min_disparity\": " << config.min_disparity << ",\n"
+              << "  \"full_resolution_min_disparity\": "
+              << options.min_disparity << ",\n"
+              << "  \"working_min_disparity\": "
+              << config.working_min_disparity << ",\n"
               << "  \"disparity_12_max_diff\": "
               << config.disparity_12_max_diff << ",\n"
               << "  \"block_size\": " << config.block_size << ",\n"

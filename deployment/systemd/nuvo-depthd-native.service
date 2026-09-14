@@ -1,0 +1,47 @@
+[Unit]
+Description=Nuvo Depth native stereo processing daemon
+Documentation=file:///usr/share/doc/nuvo-depth-core/architecture.md
+After=local-fs.target systemd-udev-settle.service
+Before=nuvo-gateway.service
+ConditionPathExists=/etc/nuvo-depth/daemon.yaml
+
+[Service]
+Type=notify
+NotifyAccess=main
+WatchdogSec=5s
+User=nuvo-depth
+Group=nuvo-video
+SupplementaryGroups=video render gpio
+RuntimeDirectory=nuvo-depth
+RuntimeDirectoryMode=0750
+StateDirectory=nuvo-depth
+StateDirectoryMode=0750
+CacheDirectory=nuvo-depth
+CacheDirectoryMode=0750
+ExecStartPre=/usr/bin/depthd --check-config /etc/nuvo-depth/daemon.yaml
+# The package seed is deliberately provisional. This explicit beta flag keeps
+# engineering depth visible and authority-tagged until per-unit calibration is
+# activated; production release images remove it after factory provisioning.
+ExecStart=/usr/bin/depthd --run /etc/nuvo-depth/daemon.yaml --status /run/nuvo-depth/status.json --snapshot-dir /run/nuvo-depth/snapshots --encoding-config /etc/nuvo-depth/encoding.json --stereo-control /etc/nuvo-depth/stereo.json --device-identity /var/lib/nuvo-depth/identity/device.uuid --allow-provisional-depth
+Restart=on-failure
+RestartSec=2s
+TimeoutStartSec=30s
+TimeoutStopSec=20s
+KillSignal=SIGINT
+UMask=0027
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/run/nuvo-depth /var/lib/nuvo-depth /var/lib/nuvo-depthd /var/cache/nuvo-depth
+MemoryMax=512M
+TasksMax=128
+
+[Install]
+WantedBy=nuvo-depth.target

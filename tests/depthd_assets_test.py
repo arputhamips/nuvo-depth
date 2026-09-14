@@ -140,7 +140,7 @@ class ProductionDeploymentFilesTest(unittest.TestCase):
             REPOSITORY
             / "deployment"
             / "assets"
-            / "nuvo-pi5-hailo8l-assets.json"
+            / "nuvo-pi5-depth-100mm-assets.json"
         )
         package_entries = [
             entry for entry in manifest["files"] if entry["source_group"] == "package"
@@ -154,29 +154,15 @@ class ProductionDeploymentFilesTest(unittest.TestCase):
             for entry in manifest["files"]
             if entry["source_group"] == "artifact"
         }
-        self.assertEqual(
-            artifact_entries,
-            {
-                "models/hailo/front_semantic.hef": (
-                    28905575,
-                    "17270a35bcf3e27a8dcd1dfae8d328a31318bb7c5b7c7a725392b83d008642c6",
-                ),
-                "models/hailo/segformer_b0_bn.hef": (
-                    16738258,
-                    "2093951835bafdb0585f93e3eddfb13fac2aa926c45475ccedabe5b2daa7a674",
-                ),
-                "models/hailo/coco80.labels": (
-                    621,
-                    "bd17f1ee35d5f3c862a4894605855abbb9dda4b0621fdb0ac4c2c8c7bb7e730a",
-                ),
-            },
-        )
+        self.assertEqual(artifact_entries, {})
+        self.assertEqual(manifest["target"]["baseline_m"], 0.1)
+        self.assertEqual(manifest["target"]["role"], "standalone-depth-camera")
 
     def test_production_unit_owns_all_runtime_paths_and_locks_profile(self) -> None:
         unit = (
             REPOSITORY / "deployment" / "systemd" / "nuvo-depthd.service"
         ).read_text(encoding="utf-8")
-        config = (REPOSITORY / "config" / "nuvo_pi5_hailo8l.yaml").read_text(
+        config = (REPOSITORY / "config" / "nuvo_pi5_depth_100mm.yaml").read_text(
             encoding="utf-8"
         )
         profiler = (
@@ -205,16 +191,28 @@ class ProductionDeploymentFilesTest(unittest.TestCase):
             "--uniqueness-ratio 1",
             "--speckle-window-size 30",
             "--result-ring /run/depthd/results.ring",
-            "--semantic-ring /run/depthd/semantic.ring",
             "/usr/lib/nuvo-depthd/libdepthd_native_output.so",
-            "/usr/lib/nuvo-depthd/libdepthd_native_semantic.so",
-            "/var/lib/nuvo-depthd/current/models/hailo/front_semantic.hef",
-            "/var/lib/nuvo-depthd/current/models/hailo/segformer_b0_bn.hef",
+            "/config/calibration/nuvo_depth_100mm/front_left.yaml",
+            "/config/calibration/nuvo_depth_100mm/front_right.yaml",
         ):
             self.assertIn(required, unit)
-        self.assertIn("semantic:\n", config)
-        self.assertIn("  enabled: true\n", config)
-        self.assertIn("  preview:\n    enabled: false\n", config)
+        self.assertIn("role: standalone_depth_camera\n", config)
+        self.assertIn("profile_id: balanced_728x544_10\n", config)
+        self.assertIn("baseline_m: 0.100\n", config)
+        product_runtime = unit.lower() + config.lower() + profiler.lower()
+        self.assertNotIn("semantic", product_runtime)
+        self.assertNotIn("hailo", product_runtime)
+
+        cmake = (REPOSITORY / "CMakeLists.txt").read_text(encoding="utf-8")
+        package_dependencies = cmake.split(
+            "set(CPACK_DEBIAN_PACKAGE_DEPENDS", maxsplit=1
+        )[1].split(")", maxsplit=1)[0]
+        self.assertNotIn("hailo", package_dependencies.lower())
+        install_rules = cmake.split(
+            "set(DEPTHD_LIBEXEC_DIR", maxsplit=1
+        )[1].split("if(BUILD_TESTING)", maxsplit=1)[0]
+        self.assertNotIn("semantic", install_rules.lower())
+        self.assertNotIn("hailo", install_rules.lower())
 
 
 if __name__ == "__main__":

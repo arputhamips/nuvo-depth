@@ -17,7 +17,7 @@ from typing import Any
 
 
 DEFAULT_MANIFEST = Path(
-    "/usr/share/nuvo-depthd/runtime-seed/nuvo-pi5-hailo8l-assets.json"
+    "/usr/share/nuvo-depthd/runtime-seed/nuvo-pi5-depth-100mm-assets.json"
 )
 DEFAULT_PACKAGE_SOURCE = Path("/usr/share/nuvo-depthd/runtime-seed")
 DEFAULT_ROOT = Path("/var/lib/nuvo-depthd")
@@ -277,13 +277,15 @@ def _parser() -> argparse.ArgumentParser:
 
     def source_arguments(command: argparse.ArgumentParser) -> None:
         command.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
-        command.add_argument("--artifact-source", type=Path, required=True)
+        command.add_argument(
+            "--artifact-source", type=Path, default=DEFAULT_PACKAGE_SOURCE
+        )
         command.add_argument(
             "--package-source", type=Path, default=DEFAULT_PACKAGE_SOURCE
         )
 
     source_verify = subparsers.add_parser(
-        "verify-source", help="verify a package seed and external artifact directory"
+        "verify-source", help="verify the package-owned runtime seed"
     )
     source_arguments(source_verify)
 

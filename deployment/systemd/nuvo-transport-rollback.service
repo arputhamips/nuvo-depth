@@ -1,0 +1,17 @@
+[Unit]
+Description=Nuvo Depth reconcile an unconfirmed transport change
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/nuvoctl transport reconcile
+User=root
+Group=root
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/nuvo-depth /var/lib/nuvo-depth/transactions
+RestrictAddressFamilies=AF_UNIX
+MemoryMax=64M
+TasksMax=16

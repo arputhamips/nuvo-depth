@@ -48,7 +48,7 @@ def disparity_to_obstacle_voxels(disparity: np.ndarray) -> set[tuple[int, int, i
     optical_x = (u - 348.240810394) * depth / 493.542046188
     optical_y = (v - 266.509811401) * depth / 493.542046188
     base_x = depth + 0.760
-    base_y = -optical_x + 0.080
+    base_y = -optical_x + 0.050
     base_z = -optical_y + 0.180
     valid &= (base_z >= 0.18) & (base_z <= 1.20)
     valid &= base_x > 0.0
@@ -109,10 +109,7 @@ def main() -> None:
         "--preview-source",
         choices=("rectified", "raw"),
         default="rectified",
-        help=(
-            "JPEG preview input; raw skips color rectification while semantics "
-            "continues to consume rectified color"
-        ),
+        help="JPEG preview input; raw skips color rectification",
     )
     parser.add_argument(
         "--metric-depth",
@@ -215,46 +212,6 @@ def main() -> None:
         action="store_true",
         help="include rectified mono for an explicit diagnostic consumer",
     )
-    parser.add_argument(
-        "--semantic",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help="run native semantic perception (disabled by default)",
-    )
-    parser.add_argument(
-        "--semantic-ring",
-        type=Path,
-        default=Path("/run/depthd/semantic.ring"),
-    )
-    parser.add_argument(
-        "--semantic-runtime-library",
-        "--semantic-output-library",
-        dest="semantic_runtime_library",
-        type=Path,
-        help="path to libdepthd_native_semantic.so",
-    )
-    parser.add_argument(
-        "--semantic-yolo-hef",
-        type=Path,
-        default=Path(
-            "/var/lib/nuvo-depthd/current/models/hailo/front_semantic.hef"
-        ),
-    )
-    parser.add_argument(
-        "--semantic-segformer-hef",
-        type=Path,
-        default=Path(
-            "/var/lib/nuvo-depthd/current/models/hailo/segformer_b0_bn.hef"
-        ),
-    )
-    parser.add_argument("--semantic-yolo-hz", type=float, default=5.0)
-    parser.add_argument("--semantic-segformer-hz", type=float, default=5.0)
-    parser.add_argument(
-        "--semantic-preview",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help="include a diagnostic JPEG in semantic.ring",
-    )
     args = parser.parse_args()
     if (
         args.frames < 1
@@ -263,8 +220,6 @@ def main() -> None:
         or args.jpeg_hz < 0.0
     ):
         parser.error("invalid frame counts or output rates")
-    if args.semantic and args.result_ring is None:
-        parser.error("--semantic requires --result-ring for source sequence parity")
     if (
         args.rectification_backend == "egl_gl_dmabuf"
         and args.capture_stream_profile != ISP_LUMA_RGB_LEFT_PROFILE
@@ -275,8 +230,6 @@ def main() -> None:
         and args.egl_gl_rectification_library is None
     ):
         parser.error("egl_gl_dmabuf requires --egl-gl-rectification-library")
-    if args.semantic_yolo_hz <= 0.0 or args.semantic_segformer_hz <= 0.0:
-        parser.error("semantic model rates must be positive")
     if (
         args.working_disparities < 16
         or args.working_disparities % 16 != 0
@@ -390,7 +343,6 @@ def main() -> None:
     )
     native_output = None
     comparison_native_output = None
-    semantic_worker = None
     sensor_to_realtime_ns = None
     if args.result_ring is not None:
         from depthd_native_output import (
@@ -415,26 +367,6 @@ def main() -> None:
                 native_output.close()
             raise
         sensor_to_realtime_ns = sensor_monotonic_to_realtime_ns
-    if args.semantic:
-        from depthd_native_semantic import NativeSemanticWorker
-
-        try:
-            semantic_worker = NativeSemanticWorker(
-                semantic_ring=args.semantic_ring,
-                yolo_hef=args.semantic_yolo_hef,
-                segformer_hef=args.semantic_segformer_hef,
-                yolo_hz=args.semantic_yolo_hz,
-                segformer_hz=args.semantic_segformer_hz,
-                preview_enabled=args.semantic_preview,
-                runtime_library=args.semantic_runtime_library,
-            )
-        except Exception:
-            if comparison_native_output is not None:
-                comparison_native_output.close()
-            if native_output is not None:
-                native_output.close()
-            raise
-
     samples: dict[str, list[float]] = {}
     sensor_deltas_ns: list[int] = []
     measured_sensor_timestamps_ns: list[int] = []
@@ -490,20 +422,16 @@ def main() -> None:
         color_view: np.ndarray,
         *,
         jpeg_due: bool,
-        semantic_due: bool,
         measured: bool,
-    ) -> tuple[np.ndarray | None, np.ndarray | None]:
-        """Own the scheduled preview and semantic color products."""
+    ) -> np.ndarray | None:
+        """Own the scheduled preview color product."""
         preview_color = None
-        semantic_color = None
         rectified_color = None
         if jpeg_due and args.preview_source == "raw":
             stage_started_ns = time.perf_counter_ns()
             preview_color = color_view.copy()
             record("raw_preview_copy_ms", stage_started_ns, measured)
-        if semantic_due or (
-            jpeg_due and args.preview_source == "rectified"
-        ):
+        if jpeg_due and args.preview_source == "rectified":
             stage_started_ns = time.perf_counter_ns()
             rectified_color = cv2.remap(
                 color_view,
@@ -516,11 +444,9 @@ def main() -> None:
                 stage_started_ns,
                 measured,
             )
-        if semantic_due:
-            semantic_color = rectified_color
         if jpeg_due and args.preview_source == "rectified":
             preview_color = rectified_color
-        return preview_color, semantic_color
+        return preview_color
 
     jpeg_warmup_started_ns = time.perf_counter_ns()
     warmed, _ = cv2.imencode(
@@ -536,8 +462,6 @@ def main() -> None:
     try:
         capture.start()
     except Exception:
-        if semantic_worker is not None:
-            semantic_worker.close()
         if comparison_native_output is not None:
             comparison_native_output.close()
         if native_output is not None:
@@ -560,12 +484,6 @@ def main() -> None:
                 measured_process_cpu_started = time.process_time()
                 measured_system_ticks_started = system_cpu_ticks()
             cycle_started_ns = time.perf_counter_ns()
-            semantic_schedule_ns = time.monotonic_ns()
-            semantic_due = (
-                semantic_worker.wants_frame(semantic_schedule_ns)
-                if semantic_worker is not None
-                else False
-            )
 
             stage_started_ns = time.perf_counter_ns()
             pair = capture.take(timeout_s=2.0)
@@ -610,7 +528,6 @@ def main() -> None:
 
             try:
                 preview_color: np.ndarray | None = None
-                semantic_color: np.ndarray | None = None
                 cpu_comparison: tuple[np.ndarray, np.ndarray] | None = None
                 if egl_rectifier is not None:
                     dmabufs = pair.dmabuf_luma_views(
@@ -629,7 +546,7 @@ def main() -> None:
                         # only now, then retry this same accepted pair.
                         with pair.mapped_views(
                             stream_profile=args.capture_stream_profile,
-                            need_left_color=jpeg_due or semantic_due,
+                            need_left_color=jpeg_due,
                         ) as fallback_views:
                             gpu_timing = egl_rectifier.rectify_pair(
                                 dmabufs.left,
@@ -637,18 +554,15 @@ def main() -> None:
                                 cpu_left=fallback_views.left_depth,
                                 cpu_right=fallback_views.right_depth,
                             )
-                            if jpeg_due or semantic_due:
+                            if jpeg_due:
                                 if fallback_views.left_color is None:
                                     raise RuntimeError(
                                         "scheduled color work has no left color view"
                                     )
-                                preview_color, semantic_color = (
-                                    prepare_scheduled_color(
-                                        fallback_views.left_color,
-                                        jpeg_due=jpeg_due,
-                                        semantic_due=semantic_due,
-                                        measured=measured,
-                                    )
+                                preview_color = prepare_scheduled_color(
+                                    fallback_views.left_color,
+                                    jpeg_due=jpeg_due,
+                                    measured=measured,
                                 )
                         del fallback_views
                     record("grayscale_rectification_ms", stage_started_ns, measured)
@@ -663,13 +577,12 @@ def main() -> None:
                     needs_mapping = (
                         args.compare_rectification_backends
                         or (jpeg_due and preview_color is None)
-                        or (semantic_due and semantic_color is None)
                     )
                     if needs_mapping:
                         stage_started_ns = time.perf_counter_ns()
                         with pair.mapped_views(
                             stream_profile=args.capture_stream_profile,
-                            need_left_color=jpeg_due or semantic_due,
+                            need_left_color=jpeg_due,
                         ) as views:
                             record("camera_buffer_map_ms", stage_started_ns, measured)
                             if args.compare_rectification_backends:
@@ -713,25 +626,22 @@ def main() -> None:
                                             rectification_max_error,
                                             int(error.max()),
                                         )
-                            if jpeg_due or semantic_due:
+                            if jpeg_due:
                                 if views.left_color is None:
                                     raise RuntimeError(
                                         "scheduled color work has no left color view"
                                     )
-                                preview_color, semantic_color = (
-                                    prepare_scheduled_color(
-                                        views.left_color,
-                                        jpeg_due=jpeg_due,
-                                        semantic_due=semantic_due,
-                                        measured=measured,
-                                    )
+                                preview_color = prepare_scheduled_color(
+                                    views.left_color,
+                                    jpeg_due=jpeg_due,
+                                    measured=measured,
                                 )
                         del views
                 else:
                     stage_started_ns = time.perf_counter_ns()
                     with pair.mapped_views(
                         stream_profile=args.capture_stream_profile,
-                        need_left_color=jpeg_due or semantic_due,
+                        need_left_color=jpeg_due,
                     ) as views:
                         record("camera_buffer_map_ms", stage_started_ns, measured)
                         stage_started_ns = time.perf_counter_ns()
@@ -768,18 +678,15 @@ def main() -> None:
                             stage_started_ns,
                             measured,
                         )
-                        if jpeg_due or semantic_due:
+                        if jpeg_due:
                             if views.left_color is None:
                                 raise RuntimeError(
                                     "scheduled color work has no left color view"
                                 )
-                            preview_color, semantic_color = (
-                                prepare_scheduled_color(
-                                    views.left_color,
-                                    jpeg_due=jpeg_due,
-                                    semantic_due=semantic_due,
-                                    measured=measured,
-                                )
+                            preview_color = prepare_scheduled_color(
+                                views.left_color,
+                                jpeg_due=jpeg_due,
+                                measured=measured,
                             )
                     del views
                     del left_gray_raw, right_gray_raw
@@ -1068,22 +975,6 @@ def main() -> None:
                     last_comparison_native_output["voxel_capacity_overflow"]
                 )
 
-            if semantic_due:
-                if semantic_worker is None or semantic_color is None:
-                    raise RuntimeError("scheduled semantic color frame is missing")
-                if capture_realtime_ns is None or last_native_output is None:
-                    raise RuntimeError("semantic source sequence/stamp is missing")
-                stage_started_ns = time.perf_counter_ns()
-                if not semantic_worker.submit(
-                    source_sequence=int(last_native_output["sequence"]),
-                    capture_realtime_ns=capture_realtime_ns,
-                    color_bgr=semantic_color,
-                    disparity=disparity,
-                    submitted_ns=semantic_schedule_ns,
-                ):
-                    raise RuntimeError("semantic worker rejected a scheduled frame")
-                record("semantic_nonblocking_submit_ms", stage_started_ns, measured)
-
             stage_started_ns = time.perf_counter_ns()
             published_disparity = disparity.copy()
             published_depth = depth.copy() if depth is not None else None
@@ -1121,8 +1012,6 @@ def main() -> None:
             egl_diagnostics = egl_rectifier.diagnostics()
     finally:
         capture.stop()
-        if semantic_worker is not None:
-            semantic_worker.close()
         if native_output is not None:
             native_output.close()
         if comparison_native_output is not None:
@@ -1170,10 +1059,8 @@ def main() -> None:
                 args.compare_rectification_backends
             ),
             "depth_rectification_input": "grayscale",
-            "color_rectification_hz": max(
-                args.jpeg_hz if args.preview_source == "rectified" else 0.0,
-                args.semantic_yolo_hz if args.semantic else 0.0,
-                args.semantic_segformer_hz if args.semantic else 0.0,
+            "color_rectification_hz": (
+                args.jpeg_hz if args.preview_source == "rectified" else 0.0
             ),
             "metric_depth_enabled": args.metric_depth,
             "block_size": args.block_size,
@@ -1186,12 +1073,6 @@ def main() -> None:
                 str(args.result_ring) if args.result_ring is not None else None
             ),
             "native_result_ring_left_mono": args.publish_left_mono_to_ring,
-            "semantic_enabled": args.semantic,
-            "semantic_runtime": "native_hailort_cpp" if args.semantic else None,
-            "semantic_ring_path": str(args.semantic_ring) if args.semantic else None,
-            "semantic_yolo_hz": args.semantic_yolo_hz,
-            "semantic_segformer_hz": args.semantic_segformer_hz,
-            "semantic_preview_enabled": args.semantic_preview,
         },
         "capture_start_ms": capture_start_ms,
         "jpeg_warmup_ms": jpeg_warmup_ms,
@@ -1346,9 +1227,6 @@ def main() -> None:
                 ),
             },
             "native_output_last": last_native_output,
-            "semantic": (
-                semantic_worker.stats() if semantic_worker is not None else None
-            ),
         },
     }
 

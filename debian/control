@@ -1,0 +1,95 @@
+Source: nuvo-depth
+Section: video
+Priority: optional
+Maintainer: Meridian Robotics <packages@meridianrobotics.example>
+Build-Depends: debhelper-compat (= 13), cmake (>= 3.20), ninja-build,
+ pkgconf, g++ (>= 12), libyaml-cpp-dev, libopencv-dev,
+ libavcodec-dev, libavutil-dev, libswscale-dev,
+ libboost-system-dev, libssl-dev (>= 3.0), libsystemd-dev,
+ libegl-dev, libgles-dev, libcamera-dev [arm64],
+ python3, python3-numpy, python3-opencv, python3-yaml
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+
+Package: nuvo-depth
+Architecture: arm64
+Depends: nuvo-depth-core (= ${binary:Version}),
+ nuvo-depth-platform-pi5 (= ${binary:Version}),
+ nuvo-depth-gateway (= ${binary:Version}),
+ libnuvo-depth1 (= ${binary:Version}), python3-nuvo-depth (= ${source:Version}),
+ nuvo-depth-calibration (= ${source:Version}), nuvo-depth-tools (= ${source:Version}),
+ ${misc:Depends}
+Description: Nuvo Depth stereo camera appliance metapackage
+ Installs the supported Raspberry Pi 5 capture, depth, secure gateway, SDK,
+ calibration, and diagnostic components as one versioned cohort.
+
+Package: nuvo-depth-core
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, python3, python3-yaml
+Conflicts: nuvo-depthd (<< 0.1.1~)
+Replaces: nuvo-depthd (<< 0.1.1~)
+Provides: nuvo-depthd
+Recommends: nuvo-depth-gateway (= ${binary:Version})
+Description: Nuvo Depth native capture and processing core
+ Owns stereo capture, pairing, rectification, disparity, depth products,
+ bounded IPC storage, configuration, and the native service unit.
+
+Package: nuvo-depth-platform-pi5
+Architecture: arm64
+Depends: nuvo-depth-core (= ${binary:Version}), ${misc:Depends}
+Description: Raspberry Pi 5 platform integration for Nuvo Depth
+ Contains the libcamera/GPIO capture backend and opt-in platform preparation
+ assets. Installation alone never modifies Raspberry Pi boot configuration.
+
+Package: nuvo-depth-gateway
+Architecture: any
+Depends: nuvo-depth-core (= ${binary:Version}), nuvo-depth-tools (= ${source:Version}),
+ ${shlibs:Depends}, ${misc:Depends}
+Recommends: avahi-daemon
+Description: Nuvo Depth secure HTTPS gateway and web console
+ Serves authenticated camera status and associated NuvoStream frame snapshots
+ over Ethernet or USB Ethernet without direct camera-device access.
+
+Package: libnuvo-depth1
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Nuvo Depth host stream decoder ABI
+ Stable bounded C ABI for incrementally decoding NuvoStream messages.
+
+Package: libnuvo-depth-dev
+Section: libdevel
+Architecture: any
+Depends: libnuvo-depth1 (= ${binary:Version}), ${misc:Depends}
+Description: Nuvo Depth SDK development files
+ C and C++ headers plus pkg-config metadata for host integrations.
+
+Package: python3-nuvo-depth
+Section: python
+Architecture: all
+Depends: python3 (>= 3.11), ${misc:Depends}
+Description: Python client SDK for Nuvo Depth cameras
+ Strict HTTPS client, associated frame-set decoder, and recording primitives.
+
+Package: nuvo-depth-calibration
+Architecture: all
+Depends: python3, python3-numpy, python3-opencv, python3-yaml,
+ python3-cryptography, ${misc:Depends}
+Description: Nuvo Depth stereo calibration workflow
+ Target capture solving, quantitative validation, immutable bundle activation,
+ tamper detection, and atomic calibration rollback.
+
+Package: nuvo-depth-tools
+Architecture: all
+Depends: python3, python3-yaml, openssl,
+ python3-nuvo-depth (= ${source:Version}), ${misc:Depends}
+Description: Nuvo Depth administration and diagnostic tools
+ Appliance identity, platform preflight/preparation, transport transactions,
+ recorder/replay entry points, and support diagnostics.
+
+Package: nuvo-depth-factory
+Architecture: all
+Depends: nuvo-depth-calibration (= ${source:Version}), ${misc:Depends}
+Description: Restricted Nuvo Depth factory provisioning policy
+ Documents the separate signed factory-calibration and production-test
+ boundary. It grants no factory authority merely by being installed.

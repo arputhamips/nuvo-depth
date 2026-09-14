@@ -142,7 +142,7 @@ struct alignas(64) ResultSlotHeader {
   std::uint32_t valid_window_width{kImageWidth - 128U};
   std::uint32_t valid_window_height{kImageHeight};
   float focal_length_px{493.542046188F};
-  float baseline_m{0.161458780F};
+  float baseline_m{0.100F};
   float min_disparity{};
   float max_disparity{128.0F};
   float delta_d{0.0625F};

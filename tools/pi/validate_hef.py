@@ -17,7 +17,7 @@ WIDTH = 728
 MODEL_WIDTH = 736
 HEIGHT = 544
 FOCAL_LENGTH_PX = 493.542046188
-BASELINE_M = 0.161458780
+BASELINE_M = 0.100
 
 
 def load_rgb(path: Path, model_width: int, model_height: int) -> np.ndarray:

@@ -1,0 +1,7 @@
+schema_version: 1
+preset_id: balanced_728x544_10
+qualification: engineering_candidate
+capture: {width: 728, height: 544, target_hz: 10}
+matching: {width: 364, height: 272, disparities: 64, block_size: 5}
+outputs: [left_rectified, right_rectified, disparity, depth, confidence, validity]
+notes: Default Pi 5 candidate; requires per-unit calibration and final HIL qualification.

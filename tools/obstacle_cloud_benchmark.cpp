@@ -86,7 +86,7 @@ std::vector<float> load_disparity(const std::filesystem::path& path) {
 }
 
 depthd::RigidTransform optical_to_base() {
-  return {{0.0, 0.0, 1.0, 0.760, -1.0, 0.0, 0.0, 0.080,
+  return {{0.0, 0.0, 1.0, 0.760, -1.0, 0.0, 0.0, 0.050,
            0.0, -1.0, 0.0, 0.180, 0.0, 0.0, 0.0, 1.0}};
 }
 

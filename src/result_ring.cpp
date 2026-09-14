@@ -311,7 +311,7 @@ ipc::CameraModel make_rectified_left_camera_model() noexcept {
 
 ipc::CameraModel make_rectified_right_camera_model() noexcept {
   auto model = make_rectified_left_camera_model();
-  model.p[3] = -79.6866968475;
+  model.p[3] = -49.3542046188;
   return model;
 }
 

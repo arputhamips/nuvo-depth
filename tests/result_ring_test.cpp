@@ -71,8 +71,8 @@ int main() {
   const auto left = depthd::make_rectified_left_camera_model();
   const auto right = depthd::make_rectified_right_camera_model();
   expect(left.p[3] == 0.0, "logical left projection has no baseline offset");
-  expect(std::abs(right.p[3] + 79.6866968475) < 1e-9,
-         "logical right projection encodes the calibrated baseline");
+  expect(std::abs(right.p[3] + 49.3542046188) < 1e-9,
+         "logical right projection encodes the 100 mm baseline");
 
 #if defined(__linux__) || defined(__APPLE__)
   const auto path = temporary_ring_path();

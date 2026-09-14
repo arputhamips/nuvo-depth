@@ -30,7 +30,7 @@ std::filesystem::path temporary_ring_path(const std::string& suffix) {
 
 std::vector<float> obstacle_plane() {
   const float disparity =
-      493.542046188F * 0.161458780F / 2.0F;
+      493.542046188F * 0.100F / 2.0F;
   return std::vector<float>(
       static_cast<std::size_t>(depthd::ipc::kImageWidth) *
           depthd::ipc::kImageHeight,
@@ -42,7 +42,7 @@ std::vector<float> obstacle_plane() {
 
 int main() {
   const auto transform = depthd::make_nuvo_left_optical_to_base_transform();
-  expect(transform.matrix[3] == 0.760 && transform.matrix[7] == 0.080 &&
+  expect(transform.matrix[3] == 0.760 && transform.matrix[7] == 0.050 &&
              transform.matrix[11] == 0.180,
          "native cloud transform locks the current Nuvo rig pose");
 

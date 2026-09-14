@@ -1,0 +1,11 @@
+[Unit]
+Description=Nuvo Depth transport rollback watchdog
+
+[Timer]
+OnBootSec=5s
+OnUnitActiveSec=5s
+AccuracySec=1s
+Unit=nuvo-transport-rollback.service
+
+[Install]
+WantedBy=timers.target

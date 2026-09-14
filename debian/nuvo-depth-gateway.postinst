@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = configure ]; then
+    hostname_value="$(hostname 2>/dev/null || printf nuvo-depth)"
+    nuvoctl identity provision --hostname "${hostname_value}.local"
+fi
+
+#DEBHELPER#

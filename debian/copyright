@@ -1,0 +1,17 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Nuvo Depth
+Source: internal working tree
+Disclaimer: Distribution terms are unresolved. Do not publish this package or
+ repository until Meridian Robotics records the project license and completes
+ the third-party source/license review.
+
+Files: *
+Copyright: 2026 Meridian Robotics
+License: LicenseRef-Proprietary-Unresolved
+ This identifier records that redistribution permission is not yet established.
+ It is a release blocker, not a grant of rights.
+
+Files: third_party/LiteAnyStereo/*
+Copyright: See third_party/LiteAnyStereo/LICENSE
+License: upstream-separate
+ This research-only tree is excluded from all binary packages.
