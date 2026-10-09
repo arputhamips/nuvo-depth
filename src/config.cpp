@@ -1,10 +1,10 @@
 #include "depthd/config.hpp"
+#include "depthd/configuration_revision.hpp"
 
 #include <yaml-cpp/yaml.h>
 
 #include <algorithm>
 #include <array>
-#include <bit>
 #include <charconv>
 #include <cmath>
 #include <cstddef>
@@ -22,6 +22,7 @@ namespace {
 
 constexpr std::uint32_t kMaxImageDimension = 16'384;
 constexpr std::uint32_t kMaxBufferCount = 64;
+constexpr double kExternalTriggerGuardUs = 250.0;
 
 [[noreturn]] void validation_error(const std::string& path,
                                    const std::string& message) {
@@ -37,13 +38,17 @@ std::string mark_suffix(const YAML::Mark& mark) {
 }
 
 void check_mapping(const YAML::Node& node, const std::string& path,
-                   const std::initializer_list<std::string_view> keys) {
+                   const std::initializer_list<std::string_view> keys,
+                   const std::initializer_list<std::string_view> optional = {}) {
   if (!node || !node.IsMap()) {
     validation_error(path, "expected a mapping");
   }
 
   std::set<std::string, std::less<>> allowed;
   for (const auto key : keys) {
+    allowed.emplace(key);
+  }
+  for (const auto key : optional) {
     allowed.emplace(key);
   }
 
@@ -62,9 +67,9 @@ void check_mapping(const YAML::Node& node, const std::string& path,
     }
   }
 
-  for (const auto& key : allowed) {
+  for (const auto key : keys) {
     if (!seen.contains(key)) {
-      validation_error(path.empty() ? key : path + "." + key,
+      validation_error(path.empty() ? std::string(key) : path + "." + std::string(key),
                        "missing required key");
     }
   }
@@ -396,7 +401,7 @@ LegacyStereoV1 parse_stereo(const YAML::Node& node) {
                  "working_disparities", "block_size", "mode",
                  "uniqueness_ratio", "speckle_window_size", "speckle_range",
                  "disparity_12_max_diff", "pre_filter_cap",
-                 "opencv_threads"});
+                 "opencv_threads"}, {"median_filter_size"});
   LegacyStereoV1 result;
   result.backend = read_string(child(node, "backend"), "stereo.backend");
   result.baseline_m =
@@ -434,6 +439,9 @@ LegacyStereoV1 parse_stereo(const YAML::Node& node) {
       read_u32(child(node, "pre_filter_cap"), "stereo.pre_filter_cap");
   result.opencv_threads =
       read_u32(child(node, "opencv_threads"), "stereo.opencv_threads");
+  if (const auto median = child(node, "median_filter_size")) {
+    result.median_filter_size = read_u32(median, "stereo.median_filter_size");
+  }
   return result;
 }
 
@@ -814,6 +822,8 @@ std::string serialize_effective(const EffectiveConfig& config) {
                          stereo.pre_filter_cap);
     append_integer_field(output, first, "opencv_threads",
                          stereo.opencv_threads);
+    append_integer_field(output, first, "median_filter_size",
+                         stereo.median_filter_size);
   });
   append_object_field(output, root, "outputs", [&](bool& first) {
     const auto& outputs = config.outputs;
@@ -848,127 +858,7 @@ std::string serialize_effective(const EffectiveConfig& config) {
   return output;
 }
 
-class Sha256 final {
- public:
-  void update(const std::string_view bytes) {
-    total_bytes_ += bytes.size();
-    for (const unsigned char byte : bytes) {
-      buffer_[buffer_size_++] = byte;
-      if (buffer_size_ == buffer_.size()) {
-        transform(buffer_.data());
-        buffer_size_ = 0;
-      }
-    }
-  }
 
-  std::array<std::uint8_t, 32> finish() {
-    const auto original_bits = static_cast<std::uint64_t>(total_bytes_) * 8U;
-    buffer_[buffer_size_++] = 0x80U;
-    if (buffer_size_ > 56U) {
-      std::fill(buffer_.begin() + static_cast<std::ptrdiff_t>(buffer_size_),
-                buffer_.end(), 0U);
-      transform(buffer_.data());
-      buffer_size_ = 0;
-    }
-    std::fill(buffer_.begin() + static_cast<std::ptrdiff_t>(buffer_size_),
-              buffer_.begin() + 56, 0U);
-    for (std::size_t index = 0; index < 8; ++index) {
-      buffer_[63U - index] =
-          static_cast<std::uint8_t>(original_bits >> (index * 8U));
-    }
-    transform(buffer_.data());
-
-    std::array<std::uint8_t, 32> digest{};
-    for (std::size_t index = 0; index < state_.size(); ++index) {
-      digest[index * 4U] = static_cast<std::uint8_t>(state_[index] >> 24U);
-      digest[index * 4U + 1U] =
-          static_cast<std::uint8_t>(state_[index] >> 16U);
-      digest[index * 4U + 2U] =
-          static_cast<std::uint8_t>(state_[index] >> 8U);
-      digest[index * 4U + 3U] = static_cast<std::uint8_t>(state_[index]);
-    }
-    return digest;
-  }
-
- private:
-  static constexpr std::array<std::uint32_t, 64> kRoundConstants{
-      0x428a2f98U, 0x71374491U, 0xb5c0fbcfU, 0xe9b5dba5U, 0x3956c25bU,
-      0x59f111f1U, 0x923f82a4U, 0xab1c5ed5U, 0xd807aa98U, 0x12835b01U,
-      0x243185beU, 0x550c7dc3U, 0x72be5d74U, 0x80deb1feU, 0x9bdc06a7U,
-      0xc19bf174U, 0xe49b69c1U, 0xefbe4786U, 0x0fc19dc6U, 0x240ca1ccU,
-      0x2de92c6fU, 0x4a7484aaU, 0x5cb0a9dcU, 0x76f988daU, 0x983e5152U,
-      0xa831c66dU, 0xb00327c8U, 0xbf597fc7U, 0xc6e00bf3U, 0xd5a79147U,
-      0x06ca6351U, 0x14292967U, 0x27b70a85U, 0x2e1b2138U, 0x4d2c6dfcU,
-      0x53380d13U, 0x650a7354U, 0x766a0abbU, 0x81c2c92eU, 0x92722c85U,
-      0xa2bfe8a1U, 0xa81a664bU, 0xc24b8b70U, 0xc76c51a3U, 0xd192e819U,
-      0xd6990624U, 0xf40e3585U, 0x106aa070U, 0x19a4c116U, 0x1e376c08U,
-      0x2748774cU, 0x34b0bcb5U, 0x391c0cb3U, 0x4ed8aa4aU, 0x5b9cca4fU,
-      0x682e6ff3U, 0x748f82eeU, 0x78a5636fU, 0x84c87814U, 0x8cc70208U,
-      0x90befffaU, 0xa4506cebU, 0xbef9a3f7U, 0xc67178f2U};
-
-  void transform(const std::uint8_t* block) {
-    std::array<std::uint32_t, 64> words{};
-    for (std::size_t index = 0; index < 16; ++index) {
-      const auto offset = index * 4U;
-      words[index] = static_cast<std::uint32_t>(block[offset]) << 24U |
-                     static_cast<std::uint32_t>(block[offset + 1U]) << 16U |
-                     static_cast<std::uint32_t>(block[offset + 2U]) << 8U |
-                     static_cast<std::uint32_t>(block[offset + 3U]);
-    }
-    for (std::size_t index = 16; index < words.size(); ++index) {
-      const auto s0 = std::rotr(words[index - 15U], 7) ^
-                      std::rotr(words[index - 15U], 18) ^
-                      (words[index - 15U] >> 3U);
-      const auto s1 = std::rotr(words[index - 2U], 17) ^
-                      std::rotr(words[index - 2U], 19) ^
-                      (words[index - 2U] >> 10U);
-      words[index] = words[index - 16U] + s0 + words[index - 7U] + s1;
-    }
-
-    auto a = state_[0];
-    auto b = state_[1];
-    auto c = state_[2];
-    auto d = state_[3];
-    auto e = state_[4];
-    auto f = state_[5];
-    auto g = state_[6];
-    auto h = state_[7];
-
-    for (std::size_t index = 0; index < words.size(); ++index) {
-      const auto sum1 = std::rotr(e, 6) ^ std::rotr(e, 11) ^ std::rotr(e, 25);
-      const auto choose = (e & f) ^ (~e & g);
-      const auto temporary1 =
-          h + sum1 + choose + kRoundConstants[index] + words[index];
-      const auto sum0 = std::rotr(a, 2) ^ std::rotr(a, 13) ^ std::rotr(a, 22);
-      const auto majority = (a & b) ^ (a & c) ^ (b & c);
-      const auto temporary2 = sum0 + majority;
-      h = g;
-      g = f;
-      f = e;
-      e = d + temporary1;
-      d = c;
-      c = b;
-      b = a;
-      a = temporary1 + temporary2;
-    }
-
-    state_[0] += a;
-    state_[1] += b;
-    state_[2] += c;
-    state_[3] += d;
-    state_[4] += e;
-    state_[5] += f;
-    state_[6] += g;
-    state_[7] += h;
-  }
-
-  std::array<std::uint32_t, 8> state_{
-      0x6a09e667U, 0xbb67ae85U, 0x3c6ef372U, 0xa54ff53aU,
-      0x510e527fU, 0x9b05688cU, 0x1f83d9abU, 0x5be0cd19U};
-  std::array<std::uint8_t, 64> buffer_{};
-  std::size_t buffer_size_{};
-  std::size_t total_bytes_{};
-};
 
 }  // namespace
 
@@ -1112,7 +1002,8 @@ EffectiveConfig normalize(const LegacyProfileV1& legacy) {
       stereo.speckle_range,
       stereo.disparity_12_max_diff,
       stereo.pre_filter_cap,
-      stereo.opencv_threads};
+      stereo.opencv_threads,
+      stereo.median_filter_size};
   result.outputs = {legacy.outputs.disparity_hz,
                     legacy.outputs.metric_depth_enabled,
                     legacy.outputs.compressed_image_hz,
@@ -1220,9 +1111,11 @@ void validate(const EffectiveConfig& config) {
                        "must differ from idle_level");
     }
     if (trigger.pulse_width_us == 0U ||
-        static_cast<double>(trigger.pulse_width_us) >= period_us) {
+        static_cast<double>(trigger.pulse_width_us) +
+                kExternalTriggerGuardUs >
+            period_us) {
       validation_error("capture.hardware_trigger.pulse_width_us",
-                       "must be positive and shorter than one capture period");
+                       "must be positive and leave a 250 us period guard");
     }
     if (trigger.pair_tolerance_us == 0U ||
         static_cast<double>(trigger.pair_tolerance_us) >= period_us / 2.0) {
@@ -1237,9 +1130,14 @@ void validate(const EffectiveConfig& config) {
     }
   }
   if (capture.exposure_time_us == 0U ||
-      static_cast<double>(capture.exposure_time_us) >= period_us) {
+      (trigger.enabled &&
+       static_cast<double>(capture.exposure_time_us) +
+               kExternalTriggerGuardUs >
+           period_us) ||
+      (!trigger.enabled &&
+       static_cast<double>(capture.exposure_time_us) >= period_us)) {
     validation_error("capture.exposure_time_us",
-                     "must be positive and shorter than one capture period");
+                     "must be positive and fit inside one capture period");
   }
 
   const auto& exposure = capture.auto_exposure;
@@ -1276,9 +1174,14 @@ void validate(const EffectiveConfig& config) {
   }
   if (exposure.min_shutter_us == 0U ||
       exposure.min_shutter_us > exposure.max_shutter_us ||
-      static_cast<double>(exposure.max_shutter_us) >= period_us) {
+      (trigger.enabled &&
+       static_cast<double>(exposure.max_shutter_us) +
+               kExternalTriggerGuardUs >
+           period_us) ||
+      (!trigger.enabled &&
+       static_cast<double>(exposure.max_shutter_us) >= period_us)) {
     validation_error("capture.auto_exposure.min_shutter_us",
-                     "shutter range must be positive, ordered, and below one period");
+                     "shutter range must be positive, ordered, and fit inside one period");
   }
   if (capture.exposure_time_us < exposure.min_shutter_us ||
       capture.exposure_time_us > exposure.max_shutter_us) {
@@ -1381,7 +1284,15 @@ void validate(const EffectiveConfig& config) {
       stereo.block_size > 255U) {
     validation_error("stereo.block_size", "must be an odd value in 1..255");
   }
-  require_equal(stereo.mode, "sgbm_3way", "stereo.mode");
+  if (stereo.mode != "sgbm_3way" && stereo.mode != "sgbm_standard" &&
+      stereo.mode != "sgbm_hh4" && stereo.mode != "sgbm_hh") {
+    validation_error("stereo.mode",
+                     "must be sgbm_3way, sgbm_standard, sgbm_hh4, or sgbm_hh");
+  }
+  if (stereo.median_filter_size != 0U && stereo.median_filter_size != 3U &&
+      stereo.median_filter_size != 5U) {
+    validation_error("stereo.median_filter_size", "must be 0, 3, or 5");
+  }
   if (stereo.uniqueness_ratio > 100U) {
     validation_error("stereo.uniqueness_ratio", "must be in the range 0..100");
   }
@@ -1433,17 +1344,7 @@ std::string canonical_json(const EffectiveConfig& config) {
 }
 
 std::string sha256_hex(const std::string_view bytes) {
-  Sha256 hash;
-  hash.update(bytes);
-  const auto digest = hash.finish();
-  constexpr char hex[] = "0123456789abcdef";
-  std::string output;
-  output.reserve(digest.size() * 2U);
-  for (const auto byte : digest) {
-    output.push_back(hex[(byte >> 4U) & 0x0fU]);
-    output.push_back(hex[byte & 0x0fU]);
-  }
-  return output;
+  return revision::sha256_hex(bytes);
 }
 
 LoadedConfig load(const std::filesystem::path& path) {

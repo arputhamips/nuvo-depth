@@ -19,6 +19,9 @@ struct CaptureBufferPlane {
   // Stable only for one capture epoch. Platform adapters assign this from the
   // capture pool allocation, never from the recyclable descriptor number.
   std::uint64_t buffer_id{};
+  // Bytes populated for this completed request. This can be smaller than the
+  // allocation length and is required when copying optional chroma planes.
+  std::uint64_t bytes_used{};
 };
 
 inline void validate(const CaptureBufferPlane& plane) {

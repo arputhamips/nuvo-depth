@@ -135,6 +135,7 @@ struct LegacyStereoV1 {
   std::int32_t disparity_12_max_diff{};
   std::uint32_t pre_filter_cap{};
   std::uint32_t opencv_threads{};
+  std::uint32_t median_filter_size{};
 };
 
 struct LegacyOutputsV1 {
@@ -264,6 +265,7 @@ struct StereoConfig {
   std::int32_t disparity_12_max_diff{};
   std::uint32_t pre_filter_cap{};
   std::uint32_t opencv_threads{};
+  std::uint32_t median_filter_size{};
 };
 
 struct OutputConfig {

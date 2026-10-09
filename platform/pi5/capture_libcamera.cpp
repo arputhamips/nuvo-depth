@@ -1,4 +1,5 @@
 #include "depthd/capture.hpp"
+#include "depthd/pio_pwm_trigger.hpp"
 
 #if defined(DEPTHD_WITH_PI5_CAPTURE)
 
@@ -7,6 +8,7 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <time.h>
 
 #include <libcamera/control_ids.h>
 #include <libcamera/controls.h>
@@ -91,7 +93,33 @@ struct RequestGate {
   std::thread worker;
   std::atomic<std::size_t> outstanding{};
   std::atomic<std::uint64_t> requeue_failures{};
+  struct SharedControls* controls{};
 };
+
+struct SharedControls {
+  std::mutex mutex;
+  CaptureControls value;
+};
+
+void apply_request_controls(libcamera::Request& request,
+                            SharedControls& shared) {
+  CaptureControls controls;
+  {
+    std::lock_guard lock(shared.mutex);
+    controls = shared.value;
+  }
+  request.controls().set(libcamera::controls::AeEnable, false);
+  request.controls().set(libcamera::controls::AwbEnable, false);
+  request.controls().set(libcamera::controls::ExposureTime,
+                         static_cast<std::int32_t>(controls.exposure_time_us));
+  request.controls().set(libcamera::controls::AnalogueGain,
+                         static_cast<float>(controls.analogue_gain));
+  const std::array<float, 2> colour_gains{
+      static_cast<float>(controls.colour_gains[0]),
+      static_cast<float>(controls.colour_gains[1])};
+  request.controls().set(libcamera::controls::ColourGains,
+                         libcamera::Span<const float, 2>(colour_gains));
+}
 
 void recycle_request(const std::shared_ptr<RequestGate>& gate,
                      libcamera::Request* request) noexcept {
@@ -133,6 +161,9 @@ void start_request_recycler(const std::shared_ptr<RequestGate>& gate) {
         gate->pending.pop_front();
       }
       request->reuse(libcamera::Request::ReuseBuffers);
+      if (gate->controls != nullptr) {
+        apply_request_controls(*request, *gate->controls);
+      }
       if (gate->camera->queueRequest(request) != 0) {
         ++gate->requeue_failures;
       }
@@ -297,12 +328,18 @@ class Pi5LibcameraCapture final : public CaptureSource {
     pairer_.configure({options.pair_tolerance_ns, 1U});
     std::uint64_t epoch = pairer_.begin_epoch(left_binding, right_binding);
     current_epoch_.store(epoch);
+    delivery_start_boottime_ns_.store(0);
     stop_requested_.store(false);
     callback_errors_.store(0U);
     frame_completion_errors_.store(0U);
     trigger_errors_.store(0U);
     trigger_attempts_.store(0U);
     trigger_deadline_overruns_.store(0U);
+    trigger_last_pulse_us_.store(0U);
+    trigger_min_pulse_us_.store(std::numeric_limits<std::uint64_t>::max());
+    trigger_max_pulse_us_.store(0U);
+    trigger_pulse_guard_overruns_.store(0U);
+    trigger_max_pulse_overshoot_us_.store(0U);
     ready_pair_replacements_.store(0U);
     last_requeue_failures_.store(0U);
     last_outstanding_after_stop_.store(0U);
@@ -310,12 +347,22 @@ class Pi5LibcameraCapture final : public CaptureSource {
     left_ = std::move(left);
     right_ = std::move(right);
     try {
+      {
+        std::lock_guard lock(controls_.mutex);
+        controls_.value = {options.exposure_time_us, options.analogue_gain,
+                           options.colour_gains};
+      }
       configure_camera(*left_, options, left_binding);
       configure_camera(*right_, options, right_binding);
 
       if (options.hardware_trigger_enabled) {
-        trigger_line_ = std::make_unique<GpioOutputLine>(
-            options.gpiochip, options.gpio_line, options.trigger_idle_high);
+        if (options.gpiochip == "/dev/gpiochip0") {
+          trigger_pwm_ = PioPwmTrigger::discover(options.gpio_line);
+        }
+        if (!trigger_pwm_) {
+          trigger_line_ = std::make_unique<GpioOutputLine>(
+              options.gpiochip, options.gpio_line, options.trigger_idle_high);
+        }
       }
 
       left_->camera->requestCompleted.connect(
@@ -333,11 +380,21 @@ class Pi5LibcameraCapture final : public CaptureSource {
       }
 
       trigger_options_ = options;
-      if (trigger_line_) {
-        for (std::uint32_t pulse = 0;
-             pulse < options.startup_priming_pulses; ++pulse) {
-          pulse_trigger(options);
-          std::this_thread::sleep_for(trigger_period(options));
+      trigger_hardware_timed_.store(static_cast<bool>(trigger_pwm_));
+      trigger_enabled_.store(static_cast<bool>(trigger_pwm_) || static_cast<bool>(trigger_line_));
+      trigger_commanded_pulse_us_.store(options.exposure_time_us);
+      trigger_period_ns_.store(static_cast<std::uint64_t>(trigger_period(options).count()) * 1000ULL);
+      if (trigger_pwm_ || trigger_line_) {
+        if (trigger_pwm_) {
+          trigger_pwm_->start(trigger_period_ns_.load(), options.exposure_time_us,
+                              options.trigger_idle_high);
+          std::this_thread::sleep_for(trigger_period(options) * options.startup_priming_pulses);
+        } else {
+          for (std::uint32_t pulse = 0;
+               pulse < options.startup_priming_pulses; ++pulse) {
+            pulse_trigger(options.exposure_time_us);
+            std::this_thread::sleep_for(trigger_period(options));
+          }
         }
         // Camera/IPA startup latency can make the first priming event visible
         // to only one sensor. Priming is deliberately outside the delivered
@@ -346,22 +403,31 @@ class Pi5LibcameraCapture final : public CaptureSource {
         // to a fresh epoch before continuous triggering begins.
         {
           std::lock_guard lock(ready_mutex_);
+          timespec cutoff{};
+          if (::clock_gettime(CLOCK_BOOTTIME, &cutoff) != 0) {
+            throw std::runtime_error("cannot establish capture priming timestamp boundary");
+          }
+          delivery_start_boottime_ns_.store(
+              static_cast<std::int64_t>(cutoff.tv_sec) * 1'000'000'000LL + cutoff.tv_nsec);
+          current_epoch_.store(0U);
           ready_pair_.reset();
+          pairer_.end_epoch();
+          epoch = pairer_.begin_epoch(left_binding, right_binding);
+          current_epoch_.store(epoch);
         }
-        pairer_.end_epoch();
-        epoch = pairer_.begin_epoch(left_binding, right_binding);
-        current_epoch_.store(epoch);
-        trigger_thread_ =
-            std::thread(&Pi5LibcameraCapture::trigger_loop, this);
+        if (trigger_line_) {
+          trigger_thread_ =
+              std::thread(&Pi5LibcameraCapture::trigger_loop, this);
+        }
       }
 
       CaptureSessionInfo info;
       info.capture_epoch = epoch;
       info.left = left_->negotiated;
       info.right = right_->negotiated;
-      info.hardware_trigger_active = static_cast<bool>(trigger_line_);
-      info.trigger_source = trigger_line_ ? "userspace-gpio-smoke-check"
-                                          : "free-running";
+      info.hardware_trigger_active = trigger_enabled_.load();
+      info.trigger_source = trigger_pwm_ ? "rp1-pio-pwm" :
+          (trigger_line_ ? "userspace-gpio-smoke-check" : "free-running");
       return info;
     } catch (...) {
       stop();
@@ -382,6 +448,29 @@ class Pi5LibcameraCapture final : public CaptureSource {
     auto pair = std::move(ready_pair_);
     ready_pair_.reset();
     return pair;
+  }
+
+  void set_controls(const CaptureControls& controls) override {
+    validate(controls);
+    if (!running_snapshot()) {
+      throw std::logic_error("capture controls require a running camera");
+    }
+    if (trigger_line_ || trigger_pwm_) {
+      const auto period_us = static_cast<std::uint64_t>(
+          trigger_period(trigger_options_).count());
+      if (static_cast<std::uint64_t>(controls.exposure_time_us) +
+              kExternalTriggerGuardUs >
+          period_us) {
+        throw std::invalid_argument(
+            "capture exposure must leave the external-trigger period guard");
+      }
+    }
+    std::lock_guard lock(controls_.mutex);
+    if (trigger_pwm_ && controls.exposure_time_us != controls_.value.exposure_time_us) {
+      trigger_pwm_->set_pulse(controls.exposure_time_us);
+    }
+    controls_.value = controls;
+    trigger_commanded_pulse_us_.store(controls.exposure_time_us);
   }
 
   void stop() noexcept override {
@@ -405,6 +494,10 @@ class Pi5LibcameraCapture final : public CaptureSource {
     disable_requeue(right_.get());
     stop_camera(right_.get());
     stop_camera(left_.get());
+    if (trigger_pwm_) {
+      try { trigger_pwm_->stop(); }
+      catch (...) { ++trigger_errors_; }
+    }
 
     pairer_.end_epoch();
     {
@@ -421,6 +514,8 @@ class Pi5LibcameraCapture final : public CaptureSource {
     release_camera(right_.get());
     release_camera(left_.get());
     trigger_line_.reset();
+    trigger_pwm_.reset();
+    trigger_enabled_.store(false);
     right_.reset();
     left_.reset();
     current_epoch_.store(0U);
@@ -428,12 +523,30 @@ class Pi5LibcameraCapture final : public CaptureSource {
 
   CaptureRuntimeStats runtime_stats() const noexcept override {
     CaptureRuntimeStats result;
+    result.trigger_source = trigger_enabled_.load() ?
+        (trigger_hardware_timed_.load() ? "rp1-pio-pwm" : "userspace-gpio-smoke-check") :
+        (running_snapshot() ? "free-running" : "stopped");
+    result.trigger_hardware_timed = trigger_hardware_timed_.load();
+    result.trigger_pulse_timing_measured = trigger_enabled_.load() && !result.trigger_hardware_timed;
+    result.trigger_commanded_pulse_us = trigger_commanded_pulse_us_.load();
+    result.trigger_period_ns = trigger_period_ns_.load();
     result.pairer = pairer_.stats();
     result.callback_or_trigger_errors = callback_errors_.load();
     result.frame_completion_errors = frame_completion_errors_.load();
     result.trigger_errors = trigger_errors_.load();
     result.trigger_attempts = trigger_attempts_.load();
     result.trigger_deadline_overruns = trigger_deadline_overruns_.load();
+    result.trigger_last_pulse_us = trigger_last_pulse_us_.load();
+    const auto minimum_pulse = trigger_min_pulse_us_.load();
+    result.trigger_min_pulse_us =
+        minimum_pulse == std::numeric_limits<std::uint64_t>::max()
+            ? 0U
+            : minimum_pulse;
+    result.trigger_max_pulse_us = trigger_max_pulse_us_.load();
+    result.trigger_pulse_guard_overruns =
+        trigger_pulse_guard_overruns_.load();
+    result.trigger_max_pulse_overshoot_us =
+        trigger_max_pulse_overshoot_us_.load();
     result.ready_pair_replacements = ready_pair_replacements_.load();
     result.request_requeue_failures =
         std::max(last_requeue_failures_.load(),
@@ -454,16 +567,42 @@ class Pi5LibcameraCapture final : public CaptureSource {
         static_cast<std::int64_t>(1'000'000.0 / options.target_hz));
   }
 
-  void pulse_trigger(const CaptureOpenOptions& options) {
-    const bool active = !options.trigger_idle_high;
+  void pulse_trigger(const std::uint32_t exposure_time_us) {
+    const bool active = !trigger_options_.trigger_idle_high;
     trigger_line_->set(active);
+    const auto started = std::chrono::steady_clock::now();
     try {
       std::this_thread::sleep_for(
-          std::chrono::microseconds(options.trigger_pulse_width_us));
-      trigger_line_->set(options.trigger_idle_high);
+          std::chrono::microseconds(exposure_time_us));
+      trigger_line_->set(trigger_options_.trigger_idle_high);
+      const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+                               std::chrono::steady_clock::now() - started)
+                               .count();
+      const auto pulse_us = static_cast<std::uint64_t>(std::max<std::int64_t>(
+          0, elapsed));
+      trigger_last_pulse_us_.store(pulse_us);
+      auto minimum = trigger_min_pulse_us_.load();
+      while (pulse_us < minimum &&
+             !trigger_min_pulse_us_.compare_exchange_weak(minimum, pulse_us)) {
+      }
+      auto maximum = trigger_max_pulse_us_.load();
+      while (pulse_us > maximum &&
+             !trigger_max_pulse_us_.compare_exchange_weak(maximum, pulse_us)) {
+      }
+      const auto overshoot_us = pulse_us > exposure_time_us
+                                    ? pulse_us - exposure_time_us
+                                    : 0U;
+      if (overshoot_us > kExternalTriggerGuardUs) {
+        ++trigger_pulse_guard_overruns_;
+      }
+      auto maximum_overshoot = trigger_max_pulse_overshoot_us_.load();
+      while (overshoot_us > maximum_overshoot &&
+             !trigger_max_pulse_overshoot_us_.compare_exchange_weak(
+                 maximum_overshoot, overshoot_us)) {
+      }
     } catch (...) {
       try {
-        trigger_line_->set(options.trigger_idle_high);
+        trigger_line_->set(trigger_options_.trigger_idle_high);
       } catch (...) {
       }
       throw;
@@ -491,7 +630,12 @@ class Pi5LibcameraCapture final : public CaptureSource {
       }
       try {
         ++trigger_attempts_;
-        pulse_trigger(trigger_options_);
+        std::uint32_t exposure_time_us{};
+        {
+          std::lock_guard lock(controls_.mutex);
+          exposure_time_us = controls_.value.exposure_time_us;
+        }
+        pulse_trigger(exposure_time_us);
       } catch (...) {
         ++trigger_errors_;
         ++callback_errors_;
@@ -530,6 +674,9 @@ class Pi5LibcameraCapture final : public CaptureSource {
         libcamera::CameraConfiguration::Invalid) {
       throw std::runtime_error("libcamera rejected the stream configuration");
     }
+    if (stream_configuration.colorSpace != libcamera::ColorSpace::Sycc) {
+      throw std::runtime_error("camera must negotiate full-range sYCC for YUV/RGB conversion");
+    }
     if (state.camera->configure(state.configuration.get()) != 0) {
       throw std::runtime_error("failed to configure camera " +
                                state.identity.stable_id);
@@ -554,6 +701,7 @@ class Pi5LibcameraCapture final : public CaptureSource {
       state.requests.push_back(std::move(request));
     }
     state.gate->camera = state.camera.get();
+    state.gate->controls = &controls_;
     state.negotiated.binding = binding;
     state.negotiated.grid = make_reference_grid(
         stream_configuration.size.width, stream_configuration.size.height);
@@ -592,6 +740,9 @@ class Pi5LibcameraCapture final : public CaptureSource {
 
   static void queue_requests(CameraState& state) {
     for (const auto& request : state.requests) {
+      if (state.gate->controls != nullptr) {
+        apply_request_controls(*request, *state.gate->controls);
+      }
       if (state.camera->queueRequest(request.get()) != 0) {
         throw std::runtime_error("failed to queue initial camera request");
       }
@@ -655,6 +806,10 @@ class Pi5LibcameraCapture final : public CaptureSource {
       frame.stream_sequence =
           static_cast<std::uint64_t>(buffer->metadata().sequence) + 1U;
       frame.sensor_timestamp_ns = timestamp;
+      if (frame.capture_epoch == 0U ||
+          timestamp <= delivery_start_boottime_ns_.load()) {
+        return;  // Startup captures cannot be relabeled into the delivered epoch.
+      }
       frame.isp_exposure_time_us = request->metadata()
           .get(libcamera::controls::ExposureTime).value_or(0);
       frame.isp_analogue_gain = request->metadata()
@@ -667,10 +822,21 @@ class Pi5LibcameraCapture final : public CaptureSource {
       frame.planes.reserve(buffer->planes().size());
       for (std::size_t index = 0; index < buffer->planes().size(); ++index) {
         const auto& plane = buffer->planes()[index];
+        const auto plane_height = index == 0U
+                                      ? state->negotiated.grid.height
+                                      : (state->negotiated.grid.height + 1U) / 2U;
+        const auto bytes_used = metadata.planes()[index].bytesused;
+        auto stride = index == 0U ? state->negotiated.stride_bytes : 0U;
+        if (index != 0U && plane_height != 0U &&
+            bytes_used % plane_height == 0U) {
+          stride = static_cast<std::uint32_t>(bytes_used / plane_height);
+        }
+        if (index != 0U && stride == 0U) {
+          stride = (state->negotiated.stride_bytes + 1U) / 2U;
+        }
         frame.planes.push_back(
-            {plane.fd.get(), plane.offset, plane.length,
-             index == 0U ? state->negotiated.stride_bytes : 0U,
-             buffer_identity->second});
+            {plane.fd.get(), plane.offset, plane.length, stride,
+             buffer_identity->second, bytes_used});
       }
 
       const auto token = ++lease_token_;
@@ -686,6 +852,7 @@ class Pi5LibcameraCapture final : public CaptureSource {
       auto pair = pairer_.submit(std::move(frame));
       if (pair) {
         std::lock_guard lock(ready_mutex_);
+        if (pair->capture_epoch != current_epoch_.load()) return;
         if (ready_pair_) {
           ++ready_pair_replacements_;
         }
@@ -766,16 +933,29 @@ class Pi5LibcameraCapture final : public CaptureSource {
   std::unique_ptr<CameraState> left_;
   std::unique_ptr<CameraState> right_;
   std::unique_ptr<GpioOutputLine> trigger_line_;
+  std::unique_ptr<PioPwmTrigger> trigger_pwm_;
+  std::atomic<bool> trigger_enabled_{};
+  std::atomic<bool> trigger_hardware_timed_{};
+  std::atomic<std::uint64_t> trigger_commanded_pulse_us_{};
+  std::atomic<std::uint64_t> trigger_period_ns_{};
   CaptureOpenOptions trigger_options_;
+  SharedControls controls_;
   std::thread trigger_thread_;
   std::atomic<bool> stop_requested_{true};
   std::atomic<std::uint64_t> current_epoch_{};
+  std::atomic<std::int64_t> delivery_start_boottime_ns_{};
   std::atomic<std::uint64_t> lease_token_{};
   std::atomic<std::uint64_t> callback_errors_{};
   std::atomic<std::uint64_t> frame_completion_errors_{};
   std::atomic<std::uint64_t> trigger_errors_{};
   std::atomic<std::uint64_t> trigger_attempts_{};
   std::atomic<std::uint64_t> trigger_deadline_overruns_{};
+  std::atomic<std::uint64_t> trigger_last_pulse_us_{};
+  std::atomic<std::uint64_t> trigger_min_pulse_us_{
+      std::numeric_limits<std::uint64_t>::max()};
+  std::atomic<std::uint64_t> trigger_max_pulse_us_{};
+  std::atomic<std::uint64_t> trigger_pulse_guard_overruns_{};
+  std::atomic<std::uint64_t> trigger_max_pulse_overshoot_us_{};
   std::atomic<std::uint64_t> ready_pair_replacements_{};
   std::atomic<std::uint64_t> last_requeue_failures_{};
   std::atomic<std::size_t> last_outstanding_after_stop_{};

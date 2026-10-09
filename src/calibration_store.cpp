@@ -8,9 +8,11 @@
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
+#include <utility>
 
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 #include <yaml-cpp/yaml.h>
 
 #include "depthd/config.hpp"
@@ -34,14 +36,15 @@ namespace {
 }
 
 void mapping(const YAML::Node& node, const std::filesystem::path& path,
-             const std::set<std::string>& allowed) {
+             const std::set<std::string>& required,
+             const std::set<std::string>& optional = {}) {
   if (!node.IsMap()) {
     throw std::invalid_argument(path.string() + ": root must be a mapping");
   }
   std::set<std::string> seen;
   for (const auto& entry : node) {
     const auto key = entry.first.as<std::string>();
-    if (!allowed.contains(key)) {
+    if (!required.contains(key) && !optional.contains(key)) {
       throw std::invalid_argument(path.string() + ": unknown key '" + key +
                                   "'");
     }
@@ -50,7 +53,7 @@ void mapping(const YAML::Node& node, const std::filesystem::path& path,
                                   "'");
     }
   }
-  for (const auto& key : allowed) {
+  for (const auto& key : required) {
     if (!node[key]) {
       throw std::invalid_argument(path.string() + ": missing key '" + key +
                                   "'");
@@ -87,7 +90,8 @@ template <std::size_t Count>
           {"calibration_status", "baseline_m", "image_width", "image_height",
            "camera_name", "camera_matrix", "distortion_model",
            "distortion_coefficients", "rectification_matrix",
-           "projection_matrix"});
+           "projection_matrix"},
+          {"rectified_output_correction"});
   CameraCalibrationDocument result;
   result.camera_name = root["camera_name"].as<std::string>();
   result.calibration_status = root["calibration_status"].as<std::string>();
@@ -107,6 +111,21 @@ template <std::size_t Count>
       root["rectification_matrix"], path, "rectification_matrix", 3U, 3U);
   result.projection_matrix = fixed_matrix<12>(
       root["projection_matrix"], path, "projection_matrix", 3U, 4U);
+  if (root["rectified_output_correction"]) {
+    result.rectified_output_correction = fixed_matrix<9>(
+        root["rectified_output_correction"], path,
+        "rectified_output_correction", 3U, 3U);
+    const auto& h = result.rectified_output_correction;
+    const auto determinant =
+        h[0] * (h[4] * h[8] - h[5] * h[7]) -
+        h[1] * (h[3] * h[8] - h[5] * h[6]) +
+        h[2] * (h[3] * h[7] - h[4] * h[6]);
+    if (std::abs(determinant) < 1e-12) {
+      throw std::invalid_argument(path.string() +
+                                  ": rectified_output_correction is singular");
+    }
+    result.has_rectified_output_correction = true;
+  }
 
   const auto distortion = root["distortion_coefficients"];
   if (!distortion.IsMap() || !distortion["rows"] || !distortion["cols"] ||
@@ -186,6 +205,21 @@ template <std::size_t Rows, std::size_t Cols>
       cv::Size(static_cast<int>(camera.image_width),
                static_cast<int>(camera.image_height)),
       CV_32FC1, x, y);
+  if (camera.has_rectified_output_correction) {
+    cv::Mat corrected_x;
+    cv::Mat corrected_y;
+    const auto output_size = cv::Size(static_cast<int>(camera.image_width),
+                                      static_cast<int>(camera.image_height));
+    const auto correction = matrix<3, 3>(camera.rectified_output_correction);
+    // warpPerspective evaluates dst(q) = src(H^-1 q), which composes the
+    // nominal output-to-source maps with the forward output correction H.
+    cv::warpPerspective(x, corrected_x, correction, output_size,
+                        cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(-1));
+    cv::warpPerspective(y, corrected_y, correction, output_size,
+                        cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(-1));
+    x = std::move(corrected_x);
+    y = std::move(corrected_y);
+  }
   RectificationMap result;
   result.width = camera.image_width;
   result.height = camera.image_height;

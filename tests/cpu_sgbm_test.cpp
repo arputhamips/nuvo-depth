@@ -1,14 +1,21 @@
 #include "depthd/stereo_backend.hpp"
+#include "depthd/configuration_revision.hpp"
+#include "depthd/opencv_execution.hpp"
+#include "depthd/opencv_rectification_backend.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <future>
+#include <iterator>
 #include <limits>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #include <opencv2/core.hpp>
@@ -157,16 +164,18 @@ int main() {
   // geometry or reconstructing the camera/rectification pipeline.
   const auto control = std::filesystem::temp_directory_path() /
                        "nuvo-stereo-control-test.json";
-  const auto write_control = [&](const char* algorithm, const int maximum) {
+  const auto write_control = [&](const char* algorithm, const int maximum,
+                                 const int threads = 1) {
     std::ofstream stream(control, std::ios::trunc);
     stream << "{\"schema_version\":1,\"algorithm\":\"" << algorithm
-           << "\",\"min_disparity\":0,\"search_range\":128,"
+           << "\",\"sgbm_mode\":\"3way\",\"min_disparity\":0,\"search_range\":128,"
               "\"max_disparity\":" << maximum << ",\"block_size\":9,"
               "\"uniqueness_ratio\":1,\"speckle_window_size\":30,"
               "\"speckle_range\":2,\"disparity_12_max_diff\":1,"
               "\"pre_filter_cap\":31,\"bm_pre_filter_size\":9,"
               "\"bm_texture_threshold\":10,\"specular_threshold\":256,"
-              "\"opencv_threads\":1}";
+              "\"median_filter_size\":0,"
+              "\"opencv_threads\":" << threads << '}';
     stream.close();
   };
   write_control("bm", 96);
@@ -183,6 +192,10 @@ int main() {
       selectable->metadata().confidence_model !=
           depthd::ConfidenceModel::kBinaryBmSupportV1 ||
       selectable->metadata().accepted_max_disparity_px != 96.0F) return 11;
+  const auto initial_state = selectable->configuration_state();
+  if (initial_state.generation != 2U || initial_state.applied_revision.size() != 64U ||
+      initial_state.requested_revision != initial_state.applied_revision ||
+      !initial_state.rejection_error.empty()) return 15;
   const auto full_metadata = selectable->metadata();
   std::vector<float> full_disparity(static_cast<std::size_t>(width * height));
   std::vector<std::uint8_t> full_confidence(full_disparity.size());
@@ -204,12 +217,128 @@ int main() {
   selectable->refresh_configuration();
   if (selectable->name() != "opencv_sgbm_cpu" ||
       selectable->metadata().accepted_max_disparity_px != 128.0F) return 13;
+  const auto changed_state = selectable->configuration_state();
+  if (changed_state.generation != initial_state.generation + 1U ||
+      changed_state.applied_revision == initial_state.applied_revision ||
+      changed_state.applied_revision != changed_state.requested_revision) return 16;
+  // Changing serialization alone acknowledges the revision but does not rebuild
+  // effective controls or advance the processing configuration epoch.
+  { std::ofstream stream(control, std::ios::app); stream << "\n "; }
+  std::filesystem::last_write_time(control, observed_time + std::chrono::seconds(2));
+  selectable->refresh_configuration();
+  const auto equal_state = selectable->configuration_state();
+  if (equal_state.generation != changed_state.generation ||
+      equal_state.applied_revision == changed_state.applied_revision ||
+      equal_state.applied_revision != equal_state.requested_revision ||
+      !equal_state.rejection_error.empty()) return 17;
   write_control("bm", 200);
   std::filesystem::last_write_time(control, observed_time +
-      std::chrono::seconds(2));
+      std::chrono::seconds(3));
   selectable->refresh_configuration();
   if (selectable->name() != "opencv_sgbm_cpu" ||
       selectable->metadata().accepted_max_disparity_px != 128.0F) return 14;
+  const auto rejected_state = selectable->configuration_state();
+  if (rejected_state.generation != equal_state.generation ||
+      rejected_state.applied_revision != equal_state.applied_revision ||
+      rejected_state.requested_revision == rejected_state.applied_revision ||
+      rejected_state.rejection_error.empty()) return 18;
+  // A malformed request is also rejected without disturbing a usable matcher.
+  { std::ofstream stream(control, std::ios::trunc); stream << "invalid JSON"; }
+  std::filesystem::last_write_time(control, observed_time + std::chrono::seconds(4));
+  selectable->refresh_configuration();
+  if (selectable->configuration_state().generation != equal_state.generation ||
+      selectable->configuration_state().applied_revision != equal_state.applied_revision ||
+      selectable->configuration_state().rejection_error.empty()) return 19;
+  selectable->process_native(left_view,right_view,full_output,bm_stats);
+  write_control("sgbm", 128);
+  std::filesystem::last_write_time(control, observed_time + std::chrono::seconds(5));
+  selectable->refresh_configuration();
+  if (selectable->configuration_state().generation != equal_state.generation ||
+      !selectable->configuration_state().rejection_error.empty()) return 20;
+  // A dormant BM-only control does not change an active SGBM matcher.
+  { std::ifstream stream(control); std::string bytes((std::istreambuf_iterator<char>(stream)), {});
+    const auto key = bytes.find("\"bm_texture_threshold\":10");
+    if (key == std::string::npos) return 21;
+    bytes.replace(key, std::string("\"bm_texture_threshold\":10").size(),
+                  "\"bm_texture_threshold\":11");
+    std::ofstream output(control, std::ios::trunc); output << bytes;
+  }
+  std::filesystem::last_write_time(control, observed_time + std::chrono::seconds(6));
+  selectable->refresh_configuration();
+  if (selectable->configuration_state().generation != equal_state.generation ||
+      !selectable->configuration_state().rejection_error.empty()) return 22;
+
+  // A private color preview rectifier shares OpenCV's process-global thread
+  // count with SGBM. Compute guards permit simultaneous readers; live thread
+  // changes must wait for an in-flight operation before changing that count.
+  depthd::RectificationMap preview_map;
+  preview_map.width = width;
+  preview_map.height = height;
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      preview_map.source_x.push_back(static_cast<float>(x));
+      preview_map.source_y.push_back(static_cast<float>(y));
+    }
+  }
+  depthd::RectificationBackendConfig preview_config;
+  preview_config.input_width = preview_config.output_width = width;
+  preview_config.input_height = preview_config.output_height = height;
+  depthd::RectificationBackendRegistry registry;
+  depthd::register_opencv_rectification_backend(registry);
+  auto preview = registry.create("cpu_opencv", "", false, preview_config,
+                                 {preview_map, preview_map});
+  std::vector<std::uint8_t> preview_input(static_cast<std::size_t>(width) * height * 3U, 53U);
+  auto preview_output = preview_input;
+  std::atomic<std::uint64_t> previews_completed{};
+  std::atomic<bool> preview_correct{true};
+  std::jthread preview_worker([&](const std::stop_token stop) {
+    while (!stop.stop_requested()) {
+      depthd::RectificationStats preview_stats;
+      preview->rectify(depthd::RectificationCamera::kLeft,
+          {preview_input.data(), width, height, width * 3U, depthd::ImageEncoding::kRgb8},
+          {preview_output.data(), width, height, width * 3U, depthd::ImageEncoding::kRgb8},
+          preview_stats);
+      if (preview_output != preview_input) preview_correct = false;
+      ++previews_completed;
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  });
+  auto simultaneous_compute = depthd::opencv_execution::compute_guard();
+  const auto preview_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+  while (previews_completed == 0U && std::chrono::steady_clock::now() < preview_deadline)
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  if (previews_completed == 0U) return 23;
+
+  write_control("sgbm", 128, 2);
+  std::filesystem::last_write_time(control, observed_time + std::chrono::seconds(7));
+  std::promise<void> writer_started;
+  auto started = writer_started.get_future();
+  auto update = std::async(std::launch::async, [&] {
+    writer_started.set_value();
+    selectable->refresh_configuration();
+  });
+  started.wait();
+  const auto writer_blocked = update.wait_for(std::chrono::milliseconds(30)) ==
+                              std::future_status::timeout;
+  simultaneous_compute.unlock();
+  update.get();
+  if (!writer_blocked) return 24;
+  for (const int threads : {2, 1, 2}) {
+    write_control("sgbm", 128, threads);
+    const auto tick = threads == 1 ? 8 : 9;
+    std::filesystem::last_write_time(control, observed_time + std::chrono::seconds(tick));
+    selectable->refresh_configuration();
+    {
+      const auto execution = depthd::opencv_execution::compute_guard();
+      if (cv::getNumThreads() != threads) return 25;
+    }
+    const auto before = previews_completed.load();
+    selectable->process_native(left_view, right_view, full_output, bm_stats);
+    if (previews_completed <= before || !preview_correct ||
+        !selectable->configuration_state().rejection_error.empty()) return 26;
+  }
+  preview_worker.request_stop();
+  preview_worker.join();
   std::filesystem::remove(control);
   return 0;
 }

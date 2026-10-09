@@ -100,10 +100,31 @@ void validate(const CaptureOpenOptions& options) {
       throw std::invalid_argument("trigger pulse width must be non-zero");
     }
     const auto period_us = 1'000'000.0 / options.target_hz;
-    if (static_cast<double>(options.trigger_pulse_width_us) >= period_us) {
+    if (static_cast<double>(options.trigger_pulse_width_us) +
+            static_cast<double>(kExternalTriggerGuardUs) >
+        period_us) {
       throw std::invalid_argument(
-          "trigger pulse width must be shorter than one capture period");
+          "trigger pulse width must leave the required capture-period guard");
     }
+  }
+}
+
+void validate(const CaptureControls& controls) {
+  if (controls.exposure_time_us < 250U || controls.exposure_time_us > 8'000U) {
+    throw std::invalid_argument(
+        "capture exposure must be between 250 and 8000 microseconds");
+  }
+  if (!std::isfinite(controls.analogue_gain) ||
+      controls.analogue_gain < 1.0 || controls.analogue_gain > 3.0) {
+    throw std::invalid_argument(
+        "capture analogue gain must be between 1x and 3x");
+  }
+  if (std::any_of(controls.colour_gains.begin(), controls.colour_gains.end(),
+                  [](const double gain) {
+                    return !std::isfinite(gain) || gain < 0.1 || gain > 16.0;
+                  })) {
+    throw std::invalid_argument(
+        "capture colour gains must be between 0.1x and 16x");
   }
 }
 

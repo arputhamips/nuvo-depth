@@ -51,6 +51,100 @@ def factory_bundle(root: Path, name: str) -> tuple[Path, Path]:
 
 
 class ActivationTest(unittest.TestCase):
+    def test_browser_charuco_session_contract_and_state(self):
+        configuration = {
+            "schema_version": 1,
+            "identity": {"unit_id": "unit-1", "left_camera_id": "platform/csi0/imx296",
+                         "right_camera_id": "platform/csi1/imx296"},
+            "profile": {"preset_id": "imx296-728x544", "sensor_mode": "imx296-728x544",
+                        "image_width": 728, "image_height": 544,
+                        "frame_rates_hz": [30, 60], "baseline_m": .1},
+            "target": {"type": "charuco", "squares_x": 7, "squares_y": 5,
+                       "square_m": .03, "marker_m": .015,
+                       "dictionary": "DICT_5X5_100"},
+            "thresholds": {"minimum_pairs": 30, "minimum_shared_corners": 12,
+                           "maximum_rms_px": .5, "maximum_epipolar_p95_px": .5,
+                           "baseline_tolerance_m": .002, "minimum_coverage": .65},
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            status = module.create_web_session(Path(directory), configuration)
+            self.assertRegex(status["session_id"], r"^[a-f0-9]{32}$")
+            self.assertEqual(status["state"], "collecting")
+            self.assertEqual(module.read_web_status(
+                Path(directory), status["session_id"])["required_pairs"], 30)
+        malformed = json.loads(json.dumps(configuration))
+        malformed["target"]["marker_m"] = malformed["target"]["square_m"]
+        with self.assertRaisesRegex(ValueError, "marker_m"):
+            module.validate_web_configuration(malformed)
+
+    def test_validation_unit_does_not_stop_the_live_depth_service(self):
+        unit = (Path(__file__).parents[1] / "deployment/systemd/nuvo-calibration@.service").read_text()
+        self.assertNotIn("Conflicts=nuvo-depthd-native.service", unit)
+        self.assertIn("nuvo-calibration validate", unit)
+        self.assertIn("ReadOnlyPaths=/var/cache/nuvo-depth/calibration-jobs", unit)
+
+    def test_profile_matrix_plan_is_strict_and_reproducible(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "matrix.json"
+            plan = {
+                "schema_version": 1,
+                "unit_id": "unit-1",
+                "left_camera_id": "left",
+                "right_camera_id": "right",
+                "target": {"type": "chessboard", "columns": 9, "rows": 6,
+                           "square_m": 0.024},
+                "profiles": [
+                    {"profile_id": "imx296-1456x1088", "sensor_mode": "1456x1088",
+                     "width": 1456, "height": 1088, "frame_rates_hz": [10, 30, 60],
+                     "left": "captures/native/left/*.png",
+                     "right": "captures/native/right/*.png"},
+                    {"profile_id": "imx296-728x544", "sensor_mode": "728x544-binned",
+                     "width": 728, "height": 544, "frame_rates_hz": [10, 30, 60],
+                     "left": "captures/binned/left/*.png",
+                     "right": "captures/binned/right/*.png"},
+                ],
+            }
+            module.atomic_json(path, plan)
+            loaded = module.load_matrix_plan(path)
+            self.assertEqual([item["profile_id"] for item in loaded["profiles"]],
+                             ["imx296-1456x1088", "imx296-728x544"])
+            plan["profiles"][1]["profile_id"] = "imx296-1456x1088"
+            module.atomic_json(path.with_name("duplicate.json"), plan)
+            with self.assertRaisesRegex(ValueError, "duplicate calibration profile"):
+                module.load_matrix_plan(path.with_name("duplicate.json"))
+            plan["profiles"][1]["profile_id"] = "../escape"
+            module.atomic_json(path.with_name("unsafe.json"), plan)
+            with self.assertRaisesRegex(ValueError, "unsafe identifier"):
+                module.load_matrix_plan(path.with_name("unsafe.json"))
+
+    def test_capture_pair_keys_accept_side_labels_but_not_wrong_indices(self):
+        self.assertEqual(module.capture_pair_key("left_000042.png"), "000042")
+        self.assertEqual(module.capture_pair_key("right_000042.png"), "000042")
+        self.assertEqual(module.capture_pair_key("000042_front-left.png"), "000042")
+        self.assertNotEqual(module.capture_pair_key("left_000041.png"),
+                            module.capture_pair_key("right_000042.png"))
+
+    def test_profile_metadata_is_validated_before_activation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            item = bundle(Path(directory), "profile")
+            manifest = json.loads((item / "manifest.json").read_text())
+            manifest["profile"] = {
+                "sensor_mode": "1456x1088", "image_width": 1456,
+                "image_height": 1088, "frame_rates_hz": [10, 30, 60],
+            }
+            manifest.pop("bundle_id")
+            manifest["bundle_id"] = hashlib.sha256(json.dumps(
+                manifest, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            module.atomic_json(item / "manifest.json", manifest)
+            self.assertEqual(module.validate_bundle(item)["profile"]["image_width"], 1456)
+            manifest["profile"]["frame_rates_hz"] = []
+            manifest.pop("bundle_id")
+            manifest["bundle_id"] = hashlib.sha256(json.dumps(
+                manifest, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            module.atomic_json(item / "manifest.json", manifest)
+            with self.assertRaisesRegex(ValueError, "frame-rate set"):
+                module.validate_bundle(item)
+
     def test_activate_and_rollback(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory); store=module.CalibrationStore(root/"state")

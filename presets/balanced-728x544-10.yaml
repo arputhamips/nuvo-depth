@@ -1,7 +1,10 @@
 schema_version: 1
 preset_id: balanced_728x544_10
-qualification: engineering_candidate
+qualification: unqualified_candidate
+control_profile: balanced
+control_catalog: ../web/depth-profiles.json
 capture: {width: 728, height: 544, target_hz: 10}
-matching: {width: 364, height: 272, disparities: 64, block_size: 5}
+matching: {width: 728, height: 544, disparities: 128, block_size: 5, mode: 3way, median_filter_size: 0}
+depth_rate_guarantee_hz: null
 outputs: [left_rectified, right_rectified, disparity, depth, confidence, validity]
-notes: Default Pi 5 candidate; requires per-unit calibration and final HIL qualification.
+notes: Full-grid 3-way matching uses two CPU threads and 128 disparities; 10 Hz is the capture target. Depth throughput, final hardware, and per-unit calibration remain unqualified.

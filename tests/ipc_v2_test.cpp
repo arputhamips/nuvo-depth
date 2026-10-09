@@ -183,6 +183,29 @@ void test_limits_and_identity_rejections() {
           "truncated product disagreed with metadata but was accepted");
 }
 
+void test_extended_selective_publication_hides_unavailable_products() {
+  using namespace depthd::ipc_v2;
+  std::array<std::uint8_t, 16> run{}; run[0] = 15U;
+  auto input = frame(1U, run, 1.0F);
+  auto configuration = make_pool_configuration(input.metadata, 2U);
+  Broker broker(configuration, run);
+  const auto rgb = broker.subscribe({product_bit(ProductKind::kLeftRgb), DeliveryTrust::kUntrustedCopy, 1U});
+  const auto depth = broker.subscribe({product_bit(ProductKind::kDepth), DeliveryTrust::kUntrustedCopy, 1U});
+  require(rgb && depth, "extended subscriptions were not admitted");
+  input.available_products = product_bit(ProductKind::kLeftRgb) | product_bit(ProductKind::kRectifiedStereoRgb);
+  input.left_rectified.clear(); input.right_rectified.clear(); input.disparity.clear();
+  input.depth_m.clear(); input.confidence.clear(); input.validity.clear();
+  input.left_rgb.assign(48U, 71U); input.rectified_stereo_rgb.assign(96U, 91U);
+  require(broker.publish(input) == PublishResult::kPublished, "extended selective frame was rejected");
+  const auto copy = broker.copy_latest(*rgb);
+  require(copy && copy->descriptor.available_products == input.available_products &&
+          copy->product(ProductKind::kLeftRgb).size() == 48U &&
+          copy->product(ProductKind::kLeftRgb).front() == std::byte{71},
+          "extended product copy lost mask, layout or pixels");
+  require(!broker.copy_latest(*depth), "subscriber received a frame lacking its requested depth");
+  require(product_bit(static_cast<ProductKind>(255U)) == 0U, "unknown kind made an invalid shift");
+}
+
 }  // namespace
 
 int main() {
@@ -190,6 +213,7 @@ int main() {
     test_selective_copy_and_generation();
     test_pinned_slots_are_never_recycled();
     test_limits_and_identity_rejections();
+    test_extended_selective_publication_hides_unavailable_products();
     std::cout << "ipc_v2_test: pass\n";
     return EXIT_SUCCESS;
   } catch (const std::exception& error) {

@@ -1,3 +1,6 @@
+import concurrent.futures
+import hashlib
+import threading
 import importlib.util
 import json
 import os
@@ -9,6 +12,28 @@ SOURCE=Path(__file__).parents[1]/"tools/nuvoctl.py"
 spec=importlib.util.spec_from_file_location("nuvoctl",SOURCE); module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
 
 class NuvoctlTest(unittest.TestCase):
+    def test_configuration_compare_and_swap_is_atomic_under_racing_writers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            original=json.loads((Path(__file__).parents[1]/"config/stereo.json").read_text())
+            module.set_stereo(root,original)
+            path=root/"etc/nuvo-depth/stereo.json"
+            etag='"'+hashlib.sha256(path.read_bytes()).hexdigest()+'"'
+            start=threading.Barrier(2)
+            def save(maximum):
+                start.wait()
+                try: return module.set_stereo(root,dict(original,max_disparity=maximum),etag)
+                except module.ConfigurationConflict: return None
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+                results=list(pool.map(save,(80,81)))
+            receipts=[result for result in results if result is not None]
+            self.assertEqual(len(receipts),1)
+            self.assertEqual(receipts[0]["state"],"pending")
+            self.assertEqual(receipts[0]["requested_revision"],hashlib.sha256(path.read_bytes()).hexdigest())
+            self.assertEqual(json.loads(path.read_bytes()),receipts[0]["configuration"])
+            self.assertRaises(module.ConfigurationConflict,module.set_stereo,root,original,etag)
+            self.assertRaises(ValueError,module.set_stereo,root,original,"*")
+
     def test_firmware_boot_config_wins_over_legacy_notice(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory); (root/"boot/firmware").mkdir(parents=True)
@@ -32,8 +57,21 @@ class NuvoctlTest(unittest.TestCase):
             if os.name != "nt":
                 self.assertEqual((root/"etc/nuvo-depth/transport.json").stat().st_mode & 0o777,0o644)
             self.assertTrue(module.confirm_transport(root)["confirmed"])
-            self.assertEqual(module.rollback_transport(root)["preference"],"ethernet")
+            self.assertEqual(module.rollback_transport(root)["preference"],"auto")
             self.assertRaises(RuntimeError,module.stage_transport,root,"off",False)
+            for preference in ("auto","wifi"):
+                self.assertEqual(module.stage_transport(root,preference,False)["preference"],preference)
+                self.assertTrue(module.confirm_transport(root)["confirmed"])
+            self.assertRaises(ValueError,module.stage_transport,root,"unknown",False)
+
+    def test_transport_reconciliation_without_pending_change_uses_auto_default(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            expected={"status":"no_pending_change","preference":"auto"}
+            self.assertEqual(module.reconcile_transport(root),expected)
+            config=root/"etc/nuvo-depth/transport.json"
+            module.atomic_write(config,json.dumps({"schema_version":1})+"\n",0o644)
+            self.assertEqual(module.reconcile_transport(root),expected)
 
     def test_expired_transport_change_is_automatically_reconciled(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -42,21 +80,30 @@ class NuvoctlTest(unittest.TestCase):
             value=json.loads(transaction.read_text()); value["expires_unix_ns"]=0
             module.atomic_write(transaction,json.dumps(value)+"\n",0o600)
             result=module.reconcile_transport(root)
-            self.assertEqual(result,{"status":"rolled_back","preference":"ethernet"})
-            self.assertEqual(json.loads((root/"etc/nuvo-depth/transport.json").read_text())["preference"],"ethernet")
+            self.assertEqual(result,{"status":"rolled_back","preference":"auto"})
+            self.assertEqual(json.loads((root/"etc/nuvo-depth/transport.json").read_text())["preference"],"auto")
 
     def test_encoding_configuration_is_atomic_and_bounded(self):
         value={"schema_version":1,"mode":"both","codec":"h264","source":"left_rectified",
                "width":0,"height":0,"cadence_hz":10,"bitrate_bps":4_000_000,
-               "jpeg_quality":80,"keyframe_interval":30,"threads":4,
+               "jpeg_quality":80,"keyframe_interval":1,"threads":4,
                "low_latency":True,"preset":"veryfast"}
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
             self.assertEqual(module.set_encoding(root,value)["codec"],"h264")
             path=root/"etc/nuvo-depth/encoding.json"
             self.assertEqual(json.loads(path.read_text()),value)
+            color=dict(value,source="right_color")
+            self.assertEqual(module.set_encoding(root,color)["source"],"right_color")
             invalid=dict(value,threads=5)
             self.assertRaises(ValueError,module.set_encoding,root,invalid)
+            self.assertRaises(ValueError,module.set_encoding,root,dict(value,keyframe_interval=30))
+            self.assertEqual(json.loads(path.read_text()),color)
+            self.assertEqual(module.validate_encoding(dict(value,mode="raw",keyframe_interval=30))["mode"],"raw")
+            for source in ("left_mono","right_mono","left_rgb","right_rgb",
+                           "left_rectified_rgb","right_rectified_rgb",
+                           "rectified_stereo","rectified_stereo_rgb"):
+                self.assertEqual(module.validate_encoding(dict(value,source=source))["source"],source)
 
     def test_stereo_configuration_is_atomic_and_bounded(self):
         value=json.loads((Path(__file__).parents[1]/"config/stereo.json").read_text())
@@ -66,8 +113,23 @@ class NuvoctlTest(unittest.TestCase):
             self.assertEqual(json.loads((root/"etc/nuvo-depth/stereo.json").read_text()),value)
             for invalid in (dict(value,search_range=127),dict(value,max_disparity=129),
                             dict(value,algorithm="cuda"),dict(value,block_size=6),
-                            dict(value,specular_threshold=257)):
+                            dict(value,sgbm_mode="sideways"),
+                            dict(value,specular_threshold=257),
+                            dict(value,median_filter_size=2)):
                 self.assertRaises(ValueError,module.set_stereo,root,invalid)
+
+    def test_exposure_configuration_is_atomic_and_bounded(self):
+        value=json.loads((Path(__file__).parents[1]/"config/exposure.json").read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            self.assertEqual(module.set_exposure(root,value)["mode"],"manual")
+            path=root/"etc/nuvo-depth/exposure.json"
+            self.assertEqual(json.loads(path.read_text()),value)
+            for invalid in (dict(value,manual_exposure_us=8001),
+                            dict(value,manual_analogue_gain=3.1),
+                            dict(value,mode="per-camera"),
+                            dict(value,auto_min_median=90)):
+                self.assertRaises(ValueError,module.set_exposure,root,invalid)
 
     def test_usb_plan_requires_identity_and_approval(self):
         with tempfile.TemporaryDirectory() as directory:

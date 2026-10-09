@@ -9,19 +9,39 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "depthd/capture.hpp"
 #include "depthd/rectification_backend.hpp"
+#include "depthd/output_selection.hpp"
 
 namespace depthd {
+
+enum class ColorPreviewRequest : std::uint8_t {
+  kNone = 0,
+  kLeft = 1,
+  kRight = 2,
+};
+
+// Immutable, bounded per-pair control/telemetry snapshot for publication. A
+// context must never retain camera leases or mappings. Product pool and
+// scheduler capacities bound the number of snapshots retained in flight.
+struct CapturePublicationContext {
+  virtual ~CapturePublicationContext() = default;
+};
 
 // A request retains paired camera leases and any acquired CPU mappings for the
 // complete asynchronous processing operation. Capture-native requests may
 // defer those mappings until a CPU rectifier/fallback actually needs them.
 struct StereoProcessingRequest {
+  ipc_v2::ProductMask products{ipc_v2::kAllProducts};
+  // Preserve an admitted numeric preview against ordinary pending raw work.
+  // Newer previews may replace it; the queue remains bounded.
+  bool preserve_for_preview{};
   StereoPair capture{};
   std::shared_ptr<const void> left_mapping_owner{};
   std::shared_ptr<const void> right_mapping_owner{};
@@ -30,6 +50,11 @@ struct StereoProcessingRequest {
   std::optional<DmabufStereoInput> dmabuf{};
   std::shared_ptr<const DmabufRequestLease> left_dmabuf_lease{};
   std::shared_ptr<const DmabufRequestLease> right_dmabuf_lease{};
+  // Optional tightly-packed ISP YUV420 image copied while the capture lease is
+  // live. It is monitoring-only and never enters rectification or matching.
+  ColorPreviewRequest color_preview{ColorPreviewRequest::kNone};
+  std::vector<std::uint8_t> color_preview_yuv420{};
+  std::shared_ptr<const CapturePublicationContext> publication_context{};
 
   StereoProcessingRequest() = default;
   StereoProcessingRequest(const StereoProcessingRequest&) = delete;
@@ -52,6 +77,8 @@ struct StereoProcessingRequest {
     right_mapping_owner.reset();
     left_mapping_owner.reset();
     capture = std::move(other.capture);
+    products = other.products;
+    preserve_for_preview = other.preserve_for_preview;
 
     left_mapping_owner = std::move(other.left_mapping_owner);
     right_mapping_owner = std::move(other.right_mapping_owner);
@@ -60,6 +87,11 @@ struct StereoProcessingRequest {
     dmabuf = std::move(other.dmabuf);
     left_dmabuf_lease = std::move(other.left_dmabuf_lease);
     right_dmabuf_lease = std::move(other.right_dmabuf_lease);
+    color_preview = std::exchange(other.color_preview,
+                                  ColorPreviewRequest::kNone);
+    color_preview_yuv420 = std::move(other.color_preview_yuv420);
+    other.color_preview_yuv420.clear();
+    publication_context = std::move(other.publication_context);
     return *this;
   }
 };
@@ -71,6 +103,15 @@ struct NativePipelineConfiguration {
   RectifiedCalibrationView image_calibration{};
   RectifiedCalibrationView matching_calibration{};
   DepthConversionOptions depth{};
+  // Slots are shared by processing, queued completions, and retained consumers.
+  // Product buffers are allocated once per slot at its first use. The pipeline
+  // drops complete inputs when every slot is still retained; it never expands
+  // the pool or overwrites a published frame.
+  std::size_t frame_pool_capacity{8U};
+  // Bounds all slot product capacities (including both optional color images)
+  // and the shared disparity-validity scratch. Geometry is rejected before
+  // allocation if its worst-case RGB payload would exceed this budget.
+  std::size_t frame_pool_payload_budget_bytes{256U * 1024U * 1024U};
 };
 
 struct NativePipelineStats {
@@ -83,13 +124,28 @@ struct NativePipelineStats {
 // Owns every product in a coherent frame set. Views returned by view() remain
 // valid for this object's lifetime and never retain the camera request.
 struct FrameSetStorage {
+  ipc_v2::ProductMask available_products{ipc_v2::kAllProducts};
   ProductSetMetadata metadata{};
+  std::shared_ptr<const CapturePublicationContext> publication_context{};
   std::string rectification_backend;
   std::string rectification_fallback_reason;
   std::string stereo_backend;
+  StereoConfigurationState stereo_configuration{};
   NativePipelineStats stats{};
   std::vector<std::uint8_t> left_rectified;
   std::vector<std::uint8_t> right_rectified;
+  std::vector<std::uint8_t> left_mono;
+  std::vector<std::uint8_t> right_mono;
+  std::vector<std::uint8_t> left_rgb;
+  std::vector<std::uint8_t> right_rgb;
+  std::vector<std::uint8_t> left_rectified_rgb;
+  std::vector<std::uint8_t> right_rectified_rgb;
+  std::vector<std::uint8_t> rectified_stereo;
+  std::vector<std::uint8_t> rectified_stereo_rgb;
+  // Optional tightly-packed ISP YUV420 monitoring images. Only the requested
+  // camera is retained, keeping the raw/depth-only path allocation-free.
+  std::vector<std::uint8_t> left_color_yuv420;
+  std::vector<std::uint8_t> right_color_yuv420;
   std::vector<float> disparity;
   std::vector<float> depth_m;
   std::vector<std::uint8_t> confidence;
@@ -104,19 +160,31 @@ class NativeProcessingPipeline final {
   NativeProcessingPipeline(
       NativePipelineConfiguration configuration,
       std::unique_ptr<RectificationBackend> rectifier,
-      std::unique_ptr<NativeDisparityBackend> stereo);
+      std::unique_ptr<NativeDisparityBackend> stereo,
+      std::unique_ptr<RectificationBackend> rgb_rectifier = {});
 
   NativeProcessingPipeline(const NativeProcessingPipeline&) = delete;
   NativeProcessingPipeline& operator=(const NativeProcessingPipeline&) =
       delete;
 
+  // One worker owns this stateful pipeline. Returns null, releasing both camera
+  // leases without processing, if all fixed storage slots are consumer-pinned.
   [[nodiscard]] std::shared_ptr<const FrameSetStorage> process(
       StereoProcessingRequest request);
+  [[nodiscard]] bool has_available_storage() const noexcept;
 
  private:
   NativePipelineConfiguration configuration_{};
   std::unique_ptr<RectificationBackend> rectifier_;
+  std::unique_ptr<RectificationBackend> rgb_rectifier_;
   std::unique_ptr<NativeDisparityBackend> stereo_;
+  std::vector<std::shared_ptr<FrameSetStorage>> frame_pool_;
+  std::vector<std::uint8_t> disparity_validity_;
+  std::vector<float> disparity_scratch_;
+  std::vector<float> depth_scratch_;
+  std::vector<std::uint8_t> confidence_scratch_;
+  std::vector<std::uint8_t> depth_validity_scratch_;
+  std::uint64_t stereo_generation_{};
 };
 
 struct SchedulerConfiguration {
@@ -134,8 +202,10 @@ struct SchedulerStats {
   std::uint64_t accepted{};
   std::uint64_t input_rejected{};
   std::uint64_t pending_replaced{};
+  std::uint64_t protected_pending_dropped{};
   std::uint64_t processed{};
   std::uint64_t processing_failures{};
+  std::uint64_t storage_exhausted_dropped{};
   std::uint64_t completed_dropped{};
   std::size_t pending{};
   std::size_t completed{};
@@ -186,8 +256,17 @@ void validate(const NativePipelineConfiguration& configuration);
 // CPU rectification/fallback. The request owns import lease views and both
 // camera leases. It throws on non-Linux hosts or unsupported formats.
 [[nodiscard]] StereoProcessingRequest make_cpu_dmabuf_processing_request(
-    StereoPair pair);
+    StereoPair pair,
+    ColorPreviewRequest color_preview = ColorPreviewRequest::kNone);
 [[nodiscard]] bool cpu_dmabuf_mapping_available() noexcept;
+
+// Copies only after consumer/pool admission. Mono is packed Gray8; color is
+// packed full-range sYCC/Rec.601 I420 as pinned by native capture. RGB
+// conversion writes directly into the caller-owned buffer.
+void copy_capture_image(const StereoProcessingRequest& request, CameraRole role,
+                        bool color, std::span<std::uint8_t> destination);
+void copy_capture_rgb(const StereoProcessingRequest& request, CameraRole role,
+                      std::span<std::uint8_t> destination);
 
 struct CpuDmabufMappingStats {
   std::uint64_t mappings_started{};
@@ -195,6 +274,9 @@ struct CpuDmabufMappingStats {
   std::uint64_t sync_start_failures{};
   std::uint64_t sync_end_retries{};
   std::uint64_t sync_end_failures{};
+  std::uint64_t mapping_cache_hits{};
+  std::size_t cached_mappings{};
+  std::size_t cached_bytes{};
 };
 
 // Process-lifetime counters make otherwise-noexcept DMA-BUF cleanup failures

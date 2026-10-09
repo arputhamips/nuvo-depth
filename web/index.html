@@ -3,139 +3,954 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#171a1f">
   <title>Nuvo Depth</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><symbol id="icon-overview" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="4" rx="1"/><rect x="14" y="11" width="7" height="10" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></symbol><symbol id="icon-scan" viewBox="0 0 24 24"><path d="M4 9V5a1 1 0 0 1 1-1h4m6 0h4a1 1 0 0 1 1 1v4m0 6v4a1 1 0 0 1-1 1h-4m-6 0H5a1 1 0 0 1-1-1v-4"/></symbol><symbol id="icon-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-3Z"/><circle cx="12" cy="13" r="3"/></symbol><symbol id="icon-layers" viewBox="0 0 24 24"><path d="m12 3 10 5-10 5L2 8Zm-10 9 10 5 10-5M2 16l10 5 10-5"/></symbol><symbol id="icon-sliders" viewBox="0 0 24 24"><path d="M4 4v7m0 4v5M12 4v2m0 4v10M20 4v10m0 4v2M1 11h6m2-5h6m2 8h6"/></symbol><symbol id="icon-stream" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></symbol><symbol id="icon-cable" viewBox="0 0 24 24"><path d="M7 3v3m4-3v3M5 6h8v4a4 4 0 0 1-8 0Zm4 8v2a4 4 0 0 0 8 0v-2m-2-4h4v4h-4Zm2-3v3"/></symbol><symbol id="icon-focus" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m13-5h3a2 2 0 0 1 2 2v3m0 8v3a2 2 0 0 1-2 2h-3m-8 0H5a2 2 0 0 1-2-2v-3"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".5"/></symbol><symbol id="icon-activity" viewBox="0 0 24 24"><path d="M2 12h4l3-9 6 18 3-9h4"/></symbol><symbol id="icon-update" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M3 15v5a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-5"/></symbol><symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol><symbol id="icon-alert" viewBox="0 0 24 24"><path d="m10.5 3.5-9 16A1 1 0 0 0 2.4 21h19.2a1 1 0 0 0 .9-1.5l-9-16a1.7 1.7 0 0 0-3 0Z"/><path d="M12 8v5m0 4h.01"/></symbol><symbol id="icon-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6Z"/><path d="m9 12 2 2 4-4"/></symbol><symbol id="icon-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10m-7 6h4"/></symbol><symbol id="icon-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 3v3m6-3v3M9 18v3m6-3v3M3 9h3m-3 6h3m12-6h3m-3 6h3"/></symbol><symbol id="icon-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1-3.7 1.5 1.5 0 0 1 1-2.8h2a4 4 0 0 0 4-4A8.5 8.5 0 0 0 12 3Z"/><circle cx="8" cy="8" r=".6"/><circle cx="13" cy="7" r=".6"/><circle cx="17" cy="10" r=".6"/><circle cx="6.5" cy="13" r=".6"/></symbol></defs></svg>
+  <a class="skip-link" href="#consoleMain">Skip to device console</a>
   <header>
-    <div class="brand"><span class="mark" aria-hidden="true"></span><span><span class="brand-name">NUVO <b>DEPTH</b></span><small class="brand-subtitle">Vision systems / Device console</small></span></div>
-    <div id="connection" class="pill offline">Not connected</div>
+    <div class="brand" aria-label="Nuvo Vision One"><span class="mark" aria-hidden="true"></span><span class="brand-name">NUVO</span><span class="brand-product">Vision One</span></div>
+    <div class="header-actions">
+      <button id="themeToggle" class="theme-toggle" type="button" aria-label="Use light theme" aria-pressed="false" title="Use light theme">
+        <svg class="theme-icon theme-icon-sun" aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v2M12 19.5v2M21.5 12h-2M4.5 12h-2M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4M18.7 18.7l-1.4-1.4M6.7 6.7 5.3 5.3"/></svg>
+        <svg class="theme-icon theme-icon-moon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4a8.5 8.5 0 1 0 11.2 11.2Z"/></svg>
+      </button>
+      <div id="connection" class="pill offline" aria-live="polite">Not connected</div>
+    </div>
   </header>
   <div class="shell">
     <nav aria-label="Device pages">
-      <p class="nav-label">Monitor</p>
-      <button data-page="overview" class="active">Overview</button>
-      <button data-page="viewer">Live viewer</button>
-      <button data-page="streaming">Streaming</button>
-      <p class="nav-label">Configure</p>
-      <button data-page="algorithm">Depth algorithm</button>
-      <button data-page="presets">Presets</button>
-      <button data-page="exposure">Exposure & trigger</button>
-      <button data-page="network">Connections</button>
-      <button data-page="calibration">Calibration</button>
-      <p class="nav-label">System</p>
-      <button data-page="diagnostics">Diagnostics</button>
-      <button data-page="recovery">Update & recovery</button>
+      <button type="button" data-page="overview" class="active" aria-current="page"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-overview"/></svg><span>Overview</span></button>
+      <button type="button" data-page="viewer"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-scan"/></svg><span>Live view</span></button>
+      <p class="nav-label">Settings</p>
+      <button type="button" data-page="exposure"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-camera"/></svg><span>Capture</span></button>
+      <button type="button" data-page="presets"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-layers"/></svg><span>Depth profiles</span></button>
+      <button type="button" data-page="algorithm"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-sliders"/></svg><span>Matcher</span></button>
+      <button type="button" data-page="streaming"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-stream"/></svg><span>Streaming</span></button>
+      <button type="button" data-page="network"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-cable"/></svg><span>Outputs</span></button>
+      <p class="nav-label">Device</p>
+      <button type="button" data-page="calibration"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-focus"/></svg><span>Calibration</span></button>
+      <button type="button" data-page="diagnostics"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-activity"/></svg><span>Diagnostics</span></button>
+      <button type="button" data-page="recovery"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-update"/></svg><span>Software update</span></button>
     </nav>
-    <main>
+    <main id="consoleMain" tabindex="-1">
       <section id="overview" class="page active">
-        <p class="eyebrow">STEREO CAMERA APPLIANCE</p>
-        <h1>Depth, in view.</h1>
-        <p class="lede">One place to inspect synchronized capture, native-resolution depth, and stream delivery.</p>
-        <div class="cards">
-          <article><span>Camera</span><strong id="cameraState">Waiting</strong><small id="cameraDetail">No health report yet</small></article>
-          <article><span>Frame</span><strong id="frameRate">—</strong><small id="frameDetail">Associated stereo + depth</small></article>
-          <article><span>Calibration</span><strong id="calibrationState">—</strong><small id="calibrationHash">Not loaded</small></article>
-          <article><span>Processing</span><strong id="processingTime">—</strong><small>Capture-to-products compute</small></article>
+        <div class="page-header">
+          <h1>Overview</h1>
+          <span class="page-meta" id="deviceResolution">Waiting for device</span>
         </div>
-        <div class="notice" id="calibrationNotice">Depth remains unavailable until a camera frame and accepted calibration are active.</div>
-        <button class="primary" data-open="viewer">Open live viewer</button>
-        <div class="section-head"><h2>Pipeline timing</h2><small>Latest processed frame</small></div>
-        <div class="panel">
-          <dl class="timing-list">
-            <div><dt>GPU rectification</dt><dd id="rectificationTime">—</dd><span class="timing-track"><i id="rectificationBar"></i></span></div>
-            <div><dt>Stereo preparation</dt><dd id="preprocessTime">—</dd><span class="timing-track"><i id="preprocessBar"></i></span></div>
-            <div><dt>Stereo match</dt><dd id="matchTime">—</dd><span class="timing-track"><i id="matchBar"></i></span></div>
-            <div><dt>Disparity filtering</dt><dd id="postprocessTime">—</dd><span class="timing-track"><i id="postprocessBar"></i></span></div>
-            <div><dt>Depth + overhead</dt><dd id="otherTime">—</dd><span class="timing-track"><i id="otherBar"></i></span></div>
-          </dl>
-          <p class="timing-note">Capture wait, snapshot I/O, and network delivery are outside this compute timer. Encoder time appears on the Streaming page.</p>
+        <div class="cards status-strip">
+          <article>
+            <span>Camera</span>
+            <strong id="cameraState" class="state-value">Waiting</strong>
+            <small id="cameraDetail">No health report yet</small>
+          </article>
+          <article>
+            <span>Depth rate</span>
+            <strong id="frameRate">—</strong>
+            <small id="frameDetail">Measured output</small>
+          </article>
+          <article>
+            <span>Compute time</span>
+            <strong id="processingTime">—</strong>
+            <small>Excludes network delivery</small>
+          </article>
         </div>
+        <div class="notice device-notice" id="calibrationBanner">
+          <svg class="icon" aria-hidden="true" focusable="false">
+            <use href="#icon-alert"></use>
+          </svg>
+          <span id="calibrationNotice">Waiting for calibration status.</span>
+          <button type="button" class="text-action" data-open="calibration">Calibration details <svg class="icon" aria-hidden="true" focusable="false">
+              <use href="#icon-chevron"></use>
+            </svg>
+          </button>
+        </div>
+        <div class="overview-grid">
+          <div class="panel">
+            <div class="card-heading">
+              <h2>
+                <svg class="icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-sliders"></use>
+                </svg>Configuration</h2>
+              <span class="chip chip-neutral">Applied</span>
+            </div>
+            <dl class="status-list">
+              <div>
+                <dt>Capture</dt>
+                <dd id="overviewCaptureState">Waiting</dd>
+              </div>
+              <div>
+                <dt>Depth processing</dt>
+                <dd id="overviewDepthState">Waiting</dd>
+              </div>
+              <div>
+                <dt>Calibration</dt>
+                <dd>
+                  <span id="calibrationState" class="chip chip-neutral">—</span>
+                </dd>
+              </div>
+              <div>
+                <dt>Calibration ID</dt>
+                <dd>
+                  <code id="calibrationHash">Not loaded</code>
+                </dd>
+              </div>
+            </dl>
+            <p id="calibrationDetail" class="support-text">Not loaded</p>
+            <button type="button" class="setting-link" data-open="exposure">
+              <span>
+                <svg class="icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-camera"></use>
+                </svg>Capture</span>
+              <span class="chip chip-blue" data-capture-summary>Loading</span>
+            </button>
+            <button type="button" class="setting-link" data-open="algorithm">
+              <span>
+                <svg class="icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-layers"></use>
+                </svg>Matcher</span>
+              <span class="chip chip-violet" data-matcher-summary>Loading</span>
+            </button>
+            <div class="panel-footer">
+              <button type="button" class="primary" data-open="viewer">
+                <svg class="icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-scan"></use>
+                </svg>Open live view</button>
+              <button type="button" class="secondary" data-open="presets">Depth profiles</button>
+            </div>
+          </div>
+          <aside class="panel tuning-preview" data-preview-slot="overview"></aside>
+        </div>
+        <div id="overviewPerformanceSlot">
+          <section id="performanceMonitor" class="panel performance-monitor" aria-label="Performance monitor">
+            <div class="card-heading">
+              <h2>
+                <svg class="icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-activity"></use>
+                </svg>Performance <span class="chip chip-neutral">Health samples</span>
+              </h2>
+              <label class="analysis-control">Analysis target<select id="performanceTarget" aria-label="Analysis target">
+                  <option value="3">3 fps</option>
+                  <option value="5">5 fps</option>
+                  <option value="10" selected>10 fps</option>
+                  <option value="30">30 fps</option>
+                </select>
+              </label>
+            </div>
+            <div class="performance-status">
+              <span id="performanceBudgetStatus" class="chip chip-neutral">Waiting for samples</span>
+              <span id="performanceBudgetNote" class="support-text">100 ms compute budget · 10 fps analysis target</span>
+            </div>
+            <div class="performance-layout">
+              <div>
+                <div class="performance-values">
+                  <div>
+                    <span>Latest compute</span>
+                    <strong id="performanceLatest">—</strong>
+                  </div>
+                  <div>
+                    <span>P95 · sampled frames</span>
+                    <strong id="performanceP95">—</strong>
+                  </div>
+                  <div>
+                    <span id="performanceDeltaLabel">Budget difference</span>
+                    <strong id="performanceDelta">—</strong>
+                  </div>
+                </div>
+                <div class="performance-chart">
+                  <svg id="performanceChart" role="img" aria-label="Compute time health samples over the last 60 seconds"></svg>
+                  <p id="performanceEmpty">Waiting for a processed frame</p>
+                  <div id="performanceTooltip" role="tooltip" hidden></div>
+                </div>
+                <div class="chart-legend">
+                  <span>
+                    <i class="compute-swatch" aria-hidden="true"></i>Sampled compute time</span>
+                  <span>
+                    <i class="budget-swatch" aria-hidden="true"></i>Target frame budget</span>
+                </div>
+              </div>
+              <div class="performance-stages">
+                <table>
+                  <caption>Latest frame · where time is spent</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Stage</th>
+                      <th scope="col">Time</th>
+                      <th scope="col">Share</th>
+                    </tr>
+                  </thead>
+                  <tbody id="performanceStages">
+                    <tr>
+                      <td colspan="3">Waiting for timings</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="bottleneck">
+                  <span id="performanceBottleneck">Waiting for stage timings</span>
+                  <button type="button" class="secondary" data-open="algorithm">Review matcher settings <svg class="icon" aria-hidden="true" focusable="false">
+                      <use href="#icon-chevron"></use>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="performance-footnote">
+              <span>Compute only · excludes capture wait, I/O, and network.</span>
+              <span>Analysis target does not change the device.</span>
+            </div>
+          </section>
+        </div>
+        <details class="setup-guide">
+          <summary>Setup guide</summary>
+          <ol class="workflow-list">
+            <li>
+              <div class="workflow-top">
+                <span class="workflow-number">1</span>
+                <span id="flowConnectionState" class="flow-state waiting">Waiting</span>
+              </div>
+              <h3>Connection</h3>
+              <p>Claim the device and confirm both synchronized cameras, calibration, and depth processing are healthy.</p>
+              <button class="secondary" type="button" data-open="diagnostics">Open diagnostics</button>
+            </li>
+            <li>
+              <div class="workflow-top">
+                <span class="workflow-number">2</span>
+                <span id="flowCaptureState" class="flow-state waiting">Waiting</span>
+              </div>
+              <h3>Capture</h3>
+              <p>Choose constant manual exposure for repeatability or stereo-locked auto exposure for changing light.</p>
+              <button class="secondary" type="button" data-open="exposure">Set capture</button>
+            </li>
+            <li>
+              <div class="workflow-top">
+                <span class="workflow-number">3</span>
+                <span id="flowQualityState" class="flow-state waiting">Waiting</span>
+              </div>
+              <h3>Depth profile</h3>
+              <p>Start with Quality. Use Balanced only when measured latency matters, and keep advanced controls optional.</p>
+              <button class="secondary" type="button" data-open="presets">Choose a depth profile</button>
+            </li>
+            <li>
+              <div class="workflow-top">
+                <span class="workflow-number">4</span>
+                <span id="flowDeliveryState" class="flow-state waiting">Waiting</span>
+              </div>
+              <h3>Outputs</h3>
+              <p>Visually confirm depth, then enable only the raw products and monitoring stream your application needs.</p>
+              <div class="button-row">
+                <button class="secondary" type="button" data-open="viewer">Open live view</button>
+                <button class="secondary" type="button" data-open="network">Choose outputs</button>
+              </div>
+            </li>
+          </ol>
+        </details>
       </section>
 
       <section id="viewer" class="page">
-        <p class="eyebrow">SYNCHRONIZED PRODUCTS</p><h1>Live viewer</h1>
+        <div class="page-header"><h1>Live view</h1></div>
         <div id="viewerModeNotice" class="notice compact" hidden>Raw products are disabled in encoded-only mode. Select Raw + encoded or Raw only on the Streaming page to view all four products.</div>
-        <div class="viewer-grid">
+        <div id="viewerSampleNotice" class="sample-notice" role="note"><span class="sample-dot" aria-hidden="true"></span><span>Photographic DIODE benchmark reference, not a live camera frame or Nuvo algorithm result. Live stereo products replace this example when available.</span></div>
+        <div id="benchmarkGallery">
+          <div class="benchmark-heading"><div><strong>Reference scene</strong><small>DIODE benchmark · photographed scenes · reference depth</small></div><div class="button-row benchmark-scenes" role="group" aria-label="Benchmark scene"><button type="button" data-benchmark-scene="indoor" aria-pressed="true">Indoor</button><button type="button" data-benchmark-scene="outdoor" aria-pressed="false">Outdoor</button></div></div>
+          <div class="benchmark-grid" data-benchmark-panel="indoor">
+            <figure><figcaption>Reference photograph <span>Lecture hall</span></figcaption><img src="/assets/benchmark/diode-indoor-photo.jpg" alt="DIODE benchmark photograph of a lecture hall"></figure>
+            <figure><figcaption>Reference depth <span>not Nuvo output</span></figcaption><img src="/assets/benchmark/diode-indoor-depth.jpg" alt="DIODE benchmark reference depth for the lecture hall photograph"></figure>
+          </div>
+          <div class="benchmark-grid" data-benchmark-panel="outdoor" hidden>
+            <figure><figcaption>Reference photograph <span>Airfield</span></figcaption><img src="/assets/benchmark/diode-outdoor-photo.jpg" alt="DIODE benchmark photograph of an airfield"></figure>
+            <figure><figcaption>Reference depth <span>not Nuvo output</span></figcaption><img src="/assets/benchmark/diode-outdoor-depth.jpg" alt="DIODE benchmark reference depth for the airfield photograph"></figure>
+          </div>
+          <p class="benchmark-credit">DIODE benchmark sample · source imagery under the MIT license. Visualization is illustrative, not a performance claim.</p>
+        </div>
+        <div id="viewerLiveGrid" class="viewer-grid selected-output-grid" hidden>
           <figure><figcaption>Left rectified</figcaption><canvas id="leftCanvas"></canvas></figure>
           <figure><figcaption>Right rectified</figcaption><canvas id="rightCanvas"></canvas></figure>
           <figure><figcaption>Disparity <span>matcher pixels</span></figcaption><canvas id="disparityCanvas"></canvas></figure>
           <figure class="depth"><figcaption>Optical-axis depth <span>metres</span></figcaption><canvas id="depthCanvas"></canvas></figure>
         </div>
-        <div class="telemetry"><span id="sequence">Frame —</span><span id="validity">Valid —</span><span id="age">Waiting for products</span><span id="frameError" class="error"></span></div>
+        <div id="selectedProductGrid" class="viewer-grid output-previews"></div>
+        <p class="apply-note">Choose live products and cadence on <button type="button" class="link-button" data-open="network">Outputs</button>. Only selected outputs are requested.</p>
+        <div class="preview-metrics viewer-rates"><span data-live-metric="capture">Capture target · — fps</span><span data-live-metric="depth">Depth output · — fps</span><span data-live-metric="compute">Compute · — ms</span></div>
+        <div id="viewerTelemetry" class="telemetry" hidden><span id="sequence">Frame —</span><span id="validity">Valid —</span><span id="age">Waiting for products</span><span id="frameError" class="error"></span></div>
       </section>
 
       <section id="streaming" class="page">
-        <p class="eyebrow">RAW + ENCODED DELIVERY</p><h1>Image streaming</h1>
-        <p class="lede">Configure the stream without changing capture or stereo matching. The frame-rate setting is an encoder ceiling, not a promise of 60 depth results per second.</p>
+        <div class="page-header">
+          <h1>Streaming</h1>
+        </div>
+        <p class="lede">Configure the browser preview and raw product delivery. Preview frame rate is an encoder limit; depth rate depends on processing.</p>
         <div class="stream-layout">
-          <form id="encodingForm" class="settings-form">
-            <label>Output mode<select id="streamMode"><option value="raw">Raw only</option><option value="encoded">Encoded only</option><option value="both">Raw + encoded</option></select></label>
-            <label>Codec<select id="streamCodec"><option value="h264">H.264 · efficient</option><option value="jpeg">MJPEG · universal</option></select></label>
-            <label>Image source<select id="streamSource"><option value="left_rectified">Left rectified</option><option value="right_rectified">Right rectified</option><option value="disparity">Disparity</option><option value="depth">Depth</option></select></label>
-            <label>Width <small>0 keeps native</small><input id="streamWidth" type="number" min="0" max="1920" step="2" required></label>
-            <label>Height <small>0 keeps native</small><input id="streamHeight" type="number" min="0" max="1080" step="2" required></label>
-            <label>Frames per second<input id="streamFps" type="number" min="1" max="60" required></label>
-            <label>H.264 bitrate<input id="streamBitrate" type="number" min="100000" max="50000000" step="100000" required></label>
-            <label>JPEG quality<input id="streamQuality" type="number" min="1" max="100" required></label>
-            <label>Keyframe interval<small>Use 1 for artifact-free latest-frame preview</small><input id="streamKeyframes" type="number" min="1" max="600" required></label>
-            <label>Encoder threads<select id="streamThreads"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label>
-            <label>Speed/quality preset<select id="streamPreset"><option value="ultrafast">Ultra-fast</option><option value="superfast">Super-fast</option><option value="veryfast">Very fast</option><option value="faster">Faster</option><option value="fast">Fast / higher quality</option></select></label>
-            <label class="check"><input id="streamLowLatency" type="checkbox"> Low latency, no delayed frames</label>
-            <div class="form-actions"><button class="primary" type="submit">Apply streaming settings</button><span id="encodingSaveState"></span></div>
+          <form id="encodingForm" class="settings-form" novalidate="">
+            <h2 class="form-title">
+              <svg class="icon" aria-hidden="true" focusable="false">
+                <use href="#icon-stream"></use>
+              </svg>Stream settings</h2>
+            <input id="streamMode" type="hidden" value="both">
+            <label class="check toggle">
+              <input id="streamEncoderEnabled" type="checkbox">
+              <span>
+                <b>Monitoring encoder</b>
+                <small>H.264 or MJPEG browser preview</small>
+              </span>
+            </label>
+            <label class="check toggle">
+              <input id="streamRawEnabled" type="checkbox">
+              <span>
+                <b>Raw product delivery</b>
+                <small>Depth for SDK and on-device clients</small>
+              </span>
+            </label>
+            <div id="encoderSettings" class="form-group">
+              <label>Codec<select id="streamCodec">
+                  <option value="h264">H.264 · efficient</option>
+                  <option value="jpeg">MJPEG · universal</option>
+                </select>
+              </label>
+              <label>Image source<select id="streamSource">
+                  <option value="left_color">Left color · ISP</option>
+                  <option value="right_color">Right color · ISP</option>
+                  <option value="left_rectified">Left rectified · luma</option>
+                  <option value="right_rectified">Right rectified · luma</option>
+                  <option value="disparity">Disparity</option>
+                  <option value="depth">Depth</option>
+                  <option value="left_mono">Left mono · unrectified</option>
+                  <option value="right_mono">Right mono · unrectified</option>
+                  <option value="left_rgb">Left RGB · unrectified</option>
+                  <option value="right_rgb">Right RGB · unrectified</option>
+                  <option value="left_rectified_rgb">Left RGB · rectified</option>
+                  <option value="right_rectified_rgb">Right RGB · rectified</option>
+                  <option value="rectified_stereo">Stereo side by side · mono</option>
+                  <option value="rectified_stereo_rgb">Stereo side by side · RGB</option>
+                </select>
+              </label>
+              <label>Preview ceiling<input id="streamFps" type="number" min="1" max="60" required data-unit="fps">
+              </label>
+            </div>
+            <details class="panel advanced-card">
+              <summary>
+                <span class="group-heading">
+                  <svg class="icon" aria-hidden="true" focusable="false">
+                    <use href="#icon-sliders"></use>
+                  </svg>
+                  <span>
+                    <span class="group-title">Advanced encoding controls</span>
+                    <span class="group-values">Grouped settings · edits are preserved when collapsed</span>
+                  </span>
+                </span>
+                <span class="group-badges"></span>
+              </summary>
+              <div class="advanced-body">
+                <details class="advanced-group " data-group="stream-size" data-summary-fields="streamWidth:Width:px,streamHeight:Height:px">
+                  <summary>
+                    <span class="group-heading">
+                      <svg class="icon" aria-hidden="true" focusable="false">
+                        <use href="#icon-scan"></use>
+                      </svg>
+                      <span>
+                        <span class="group-title">Output size</span>
+                        <span class="group-values">Loading settings…</span>
+                      </span>
+                    </span>
+                    <span class="group-badges"></span>
+                  </summary>
+                  <div class="group-body">
+                    <div class="group-toolbar">
+                      <span class="group-context"></span>
+                      <button type="button" class="secondary group-reset">Discard group changes</button>
+                    </div>
+                    <div class="group-fields">
+                      <label>Width <small>0 keeps native</small>
+                        <input id="streamWidth" type="number" min="0" max="1920" step="2" required data-unit="px">
+                      </label>
+                      <label>Height <small>0 keeps native</small>
+                        <input id="streamHeight" type="number" min="0" max="1080" step="2" required data-unit="px">
+                      </label>
+                    </div>
+                  </div>
+                </details>
+                <details class="advanced-group " data-group="stream-compression" data-summary-fields="streamBitrate:H.264:bps,streamQuality:JPEG:%,streamThreads:CPU:threads">
+                  <summary>
+                    <span class="group-heading">
+                      <svg class="icon" aria-hidden="true" focusable="false">
+                        <use href="#icon-cpu"></use>
+                      </svg>
+                      <span>
+                        <span class="group-title">Compression &amp; compute</span>
+                        <span class="group-values">Loading settings…</span>
+                      </span>
+                    </span>
+                    <span class="group-badges"></span>
+                  </summary>
+                  <div class="group-body">
+                    <div class="group-toolbar">
+                      <span class="group-context"></span>
+                      <button type="button" class="secondary group-reset">Discard group changes</button>
+                    </div>
+                    <div class="group-fields">
+                      <label>H.264 bitrate<input id="streamBitrate" type="number" min="100000" max="50000000" step="100000" required data-unit="bps">
+                      </label>
+                      <label>JPEG quality<input id="streamQuality" type="number" min="1" max="100" required data-unit="%">
+                      </label>
+                      <label>Keyframe interval<small>Independent frames are required for live preview</small>
+                        <input id="streamKeyframes" type="number" min="1" max="1" value="1" readonly required>
+                      </label>
+                      <label>Encoder threads<select id="streamThreads">
+                          <option value="1">1</option>
+                          <option value="2">2</option>
+                          <option value="3">3</option>
+                          <option value="4">4</option>
+                        </select>
+                      </label>
+                      <label>Speed/quality preset<select id="streamPreset">
+                          <option value="ultrafast">Ultra-fast</option>
+                          <option value="superfast">Super-fast</option>
+                          <option value="veryfast">Very fast</option>
+                          <option value="faster">Faster</option>
+                          <option value="fast">Fast / higher quality</option>
+                        </select>
+                      </label>
+                      <label class="check">
+                        <input id="streamLowLatency" type="checkbox"> Low latency, no delayed frames</label>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            </details>
+            <div class="form-actions">
+              <button class="primary" type="submit">Apply settings</button>
+              <button id="encodingReset" class="secondary" type="button">Discard changes</button>
+              <span id="encodingSaveState" role="status"></span>
+            </div>
+            <details class="stream-help">
+              <summary>How monitoring affects performance</summary>
+              <div class="notice compact">Image previews run independently of stereo matching. Depth and disparity previews compute only at the requested preview rate. Select the products and rates you need; unused output stages stay idle. Raw delivery is available over WiFi, Ethernet, USB Ethernet, and on-device integrations within each connection's bandwidth budget.</div>
+              <p class="endpoint" id="encodedEndpoint"></p>
+            </details>
           </form>
           <div>
-            <figure class="encoded-preview"><figcaption>Encoded preview <span id="encodedFormat">Waiting</span></figcaption><canvas id="encodedCanvas"></canvas></figure>
-            <div class="telemetry"><span id="encodedSequence">Frame —</span><span id="encodedSize">—</span><span id="encodedLatency">—</span><span id="encodedAge">Waiting</span></div>
-            <p id="encodingError" class="error"></p>
-            <div class="notice compact">The encoder is downstream of depth processing. If it falls behind, stale preview frames are replaced; camera capture and depth continue.</div>
-            <p class="endpoint" id="encodedEndpoint"></p>
+            <figure class="encoded-preview">
+              <figcaption>Encoded preview <span id="encodedFormat">Waiting</span>
+              </figcaption>
+              <div class="sample-canvas">
+                <canvas id="encodedCanvas"></canvas>
+                <div class="sample-overlay">
+                  <img src="/assets/benchmark/diode-indoor-photo.jpg" alt="DIODE photographic benchmark example shown until an encoded frame arrives">
+                  <span>Recorded reference · not live</span>
+                </div>
+              </div>
+            </figure>
+            <div class="telemetry">
+              <span id="encodedSequence">Frame —</span>
+              <span id="encodedSize">—</span>
+              <span id="encodedLatency">—</span>
+              <span id="encodedAge">Waiting</span>
+            </div>
+            <p id="encodingError" class="error" role="alert"></p>
           </div>
         </div>
       </section>
 
       <section id="algorithm" class="page">
-        <p class="eyebrow">FULL-RESOLUTION STEREO</p><h1>Depth algorithm</h1>
-        <div class="notice compact">Stereo matching runs on the native 728 × 544 capture grid. The cameras may trigger at 60 Hz while full-resolution depth publishes more slowly. Changes apply on the next processed frame without restarting capture.</div>
+        <div class="page-header">
+          <h1>Matcher</h1>
+        </div>
+        <div class="notice compact informational">Tune stereo matching on the native capture grid. Changes apply on the next processed frame.</div>
         <p id="algorithmActive">Active matcher: loading…</p>
-        <form id="algorithmForm" class="settings-form algorithm-form">
-          <label>Matcher<select id="algorithmType"><option value="sgbm">Semi-global block matching (SGBM)</option><option value="bm">Block matching (StereoBM)</option></select></label>
-          <label>Minimum disparity <small>First pixel offset searched</small><input id="minDisparity" type="number" min="0" max="512" step="1" required></label>
-          <label>Search range <small>Number of offsets; multiple of 16</small><input id="searchRange" type="number" min="16" max="512" step="16" required></label>
-          <label>Maximum disparity <small>Accepted upper bound, exclusive</small><input id="maxDisparity" type="number" min="1" max="727" step="1" required></label>
-          <label>Block size <small>Odd, 5–31 pixels</small><input id="blockSize" type="number" min="5" max="31" step="2" required></label>
-          <label>Uniqueness ratio <small>0 disables ambiguity rejection</small><input id="uniquenessRatio" type="number" min="0" max="100" required></label>
-          <label>Speckle window <small>Remove small isolated disparity regions; 0 off</small><input id="speckleWindow" type="number" min="0" max="10000" required></label>
-          <label>Speckle range <small>Allowed disparity change in those regions</small><input id="speckleRange" type="number" min="0" max="256" required></label>
-          <label>Left-right consistency <small>Maximum difference; −1 disables</small><input id="disparity12Diff" type="number" min="-1" max="256" required></label>
-          <label>Pre-filter cap<input id="preFilterCap" type="number" min="1" max="63" required></label>
-          <label>Saturated-pixel threshold <small>256 disables bright-pixel rejection</small><input id="specularThreshold" type="number" min="1" max="256" required></label>
-          <label>OpenCV CPU threads<select id="algorithmThreads"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4 · all Pi 5 cores</option></select></label>
-          <label class="bm-only">BM pre-filter size <small>Odd, 5–255 pixels</small><input id="bmPreFilterSize" type="number" min="5" max="255" step="2" required></label>
-          <label class="bm-only">BM texture threshold <small>0 disables low-texture rejection</small><input id="bmTextureThreshold" type="number" min="0" max="255" required></label>
-          <div class="form-actions"><button class="primary" type="submit">Apply depth settings</button><span id="algorithmSaveState"></span></div>
+        <form id="algorithmForm" class="settings-form tuning-form" novalidate="">
+          <div class="tuning-layout">
+            <section class="panel basic-controls">
+              <div class="card-heading">
+                <h2>
+                  <svg class="icon" aria-hidden="true" focusable="false">
+                    <use href="#icon-layers"></use>
+                  </svg>Stereo matching</h2>
+                <span class="chip chip-blue">Next depth frame</span>
+              </div>
+              <div class="basic-fields">
+                <label>Matcher<select id="algorithmType">
+                    <option value="sgbm">Semi-global block matching (SGBM)</option>
+                    <option value="bm">Block matching (StereoBM)</option>
+                  </select>
+                </label>
+                <label>Search range <small>Number of offsets; multiple of 16</small>
+                  <input id="searchRange" type="number" min="16" max="512" step="16" required data-unit="px">
+                </label>
+                <label>Block size <small>Odd, 5–31 pixels</small>
+                  <input id="blockSize" type="number" min="5" max="31" step="2" required data-unit="px">
+                </label>
+                <label>Minimum disparity <small>First pixel offset searched</small>
+                  <input id="minDisparity" type="number" min="0" max="512" step="1" required data-unit="px">
+                </label>
+                <label>Maximum disparity <small>Accepted upper bound, exclusive</small>
+                  <input id="maxDisparity" type="number" min="1" max="727" step="1" required data-unit="px">
+                </label>
+                <label>Uniqueness ratio <small>0 disables ambiguity rejection</small>
+                  <input id="uniquenessRatio" type="number" min="0" max="100" required data-unit="%">
+                </label>
+              </div>
+            </section>
+            <aside class="panel tuning-preview" data-preview-slot="algorithm"></aside>
+          </div>
+          <details class="panel advanced-card">
+            <summary>
+              <span class="group-heading">
+                <svg class="icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-sliders"></use>
+                </svg>
+                <span>
+                  <span class="group-title">Advanced matcher controls</span>
+                  <span class="group-values">Grouped settings · edits are preserved when collapsed</span>
+                </span>
+              </span>
+              <span class="group-badges"></span>
+            </summary>
+            <div class="advanced-body">
+              <details class="advanced-group " data-group="matcher-validity" data-summary-fields="disparity12Diff:LR:px,specularThreshold:Threshold:luma,preFilterCap:Cap:">
+                <summary>
+                  <span class="group-heading">
+                    <svg class="icon" aria-hidden="true" focusable="false">
+                      <use href="#icon-shield"></use>
+                    </svg>
+                    <span>
+                      <span class="group-title">Validity &amp; rejection</span>
+                      <span class="group-values">Loading settings…</span>
+                    </span>
+                  </span>
+                  <span class="group-badges"></span>
+                </summary>
+                <div class="group-body">
+                  <div class="group-toolbar">
+                    <span class="group-context"></span>
+                    <button type="button" class="secondary group-reset">Discard group changes</button>
+                  </div>
+                  <div class="group-fields">
+                    <label>Left-right consistency <small>Maximum difference; −1 disables</small>
+                      <input id="disparity12Diff" type="number" min="-1" max="256" required data-unit="px">
+                    </label>
+                    <label>Saturated-pixel threshold <small>256 disables bright-pixel rejection</small>
+                      <input id="specularThreshold" type="number" min="1" max="256" required data-unit="luma">
+                    </label>
+                    <label>Pre-filter cap<input id="preFilterCap" type="number" min="1" max="63" required>
+                    </label>
+                  </div>
+                </div>
+              </details>
+              <details class="advanced-group " data-group="matcher-filter" data-summary-fields="speckleWindow:Regions:pixels,speckleRange:Range:px,medianFilterSize:Median:">
+                <summary>
+                  <span class="group-heading">
+                    <svg class="icon" aria-hidden="true" focusable="false">
+                      <use href="#icon-filter"></use>
+                    </svg>
+                    <span>
+                      <span class="group-title">Speckle &amp; smoothing</span>
+                      <span class="group-values">Loading settings…</span>
+                    </span>
+                  </span>
+                  <span class="group-badges"></span>
+                </summary>
+                <div class="group-body">
+                  <div class="group-toolbar">
+                    <span class="group-context"></span>
+                    <button type="button" class="secondary group-reset">Discard group changes</button>
+                  </div>
+                  <div class="group-fields">
+                    <label>Speckle window <small>Remove small isolated disparity regions; 0 off</small>
+                      <input id="speckleWindow" type="number" min="0" max="10000" required data-unit="pixels">
+                    </label>
+                    <label>Speckle range <small>Allowed disparity change in those regions</small>
+                      <input id="speckleRange" type="number" min="0" max="256" required data-unit="px">
+                    </label>
+                    <label>Disparity smoothing <small>Median filter; preserves invalid pixels</small>
+                      <select id="medianFilterSize">
+                        <option value="0">Off</option>
+                        <option value="3">3 × 3 · recommended</option>
+                        <option value="5">5 × 5 · strongest</option>
+                      </select>
+                    </label>
+                  </div>
+                </div>
+              </details>
+              <details class="advanced-group " data-group="matcher-compute" data-summary-fields="sgbmMode:Paths:,algorithmThreads:CPU:threads,bmPreFilterSize:Pre-filter:px,bmTextureThreshold:Texture:">
+                <summary>
+                  <span class="group-heading">
+                    <svg class="icon" aria-hidden="true" focusable="false">
+                      <use href="#icon-cpu"></use>
+                    </svg>
+                    <span>
+                      <span class="group-title">Compute &amp; aggregation</span>
+                      <span class="group-values">Loading settings…</span>
+                    </span>
+                  </span>
+                  <span class="group-badges"></span>
+                </summary>
+                <div class="group-body">
+                  <div class="group-toolbar">
+                    <span class="group-context"></span>
+                    <button type="button" class="secondary group-reset">Discard group changes</button>
+                  </div>
+                  <div class="group-fields">
+                    <label class="sgbm-only">SGBM path aggregation <small>More directions reduce scanline streaks at higher CPU/RAM cost</small>
+                      <select id="sgbmMode">
+                        <option value="3way">3-way · fastest</option>
+                        <option value="standard">Standard · 5 paths</option>
+                        <option value="hh4">HH4 · 4 full paths</option>
+                        <option value="hh">HH · 8 directions / cleanest</option>
+                      </select>
+                    </label>
+                    <label>OpenCV CPU threads<select id="algorithmThreads">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4 · all Pi 5 cores</option>
+                      </select>
+                    </label>
+                    <label class="bm-only">BM pre-filter size <small>Odd, 5–255 pixels</small>
+                      <input id="bmPreFilterSize" type="number" min="5" max="255" step="2" required data-unit="px">
+                    </label>
+                    <label class="bm-only">BM texture threshold <small>0 disables low-texture rejection</small>
+                      <input id="bmTextureThreshold" type="number" min="0" max="255" required>
+                    </label>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </details>
+          <div class="form-actions">
+            <button class="primary" type="submit">Apply settings</button>
+            <button id="algorithmReset" class="secondary" type="button">Discard changes</button>
+            <span id="algorithmSaveState" role="status"></span>
+          </div>
+          <p class="apply-note">Basic and advanced settings apply together on the next processed frame.</p>
         </form>
-        <p id="algorithmError" class="error"></p>
+        <p id="algorithmError" class="error" role="alert"></p>
       </section>
 
-      <section id="presets" class="page"><p class="eyebrow">OPERATING MODE</p><h1>Presets</h1><div class="settings"><article><h2>Native-resolution depth</h2><p>728 × 544 capture, rectification, disparity, and depth. The 10 Hz and experimental 60 Hz capture profiles both use full-resolution matching; depth output rate depends on the selected algorithm and settings.</p></article><article><h2>More presets</h2><p>Only hardware-qualified modes will appear here. The service never silently changes resolution or cadence.</p></article></div></section>
-      <section id="exposure" class="page"><p class="eyebrow">CAPTURE CONTROL</p><h1>Exposure & trigger</h1><p class="lede">Read-only capture policy. The running gateway does not yet expose safe, live sensor controls.</p><div class="settings"><article><h2>Hardware synchronization</h2><p>The experimental Pi 5 profile requests one external XTRIG pulse per stereo pair at 60 Hz. Pulse-width and lighting validation are still required to diagnose the ISP brightness swings.</p></article><article><h2>Manual exposure</h2><p>The native capture path disables AE and AWB and requests matched shutter and analogue gain. The 60-frame trace reported a fixed 7,999 µs exposure and near-constant gain; the brightness flicker was present before depth matching.</p></article></div></section>
-      <section id="network" class="page"><p class="eyebrow">HOST CONNECTIONS</p><h1>Ethernet & USB-C</h1><div class="settings"><article><h2>One secure protocol</h2><p>NuvoStream over TLS is shared by physical Ethernet and USB Ethernet. Interface selection is explicit and capacity-admitted.</p></article><article><h2>Current listener</h2><p id="originLabel"></p></article><article><h2>Connection preference</h2><p id="transportState">Loading…</p><div class="button-row"><button class="primary" data-transport="ethernet">Ethernet preferred</button><button class="primary" data-transport="usb">USB preferred</button><button class="primary" data-transport="both">Both</button></div><p class="error" id="transportError"></p><button id="confirmTransport" class="primary">Confirm new connection</button></article><article><h2>Safe rollback</h2><p>A changed preference is provisional for 60 seconds. Confirm through the new path or restore the previous setting.</p><button id="rollbackTransport" class="primary">Roll back</button></article></div></section>
-      <section id="calibration" class="page"><p class="eyebrow">PER-UNIT GEOMETRY</p><h1>Calibration</h1><div class="steps"><b>1 Identify cameras</b><b>2 Capture target</b><b>3 Solve stereo</b><b>4 Validate</b><b>5 Activate or roll back</b></div><div class="notice">Factory and user calibrations are stored separately. A provisional seed is never presented as production metric authority.</div></section>
-      <section id="diagnostics" class="page"><p class="eyebrow">SUPPORT</p><h1>Diagnostics</h1><p class="lede">Live health from the device. Copy this snapshot when reporting an issue; no credentials are included.</p><button id="copyDiagnostics" class="primary" type="button">Copy health JSON</button><span id="copyDiagnosticsState" role="status"></span><pre id="diagnosticJson">Waiting for authenticated health data…</pre></section>
-      <section id="recovery" class="page"><p class="eyebrow">SAFE MAINTENANCE</p><h1>Update & recovery</h1><div class="settings"><article><h2>Package channel</h2><p>Signed APT repository support is prepared; publishing keys and an arm64 release cohort are release inputs.</p></article><article><h2>Calibration protection</h2><p>Package removal preserves per-unit identity, factory calibration, and recordings.</p></article></div></section>
+      <section id="presets" class="page">
+        <div class="page-header"><h1>Depth profiles</h1></div>
+        <p class="lede">Presets change stereo matching only. Capture remains 728 × 544 and exposure is unchanged.</p>
+        <div class="settings preset-grid">
+          <article><h2>Quality · candidate</h2><p>Full-grid HH with 96-pixel search and 5 × 5 smoothing. Historical Pi output was 2.84 depth frames/s; current throughput remains unqualified.</p><button class="primary" type="button" data-depth-preset="quality" disabled>Apply quality</button></article>
+          <article><h2>Balanced · candidate</h2><p>Full-grid five-path SGBM with 96-pixel search and 3 × 3 smoothing. Measure latency and scene accuracy before choosing this profile.</p><button class="primary" type="button" data-depth-preset="balanced" disabled>Apply balanced</button></article>
+          <article><h2>Fast · candidate</h2><p>Full-grid 3-way SGBM with a narrower 64-pixel search and no smoothing. Trades near range and streak rejection for lower cost; throughput is unqualified.</p><button class="primary" type="button" data-depth-preset="fast" disabled>Apply fast</button></article>
+          <article><h2>Wide search · candidate</h2><p>Full-grid five-path SGBM with 128-pixel search and 3 × 3 smoothing. Offers closer nominal range at additional cost; throughput is unqualified.</p><button class="primary" type="button" data-depth-preset="wide" disabled>Apply wide search</button></article>
+          <article><h2>Custom / StereoBM</h2><p>Open every matcher control, including the SGBM/StereoBM toggle, validity filters, and thread count.</p><button class="primary" type="button" data-open="algorithm">Open depth settings</button></article>
+        </div>
+        <p id="presetSaveState" role="status"></p><p id="presetError" class="error"></p>
+      </section>
+      <section id="exposure" class="page">
+        <div class="page-header">
+          <h1>Capture</h1>
+        </div>
+        <p class="lede">Set exposure and gain for both cameras. Auto mode uses a shared stereo brightness target.</p>
+        <form id="exposureForm" class="settings-form tuning-form" novalidate="">
+          <div class="tuning-layout">
+            <section class="panel basic-controls">
+              <div class="card-heading">
+                <h2>
+                  <svg class="icon" aria-hidden="true" focusable="false">
+                    <use href="#icon-camera"></use>
+                  </svg>Exposure &amp; gain</h2>
+                <span class="chip chip-blue">Both cameras</span>
+              </div>
+              <div class="basic-fields">
+                <label>Exposure mode<select id="exposureMode">
+                    <option value="manual">Manual · constant</option>
+                    <option value="auto">Auto · stereo locked</option>
+                  </select>
+                </label>
+                <label class="manual-exposure">Exposure time <small>Microseconds · <span id="manualExposureMs">—</span> ms</small>
+                  <input id="manualExposure" type="number" min="250" max="8000" step="50" required data-unit="µs">
+                </label>
+                <label class="manual-exposure">Analogue gain <small>Higher gain adds image noise</small>
+                  <input id="manualGain" type="number" min="1" max="3" step="0.05" required data-unit="×">
+                </label>
+                <label class="auto-exposure">Target median <small>Luma 1–254</small>
+                  <input id="autoTargetMedian" type="number" min="1" max="254" step="1" required data-unit="luma">
+                </label>
+              </div>
+            </section>
+            <aside class="panel tuning-preview" data-preview-slot="exposure">
+              <details class="camera-telemetry">
+                <summary>Camera telemetry</summary>
+                <aside class="capture-feedback">
+                  <div class="cards compact-cards">
+                    <article>
+                      <span>Mode</span>
+                      <strong id="exposureActive">Loading</strong>
+                      <small>Shared by both cameras</small>
+                    </article>
+                    <article>
+                      <span>Requested</span>
+                      <strong id="exposureRequested">—</strong>
+                      <small id="gainRequested">—</small>
+                    </article>
+                    <article>
+                      <span>Reported pair</span>
+                      <strong id="exposureReported">—</strong>
+                      <small id="gainReported">—</small>
+                    </article>
+                    <article>
+                      <span>Metering</span>
+                      <strong id="exposureMedian">—</strong>
+                      <small id="exposureReason">Waiting for auto mode</small>
+                    </article>
+                  </div>
+                  <details class="capture-help">
+                    <summary>Exposure timing &amp; image quality</summary>
+                    <div class="notice compact informational">Exposure is also the active-low XTR pulse: longer times gather more light but add motion blur. Analogue gain brightens without a longer pulse but adds sensor noise. Both cameras remain locked to one command. <span id="exposureTiming">Loading the live frame-period limit…</span>
+                    </div>
+                  </details>
+                </aside>
+              </details>
+            </aside>
+          </div>
+          <details class="panel advanced-card">
+            <summary>
+              <span class="group-heading">
+                <svg class="icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-sliders"></use>
+                </svg>
+                <span>
+                  <span class="group-title">Advanced capture controls</span>
+                  <span class="group-values">Grouped settings · edits are preserved when collapsed</span>
+                </span>
+              </span>
+              <span class="group-badges"></span>
+            </summary>
+            <div class="advanced-body">
+              <details class="advanced-group auto-advanced" data-group="capture-limits" data-summary-fields="autoMinExposure:Min:µs,autoMaxExposure:Max:µs,autoMinGain:Gain min:×,autoMaxGain:Gain max:×">
+                <summary>
+                  <span class="group-heading">
+                    <svg class="icon" aria-hidden="true" focusable="false">
+                      <use href="#icon-sliders"></use>
+                    </svg>
+                    <span>
+                      <span class="group-title">Auto exposure limits</span>
+                      <span class="group-values">Loading settings…</span>
+                    </span>
+                  </span>
+                  <span class="group-badges"></span>
+                </summary>
+                <div class="group-body">
+                  <div class="group-toolbar">
+                    <span class="group-context"></span>
+                    <button type="button" class="secondary group-reset">Discard group changes</button>
+                  </div>
+                  <div class="group-fields">
+                    <label class="auto-exposure">Minimum exposure <small>Microseconds · <span id="autoMinExposureMs">—</span> ms</small>
+                      <input id="autoMinExposure" type="number" min="250" max="8000" step="50" required data-unit="µs">
+                    </label>
+                    <label class="auto-exposure">Maximum exposure <small>Microseconds · <span id="autoMaxExposureMs">—</span> ms</small>
+                      <input id="autoMaxExposure" type="number" min="250" max="8000" step="50" required data-unit="µs">
+                    </label>
+                    <label class="auto-exposure">Minimum analogue gain<input id="autoMinGain" type="number" min="1" max="3" step="0.05" required data-unit="×">
+                    </label>
+                    <label class="auto-exposure">Maximum analogue gain<input id="autoMaxGain" type="number" min="1" max="3" step="0.05" required data-unit="×">
+                    </label>
+                  </div>
+                </div>
+              </details>
+              <details class="advanced-group auto-advanced" data-group="capture-response" data-summary-fields="autoMinMedian:Low:luma,autoMaxMedian:High:luma,autoUpdateInterval:Update:frames,autoSettleFrames:Settle:frames">
+                <summary>
+                  <span class="group-heading">
+                    <svg class="icon" aria-hidden="true" focusable="false">
+                      <use href="#icon-activity"></use>
+                    </svg>
+                    <span>
+                      <span class="group-title">Auto response</span>
+                      <span class="group-values">Loading settings…</span>
+                    </span>
+                  </span>
+                  <span class="group-badges"></span>
+                </summary>
+                <div class="group-body">
+                  <div class="group-toolbar">
+                    <span class="group-context"></span>
+                    <button type="button" class="secondary group-reset">Discard group changes</button>
+                  </div>
+                  <div class="group-fields">
+                    <label class="auto-exposure">Deadband minimum<input id="autoMinMedian" type="number" min="1" max="254" step="1" required data-unit="luma">
+                    </label>
+                    <label class="auto-exposure">Deadband maximum<input id="autoMaxMedian" type="number" min="1" max="254" step="1" required data-unit="luma">
+                    </label>
+                    <label class="auto-exposure">Update interval <small>Processed frames</small>
+                      <input id="autoUpdateInterval" type="number" min="1" max="120" step="1" required data-unit="frames">
+                    </label>
+                    <label class="auto-exposure">Settle after change <small>Processed frames</small>
+                      <input id="autoSettleFrames" type="number" min="0" max="120" step="1" required data-unit="frames">
+                    </label>
+                  </div>
+                </div>
+              </details>
+              <details class="advanced-group " data-group="capture-balance" data-summary-fields="redGain:Red:×,blueGain:Blue:×">
+                <summary>
+                  <span class="group-heading">
+                    <svg class="icon" aria-hidden="true" focusable="false">
+                      <use href="#icon-palette"></use>
+                    </svg>
+                    <span>
+                      <span class="group-title">White balance</span>
+                      <span class="group-values">Loading settings…</span>
+                    </span>
+                  </span>
+                  <span class="group-badges"></span>
+                </summary>
+                <div class="group-body">
+                  <div class="group-toolbar">
+                    <span class="group-context"></span>
+                    <button type="button" class="secondary group-reset">Discard group changes</button>
+                  </div>
+                  <div class="group-fields">
+                    <label>Red colour gain<input id="redGain" type="number" min="0.1" max="16" step="0.0001" required data-unit="×">
+                    </label>
+                    <label>Blue colour gain<input id="blueGain" type="number" min="0.1" max="16" step="0.0001" required data-unit="×">
+                    </label>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </details>
+          <div class="form-actions">
+            <button class="primary" type="submit">Apply settings</button>
+            <button id="exposureReset" class="secondary" type="button">Discard changes</button>
+            <span id="exposureSaveState" role="status"></span>
+          </div>
+          <p class="apply-note">Basic and advanced capture settings apply together to both cameras.</p>
+        </form>
+        <p id="exposureError" class="error" role="alert"></p>
+      </section>
+      <section id="network" class="page">
+        <div class="page-header"><h1>Outputs</h1></div>
+        <p class="lede">Choose the products this browser receives. Camera images, rectified stereo and raw depth are available independently; processing follows active consumers.</p>
+        <article class="panel output-connection"><h2>Current connection</h2><p id="outputConnection">Loading connection information…</p><p id="outputRecommendation"></p><p id="originLabel"></p></article>
+        <form id="outputForm" class="settings-form output-settings">
+          <h2>Browser raw output</h2>
+          <label class="checkbox-label"><input id="outputEnabled" type="checkbox" checked>Receive selected raw products</label>
+          <fieldset><legend>Image and matcher products</legend><div id="outputProductChoices" class="output-product-choices"></div></fieldset>
+          <div class="basic-fields">
+            <label>Maximum cadence<input id="outputCadence" type="number" min="1" max="60" step="1" value="5" required></label>
+            <label>Delivery<select id="outputDelivery"><option value="auto">Connection aware · WiFi best effort</option><option value="best_effort">Best effort · maximum cadence</option><option value="exact">Exact · measured wired qualification</option></select></label>
+          </div>
+          <p id="outputBandwidth" role="status"></p><p id="outputWarning" role="status"></p>
+          <h2>Browser encoded preview</h2>
+          <div class="basic-fields"><label class="checkbox-label"><input id="outputPreviewEnabled" type="checkbox" checked>Receive encoded preview</label><label>Maximum preview cadence<input id="outputPreviewCadence" type="number" min="1" max="60" step="1" value="5" required></label></div>
+          <p class="apply-note">Set codec, source, dimensions and quality on <button type="button" class="link-button" data-open="streaming">Streaming</button>. A saved encoder configuration runs only while a preview consumer is connected.</p>
+          <div class="form-actions"><button type="submit" class="primary">Apply browser outputs</button><span id="outputSaveState" role="status"></span></div>
+          <p class="apply-note">Selections apply to this browser. Closing the page or hiding the tab releases its output demand. Other SDK and browser consumers keep their own selections.</p>
+        </form>
+        <div id="outputPreviewGrid" class="viewer-grid output-previews"></div>
+        <figure class="encoded-preview"><figcaption>Encoded preview</figcaption><canvas id="outputEncodedCanvas"></canvas></figure>
+        <div class="settings network-summary"><article><h2>On-device API</h2><p>The persistent sealed frame socket supports the same 14 product selections. Image-only consumers can avoid depth matching.</p></article><article><h2>Network API</h2><p>Use authenticated NuvoStream/1.0 over WiFi, Ethernet or USB Ethernet. WiFi is best effort within an explicit resource budget. Exact wired streams require measured source and link qualification.</p></article></div>
+        <details class="network-advanced"><summary>Connection preference and safe rollback</summary><div class="settings"><article><h2>Connection preference</h2><p id="transportState">Loading…</p><div class="button-row"><button type="button" class="primary" data-transport="auto">Automatic</button><button type="button" class="primary" data-transport="wifi">WiFi only</button><button type="button" class="primary" data-transport="ethernet">Ethernet preferred</button><button type="button" class="primary" data-transport="usb">USB preferred</button><button type="button" class="primary" data-transport="both">Ethernet and USB</button><button type="button" class="secondary" data-transport="off">Disable data output</button></div><p class="error" id="transportError"></p><button id="confirmTransport" class="primary">Confirm new connection</button></article><article><h2>Safe rollback</h2><p>A changed preference is provisional for 60 seconds. Confirm through the new path or restore the previous setting.</p><button id="rollbackTransport" class="primary">Roll back</button></article></div></details>
+      </section>
+      <section id="calibration" class="page">
+        <div class="page-header"><h1>Calibration</h1></div>
+        <p class="lede">Capture synchronized board images, validate geometry, and activate a calibration profile for this camera pair.</p>
+        <details class="notice calibration-boundary"><summary>Accuracy boundary · preview is for positioning only</summary><p>Detection and solving always use a synchronized, unrectified, full-profile luma pair captured directly from both ISPs—never the compressed preview.</p></details>
+        <div class="steps calibration-steps"><b data-calibration-step="setup">1 Target & profile</b><b data-calibration-step="capture">2 Capture coverage</b><b data-calibration-step="solve">3 Solve & inspect</b><b data-calibration-step="activate">4 Save or activate</b></div>
+
+        <form id="calibrationSetupForm" class="settings-form calibration-setup">
+          <h2 class="form-title"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-focus"/></svg>Profile identity</h2>
+          <label>Preset name <small>Include resolution and readout mode</small><input id="calibrationPresetId" value="imx296-728x544" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,127}" required></label>
+          <label>Sensor mode<input id="calibrationSensorMode" value="imx296-728x544" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,127}" required></label>
+          <label>Image width<input id="calibrationWidth" type="number" min="64" max="8192" value="728" required data-unit="px"></label>
+          <label>Image height<input id="calibrationHeight" type="number" min="64" max="8192" value="544" required data-unit="px"></label>
+          <label>Qualified frame rates <small>Comma-separated; same readout only</small><input id="calibrationRates" value="60" required></label>
+          <label>Measured stereo baseline <small>Millimetres, camera-center to camera-center</small><input id="calibrationBaseline" type="number" min="10" max="2000" step="0.01" value="100" required data-unit="mm"></label>
+          <details class="calibration-board"><summary>ChArUco board and qualification</summary><div>
+          <h2>Measured ChArUco board</h2>
+          <label>Squares across<input id="charucoSquaresX" type="number" min="4" max="30" value="7" required></label>
+          <label>Squares down<input id="charucoSquaresY" type="number" min="4" max="30" value="5" required></label>
+          <label>Measured square size <small>Millimetres; measure the printed result</small><input id="charucoSquareMm" type="number" min="1" max="500" step="0.01" value="30" required data-unit="mm"></label>
+          <label>Measured marker size <small>Millimetres</small><input id="charucoMarkerMm" type="number" min="0.5" max="490" step="0.01" value="15" required data-unit="mm"></label>
+          <label>ArUco dictionary<select id="charucoDictionary"><option>DICT_5X5_100</option><option>DICT_5X5_250</option><option>DICT_4X4_50</option><option>DICT_4X4_100</option><option>DICT_5X5_50</option><option>DICT_6X6_100</option><option>DICT_6X6_250</option></select></label>
+          <label>Required accepted pairs<input id="calibrationMinimumPairs" type="number" min="12" max="200" value="30" required></label>
+          <details class="advanced-thresholds"><summary>Qualification thresholds</summary><div>
+            <label>Shared corners per pair<input id="calibrationMinimumCorners" type="number" min="6" value="12" required></label>
+            <label>Maximum RMS <small>Pixels</small><input id="calibrationMaximumRms" type="number" min="0.05" max="5" step="0.01" value="0.5" required data-unit="px"></label>
+            <label>Maximum holdout epipolar p95 <small>Pixels</small><input id="calibrationMaximumEpipolar" type="number" min="0.05" max="5" step="0.01" value="0.5" required data-unit="px"></label>
+            <label>Baseline tolerance <small>Millimetres</small><input id="calibrationBaselineTolerance" type="number" min="0.1" max="100" step="0.1" value="2" required data-unit="mm"></label>
+            <label>Minimum coverage score<input id="calibrationMinimumCoverage" type="number" min="0.1" max="1" step="0.05" value="0.65" required></label>
+          </div></details>
+          </div></details>
+          <div class="form-actions"><button class="primary" type="submit">Start calibration session</button><span id="calibrationSetupState" role="status"></span></div>
+        </form>
+        <p id="calibrationSetupError" class="error"></p>
+
+        <div id="calibrationWorkspace" hidden>
+          <div class="calibration-layout">
+            <div>
+              <figure class="encoded-preview calibration-preview"><figcaption>Encoded positioning preview <span id="calibrationPreviewSideLabel">Left color · ISP</span></figcaption><div class="calibration-stage"><canvas id="calibrationCanvas" width="728" height="544"></canvas><div class="target-guide" aria-hidden="true"><span>Keep the whole board visible</span></div></div></figure>
+              <div class="button-row calibration-controls">
+                <button id="calibrationEnablePreview" class="primary" type="button">Enable positioning preview</button>
+                <label>View<select id="calibrationPreviewSide"><option value="left_color">Left camera · color</option><option value="right_color">Right camera · color</option></select></label>
+                <button id="calibrationRestorePreview" type="button" disabled>Restore stream settings</button>
+                <button id="calibrationCapture" class="primary" type="button">Capture synchronized raw pair</button>
+              </div>
+              <p class="endpoint">Move through the whole field, vary distance, and tilt the board about both axes. Hold still before each capture; avoid glare and motion blur.</p>
+              <p id="calibrationCaptureState" role="status"></p><p id="calibrationError" class="error" role="alert"></p>
+            </div>
+            <aside class="panel calibration-progress">
+              <h2>Capture qualification</h2>
+              <div class="calibration-stat"><span>Accepted</span><strong id="calibrationAccepted">0 / 30</strong></div>
+              <div class="calibration-stat"><span>Rejected</span><strong id="calibrationRejected">0</strong></div>
+              <div class="calibration-stat"><span>Coverage</span><strong id="calibrationCoverage">0%</strong></div>
+              <div class="coverage-grid" id="calibrationCoverageGrid" aria-label="Image field coverage"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <p id="calibrationGuidance">Start with the board centered, then cover corners, edges, near, middle, and far distances.</p>
+              <button id="calibrationSolve" class="primary" type="button" disabled>Solve and save preset</button>
+            </aside>
+          </div>
+          <div id="calibrationPair" class="calibration-pair" hidden>
+            <figure><figcaption>Latest left detection</figcaption><img id="calibrationLeftPreview" alt="Latest annotated left calibration capture"></figure>
+            <figure><figcaption>Latest right detection</figcaption><img id="calibrationRightPreview" alt="Latest annotated right calibration capture"></figure>
+          </div>
+          <div id="calibrationResults" class="panel" hidden>
+            <div class="result-heading"><div><p class="eyebrow">QUALIFICATION RESULT</p><h2 id="calibrationResultTitle">Waiting</h2></div><span id="calibrationResultBadge" class="pill">—</span></div>
+            <div class="cards compact-cards calibration-metrics">
+              <article><span>Left / right RMS</span><strong id="calibrationRms">—</strong><small>Intrinsic model fit</small></article>
+              <article><span>Stereo RMS</span><strong id="calibrationStereoRms">—</strong><small>Joint stereo fit</small></article>
+              <article><span>Holdout epipolar p95</span><strong id="calibrationEpipolar">—</strong><small>Vertical rectification error</small></article>
+              <article><span>Solved baseline</span><strong id="calibrationSolvedBaseline">—</strong><small id="calibrationBaselineError">—</small></article>
+              <article><span>Views</span><strong id="calibrationViews">—</strong><small id="calibrationOutliers">—</small></article>
+              <article><span>Worst epipolar error</span><strong id="calibrationEpipolarMax">—</strong><small>Pixels</small></article>
+            </div>
+            <p id="calibrationAccuracyNote"></p>
+            <div class="button-row"><button id="calibrationActivate" class="primary" type="button" disabled>Activate this preset</button><button id="calibrationRollback" type="button">Roll back previous preset</button></div>
+            <p id="calibrationActivationState" role="status"></p>
+          </div>
+          <details class="panel calibration-method"><summary>Method and operator checklist</summary>
+            <ul><li>Use a rigid, flat, matte board with a white border at least one square wide.</li><li>Measure the physical square and marker sizes after printing; do not trust printer scaling.</li><li>Lock focus and exposure for the capture series. Fill all image regions with sharp, varied poses and distances.</li><li>The solver rejects duplicate/blurred/clipped views, removes high-error training outliers, and reports deterministic holdout error.</li><li>A geometric pass validates model fit and baseline scale. Factory release still requires known-distance depth verification across the advertised range.</li></ul>
+          </details>
+        </div>
+      </section>
+      <section id="diagnostics" class="page">
+        <div class="page-header">
+          <h1>Diagnostics</h1>
+        </div>
+        <p class="lede">Live health from the device. Copy this snapshot when reporting an issue; no credentials are included.</p>
+        <div id="diagnosticsPerformanceSlot"></div>
+        <button id="copyDiagnostics" class="primary" type="button">Copy health JSON</button>
+        <span id="copyDiagnosticsState" role="status"></span>
+        <pre id="diagnosticJson">Waiting for authenticated health data…</pre>
+      </section>
+      <section id="recovery" class="page"><div class="page-header"><h1>Software update</h1></div><div class="settings"><article><h2>Package channel</h2><p>Signed APT repository support is prepared; publishing keys and an arm64 release cohort are release inputs.</p></article><article><h2>Calibration protection</h2><p>Package removal preserves per-unit identity, factory calibration, and recordings.</p></article></div></section>
     </main>
   </div>
 
   <dialog id="claimDialog">
     <form method="dialog" id="claimForm">
-      <p class="eyebrow">FIRST CONNECTION</p><h2>Claim this Nuvo camera</h2>
+      <h2>Connect to device</h2>
       <p>Enter the one-time code supplied with the device. It is exchanged for a secure browser session and is not stored by this page.</p>
       <label>Device claim code<input id="claimToken" type="password" minlength="32" autocomplete="one-time-code" required></label>
       <p id="claimError" class="error"></p>
       <button class="primary" type="submit">Connect securely</button>
     </form>
   </dialog>
+  <template id="tuningPreviewTemplate"><div class="card-heading"><h2><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-scan"></use></svg>Camera &amp; depth</h2><span class="chip chip-neutral" data-preview-state>Waiting for live frames</span></div><div class="tuning-preview-grid"><figure><figcaption>Left rectified <span class="chip chip-cyan">Image</span></figcaption><div class="sample-canvas"><canvas data-tuning-product="left_rectified" width="728" height="544" aria-label="Live left rectified camera image"></canvas><div class="sample-overlay preview-empty"><span>Waiting for camera image</span></div></div></figure><figure><figcaption>Depth <span class="chip chip-violet">Metric depth</span></figcaption><div class="sample-canvas"><canvas data-tuning-product="depth" width="728" height="544" aria-label="Live optical-axis depth in metres"></canvas><div class="sample-overlay preview-empty"><span>Waiting for depth output</span></div></div></figure></div><div class="preview-metrics"><span data-live-metric="capture">Capture target · —</span><span data-live-metric="depth">Depth output · —</span><span data-live-metric="compute">Compute · —</span></div><div class="preview-metrics"><span data-live-resolution>Depth grid · —</span><span>Black pixels: invalid depth</span></div><p class="preview-validity" data-live-calibration>Waiting for calibration status</p><p class="preview-unavailable" hidden>Raw products are disabled. Enable raw delivery on Streaming to preview camera and depth.</p></template>
   <script src="/app.js" defer></script>
 </body>
 </html>

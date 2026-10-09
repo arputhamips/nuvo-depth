@@ -21,6 +21,14 @@ struct CameraCalibrationDocument {
   std::vector<double> distortion_coefficients;
   std::array<double, 9> rectification_matrix{};
   std::array<double, 12> projection_matrix{};
+  // Optional calibration-bound transform from the nominal rectified output
+  // grid to an empirically corrected output grid. This composes only the
+  // sampling map; projection matrices and metric stereo geometry stay intact.
+  bool has_rectified_output_correction{false};
+  std::array<double, 9> rectified_output_correction{
+      1.0, 0.0, 0.0,
+      0.0, 1.0, 0.0,
+      0.0, 0.0, 1.0};
 };
 
 // Prepared once at configuration activation. The content identity covers both

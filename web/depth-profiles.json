@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "calibration_preset_id": "balanced_728x544_10",
+  "default_profile": "balanced",
+  "capture": {
+    "width": 728,
+    "height": 544,
+    "target_hz": 10
+  },
+  "base_controls": {
+    "schema_version": 1,
+    "algorithm": "sgbm",
+    "min_disparity": 0,
+    "block_size": 5,
+    "speckle_window_size": 30,
+    "speckle_range": 2,
+    "disparity_12_max_diff": 1,
+    "pre_filter_cap": 31,
+    "bm_pre_filter_size": 9,
+    "bm_texture_threshold": 10,
+    "specular_threshold": 256,
+    "opencv_threads": 2
+  },
+  "profiles": {
+    "quality": {
+      "label": "Quality \u00b7 candidate",
+      "description": "Full-grid HH with 96-pixel search and 5 \u00d7 5 smoothing. Historical Pi output was 2.84 depth frames/s at a 60 Hz capture target; current throughput remains unqualified.",
+      "qualification": "unqualified_candidate",
+      "matching": {
+        "width": 728,
+        "height": 544
+      },
+      "depth_rate_guarantee_hz": null,
+      "controls": {
+        "sgbm_mode": "hh",
+        "search_range": 96,
+        "max_disparity": 96,
+        "uniqueness_ratio": 0,
+        "median_filter_size": 5
+      },
+      "historical_measurement": {
+        "source": "docs/pi5-fullres-stereo-flicker-trace.md#september-15-deployed-qualityhh-verification",
+        "capture_target_hz": 60,
+        "sample_frames": 60,
+        "median_compute_ms": 342.01,
+        "depth_rate_hz": 2.84,
+        "qualifies_current_release": false
+      }
+    },
+    "balanced": {
+      "label": "Balanced \u00b7 10 Hz target",
+      "description": "Full-grid 3-way SGBM with a 128-pixel search, two CPU threads and no median smoothing. Targets 10 Hz; sustained throughput and scene accuracy remain unqualified.",
+      "qualification": "unqualified_candidate",
+      "matching": {
+        "width": 728,
+        "height": 544
+      },
+      "depth_rate_guarantee_hz": null,
+      "controls": {
+        "sgbm_mode": "3way",
+        "search_range": 128,
+        "max_disparity": 128,
+        "uniqueness_ratio": 0,
+        "median_filter_size": 0
+      }
+    },
+    "fast": {
+      "label": "Fast \u00b7 candidate",
+      "description": "Full-grid 3-way SGBM with a narrower 64-pixel search and no smoothing. Trades near range and streak rejection for lower cost; throughput is unqualified.",
+      "qualification": "unqualified_candidate",
+      "matching": {
+        "width": 728,
+        "height": 544
+      },
+      "depth_rate_guarantee_hz": null,
+      "controls": {
+        "sgbm_mode": "3way",
+        "search_range": 64,
+        "max_disparity": 64,
+        "uniqueness_ratio": 1,
+        "median_filter_size": 0
+      }
+    },
+    "wide": {
+      "label": "Wide search \u00b7 candidate",
+      "description": "Full-grid five-path SGBM with 128-pixel search and 3 \u00d7 3 smoothing. Offers closer nominal range at additional cost; throughput is unqualified.",
+      "qualification": "unqualified_candidate",
+      "matching": {
+        "width": 728,
+        "height": 544
+      },
+      "depth_rate_guarantee_hz": null,
+      "controls": {
+        "sgbm_mode": "standard",
+        "search_range": 128,
+        "max_disparity": 128,
+        "uniqueness_ratio": 1,
+        "median_filter_size": 3
+      }
+    }
+  }
+}

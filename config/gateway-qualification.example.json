@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "enabled": false,
+  "measurement_id": "replace-with-retained-measurement-report",
+  "source": {
+    "stereo_applied_revision": "0000000000000000000000000000000000000000000000000000000000000000",
+    "calibration_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "configuration_epoch": 0,
+    "minimum_cadence_hz": 0,
+    "maximum_frame_bytes": 0
+  },
+  "ethernet": {
+    "enabled": false,
+    "interface": "eth0",
+    "payload_bytes_per_second": 0,
+    "maximum_frame_bytes": 0,
+    "maximum_sessions": 0
+  },
+  "usb_ethernet": {
+    "enabled": false,
+    "interface": "usb0",
+    "payload_bytes_per_second": 0,
+    "maximum_frame_bytes": 0,
+    "maximum_sessions": 0
+  }
+}

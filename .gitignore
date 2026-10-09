@@ -24,6 +24,8 @@
 *.changes
 
 # Local data, generated handoffs, recordings, and model binaries
+/output/
+/tmp/
 /deliverables/
 /oracle-bundles/
 /replay-output/
@@ -79,3 +81,10 @@ htmlcov/
 .ruff_cache/
 *.egg-info/
 /dist/
+
+# Local SDK and onboarding research
+/docs/local-research/
+/output/pdf/nuvo-stereo-sdk-study-20261009.pdf
+/output/pdf/nuvo-stereo-sdk-study-20261009.html
+/output/pdf/nuvo-stereo-sdk-study-20261009-source.json
+/tmp/pdfs/nuvo_sdk_study/

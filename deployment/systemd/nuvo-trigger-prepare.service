@@ -1,0 +1,12 @@
+[Unit]
+Description=Provision Nuvo RP1 PIO hardware trigger
+After=local-fs.target systemd-udev-settle.service
+Before=nuvo-depthd-native.service
+ConditionPathExists=/etc/nuvo-depth/daemon.yaml
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/nuvo-depth/nuvo-trigger-prepare /etc/nuvo-depth/daemon.yaml
+TimeoutStartSec=20s
+# Run again for each daemon start, including GPIO/configuration changes.
+RemainAfterExit=no

@@ -1,0 +1,4 @@
+# Legacy Python appliance unit and its obsolete `cam`-owned output directory.
+# The production package installs nuvo-depthd-native.service and nuvo-depth.conf.
+usr/lib/systemd/system/nuvo-depthd.service
+usr/lib/tmpfiles.d/nuvo-depthd.tmpfiles.conf

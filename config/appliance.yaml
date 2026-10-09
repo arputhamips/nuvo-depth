@@ -5,7 +5,7 @@ gateway:
   maximum_sessions: 16
   preview_hz: 5
 transport:
-  preference: ethernet
+  preference: auto
   ethernet_qualified_payload_bytes_per_second: 0
   usb_qualified_payload_bytes_per_second: 0
 security:

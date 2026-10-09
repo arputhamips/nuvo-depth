@@ -1,0 +1,1 @@
+{"schema_version":1,"mode":"manual","manual_exposure_us":8000,"manual_analogue_gain":2.0,"red_gain":2.4771,"blue_gain":2.3425,"auto_target_median":75,"auto_min_median":65,"auto_max_median":85,"auto_min_exposure_us":250,"auto_max_exposure_us":8000,"auto_min_analogue_gain":1.0,"auto_max_analogue_gain":3.0,"auto_update_interval_frames":2,"auto_settle_frames_after_update":4}

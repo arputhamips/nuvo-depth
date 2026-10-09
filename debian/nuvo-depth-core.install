@@ -2,6 +2,7 @@ etc/nuvo-depth/daemon.yaml
 etc/nuvo-depth/appliance.yaml
 etc/nuvo-depth/encoding.json
 etc/nuvo-depth/stereo.json
+etc/nuvo-depth/exposure.json
 usr/bin/depthd
 usr/sbin/depthd-assets
 usr/lib/nuvo-depthd/
@@ -9,9 +10,9 @@ usr/share/nuvo-depthd/runtime-seed/
 usr/share/doc/nuvo-depthd/
 usr/lib/systemd/system/nuvo-depth.target
 usr/lib/systemd/system/nuvo-depthd-native.service
+usr/lib/systemd/system/nuvo-trigger-prepare.service
+usr/lib/nuvo-depth/nuvo-trigger-prepare
 usr/lib/sysusers.d/nuvo-depth.conf
 usr/lib/tmpfiles.d/nuvo-depth.conf
 usr/share/doc/nuvo-depth/
 usr/share/nuvo-depth/examples/
-usr/lib/systemd/system/nuvo-depthd.service
-usr/lib/tmpfiles.d/nuvo-depthd.tmpfiles.conf

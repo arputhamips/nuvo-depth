@@ -9,33 +9,11 @@
 #include <vector>
 
 #include "depthd/runtime.hpp"
+#include "depthd/output_selection.hpp"
 
 namespace depthd::ipc_v2 {
 
 inline constexpr std::uint32_t kSchemaVersion = 2U;
-inline constexpr std::size_t kProductCount = 6U;
-
-enum class ProductKind : std::uint8_t {
-  kLeftRectified = 0,
-  kRightRectified = 1,
-  kDisparity = 2,
-  kDepth = 3,
-  kConfidence = 4,
-  kValidity = 5,
-};
-
-using ProductMask = std::uint32_t;
-
-[[nodiscard]] constexpr ProductMask product_bit(const ProductKind product) {
-  return 1U << static_cast<std::uint8_t>(product);
-}
-
-inline constexpr ProductMask kAllProducts =
-    product_bit(ProductKind::kLeftRectified) |
-    product_bit(ProductKind::kRightRectified) |
-    product_bit(ProductKind::kDisparity) | product_bit(ProductKind::kDepth) |
-    product_bit(ProductKind::kConfidence) | product_bit(ProductKind::kValidity);
-
 enum class DeliveryTrust : std::uint8_t {
   kUntrustedCopy = 0,
   kTrustedZeroCopy = 1,

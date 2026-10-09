@@ -81,6 +81,7 @@ class SeqpacketConnection final {
 
   [[nodiscard]] explicit operator bool() const noexcept;
   [[nodiscard]] PeerCredentials peer_credentials() const;
+  [[nodiscard]] int native_handle() const noexcept;
   void send_packet(std::span<const std::byte> payload,
                    std::span<const int> handles = {}) const;
   [[nodiscard]] ReceivedPacket receive_packet(

@@ -12,6 +12,7 @@ const origin = arg('--origin', 'http://127.0.0.1:8767');
 const output = arg('--output');
 const count = Number(arg('--count', '60'));
 const seconds = Number(arg('--timeout-seconds', '180'));
+const excludedRunUuid = arg('--exclude-run-uuid');
 if (!output || !Number.isInteger(count) || count < 1 || count > 120 ||
     !Number.isFinite(seconds) || seconds < 1 || seconds > 600) {
   throw new Error('usage: collect_stream_trace.js --output EMPTY_DIR [--origin URL] [--count 60] [--timeout-seconds 180]');
@@ -40,6 +41,9 @@ socket.addEventListener('message', event => {
     if (metadataLength > 65536 || payloadLength > 33554432 ||
         bytes.length !== 32 + metadataLength + payloadLength) return;
     const metadata = JSON.parse(bytes.toString('utf8', 32, 32 + metadataLength));
+    // A stopped producer leaves its last snapshot available to the gateway.
+    // Ignore that previous run while the bounded trace starts up.
+    if (excludedRunUuid && metadata.run_uuid === excludedRunUuid) return;
     const sequence = metadata.capture_sequence;
     if (!Number.isSafeInteger(sequence) || sequence < 1 || received.has(sequence)) return;
     fs.writeFileSync(path.join(output, `pc_stream_${sequence}.nve`), bytes);

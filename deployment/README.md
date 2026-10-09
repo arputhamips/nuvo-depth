@@ -4,7 +4,7 @@ The product package is a depth-only, systemd-managed Raspberry Pi 5 appliance
 for the 100 mm dual-IMX296 rig. It contains no Hailo dependency, model artifact,
 or semantic runtime. The native daemon alone owns the cameras and trigger. Local
 clients use sealed frame descriptors; remote clients use the authenticated TLS
-gateway over Ethernet or USB Ethernet.
+gateway over Ethernet, USB Ethernet, or explicitly bounded best-effort WiFi.
 
 ## Canonical paths
 
@@ -19,12 +19,51 @@ gateway over Ethernet or USB Ethernet.
 
 `/etc/nuvo-depth/encoding.json` controls the optional downstream H.264/MJPEG
 stream. It can select raw-only, encoded-only, or simultaneous delivery and is
-applied without restarting camera capture. See the
+applied without restarting camera capture. Raw-only is the shipping default;
+the encoder is a monitoring branch, not the authoritative depth transport. See the
 [Pi 5 image-stream encoding guide](../docs/pi5-image-stream-encoding.md).
 
 `/etc/nuvo-depth/stereo.json` controls the native SGBM/StereoBM matcher and
 its full-resolution search/filter settings without restarting capture. See the
 [60-frame flicker trace guide](../docs/pi5-fullres-stereo-flicker-trace.md).
+
+`/etc/nuvo-depth/exposure.json` controls constant manual or shared stereo-auto
+exposure, analogue gain, colour gains, metering limits, and settle cadence.
+libcamera AE/AWB remains disabled; both cameras and the active-low external
+trigger pulse receive the same requested exposure without restarting capture.
+The effective shutter ceiling is the smaller of 8,000 us and one trigger
+period less the 250 us scheduling guard. The web console shows the live limit;
+the daemon rejects a command that would violate it.
+
+For a bounded engineering check, run
+`/usr/lib/nuvo-depthd/validate_exposure_live.py`. It switches to Auto,
+samples unique published frames, and restores the exact starting document even
+on failure. Run it as root so it can read runtime status and use the privileged
+`nuvoctl` apply path. Its trigger-duration values are process-side diagnostics
+and do not replace an electrical XTR measurement.
+
+## Hardware trigger
+
+On Pi5 the native service requires `nuvo-trigger-prepare.service`, which loads
+the installed `pwm-pio` overlay for the configured trigger GPIO, exports its
+single PWM channel, and grants the native group access to only that channel.
+The daemon uses RP1 PIO PWM with an inverted 100 ms period and 8 ms low pulse
+for the default 10 Hz/8 ms exposure. Exposure updates change hardware duty at
+the next cycle. The existing GPIO17 wiring is retained.
+
+The helper discovers the controller by device-tree compatibility and GPIO,
+never by an assumed pwmchip number; it cannot select the native fan PWM.
+A root-owned `/run/nuvo-depth-trigger/pwm` link supplies the one sysfs write
+exception under `ProtectKernelTunables`. Preparation disables any retained owned
+channel before a configuration change, and `ExecStopPost` disables the waveform
+after normal exit, failed startup, SIGKILL or watchdog termination. The driver holds its last pin level
+on disable, so the daemon stops both cameras before disabling PWM.
+`rp1-pio-pwm` timing is commanded hardware timing, not an electrical measurement.
+The userspace GPIO source remains a clearly labeled engineering fallback for
+manual runs without the provisioned PIO channel.
+
+See the [Raspberry Pi PIO driver overview](https://www.raspberrypi.com/news/piolib-a-userspace-library-for-pio-control/)
+for the supported hardware PWM overlay.
 
 ## Build the Debian package
 
@@ -94,9 +133,13 @@ After installing a new signed package cohort:
 
 ```bash
 depthd --check-config /etc/nuvo-depth/daemon.yaml
-sudo systemctl restart nuvo-depthd-native.service nuvo-gateway.service
+sudo systemctl restart nuvo-system-agent.socket nuvo-depthd-native.service nuvo-gateway.service
 sudo systemctl --no-pager --full status nuvo-depth.target
 ```
+
+The privileged control socket is `/run/nuvo-system-agent.sock`, outside the
+native daemon's disposable `/run/nuvo-depth` directory. Its path must remain
+available after depth-daemon restarts for web encoding and stereo controls.
 
 User calibration activation is immutable and independently reversible:
 

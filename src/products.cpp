@@ -576,24 +576,32 @@ void validate(const MutableDisparityProductsView& products) {
 
 void validate(const ProductSetView& products) {
   validate(products.metadata);
-  validate(products.left_rectified);
-  validate(products.right_rectified);
-  validate(products.disparity);
-  validate(products.depth_m);
-  validate(products.confidence);
-  validate(products.validity);
-  if (!same_grid(products.left_rectified.grid,
+  using namespace ipc_v2;
+  const auto has = [&](const ProductKind kind) {
+    return (products.available_products & product_bit(kind)) != 0U;
+  };
+  if (products.available_products == 0U ||
+      (products.available_products & ~kSupportedProducts) != 0U) {
+    throw std::invalid_argument("product view selection is invalid");
+  }
+  if (has(ProductKind::kLeftRectified)) validate(products.left_rectified);
+  if (has(ProductKind::kRightRectified)) validate(products.right_rectified);
+  if (has(ProductKind::kDisparity)) validate(products.disparity);
+  if (has(ProductKind::kDepth)) validate(products.depth_m);
+  if (has(ProductKind::kConfidence)) validate(products.confidence);
+  if (has(ProductKind::kValidity)) validate(products.validity);
+  if ((has(ProductKind::kLeftRectified) && (!same_grid(products.left_rectified.grid,
                  products.metadata.left_rectified.grid) ||
-      !same_grid(products.right_rectified.grid,
-                 products.metadata.right_rectified.grid) ||
       products.left_rectified.format !=
-          products.metadata.left_rectified.format ||
+          products.metadata.left_rectified.format)) ||
+      (has(ProductKind::kRightRectified) && (!same_grid(products.right_rectified.grid,
+                 products.metadata.right_rectified.grid) ||
       products.right_rectified.format !=
-          products.metadata.right_rectified.format ||
-      !same_grid(products.disparity.grid, products.metadata.disparity.grid) ||
-      !same_grid(products.depth_m.grid, products.metadata.depth.grid) ||
-      !same_grid(products.confidence.grid, products.metadata.disparity.grid) ||
-      !same_grid(products.validity.grid, products.metadata.disparity.grid)) {
+          products.metadata.right_rectified.format)) ||
+      (has(ProductKind::kDisparity) && !same_grid(products.disparity.grid, products.metadata.disparity.grid)) ||
+      (has(ProductKind::kDepth) && !same_grid(products.depth_m.grid, products.metadata.depth.grid)) ||
+      (has(ProductKind::kConfidence) && !same_grid(products.confidence.grid, products.metadata.disparity.grid)) ||
+      (has(ProductKind::kValidity) && !same_grid(products.validity.grid, products.metadata.disparity.grid))) {
     throw std::invalid_argument(
         "product plane layout disagrees with the associated metadata");
   }

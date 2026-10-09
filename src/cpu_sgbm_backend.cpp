@@ -1,4 +1,6 @@
 #include "depthd/stereo_backend.hpp"
+#include "depthd/opencv_execution.hpp"
+#include "depthd/configuration_revision.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -6,10 +8,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <numeric>
 #include <optional>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -95,6 +99,8 @@ void validate_config(const CpuSgbmConfig& config) {
     throw std::invalid_argument("StereoBM block size must be at least 5");
   }
   if (config.uniqueness_ratio < 0 || config.uniqueness_ratio > 100 ||
+      (config.sgbm_mode != "3way" && config.sgbm_mode != "standard" &&
+       config.sgbm_mode != "hh4" && config.sgbm_mode != "hh") ||
       config.speckle_window_size < 0 || config.speckle_window_size > 10000 ||
       config.speckle_range < 0 || config.speckle_range > 256 ||
       config.disparity_12_max_diff < -1 ||
@@ -104,7 +110,9 @@ void validate_config(const CpuSgbmConfig& config) {
       config.bm_pre_filter_size % 2 == 0 ||
       config.bm_texture_threshold < 0 ||
       config.bm_texture_threshold > 255 ||
-      config.specular_threshold < 1 || config.specular_threshold > 256) {
+      config.specular_threshold < 1 || config.specular_threshold > 256 ||
+      (config.median_filter_size != 0 && config.median_filter_size != 3 &&
+       config.median_filter_size != 5)) {
     throw std::invalid_argument("stereo matcher control is out of range");
   }
   const auto search_end =
@@ -132,13 +140,39 @@ void validate_config(const CpuSgbmConfig& config) {
   }
 }
 
+[[nodiscard]] bool same_effective_configuration(CpuSgbmConfig left,
+                                                  CpuSgbmConfig right) {
+  if (left.algorithm != right.algorithm) return false;
+  if (left.algorithm == CpuSgbmConfig::Algorithm::kSgbm) {
+    left.bm_pre_filter_size = right.bm_pre_filter_size = 0;
+    left.bm_texture_threshold = right.bm_texture_threshold = 0;
+  } else {
+    left.sgbm_mode.clear(); right.sgbm_mode.clear();
+  }
+  return left == right;
+}
+
 [[nodiscard]] CpuSgbmConfig load_control_file(
-    const std::string& path, const CpuSgbmConfig& base) {
-  cv::FileStorage storage(path, cv::FileStorage::READ | cv::FileStorage::FORMAT_JSON);
+    const std::string& document, const CpuSgbmConfig& base) {
+  cv::FileStorage storage(document, cv::FileStorage::READ |
+                                       cv::FileStorage::MEMORY |
+                                       cv::FileStorage::FORMAT_JSON);
   if (!storage.isOpened() || !storage.root().isMap()) {
     throw std::invalid_argument("stereo control file is not a JSON object");
   }
   const auto root = storage.root();
+  const std::set<std::string> allowed{
+      "schema_version","algorithm","sgbm_mode","min_disparity","search_range",
+      "max_disparity","block_size","uniqueness_ratio","speckle_window_size",
+      "speckle_range","disparity_12_max_diff","pre_filter_cap",
+      "bm_pre_filter_size","bm_texture_threshold","specular_threshold",
+      "median_filter_size","opencv_threads"};
+  std::set<std::string> seen;
+  for (const auto& key : root.keys()) {
+    if (!allowed.contains(key) || !seen.insert(key).second) {
+      throw std::invalid_argument("unknown or duplicate stereo field: " + key);
+    }
+  }
   const auto required_int = [&](const char* key) {
     const auto node = root[key];
     if (node.empty() || !node.isInt()) {
@@ -165,6 +199,14 @@ void validate_config(const CpuSgbmConfig& config) {
   updated.accepted_max_disparity_px =
       static_cast<float>(required_int("max_disparity"));
   updated.block_size = required_int("block_size");
+  const auto mode_node = root["sgbm_mode"];
+  if (mode_node.empty()) {
+    updated.sgbm_mode = "3way";
+  } else if (!mode_node.isString()) {
+    throw std::invalid_argument("invalid stereo field: sgbm_mode");
+  } else {
+    updated.sgbm_mode = static_cast<std::string>(mode_node);
+  }
   updated.uniqueness_ratio = required_int("uniqueness_ratio");
   updated.speckle_window_size = required_int("speckle_window_size");
   updated.speckle_range = required_int("speckle_range");
@@ -173,6 +215,10 @@ void validate_config(const CpuSgbmConfig& config) {
   updated.bm_pre_filter_size = required_int("bm_pre_filter_size");
   updated.bm_texture_threshold = required_int("bm_texture_threshold");
   updated.specular_threshold = required_int("specular_threshold");
+  const auto median_filter_node = root["median_filter_size"];
+  updated.median_filter_size = median_filter_node.empty()
+                                   ? 0
+                                   : required_int("median_filter_size");
   updated.opencv_threads = required_int("opencv_threads");
   validate_config(updated);
   return updated;
@@ -199,6 +245,7 @@ class CpuSgbmBackend final : public StereoBackend,
     left_working_.create(working_size, CV_8UC1);
     right_working_.create(working_size, CV_8UC1);
     disparity_fixed_.create(working_size, CV_16SC1);
+    disparity_filtered_.create(working_size, CV_16SC1);
     disparity_working_.create(working_size, CV_32FC1);
     confidence_working_.create(working_size, CV_8UC1);
     validity_working_.create(working_size, CV_8UC1);
@@ -213,27 +260,60 @@ class CpuSgbmBackend final : public StereoBackend,
     std::error_code error;
     const auto modified = std::filesystem::last_write_time(
         base_config_.control_file, error);
-    if (error || (control_time_ && modified == *control_time_)) return;
+    if (error) {
+      control_time_.reset();
+      configuration_state_.rejection_error = "stereo control file unavailable";
+      return;
+    }
+    if (control_time_ && modified == *control_time_) return;
     control_time_ = modified;
     try {
-      auto updated = load_control_file(base_config_.control_file, base_config_);
-      const auto previous = config_;
-      const auto previous_metadata = metadata_;
-      const auto previous_matcher = matcher_;
-      config_ = std::move(updated);
-      try {
-        rebuild_matcher();
-      } catch (...) {
-        config_ = previous;
-        metadata_ = previous_metadata;
-        matcher_ = previous_matcher;
-        cv::setNumThreads(previous.opencv_threads);
-        throw;
+      // Parse and hash the same bounded bytes. Atomic file replacements cannot
+      // mix a requested revision with a configuration read from another inode.
+      std::ifstream input(base_config_.control_file, std::ios::binary);
+      std::array<char, 4097> bytes{};
+      input.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+      const auto count = input.gcount();
+      if (!input.eof() || count <= 0 || count > 4096) {
+        throw std::invalid_argument("stereo control file exceeds 4096 bytes or is unreadable");
       }
+      const std::string document(bytes.data(), static_cast<std::size_t>(count));
+      configuration_state_.requested_revision = revision::sha256_hex(document);
+      auto updated = load_control_file(document, base_config_);
+      if (!same_effective_configuration(updated, config_)) {
+        if (configuration_state_.generation ==
+            std::numeric_limits<std::uint64_t>::max()) {
+          throw std::overflow_error("stereo configuration generation exhausted");
+        }
+        const auto previous = config_;
+        const auto previous_metadata = metadata_;
+        const auto previous_matcher = matcher_;
+        config_ = std::move(updated);
+        try {
+          rebuild_matcher();
+        } catch (...) {
+          config_ = previous;
+          metadata_ = previous_metadata;
+          matcher_ = previous_matcher;
+          const auto execution = opencv_execution::configuration_guard();
+          cv::setNumThreads(previous.opencv_threads);
+          throw;
+        }
+        ++configuration_state_.generation;
+      } else {
+        config_ = std::move(updated);
+      }
+      configuration_state_.applied_revision = configuration_state_.requested_revision;
+      configuration_state_.rejection_error.clear();
     } catch (const std::exception& failure) {
+      configuration_state_.rejection_error = failure.what();
       std::cerr << "depthd: stereo control update ignored: "
                 << failure.what() << '\n';
     }
+  }
+
+  [[nodiscard]] StereoConfigurationState configuration_state() const override {
+    return configuration_state_;
   }
 
   [[nodiscard]] std::string_view name() const noexcept override {
@@ -247,6 +327,7 @@ class CpuSgbmBackend final : public StereoBackend,
 
  private:
   void rebuild_matcher() {
+    const auto execution = opencv_execution::configuration_guard();
     cv::setNumThreads(config_.opencv_threads);
     metadata_.grid = native_grid_;
     const cv::Rect matcher_roi = cv::getValidDisparityROI(
@@ -290,12 +371,20 @@ class CpuSgbmBackend final : public StereoBackend,
       matcher_ = bm;
     } else {
       const int window_area = config_.block_size * config_.block_size;
+      const auto mode =
+          config_.sgbm_mode == "standard"
+              ? cv::StereoSGBM::MODE_SGBM
+              : config_.sgbm_mode == "hh4"
+                    ? cv::StereoSGBM::MODE_HH4
+                    : config_.sgbm_mode == "hh"
+                          ? cv::StereoSGBM::MODE_HH
+                          : cv::StereoSGBM::MODE_SGBM_3WAY;
       matcher_ = cv::StereoSGBM::create(
           config_.working_min_disparity, config_.working_disparities,
           config_.block_size, 8 * window_area, 32 * window_area,
           config_.disparity_12_max_diff, config_.pre_filter_cap,
           config_.uniqueness_ratio, config_.speckle_window_size,
-          config_.speckle_range, cv::StereoSGBM::MODE_SGBM_3WAY);
+          config_.speckle_range, mode);
     }
   }
 
@@ -304,6 +393,7 @@ class CpuSgbmBackend final : public StereoBackend,
   void process_native(const ImageView& left, const ImageView& right,
                       const MutableDisparityProductsView& output,
                       StereoBackendStats& stats) override {
+    const auto execution = opencv_execution::compute_guard();
     validate_input_views(left, right);
     validate(output);
     if (!same_grid(output.disparity.grid, native_grid_)) {
@@ -321,6 +411,7 @@ class CpuSgbmBackend final : public StereoBackend,
                StereoBackendStats& stats) override {
     refresh_configuration();
     validate_input_views(left, right);
+    const auto execution = opencv_execution::compute_guard();
     validate_legacy_output(output);
     const auto stages = compute_match(left, right);
 
@@ -373,8 +464,14 @@ class CpuSgbmBackend final : public StereoBackend,
 
   [[nodiscard]] std::size_t classify_native_disparity(
       const MutableDisparityProductsView& output) {
+    const cv::Mat* disparity_source = &disparity_fixed_;
+    if (config_.median_filter_size != 0) {
+      cv::medianBlur(disparity_fixed_, disparity_filtered_,
+                     config_.median_filter_size);
+      disparity_source = &disparity_filtered_;
+    }
     const auto invalid_value = std::numeric_limits<float>::quiet_NaN();
-    const auto width = disparity_fixed_.cols;
+    const auto width = disparity_source->cols;
     const auto roi_left = static_cast<int>(metadata_.valid_roi.x);
     const auto roi_right = static_cast<int>(metadata_.valid_roi.x +
                                             metadata_.valid_roi.width);
@@ -387,10 +484,11 @@ class CpuSgbmBackend final : public StereoBackend,
 
     // Rows are independent. OpenCV's configured worker pool is already warm
     // from SGBM, so reuse it and give every worker a disjoint reduction slot.
-    cv::parallel_for_(cv::Range(0, disparity_fixed_.rows),
+    cv::parallel_for_(cv::Range(0, disparity_source->rows),
                       [&](const cv::Range& rows) {
       for (int y = rows.start; y < rows.end; ++y) {
-        const auto* fixed = disparity_fixed_.ptr<std::int16_t>(y);
+        const auto* original_fixed = disparity_fixed_.ptr<std::int16_t>(y);
+        const auto* filtered_fixed = disparity_source->ptr<std::int16_t>(y);
         auto* disparity = output.disparity.data +
                           static_cast<std::size_t>(y) *
                               output.disparity.stride_elements;
@@ -413,17 +511,23 @@ class CpuSgbmBackend final : public StereoBackend,
         std::fill_n(confidence, roi_left, 0U);
         std::fill_n(validity, roi_left, outside_roi);
         for (int x = roi_left; x < roi_right; ++x) {
-          const auto disparity_px = static_cast<float>(fixed[x]) / 16.0F;
+          const auto original_px =
+              static_cast<float>(original_fixed[x]) / 16.0F;
           const auto classification =
-              disparity_px < minimum
+              original_px < minimum
                   ? ValidityCode::kInconsistent
-                  : disparity_px >= maximum
+                  : original_px >= maximum
                         ? ValidityCode::kOutsideDisparityRange
                         : left_working_.ptr<std::uint8_t>(y)[x] >=
                                   config_.specular_threshold
                               ? ValidityCode::kInconsistent
                               : ValidityCode::kValid;
           const auto is_valid = classification == ValidityCode::kValid;
+          auto disparity_px =
+              static_cast<float>(filtered_fixed[x]) / 16.0F;
+          if (disparity_px < minimum || disparity_px >= maximum) {
+            disparity_px = original_px;
+          }
           row_valid += is_valid ? 1U : 0U;
           disparity[x] = is_valid ? disparity_px : invalid_value;
           confidence[x] = is_valid ? 255U : 0U;
@@ -542,6 +646,7 @@ class CpuSgbmBackend final : public StereoBackend,
 
   CpuSgbmConfig base_config_;
   CpuSgbmConfig config_;
+  StereoConfigurationState configuration_state_;
   std::optional<std::filesystem::file_time_type> control_time_;
   PixelGrid input_grid_{};
   PixelGrid native_grid_{};
@@ -553,6 +658,7 @@ class CpuSgbmBackend final : public StereoBackend,
   cv::Mat left_working_;
   cv::Mat right_working_;
   cv::Mat disparity_fixed_;
+  cv::Mat disparity_filtered_;
   cv::Mat disparity_working_;
   cv::Mat confidence_working_;
   cv::Mat validity_working_;

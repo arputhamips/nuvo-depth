@@ -1,3 +1,4 @@
 usr/lib/nuvo-depth/nuvo-calibration
 usr/share/nuvo-depth/presets/
+usr/share/nuvo-depth/calibration/
 usr/lib/systemd/system/nuvo-calibration@.service

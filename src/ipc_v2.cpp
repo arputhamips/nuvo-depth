@@ -59,6 +59,13 @@ namespace {
       grid_bytes(products.disparity.grid, sizeof(std::uint8_t));
   result[index_of(ProductKind::kValidity)] =
       grid_bytes(products.disparity.grid, sizeof(std::uint8_t));
+  for (const auto kind : {ProductKind::kLeftMono, ProductKind::kRightMono})
+    result[index_of(kind)] = grid_bytes(products.left_rectified.grid, 1U);
+  for (const auto kind : {ProductKind::kLeftRgb, ProductKind::kRightRgb,
+                         ProductKind::kLeftRectifiedRgb, ProductKind::kRightRectifiedRgb})
+    result[index_of(kind)] = grid_bytes(products.left_rectified.grid, 3U);
+  result[index_of(ProductKind::kRectifiedStereo)] = grid_bytes(products.left_rectified.grid, 2U);
+  result[index_of(ProductKind::kRectifiedStereoRgb)] = grid_bytes(products.left_rectified.grid, 6U);
   return result;
 }
 
@@ -80,7 +87,15 @@ struct SourceProduct {
            {reinterpret_cast<const std::byte*>(frame.confidence.data()),
             frame.confidence.size()},
            {reinterpret_cast<const std::byte*>(frame.validity.data()),
-            frame.validity.size()}}};
+            frame.validity.size()},
+           {reinterpret_cast<const std::byte*>(frame.left_mono.data()), frame.left_mono.size()},
+           {reinterpret_cast<const std::byte*>(frame.right_mono.data()), frame.right_mono.size()},
+           {reinterpret_cast<const std::byte*>(frame.left_rgb.data()), frame.left_rgb.size()},
+           {reinterpret_cast<const std::byte*>(frame.right_rgb.data()), frame.right_rgb.size()},
+           {reinterpret_cast<const std::byte*>(frame.left_rectified_rgb.data()), frame.left_rectified_rgb.size()},
+           {reinterpret_cast<const std::byte*>(frame.right_rectified_rgb.data()), frame.right_rectified_rgb.size()},
+           {reinterpret_cast<const std::byte*>(frame.rectified_stereo.data()), frame.rectified_stereo.size()},
+           {reinterpret_cast<const std::byte*>(frame.rectified_stereo_rgb.data()), frame.rectified_stereo_rgb.size()}}};
 }
 
 void require_product(const ProductMask mask, const ProductKind kind) {
@@ -241,9 +256,22 @@ void Broker::disconnect(const SubscriptionId subscriber) noexcept {
 
 PublishResult Broker::publish(const FrameSetStorage& frame) {
   validate(frame.metadata);
+  if (frame.available_products == 0U || (frame.available_products & ~kSupportedProducts) != 0U) {
+    std::lock_guard lock(state_->mutex);
+    ++state_->stats.publish_rejected_layout;
+    return PublishResult::kLayoutMismatch;
+  }
   const auto sources = source_products(frame);
   const auto expected = expected_product_bytes(frame.metadata);
   for (std::size_t index = 0; index < kProductCount; ++index) {
+    if ((frame.available_products & (1U << index)) == 0U) {
+      if (sources[index].bytes != 0U) {
+        std::lock_guard lock(state_->mutex);
+        ++state_->stats.publish_rejected_layout;
+        return PublishResult::kLayoutMismatch;
+      }
+      continue;
+    }
     if (expected[index] > state_->configuration.product_capacity_bytes[index]) {
       std::lock_guard lock(state_->mutex);
       ++state_->stats.publish_rejected_oversize;
@@ -297,8 +325,8 @@ PublishResult Broker::publish(const FrameSetStorage& frame) {
   auto& slot = state_->slots[selected];
   try {
     for (std::size_t index = 0; index < kProductCount; ++index) {
-      std::memcpy(slot.products[index].data(), sources[index].data,
-                  sources[index].bytes);
+      if (sources[index].bytes != 0U)
+        std::memcpy(slot.products[index].data(), sources[index].data, sources[index].bytes);
     }
   } catch (...) {
     std::lock_guard lock(state_->mutex);
@@ -319,7 +347,7 @@ PublishResult Broker::publish(const FrameSetStorage& frame) {
   slot.descriptor = {};
   slot.descriptor.frame = frame.metadata.frame;
   slot.descriptor.products = frame.metadata;
-  slot.descriptor.available_products = kAllProducts;
+  slot.descriptor.available_products = frame.available_products;
   for (std::size_t index = 0; index < kProductCount; ++index) {
     slot.descriptor.product_bytes[index] = sources[index].bytes;
   }
@@ -349,6 +377,7 @@ std::optional<ReadLease> Broker::acquire_latest_zero_copy(
   for (std::size_t index = 0; index < state_->slots.size(); ++index) {
     const auto& slot = state_->slots[index];
     if (slot.published && !slot.writing &&
+        (subscriber->second.subscription.products & ~slot.descriptor.available_products) == 0U &&
         slot.descriptor.publication_sequence > latest) {
       selected = index;
       latest = slot.descriptor.publication_sequence;
@@ -383,6 +412,7 @@ std::optional<CopiedFrame> Broker::copy_latest(
   const BrokerState::Slot* selected = nullptr;
   for (const auto& slot : state_->slots) {
     if (slot.published && !slot.writing &&
+        (subscriber->second.subscription.products & ~slot.descriptor.available_products) == 0U &&
         slot.descriptor.publication_sequence >
             subscriber->second.last_publication_sequence &&
         (!selected || slot.descriptor.publication_sequence >
@@ -431,7 +461,7 @@ PoolConfiguration make_pool_configuration(const ProductSetMetadata& products,
 
 void validate(const Subscription& subscription) {
   if (subscription.products == 0U ||
-      (subscription.products & ~kAllProducts) != 0U) {
+      (subscription.products & ~kSupportedProducts) != 0U) {
     throw std::invalid_argument("IPC v2 subscription product mask is invalid");
   }
   if (subscription.maximum_outstanding_leases == 0U ||
@@ -473,7 +503,7 @@ void validate(const FrameDescriptor& descriptor) {
   if (descriptor.schema_version != kSchemaVersion ||
       descriptor.publication_sequence == 0U ||
       descriptor.available_products == 0U ||
-      (descriptor.available_products & ~kAllProducts) != 0U ||
+      (descriptor.available_products & ~kSupportedProducts) != 0U ||
       descriptor.frame.capture_epoch == 0U ||
       descriptor.frame.capture_sequence == 0U ||
       descriptor.frame.run_uuid != descriptor.products.frame.run_uuid ||
@@ -484,10 +514,11 @@ void validate(const FrameDescriptor& descriptor) {
     throw std::invalid_argument("IPC v2 frame descriptor is incoherent");
   }
   validate(descriptor.products);
+  const auto expected = expected_product_bytes(descriptor.products);
   for (std::size_t index = 0; index < kProductCount; ++index) {
-    if ((descriptor.available_products & (1U << index)) != 0U &&
-        descriptor.product_bytes[index] == 0U) {
-      throw std::invalid_argument("IPC v2 available product has no bytes");
+    if (descriptor.product_bytes[index] !=
+        ((descriptor.available_products & (1U << index)) != 0U ? expected[index] : 0U)) {
+      throw std::invalid_argument("IPC v2 product bytes disagree with available product layout");
     }
   }
 }

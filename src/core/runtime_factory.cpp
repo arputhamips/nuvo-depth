@@ -126,11 +126,23 @@ std::unique_ptr<NativeProcessingPipeline> make_native_pipeline(
     throw std::invalid_argument(
         "capture/matching geometry does not match prepared calibration");
   }
-  if (!near(configuration.rig.baseline_m, calibration.image_view.baseline_m) ||
-      !near(configuration.stereo.baseline_m,
-            calibration.image_view.baseline_m) ||
-      !near(configuration.stereo.rectified_focal_length_px,
-            calibration.image_view.left_projection[0])) {
+  if (calibration.identity.sha256 != calibration.image_view.identity.sha256 ||
+      calibration.identity.sha256 != calibration.matching_view.identity.sha256 ||
+      calibration.authority != calibration.image_view.authority ||
+      calibration.authority != calibration.matching_view.authority) {
+    throw std::invalid_argument(
+        "prepared calibration views disagree with their identity or authority");
+  }
+  // The YAML describes the nominal rig and its provisional seed. A measured,
+  // validated per-unit calibration supplies the metric geometry at runtime;
+  // forcing it to reproduce the seed would discard the calibration's purpose.
+  if (calibration.authority ==
+          CalibrationAuthority::kProvisionalRecalibrationRequired &&
+      (!near(configuration.rig.baseline_m, calibration.image_view.baseline_m) ||
+       !near(configuration.stereo.baseline_m,
+             calibration.image_view.baseline_m) ||
+       !near(configuration.stereo.rectified_focal_length_px,
+             calibration.image_view.left_projection[0]))) {
     throw std::invalid_argument(
         "runtime geometry disagrees with prepared calibration projections");
   }
@@ -183,6 +195,19 @@ std::unique_ptr<NativeProcessingPipeline> make_native_pipeline(
       static_cast<std::int32_t>(configuration.stereo.working_disparities);
   stereo_configuration.block_size =
       static_cast<std::int32_t>(configuration.stereo.block_size);
+  if (configuration.stereo.mode == "sgbm_3way") {
+    stereo_configuration.sgbm_mode = "3way";
+  } else if (configuration.stereo.mode == "sgbm_standard") {
+    stereo_configuration.sgbm_mode = "standard";
+  } else if (configuration.stereo.mode == "sgbm_hh4") {
+    stereo_configuration.sgbm_mode = "hh4";
+  } else if (configuration.stereo.mode == "sgbm_hh") {
+    stereo_configuration.sgbm_mode = "hh";
+  } else {
+    throw std::invalid_argument("unsupported runtime stereo aggregation mode");
+  }
+  stereo_configuration.median_filter_size =
+      static_cast<std::int32_t>(configuration.stereo.median_filter_size);
   stereo_configuration.uniqueness_ratio =
       static_cast<std::int32_t>(configuration.stereo.uniqueness_ratio);
   stereo_configuration.speckle_window_size =
@@ -208,7 +233,9 @@ std::unique_ptr<NativeProcessingPipeline> make_native_pipeline(
       options.allow_provisional_depth_for_engineering;
   return std::make_unique<NativeProcessingPipeline>(
       pipeline_configuration, std::move(rectifier),
-      make_cpu_sgbm_native_backend(stereo_configuration));
+      make_cpu_sgbm_native_backend(stereo_configuration),
+      rectifiers.create("cpu_opencv", "cpu_opencv", false,
+                        rectifier_configuration, calibration.maps));
 }
 
 }  // namespace depthd

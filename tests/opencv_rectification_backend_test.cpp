@@ -4,6 +4,10 @@
 #include <array>
 #include <cstdint>
 #include <stdexcept>
+#include <vector>
+
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 
 namespace {
 
@@ -103,6 +107,44 @@ int main() {
                      invalid_output, stats);
     return 4;
   } catch (const std::invalid_argument&) {
+  }
+
+  // Exercise nonidentity maps, out-of-bounds interpolation, padded input/output,
+  // both cameras, and repeated mono/RGB format switches in the reused cache.
+  for (std::size_t i = 0; i < maps.left.source_x.size(); ++i) {
+    maps.left.source_x[i] += (i % 3 == 0 ? -1.75F : 0.375F);
+    maps.left.source_y[i] += 0.625F;
+    maps.right.source_x[i] += 0.875F;
+    maps.right.source_y[i] -= 1.125F;
+  }
+  config.border_value = 47;
+  backend = registry.create("cpu_opencv", "", false, config, maps);
+  for (int run = 0; run < 12; ++run) {
+    const auto encoding = run % 3 == 0 ? depthd::ImageEncoding::kGray8 :
+        (run % 3 == 1 ? depthd::ImageEncoding::kRgb8 : depthd::ImageEncoding::kBgr8);
+    const auto channels = encoding == depthd::ImageEncoding::kGray8 ? 1U : 3U;
+    const auto stride = width * channels + 5U;
+    std::vector<std::uint8_t> input(stride * height, 231);
+    std::vector<std::uint8_t> output(stride * height, 199);
+    std::vector<std::uint8_t> expected(stride * height, 199);
+    for (std::size_t i = 0; i < input.size(); ++i)
+      input[i] = static_cast<std::uint8_t>(i * 37 + run * 13);
+    for (const auto camera : {depthd::RectificationCamera::kLeft,
+                              depthd::RectificationCamera::kRight}) {
+      const auto& map = camera == depthd::RectificationCamera::kLeft ? maps.left : maps.right;
+      cv::Mat x(height, width, CV_32FC1, const_cast<float*>(map.source_x.data()));
+      cv::Mat y(height, width, CV_32FC1, const_cast<float*>(map.source_y.data()));
+      cv::Mat fixed, interpolation;
+      cv::convertMaps(x, y, fixed, interpolation, CV_16SC2);
+      const auto type = channels == 1U ? CV_8UC1 : CV_8UC3;
+      cv::Mat source(height, width, type, input.data(), stride);
+      cv::Mat reference(height, width, type, expected.data(), stride);
+      cv::remap(source, reference, fixed, interpolation, cv::INTER_LINEAR,
+                cv::BORDER_CONSTANT, cv::Scalar::all(config.border_value));
+      backend->rectify(camera, {input.data(), width, height, stride, encoding},
+                        {output.data(), width, height, stride, encoding}, stats);
+      if (output != expected) return 5;
+    }
   }
 
   return 0;

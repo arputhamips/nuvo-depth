@@ -1,18 +1,15 @@
 [Unit]
-Description=Nuvo Depth calibration job %i
-Conflicts=nuvo-depthd-native.service
-After=nuvo-depthd-native.service
+Description=Nuvo Depth calibration bundle validation job %i
 
 [Service]
 Type=oneshot
 User=nuvo-depth
 Group=nuvo-video
-SupplementaryGroups=video render gpio
 ExecStart=/usr/lib/nuvo-depth/nuvo-calibration validate /var/cache/nuvo-depth/calibration-jobs/%i
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/var/lib/nuvo-depth /var/cache/nuvo-depth
+ReadOnlyPaths=/var/cache/nuvo-depth/calibration-jobs
 MemoryMax=1G
-TasksMax=128
+TasksMax=32

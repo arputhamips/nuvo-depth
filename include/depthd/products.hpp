@@ -6,6 +6,7 @@
 #include <limits>
 
 #include "depthd/calibration_view.hpp"
+#include "depthd/output_selection.hpp"
 
 namespace depthd {
 
@@ -170,6 +171,7 @@ struct ProductSetView {
   FloatPlaneView depth_m{};
   BytePlaneView confidence{};
   BytePlaneView validity{};
+  ipc_v2::ProductMask available_products{ipc_v2::kAllProducts};
 };
 
 void validate(const FrameSetIdentity& identity);

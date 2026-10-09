@@ -7,6 +7,8 @@ from collections import Counter
 from html.parser import HTMLParser
 from pathlib import Path
 import re
+import shutil
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +20,7 @@ class InterfaceParser(HTMLParser):
         self.ids: list[str] = []
         self.pages: set[str] = set()
         self.navigation: set[str] = set()
+        self.navigation_order: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = dict(attrs)
@@ -27,6 +30,7 @@ class InterfaceParser(HTMLParser):
                 self.pages.add(identifier)
         if page := attributes.get("data-page"):
             self.navigation.add(page)
+            self.navigation_order.append(page)
 
 
 def main() -> None:
@@ -37,11 +41,68 @@ def main() -> None:
     duplicates = [identifier for identifier, count in Counter(parser.ids).items() if count > 1]
     assert not duplicates, f"duplicate element IDs: {duplicates}"
     assert parser.pages == parser.navigation, f"page/navigation mismatch: {parser.pages ^ parser.navigation}"
+    assert parser.navigation_order == [
+        "overview", "viewer", "exposure", "presets", "algorithm", "streaming",
+        "network", "calibration", "diagnostics", "recovery",
+    ], f"unexpected operator navigation order: {parser.navigation_order}"
     literal_refs = set(re.findall(r"\$\('([^']+)'\)", script))
     missing = literal_refs - set(parser.ids)
     assert not missing, f"JavaScript refers to missing IDs: {sorted(missing)}"
-    for stage in ("rectification", "preprocess", "match", "postprocess", "other"):
-        assert f"{stage}Time" in parser.ids and f"{stage}Bar" in parser.ids
+    for identifier in ("performanceMonitor", "performanceStages", "performanceChart",
+                       "overviewPerformanceSlot", "diagnosticsPerformanceSlot"):
+        assert identifier in parser.ids
+    assert 'timing-track' not in html, "single-value latency bars should not return"
+    for identifier in ("themeToggle", "flowConnectionState", "flowCaptureState",
+                       "flowQualityState", "flowDeliveryState"):
+        assert identifier in parser.ids
+    assert "nuvo-console-theme" in script and "prefers-color-scheme" in script
+    assert 'id="redGain" type="number" min="0.1" max="16" step="0.0001"' in html
+    assert 'id="blueGain" type="number" min="0.1" max="16" step="0.0001"' in html
+    for identifier in ("exposureReset", "exposureTiming", "manualExposureMs",
+                       "autoMinExposureMs", "autoMaxExposureMs"):
+        assert identifier in parser.ids
+    assert "Advanced capture controls" in html
+    assert "Auto exposure limits" in html and "Auto response" in html
+    assert "White balance" in html
+    assert "exposure_safe_max_us" in script
+    assert "Saved · waiting for camera confirmation" in script
+    assert "Reset to saved device settings" in script
+    encoded_choices = re.search(r'<select id="streamSource">(.*?)</select>', html, re.S)
+    assert encoded_choices, "missing encoded source selector"
+    assert set(re.findall(r'<option value="([^"]+)">', encoded_choices.group(1))) == {
+        "left_rectified", "right_rectified", "disparity", "depth", "left_color", "right_color",
+        "left_mono", "right_mono", "left_rgb", "right_rgb", "left_rectified_rgb",
+        "right_rectified_rgb", "rectified_stereo", "rectified_stereo_rgb",
+    }, "encoded source selector advertises unsupported encoder inputs"
+    for source in ("left_color", "right_color", "left_rectified",
+                   "right_rectified", "disparity", "depth"):
+        assert f'<option value="{source}">' in html
+    assert '<option value="left_color">Left camera · color</option>' in html
+    assert "source==='left_color'?'Left color · ISP':'Right color · ISP'" in script
+    for name in ("diode-indoor-photo", "diode-indoor-depth",
+                 "diode-outdoor-photo", "diode-outdoor-depth"):
+        assert (ROOT / "web" / "assets" / "benchmark" / f"{name}.jpg").is_file()
+    assert 'Photographic DIODE benchmark reference' in html
+    assert 'not Nuvo output' in html
+    assert 'data-benchmark-panel="indoor"' in html
+    assert 'data-benchmark-panel="outdoor" hidden' in html
+    assert "panel.hidden = panel.dataset.benchmarkPanel !== button.dataset.benchmarkScene" in script
+    assert "$('benchmarkGallery').hidden=true" in script
+    assert "$('benchmarkGallery').hidden=false" in script
+    # The overview's calibration alert leads directly to the corrective action.
+    assert 'data-open="calibration"' in html
+    assert 'class="cards status-strip"' in html
+    assert re.search(r'<details class="setup-guide">\s*<summary>Setup guide</summary>', html)
+    assert 'From camera to useful depth.' not in html
+    for identifier in ("encodingReset", "algorithmReset", "deviceResolution",
+                       "overviewCaptureState", "overviewDepthState"):
+        assert identifier in parser.ids
+    for weight in (400, 500, 600):
+        assert (ROOT / "web/assets/fonts" / f"hanken-grotesk-{weight}.ttf").is_file()
+    if node := shutil.which("node"):
+        subprocess.run([node,str(ROOT/"tests/web_configuration_revision_test.js")],check=True)
+        subprocess.run([node,str(ROOT/"tests/web_performance_model_test.js")],check=True)
+        subprocess.run([node,str(ROOT/"tests/web_output_selection_test.js")],check=True)
     print(f"UI contract OK: {len(parser.pages)} pages, {len(parser.ids)} unique IDs")
 
 

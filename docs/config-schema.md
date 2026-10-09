@@ -1,5 +1,17 @@
 # Native configuration preflight
 
+> The YAML profile below remains the immutable appliance/capture baseline.
+> Three small live-control schemas layer on top of it: `encoding.json`,
+> `stereo.json`, and `exposure.json`. Each is a closed schema-v1 object,
+> atomically updated through `nuvoctl`, and reloaded without restarting capture.
+
+The exposure control schema contains `mode` (`manual` or `auto`),
+`manual_exposure_us`, `manual_analogue_gain`, `red_gain`, `blue_gain`, target
+and deadband medians, auto exposure/gain limits, update interval, and settle
+frames. Schema bounds are 250–8,000 µs and 1–3× analogue gain; runtime further
+limits XTR exposure to `trigger period - 250 µs` without changing schema v1. See
+[shared stereo exposure control](stereo-auto-exposure.md).
+
 ## Scope
 
 The native configuration component is an opt-in preflight skeleton. It parses
@@ -76,8 +88,8 @@ errors. Validation diagnostics name the logical YAML path.
 
 ## Schema-v1 keys
 
-All mappings are closed: every listed key is required, and unknown or duplicate
-keys are errors.
+All mappings are closed: listed keys are required except the optional
+`stereo.median_filter_size`, and unknown or duplicate keys are errors.
 
 ```text
 schema_version
@@ -159,3 +171,23 @@ value. This command does not prove GPIO waveform timing, applied sensor
 exposure, pair synchronization, or the hardware-specific relationship between
 the low interval and exposure. Those checks belong to the future platform
 runtime preflight and hardware acceptance test.
+
+## Runtime stereo smoothing
+
+The YAML fallback accepts `stereo.mode` as `sgbm_3way`, `sgbm_standard`,
+`sgbm_hh4`, or `sgbm_hh`. Optional `stereo.median_filter_size` accepts `0`, `3`,
+or `5` and defaults to `0` in existing schema-v1 documents. The shipped YAML
+selects 3-way and median 0, matching the balanced controls before any runtime
+control file is loaded.
+
+The strict `stereo.json` runtime control accepts `sgbm_mode` as `3way`,
+`standard`, `hh4`, or `hh`, and `median_filter_size` as `0`, `3`, or `5`.
+The mode controls how many SGBM path directions are aggregated; more paths
+reduce directional streaks at higher CPU and memory cost. The median is applied
+only to matcher-valid subpixel disparity, and the original invalid mask is
+retained so smoothing cannot manufacture coverage. These controls are
+applied between frames without changing capture geometry or the calibration
+preset identity. The browser reads exact profile controls from
+`web/depth-profiles.json`; a regression check prevents its balanced default from
+drifting from the JSON control file and YAML fallback. All profiles remain
+unqualified candidates until the shipping hardware measurements pass.

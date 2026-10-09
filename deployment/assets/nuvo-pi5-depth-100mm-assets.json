@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "release_id": "nuvo-pi5-depth-100mm-fullres-20260913",
+  "release_id": "nuvo-pi5-depth-100mm-3way128-catalog-v1",
   "target": {
     "board": "raspberry-pi-5",
     "camera_rig": "dual-innomaker-imx296-trigger",
@@ -12,8 +12,8 @@
       "source_group": "package",
       "source": "config/nuvo_pi5_depth_100mm.yaml",
       "destination": "config/nuvo_pi5_depth_100mm.yaml",
-      "bytes": 3196,
-      "sha256": "0ee13739df769b5c3311ff5939cfe18cd184a6ddadd6ef6e5e7a4f8e0983568a"
+      "bytes": 3306,
+      "sha256": "a6ec28499b70fe409f02e357dadb284e450a203c91b88c18bb0e99a2816d73c4"
     },
     {
       "source_group": "package",
@@ -26,8 +26,8 @@
       "source_group": "package",
       "source": "config/calibration/nuvo_depth_100mm/front_right.yaml",
       "destination": "config/calibration/nuvo_depth_100mm/front_right.yaml",
-      "bytes": 977,
-      "sha256": "40584c03db687017b22b69eb07bd87dd613c7493c25f592abc237c33984c0866"
+      "bytes": 1405,
+      "sha256": "193593d0c1eb317d7f5a70dd709d77616141558e4c153c6e76e9e1e6b1f5a178"
     }
   ]
 }

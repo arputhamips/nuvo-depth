@@ -23,7 +23,7 @@ def mean_luma(image: np.ndarray) -> float:
     return float(np.mean(roi))
 
 
-def encoded_luma(path: Path) -> tuple[int,float,str]:
+def decoded_image(path: Path):
     encoded=decode_encoded_frame(path.read_bytes())
     payload=bytes(encoded.data)
     if encoded.codec=="jpeg":
@@ -38,6 +38,11 @@ def encoded_luma(path: Path) -> tuple[int,float,str]:
             if not success: image=None
     else: raise ValueError(f"unknown codec {encoded.codec}")
     if image is None: raise ValueError(f"could not decode {path.name}")
+    return encoded,image
+
+
+def encoded_luma(path: Path) -> tuple[int,float,str]:
+    encoded,image=decoded_image(path)
     return encoded.capture_sequence,mean_luma(image),str(encoded.metadata["source"])
 
 
@@ -49,6 +54,23 @@ def correlation(rows: list[dict], first: str, second: str) -> dict:
     return {"pairs":len(paired),
             "correlation":float(np.corrcoef(a,b)[0,1]) if np.std(a)>0 and np.std(b)>0 else None,
             "mean_absolute_difference":float(np.mean(np.abs(a-b)))}
+
+
+def stage_stats(rows: list[dict], key: str) -> dict | None:
+    values=np.asarray([row[key] for row in rows if row.get(key) is not None],dtype=float)
+    if len(values)==0: return None
+    result={"count":len(values),"min":float(values.min()),
+            "max":float(values.max()),"mean":float(values.mean()),
+            "std":float(values.std())}
+    if len(values)>1:
+        differences=np.diff(values)
+        result["adjacent_rms_change"]=float(np.sqrt(np.mean(differences**2)))
+        result["adjacent_median_absolute_change"]=float(np.median(np.abs(differences)))
+        result["lag1_correlation"]=(float(np.corrcoef(values[:-1],values[1:])[0,1])
+                                    if np.std(values[:-1])>0 and np.std(values[1:])>0
+                                    else None)
+        result["odd_even_output_mean_delta"]=float(values[::2].mean()-values[1::2].mean())
+    return result
 
 
 def main() -> None:
@@ -82,8 +104,16 @@ def main() -> None:
                 product=depth.products[f"{side}_rectified"]
                 image=np.frombuffer(product.data,dtype=np.uint8).reshape(product.height,product.width)
                 row[f"rectified_{side}"]=mean_luma(image)
-            row["depth_width"]=depth.products["disparity"].width
-            row["depth_height"]=depth.products["disparity"].height
+            disparity=depth.products["disparity"]
+            values=np.frombuffer(disparity.data,dtype="<f4").reshape(disparity.height,disparity.width)
+            roi=values[disparity.height//5:disparity.height*4//5,
+                       disparity.width//5:disparity.width*4//5]
+            valid=roi[np.isfinite(roi)]
+            row["disparity_valid_fraction"]=float(valid.size/roi.size)
+            row["disparity_median_px"]=float(np.median(valid)) if valid.size else None
+            row["disparity_mean_px"]=float(np.mean(valid)) if valid.size else None
+            row["depth_width"]=disparity.width
+            row["depth_height"]=disparity.height
         pi_encoded=args.pi_trace/f"post_encoding_{sequence}.nve"
         pc_encoded=args.pc_trace/f"pc_stream_{sequence}.nve"
         if pi_encoded.exists():
@@ -107,7 +137,10 @@ def main() -> None:
              "depth_grids":sorted({(row["depth_width"],row["depth_height"])
                                    for row in rows if "depth_width" in row}),
              "isp_to_rectified":correlation(rows,"isp_left","rectified_left"),
+             "isp_right_to_rectified_right":correlation(rows,"isp_right","rectified_right"),
+             "isp_right_to_pc":correlation(rows,"isp_right","pc_stream"),
              "left_to_right_isp":correlation(rows,"isp_left","isp_right"),
+             "isp_to_disparity_validity":correlation(rows,"isp_left","disparity_valid_fraction"),
              "rectified_to_encoded_left":correlation(
                  [row for row in rows if row.get("encoding_source")=="left_rectified"],
                  "rectified_left","post_encoding"),
@@ -117,17 +150,21 @@ def main() -> None:
              "encoded_to_pc":correlation(rows,"post_encoding","pc_stream"),
              "digital_gain_to_isp":correlation(rows,"left_digital_gain","isp_left"),
              "analogue_gain_to_isp":correlation(rows,"left_analogue_gain","isp_left"),
+             "right_digital_gain_to_isp":correlation(rows,"right_digital_gain","isp_right"),
+             "right_analogue_gain_to_isp":correlation(rows,"right_analogue_gain","isp_right"),
              "stream_packets_identical":sum(row.get("stream_bytes_identical",False) for row in rows),
              "stream_packets_compared":sum("stream_bytes_identical" in row for row in rows)}
     summary["encoding_sources"]=sorted({row["encoding_source"] for row in rows
                                         if "encoding_source" in row})
     summary["encoded_decode_failures"]=sum("post_encoding_decode_error" in row
                                            for row in rows)
-    for key in ("isp_left","rectified_left","post_encoding","pc_stream",
-                "left_exposure_us","left_analogue_gain","left_digital_gain"):
-        values=[row[key] for row in rows if key in row]
-        if values: summary[key]={"min":min(values),"max":max(values),
-                                 "mean":float(np.mean(values)),"std":float(np.std(values))}
+    for key in ("isp_left","isp_right","rectified_left","rectified_right",
+                "disparity_valid_fraction","disparity_median_px","disparity_mean_px",
+                "post_encoding","pc_stream","left_exposure_us",
+                "right_exposure_us","left_analogue_gain","right_analogue_gain",
+                "left_digital_gain","right_digital_gain"):
+        stats=stage_stats(rows,key)
+        if stats: summary[key]=stats
     report={"summary":summary,"frames":rows}
     args.output.parent.mkdir(parents=True,exist_ok=True)
     args.output.write_text(json.dumps(report,indent=2)+"\n")

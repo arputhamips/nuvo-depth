@@ -13,6 +13,7 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -37,6 +38,7 @@ struct Options {
   double target_hz{10.0};
   bool run{};
   bool self_test{};
+  bool resample_output{};
 };
 
 struct FramePaths {
@@ -59,8 +61,11 @@ struct PreparedFrame {
 struct FrameScore {
   std::uint64_t eligible{};
   std::uint64_t predicted_valid{};
+  std::uint64_t bad_one_including_invalid{};
   std::uint64_t bad_two_including_invalid{};
+  std::uint64_t bad_three_including_invalid{};
   double absolute_error_sum{};
+  double squared_error_sum{};
 };
 
 struct DirectionCheck {
@@ -102,12 +107,14 @@ struct DirectionCheck {
       options.run = true;
     } else if (argument == "--self-test") {
       options.self_test = true;
+    } else if (argument == "--resample-output") {
+      options.resample_output = true;
     } else if (argument == "--help") {
       std::cout << "Usage: depthd_sintel_benchmark --dataset-root DIR "
                    "[--pass clean|final] [--sequence NAME|all] "
                    "[--max-frames N] [--config FILE] [--stereo-control FILE] "
                    "[--warmup N] [--target-hz N] [--run --output-dir DIR] "
-                   "[--self-test]\n"
+                   "[--resample-output] [--self-test]\n"
                    "Without --run, only dataset structure and one sample are verified.\n";
       std::exit(0);
     } else {
@@ -165,7 +172,18 @@ struct DirectionCheck {
   });
   if (result.empty()) throw std::runtime_error("no complete Sintel frames found");
   if (options.max_frames != 0U && result.size() > options.max_frames) {
-    result.resize(options.max_frames);
+    // Spread a bounded matrix run over every sequence instead of taking only
+    // the alphabetically first scene. Full runs still retain every frame.
+    std::vector<FramePaths> sampled;
+    sampled.reserve(options.max_frames);
+    for (std::size_t index = 0; index < options.max_frames; ++index) {
+      const auto source = options.max_frames == 1U
+                              ? 0U
+                              : index * (result.size() - 1U) /
+                                    (options.max_frames - 1U);
+      sampled.push_back(result[source]);
+    }
+    result = std::move(sampled);
   }
   return result;
 }
@@ -341,13 +359,18 @@ struct DirectionCheck {
                          static_cast<std::uint8_t>(depthd::ValidityCode::kValid) &&
                          std::isfinite(prediction[index]);
       if (!valid) {
+        ++result.bad_one_including_invalid;
         ++result.bad_two_including_invalid;
+        ++result.bad_three_including_invalid;
         continue;
       }
       ++result.predicted_valid;
       const auto error = std::abs(prediction[index] - expected);
       result.absolute_error_sum += error;
+      result.squared_error_sum += static_cast<double>(error) * error;
+      if (error > 1.0F) ++result.bad_one_including_invalid;
       if (error > 2.0F) ++result.bad_two_including_invalid;
+      if (error > 3.0F) ++result.bad_three_including_invalid;
     }
   }
   return result;
@@ -375,7 +398,9 @@ int self_test() {
   validity[6] = static_cast<std::uint8_t>(depthd::ValidityCode::kInconsistent);
   const auto score = score_frame(frame, metadata, prediction, validity);
   if (score.eligible != 6U || score.predicted_valid != 5U ||
+      score.bad_one_including_invalid != 2U ||
       score.bad_two_including_invalid != 2U ||
+      score.bad_three_including_invalid != 2U ||
       std::abs(score.absolute_error_sum - 6.0) > 1e-6) {
     throw std::runtime_error("Sintel score accounting failed self-test");
   }
@@ -396,8 +421,11 @@ int self_test() {
 void add_score(FrameScore& total, const FrameScore& part) {
   total.eligible += part.eligible;
   total.predicted_valid += part.predicted_valid;
+  total.bad_one_including_invalid += part.bad_one_including_invalid;
   total.bad_two_including_invalid += part.bad_two_including_invalid;
+  total.bad_three_including_invalid += part.bad_three_including_invalid;
   total.absolute_error_sum += part.absolute_error_sum;
+  total.squared_error_sum += part.squared_error_sum;
 }
 
 [[nodiscard]] double ratio(const std::uint64_t numerator,
@@ -430,12 +458,25 @@ int run(const Options& options, const std::vector<FramePaths>& frames) {
   const auto loaded = depthd::config::load(options.config);
   const auto control_sha256 = control_digest(options.stereo_control);
   const auto config = matcher_config(loaded.effective, options.stereo_control);
-  auto matcher = depthd::make_cpu_sgbm_native_backend(config);
-  const auto metadata = matcher->metadata();
-  if (metadata.grid.width != config.input_width ||
-      metadata.grid.height != config.input_height) {
-    throw std::runtime_error("benchmark requires full-resolution native matching");
+  auto metadata_probe = depthd::make_cpu_sgbm_native_backend(config);
+  const auto native_metadata = metadata_probe->metadata();
+  const bool resampled = native_metadata.grid.width != config.input_width ||
+                         native_metadata.grid.height != config.input_height;
+  if (resampled && !options.resample_output) {
+    throw std::runtime_error(
+        "non-native matcher grid requires --resample-output");
   }
+  const auto input_grid =
+      depthd::make_reference_grid(config.input_width, config.input_height);
+  const auto metadata = resampled
+                            ? depthd::make_resampled_disparity_metadata(
+                                  native_metadata, input_grid)
+                            : native_metadata;
+  auto native_matcher = resampled
+                            ? std::unique_ptr<depthd::NativeDisparityBackend>{}
+                            : depthd::make_cpu_sgbm_native_backend(config);
+  auto legacy_matcher = resampled ? depthd::make_cpu_sgbm_backend(config)
+                                  : std::unique_ptr<depthd::StereoBackend>{};
   const auto pixels = static_cast<std::size_t>(metadata.grid.width) *
                       metadata.grid.height;
   std::vector<float> disparity(pixels);
@@ -445,19 +486,40 @@ int run(const Options& options, const std::vector<FramePaths>& frames) {
       {disparity.data(), metadata.grid, metadata.grid.width},
       {confidence.data(), metadata.grid, metadata.grid.width},
       {validity.data(), metadata.grid, metadata.grid.width}};
+  const auto process = [&](const PreparedFrame& frame,
+                           depthd::StereoBackendStats& stats) {
+    if (resampled) {
+      const depthd::MutableDisparityView legacy_output{
+          disparity.data(), metadata.grid.width, metadata.grid.height,
+          metadata.grid.width};
+      legacy_matcher->process(view_of(frame.left), view_of(frame.right),
+                              legacy_output, stats);
+      std::transform(disparity.begin(), disparity.end(), validity.begin(),
+                     [](const float value) {
+                       return static_cast<std::uint8_t>(
+                           std::isfinite(value)
+                               ? depthd::ValidityCode::kValid
+                               : depthd::ValidityCode::kInconsistent);
+                     });
+    } else {
+      native_matcher->process_native(view_of(frame.left), view_of(frame.right),
+                                     output, stats);
+    }
+  };
   for (std::size_t index = 0; index < std::min(options.warmup, frames.size()); ++index) {
     const auto frame = prepare(frames[index], static_cast<int>(config.input_width),
                                static_cast<int>(config.input_height));
     depthd::StereoBackendStats ignored;
-    matcher->process_native(view_of(frame.left), view_of(frame.right), output,
-                            ignored);
+    process(frame, ignored);
   }
 
   std::filesystem::create_directories(options.output_dir);
   std::ofstream per_frame(options.output_dir / "frames.csv");
   if (!per_frame) throw std::runtime_error("cannot create per-frame report");
-  per_frame << "sequence,frame,eligible,predicted_valid,coverage,bad_2_including_invalid,"
-               "mae_valid_only,preprocess_ms,match_ms,postprocess_ms,total_ms\n";
+  per_frame << "sequence,frame,eligible,predicted_valid,coverage,"
+               "bad_1_including_invalid,bad_2_including_invalid,"
+               "bad_3_including_invalid,mae_valid_only,rmse_valid_only,"
+               "preprocess_ms,match_ms,postprocess_ms,total_ms\n";
   FrameScore aggregate;
   std::vector<double> latency;
   std::size_t over_budget_frames = 0U;
@@ -466,8 +528,7 @@ int run(const Options& options, const std::vector<FramePaths>& frames) {
     const auto frame = prepare(paths, static_cast<int>(config.input_width),
                                static_cast<int>(config.input_height));
     depthd::StereoBackendStats stats;
-    matcher->process_native(view_of(frame.left), view_of(frame.right), output,
-                            stats);
+    process(frame, stats);
     const auto score = score_frame(frame, metadata, disparity, validity);
     add_score(aggregate, score);
     latency.push_back(stats.total_ms);
@@ -475,8 +536,12 @@ int run(const Options& options, const std::vector<FramePaths>& frames) {
     per_frame << paths.sequence << ',' << paths.name << ',' << score.eligible
               << ',' << score.predicted_valid << ','
               << ratio(score.predicted_valid, score.eligible) << ','
+              << ratio(score.bad_one_including_invalid, score.eligible) << ','
               << ratio(score.bad_two_including_invalid, score.eligible) << ','
+              << ratio(score.bad_three_including_invalid, score.eligible) << ','
               << ratio(score.absolute_error_sum, score.predicted_valid) << ','
+              << std::sqrt(ratio(score.squared_error_sum,
+                                 score.predicted_valid)) << ','
               << stats.preprocess_ms << ',' << stats.match_ms << ','
               << stats.postprocess_ms << ',' << stats.total_ms << '\n';
   }
@@ -496,21 +561,34 @@ int run(const Options& options, const std::vector<FramePaths>& frames) {
           << "  \"config_sha256\": \"" << loaded.configuration_sha256 << "\",\n"
           << "  \"stereo_control_sha256\": \""
           << control_sha256 << "\",\n"
-          << "  \"backend\": \"" << matcher->name() << "\",\n"
+          << "  \"backend\": \""
+          << (resampled ? legacy_matcher->name() : native_matcher->name())
+          << "\",\n"
           << "  \"input_width\": " << config.input_width << ",\n"
           << "  \"input_height\": " << config.input_height << ",\n"
-          << "  \"matcher_width\": " << metadata.grid.width << ",\n"
-          << "  \"matcher_height\": " << metadata.grid.height << ",\n"
+          << "  \"matcher_width\": " << native_metadata.grid.width << ",\n"
+          << "  \"matcher_height\": " << native_metadata.grid.height << ",\n"
+          << "  \"output_width\": " << metadata.grid.width << ",\n"
+          << "  \"output_height\": " << metadata.grid.height << ",\n"
+          << "  \"resampled_output\": " << (resampled ? "true" : "false")
+          << ",\n"
           << "  \"max_disparity_exclusive_px\": "
           << metadata.accepted_max_disparity_px << ",\n"
           << "  \"frame_count\": " << frames.size() << ",\n"
           << "  \"eligible_pixels\": " << aggregate.eligible << ",\n"
           << "  \"valid_prediction_pixels\": " << aggregate.predicted_valid << ",\n"
           << "  \"coverage\": " << ratio(aggregate.predicted_valid, aggregate.eligible)
+          << ",\n  \"bad_1_including_invalid\": "
+          << ratio(aggregate.bad_one_including_invalid, aggregate.eligible)
           << ",\n  \"bad_2_including_invalid\": "
           << ratio(aggregate.bad_two_including_invalid, aggregate.eligible)
+          << ",\n  \"bad_3_including_invalid\": "
+          << ratio(aggregate.bad_three_including_invalid, aggregate.eligible)
           << ",\n  \"mae_valid_only_px\": "
           << ratio(aggregate.absolute_error_sum, aggregate.predicted_valid)
+          << ",\n  \"rmse_valid_only_px\": "
+          << std::sqrt(ratio(aggregate.squared_error_sum,
+                             aggregate.predicted_valid))
           << ",\n  \"target_hz\": " << options.target_hz
           << ",\n  \"matcher_over_budget_frames\": " << over_budget_frames
           << ",\n  \"matcher_ms_p50\": " << percentile(latency, 0.5)
@@ -558,13 +636,18 @@ int main(const int argc, char** argv) {
         const auto loaded = depthd::config::load(options.config);
         const auto config = matcher_config(loaded.effective, options.stereo_control);
         const auto matcher = depthd::make_cpu_sgbm_native_backend(config);
-        if (matcher->metadata().grid.width != config.input_width ||
-            matcher->metadata().grid.height != config.input_height ||
-            config.input_width != 728U || config.input_height != 544U) {
-          throw std::runtime_error("benchmark profile is not full-resolution 728x544");
+        const auto native = matcher->metadata().grid;
+        if (config.input_width != 728U || config.input_height != 544U ||
+            ((!options.resample_output) &&
+             (native.width != config.input_width ||
+              native.height != config.input_height))) {
+          throw std::runtime_error(
+              "benchmark profile/output geometry is not authorized");
         }
         std::cout << "Matcher configuration verified: " << matcher->name()
-                  << ", 728x544, config sha256="
+                  << ", " << native.width << 'x' << native.height
+                  << (options.resample_output ? " -> 728x544" : " native")
+                  << ", config sha256="
                   << loaded.configuration_sha256 << '\n';
       }
       return 0;

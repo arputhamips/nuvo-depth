@@ -37,6 +37,7 @@ int main() {
       sgbm.accepted_min_disparity_px != 0.0F ||
       sgbm.accepted_max_disparity_px != 64.0F ||
       sgbm.working_disparities != 64 || sgbm.block_size != 5 ||
+      sgbm.sgbm_mode != "3way" ||
       sgbm.uniqueness_ratio != 1 || sgbm.speckle_window_size != 30 ||
       sgbm.speckle_range != 2 || sgbm.disparity_12_max_diff != 1 ||
       sgbm.pre_filter_cap != 31 || sgbm.opencv_threads != 1) {
@@ -97,19 +98,19 @@ int main() {
            "line: 17", "pulse_width_us: 8000", "pair_tolerance_us: 500",
            "auto_exposure:", "enabled: false",
            "max_shutter_us: 8000", "max_analogue_gain: 3.0",
-           "backend: egl_gl_dmabuf", "fallback_backend: cpu_opencv",
+           "backend: cpu_opencv", "fallback_backend: egl_gl_dmabuf",
            "left_calibration: /var/lib/nuvo-depthd/current/config/calibration/nuvo_depth_100mm/front_left.yaml",
            "right_calibration: /var/lib/nuvo-depthd/current/config/calibration/nuvo_depth_100mm/front_right.yaml",
            "depth_preprocessing: isp_luma_before_rectification",
            "backend: cpu_sgbm", "max_disparity: 128",
            "working_width: 728", "working_height: 544",
            "working_disparities: 128", "block_size: 5", "mode: sgbm_3way",
-           "uniqueness_ratio: 1", "speckle_window_size: 30",
-           "speckle_range: 2", "opencv_threads: 4",
+           "uniqueness_ratio: 0", "median_filter_size: 0", "speckle_window_size: 30",
+           "speckle_range: 2", "opencv_threads: 2",
            "disparity_hz: 10", "metric_depth_enabled: false",
            "compressed_image_hz: 2", "jpeg_quality: 75",
            "result_ring_path: /run/depthd/results.ring",
-           "result_ring_slots: 4", "obstacle_cloud_enabled: true",
+           "result_ring_slots: 4", "obstacle_cloud_enabled: false",
            "obstacle_cloud_topic: /camera/front/obstacles",
            "role: standalone_depth_camera", "profile_id: balanced_728x544_10",
            "baseline_m: 0.100",
@@ -120,11 +121,11 @@ int main() {
   const std::string encoding =
       read_file(std::string(DEPTHD_SOURCE_DIR) + "/config/encoding.json");
   if (!contains_all(encoding,
-                    {"\"schema_version\":1", "\"mode\":\"both\"",
+                    {"\"schema_version\":1", "\"mode\":\"raw\"",
                      "\"codec\":\"h264\"",
                      "\"source\":\"left_rectified\"", "\"width\":0",
                      "\"height\":0", "\"cadence_hz\":10",
-                     "\"bitrate_bps\":4000000", "\"threads\":4",
+                     "\"bitrate_bps\":4000000", "\"threads\":1",
                      "\"low_latency\":true",
                      "\"preset\":\"veryfast\""})) {
     return 9;

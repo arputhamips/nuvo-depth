@@ -149,6 +149,81 @@ void test_complete_transmission() {
           "complete transmission was not accounted");
 }
 
+void test_connection_cannot_reserve_another_interface() {
+  auto config = configuration(depthd::gateway::TransportPreference::kEthernetPreferred);
+  config.usb_ethernet.qualified_payload_bytes_per_second = 1'000U;
+  depthd::gateway::AdmissionController controller(config);
+  auto refused = controller.admit(request(1'000'000U, 10.0),
+      depthd::gateway::TransportKind::kUsbEthernet);
+  require(!refused.lease && refused.compatible_alternatives.size() == 1U &&
+      refused.compatible_alternatives.front() == depthd::gateway::TransportKind::kEthernet,
+      "USB connection silently consumed Ethernet capacity");
+  auto accepted = controller.admit(request(1'000'000U, 10.0),
+      depthd::gateway::TransportKind::kEthernet);
+  require(accepted.lease && controller.stats().usb_sessions == 0U,
+      "connected-interface admission did not account Ethernet exactly");
+  depthd::gateway::AdmissionController preference_controller(configuration(
+      depthd::gateway::TransportPreference::kBoth));
+  auto reconnect = preference_controller.admit(request(1'000'000U, 10.0),
+      depthd::gateway::TransportKind::kEthernet,
+      depthd::gateway::TransportPreference::kUsbPreferred);
+  require(!reconnect.lease && reconnect.compatible_alternatives.size() == 1U &&
+      reconnect.compatible_alternatives.front() == depthd::gateway::TransportKind::kUsbEthernet,
+      "connected-interface admission ignored current USB preference");
+}
+
+void test_wifi_resource_admission_and_selection() {
+  auto config = configuration(depthd::gateway::TransportPreference::kAuto);
+  config.wifi = {true, true, 8U * 1024U * 1024U, 16U * 1024U * 1024U, 4U};
+  depthd::gateway::AdmissionController controller(config);
+  auto image = request(728U * 544U * 3U, 5.0);
+  image.products = depthd::ipc_v2::product_bit(depthd::ipc_v2::ProductKind::kLeftRgb);
+  auto admitted = controller.admit(image, depthd::gateway::TransportKind::kWifi);
+  require(admitted.lease && admitted.lease->transport() == depthd::gateway::TransportKind::kWifi &&
+      controller.stats().ethernet_sessions == 0U && controller.stats().wifi_sessions == 1U,
+      "automatic policy rejected image-only WiFi or charged wired capacity");
+  auto refused = controller.admit(image, depthd::gateway::TransportKind::kWifi);
+  require(!refused.lease, "WiFi aggregate byte budget was oversubscribed");
+  admitted.lease->reset();
+  auto wired = controller.admit(image, depthd::gateway::TransportKind::kEthernet,
+      depthd::gateway::TransportPreference::kWifiOnly);
+  require(!wired.lease, "WiFi-only preference admitted an Ethernet socket");
+  auto excessive = image; excessive.cadence_hz = 60;
+  auto rejected = controller.admit(excessive, depthd::gateway::TransportKind::kWifi);
+  require(!rejected.lease, "WiFi request silently reduced cadence to fit");
+  auto snapshot = request(728U * 544U * 12U, 1.0);
+  snapshot.metadata_bytes = depthd::wire::kHardMaximumMetadataBytes;
+  auto one_shot = controller.admit(snapshot, depthd::gateway::TransportKind::kWifi);
+  require(one_shot.lease && one_shot.lease->transport() == depthd::gateway::TransportKind::kWifi,
+      "normal WiFi rejected a legacy six-product snapshot fitting its byte window");
+  one_shot.lease->reset();
+  snapshot.cadence_hz = 10.0;
+  require(!controller.admit(snapshot, depthd::gateway::TransportKind::kWifi).lease,
+      "WiFi admitted a ten-Hz legacy stream exceeding its byte budget");
+}
+
+void test_serialized_storage_is_shared_and_complete() {
+  depthd::gateway::SessionQueue queue(1024U);
+  auto bytes = std::make_shared<const std::vector<std::byte>>(128U, std::byte{7});
+  require(queue.offer_serialized(bytes) == depthd::gateway::OfferResult::kAccepted,
+      "serialized frame refused");
+  auto sending = queue.begin_serialized_transmission();
+  require(sending == bytes, "gateway copied immutable serialized frame for client");
+  require(queue.offer_serialized(bytes) == depthd::gateway::OfferResult::kAccepted,
+      "pending serialized frame refused beside in-flight frame");
+  queue.note_bytes_sent(bytes->size());
+  queue.complete_transmission();
+  require(queue.stats().transmissions_completed == 1U && queue.stats().pending_messages == 1U,
+      "serialized queue accounting lost complete frame");
+  sending = queue.begin_serialized_transmission();
+  queue.note_bytes_sent(1U);
+  queue.close_incomplete();
+  require(queue.stats().sessions_closed_incomplete == 1U,
+      "partial serialized frame did not close session");
+  require(queue.offer_serialized(std::make_shared<const std::vector<std::byte>>(1025U)) ==
+      depthd::gateway::OfferResult::kOversize, "oversize serialized data not bounded");
+}
+
 }  // namespace
 
 int main() {
@@ -157,6 +232,9 @@ int main() {
     test_no_silent_degradation_or_unqualified_tls();
     test_whole_frame_backpressure_and_partial_close();
     test_complete_transmission();
+    test_connection_cannot_reserve_another_interface();
+    test_wifi_resource_admission_and_selection();
+    test_serialized_storage_is_shared_and_complete();
     std::cout << "gateway_test: pass\n";
     return EXIT_SUCCESS;
   } catch (const std::exception& error) {

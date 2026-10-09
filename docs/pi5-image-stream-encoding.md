@@ -2,10 +2,13 @@
 
 ## Decision
 
-Nuvo Depth now has an optional encoder after the completed rectification/depth
-frame set. It supports raw-only, encoded-only, and simultaneous raw plus encoded
-delivery without changing camera ownership, trigger timing, rectification, or
-stereo matching.
+Nuvo Depth has separate bounded branches for requested numeric products and
+monitoring images. Active subscriptions determine their product masks and
+cadence. Mono/RGB camera previews, including rectified side-by-side images,
+rectify/encode independently from stereo matching. Disparity/depth previews
+use completed numeric products. With no subscribers, neither branch processes
+products; paired capture remains available for fresh health and eligible
+exposure metering.
 
 Raspberry Pi 5 has no H.264 hardware encoder. The production implementation
 therefore uses FFmpeg's NEON-optimized `libx264` encoder for low-latency H.264
@@ -27,41 +30,93 @@ not select V4L2 M2M.
 
 ```text
 trigger + paired capture
-  -> rectification
-  -> disparity and metric depth
-  -> complete immutable frame set
-       |-> bounded local IPC (always complete raw products)
-       |-> optional raw NUV1 network snapshot
-       `-> one-slot asynchronous image encoder
-             -> atomic NVE1 snapshot
-             -> authenticated HTTPS / WebSocket gateway
+  |-> current capture status and eligible exposure metering
+  |-> requested raw mask/cadence -> bounded native product worker
+  |                                 -> rectification only where requested
+  |                                 -> SGBM only for matcher/depth products
+  |                                 -> metric conversion only where requested
+  |                                 -> complete local product publication
+  |                                 `-> requested disparity/depth preview
+  `-> requested image preview cadence -> three-slot owning input pool
+                                       -> private lazy CPU rectifier if needed
+                                       -> RGB/mono and side-by-side conversion
+                                       -> one-slot encoding worker
+                                       -> atomic NVE1 snapshot and TLS fanout
 ```
 
-The encoder owns only a shared reference to an already-complete frame set. Its
-pending queue has exactly one slot and favors the newest frame. If an encoder or
-network consumer is slow, an old pending preview is replaced; no camera request,
-DMABUF lease, trigger deadline, rectification job, or depth result can be held by
-the encoder. Encoding cadence is based on camera timestamps with a bounded 2 ms
-jitter tolerance.
+The image branch admits a capture only when there is active encoded demand,
+its cadence interval is due, and one of three fixed input slots is free. It
+copies each selected camera's mono or ISP I420 plane once into that slot and
+never retains a camera request. Cadence is consumed at this admission, so a
+slow stereo matcher cannot multiply preview copies or delay image delivery.
+The preview worker owns its CPU rectifier and immutable calibration maps;
+it does not share native EGL/OpenCV execution state. The pending queue has one
+slot and replaces old pending work. Pool saturation drops a complete preview
+instead of expanding memory or blocking capture. Camera timestamps include a
+bounded 2 ms cadence jitter tolerance.
+
+The native product branch follows the union of live local subscriptions. A
+mono/RGB-only request skips SGBM and depth conversion. No subscriber means no
+native queue submission. The gateway holds persistent local demand leases for
+raw and encoded clients; disconnect releases them. Explicit diagnostic trace
+or raw-snapshot command-line options count as output requests. Capture status
+reports requested masks/cadence, processing submissions, preview admissions
+and copies, and activity flags for rectification, matching, depth, and encoding.
+
+Numeric previews reserve their cadence only after a native request is admitted.
+Raw cadence is evaluated separately, and only a due preview adds disparity/depth
+dependencies. A pending reserved preview survives ordinary raw replacements;
+newer reserved previews can replace it within the same bounded queue. Status
+reports numeric admissions and raw requests dropped to protect that pending
+capture. This prevents a 1 Hz depth preview from driving stereo at a concurrent
+10 Hz mono subscriber's cadence.
 
 ## Configuration
 
 The installed control file is `/etc/nuvo-depth/encoding.json`. The daemon checks
-its modification time on each completed frame and applies a valid change without
-a restart. An invalid or unreadable change leaves the last valid configuration
+its modification time before capture, at completed-frame submission, and before
+publishing an encoded result, and applies a valid change without a restart. An invalid or unreadable change leaves the last valid configuration
 active. A missing initial file fails safe to raw-only operation.
 
 The checked-in default is `config/encoding.json`:
 
 ```json
-{"schema_version":1,"mode":"both","codec":"h264","source":"left_rectified","width":0,"height":0,"cadence_hz":10,"bitrate_bps":4000000,"jpeg_quality":80,"keyframe_interval":1,"threads":4,"low_latency":true,"preset":"veryfast"}
+{"schema_version":1,"mode":"raw","codec":"h264","source":"left_rectified","width":0,"height":0,"cadence_hz":10,"bitrate_bps":4000000,"jpeg_quality":80,"keyframe_interval":1,"threads":1,"low_latency":true,"preset":"veryfast"}
 ```
 
 `width` and `height` are both zero for native resolution, or both even values no
-larger than 1920 x 1080. Valid sources are `left_rectified`, `right_rectified`,
-`disparity`, and `depth`. Floating-point disparity and depth are mapped to an
+larger than 1920 x 1080. The image sources are:
+
+| Source | View |
+|---|---|
+| `left_mono`, `right_mono` | Unrectified logical camera, mono |
+| `left_rgb`, `right_rgb` | Unrectified logical camera, RGB |
+| `left_rectified`, `right_rectified` | Rectified logical camera, mono |
+| `left_rectified_rgb`, `right_rectified_rgb` | Rectified logical camera, RGB |
+| `rectified_stereo` | Rectified left then right, side by side, mono |
+| `rectified_stereo_rgb` | Rectified left then right, side by side, RGB |
+| `left_color`, `right_color` | Compatibility names for unrectified color |
+| `disparity`, `depth` | Numeric-product visualization, requires stereo |
+
+Camera color inputs use [libcamera sYCC](https://github.com/libcamera-org/libcamera/blob/master/src/libcamera/color_space.cpp):
+full-range luma and Rec.601 chroma. Conversion preserves that range in RGB and
+JPEG; H.264 explicitly converts and signals video range. Color inputs preserve
+ISP chroma through the RGB preview conversion. Only the
+selected camera is copied for a single-camera source; side-by-side sources
+admit both associated cameras. No preview mapping/copy occurs while encoded
+demand is absent, encoding is disabled, or cadence/pool admission rejects a
+capture. At native 728 x 544 resolution, side-by-side output is 1456 x 544;
+larger source grids may require explicit output dimensions to stay within the
+encoder's 1920 x 1080 output bound. Raw local RGB and mono products retain their
+own lossless descriptors; encoded previews remain lossy.
+
+Floating-point disparity and depth are mapped to an
 8-bit preview plane before encoding; raw NUV1 remains the authoritative numeric
 data path.
+Disparity preview brightness uses each frame's accepted maximum disparity,
+so changing the stereo range does not silently clip values above 64 pixels.
+Invalid disparity pixels are black. The preview is lossy and must not be used
+as a numeric disparity product.
 
 | Mode | Raw NUV1 | Encoded NVE1 |
 |---|---:|---:|
@@ -70,14 +125,25 @@ data path.
 | `both` | yes | yes |
 
 H.264 emits baseline-profile Annex B access units with repeated SPS/PPS headers,
-no B-frames, fixed keyframe cadence, and optional `zerolatency` tuning. MJPEG
+no B-frames, an independent keyframe per live image, and optional `zerolatency`
+tuning. MJPEG
 emits one complete JPEG per envelope. Runtime bounds are 60 Hz, 50 Mbit/s, four
 encoder threads, 1920 x 1080 pixels, 32 MiB encoded payload, and 64 KiB metadata.
-The checked-in interval of one makes every H.264 access unit independently
-decodable, which is required for an artifact-free preview over the deliberately
-latest-frame transport. Longer GOPs remain configurable for a downstream
-continuity-preserving transport; the browser detects any gap, holds the last
-good image, and resumes at the next keyframe.
+The live daemon and public controls require `keyframe_interval=1` for enabled
+H.264. Every access unit is independently decodable, including its SPS/PPS
+headers, so consumers can skip any number of frames. This costs compression
+efficiency compared with predictive GOPs. Longer GOPs remain supported only by
+the standalone `FrameEncoder`/benchmark API for offline callers that preserve
+every encoded frame; the live latest-frame transport does not provide that
+continuity. Valid configuration changes discard queued old work, remove the
+old latest snapshot, and prevent an in-flight old encode from publishing after
+the change. Encoded stream sequence remains monotonic across configuration
+changes within the same encoder lifetime. Each envelope also identifies the
+capture clock, selected calibration hash/authority, and the exact
+`encoding_applied_revision` SHA-256 of the control document. Loading a control
+file reports a requested revision; it becomes applied only when a frame from
+that revision is successfully encoded and published. The independent encoding
+generation is separate from the captured product's configuration epoch.
 
 ## Remote API and transport
 
@@ -92,7 +158,8 @@ USB Ethernet. The image format is independent of the underlying IP link.
 Mode-disabled endpoints fail closed. Authentication, CSRF protection, bounded
 sessions, TLS, response bounds, and the system-agent allowlist are shared with
 the rest of the gateway. The web console exposes mode, codec, source,
-resolution, cadence, bitrate/JPEG quality, keyframe interval, thread count,
+resolution, cadence, bitrate/JPEG quality, a fixed independent-frame interval,
+thread count,
 latency tuning, and preset controls. It previews JPEG directly and H.264 through
 WebCodecs when the browser supports it.
 
@@ -173,11 +240,10 @@ gap is therefore a dual-camera ISP/GPU/request-recycle throughput limit under
 the combined workload, not an encoder limit. This profile is deliberately
 named experimental and must not be represented as qualified 60 fps.
 
-The live browser path polls the atomic encoded snapshot at 5 ms rather than
-20 ms so a nominal 60 Hz producer is not undersampled. The WebCodecs client also
-checks the envelope sequence, resets after a gap, and waits for the next
-keyframe before decoding. This prevents skipped predictive frames from turning
-into grey macroblocks or flicker if a user deliberately selects a longer GOP.
+The gateway watches the atomic encoded snapshot once and fans new snapshots
+out to bounded client sessions. The WebCodecs client also checks envelope
+sequence and resets after a gap; live H.264 frames are always independent, so
+the next delivered image can be decoded immediately.
 Preview restarts now invalidate callbacks from the old WebSocket and ignore
 frames whose codec, source, or explicit dimensions do not match the applied
 configuration. MJPEG completions are ordered by arrival so an older asynchronous

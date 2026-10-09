@@ -1,4 +1,5 @@
 #include "depthd/image_encoder.hpp"
+#include "depthd/configuration_revision.hpp"
 
 #include <algorithm>
 #include <array>
@@ -62,8 +63,18 @@ namespace {
 [[nodiscard]] Source source(const std::string_view value) {
   if (value == "left_rectified") return Source::kLeftRectified;
   if (value == "right_rectified") return Source::kRightRectified;
+  if (value == "left_color") return Source::kLeftColor;
+  if (value == "right_color") return Source::kRightColor;
   if (value == "disparity") return Source::kDisparity;
   if (value == "depth") return Source::kDepth;
+  if (value == "left_mono") return Source::kLeftMono;
+  if (value == "right_mono") return Source::kRightMono;
+  if (value == "left_rgb") return Source::kLeftRgb;
+  if (value == "right_rgb") return Source::kRightRgb;
+  if (value == "left_rectified_rgb") return Source::kLeftRectifiedRgb;
+  if (value == "right_rectified_rgb") return Source::kRightRectifiedRgb;
+  if (value == "rectified_stereo") return Source::kRectifiedStereo;
+  if (value == "rectified_stereo_rgb") return Source::kRectifiedStereoRgb;
   throw std::invalid_argument(
       "encoding.source must name a supported image product");
 }
@@ -88,8 +99,16 @@ template <class Value>
   output << "{\"schema_version\":1,\"capture_epoch\":"
          << frame.identity.capture_epoch << ",\"capture_sequence\":"
          << frame.identity.capture_sequence << ",\"capture_time_ns\":"
-         << frame.identity.capture_time_ns << ",\"configuration_epoch\":"
-         << frame.identity.configuration_epoch << ",\"device_uuid\":\""
+         << frame.identity.capture_time_ns << ",\"capture_clock\":"
+         << static_cast<unsigned>(frame.identity.capture_clock)
+         << ",\"configuration_epoch\":"
+         << frame.identity.configuration_epoch << ",\"calibration_sha256\":\""
+         << calibration_identity_to_sha256(frame.calibration)
+         << "\",\"calibration_authority\":"
+         << static_cast<unsigned>(frame.calibration_authority)
+         << ",\"encoding_configuration_generation\":" << frame.encoding_configuration_generation
+         << ",\"encoding_applied_revision\":\"" << frame.encoding_applied_revision
+         << "\",\"device_uuid\":\""
          << uuid(frame.identity.device_uuid) << "\",\"run_uuid\":\""
          << uuid(frame.identity.run_uuid) << "\",\"source\":\""
          << name(frame.source) << "\",\"codec\":\"" << name(frame.codec)
@@ -122,10 +141,11 @@ void put_u64(std::byte* target, const std::uint64_t value) {
 }
 
 struct SourcePlane {
-  const std::uint8_t* data{};
+  std::array<const std::uint8_t*, 4> data{};
+  std::array<int, 4> linesize{};
+  AVPixelFormat pixel_format{AV_PIX_FMT_GRAY8};
   std::uint32_t width{};
   std::uint32_t height{};
-  std::size_t stride{};
   std::vector<std::uint8_t> storage;
 };
 
@@ -133,21 +153,104 @@ struct SourcePlane {
                                        const Source selected) {
   SourcePlane result;
   std::size_t available{};
+  const auto rectified_format = [&](const ImageProductFormat format) {
+    switch (format) {
+      case ImageProductFormat::kGray8:
+        result.pixel_format = AV_PIX_FMT_GRAY8;
+        break;
+      case ImageProductFormat::kBgr8:
+        result.pixel_format = AV_PIX_FMT_BGR24;
+        result.linesize[0] *= 3;
+        break;
+      case ImageProductFormat::kRgb8:
+        result.pixel_format = AV_PIX_FMT_RGB24;
+        result.linesize[0] *= 3;
+        break;
+      default:
+        throw std::invalid_argument("selected rectified source format is invalid");
+    }
+  };
   switch (selected) {
     case Source::kLeftRectified:
-      result.data = frame.left_rectified.data();
+      result.data[0] = frame.left_rectified.data();
       result.width = frame.metadata.left_rectified.grid.width;
       result.height = frame.metadata.left_rectified.grid.height;
-      result.stride = frame.metadata.left_rectified.grid.width;
+      result.linesize[0] =
+          static_cast<int>(frame.metadata.left_rectified.grid.width);
+      rectified_format(frame.metadata.left_rectified.format);
       available = frame.left_rectified.size();
       break;
     case Source::kRightRectified:
-      result.data = frame.right_rectified.data();
+      result.data[0] = frame.right_rectified.data();
       result.width = frame.metadata.right_rectified.grid.width;
       result.height = frame.metadata.right_rectified.grid.height;
-      result.stride = frame.metadata.right_rectified.grid.width;
+      result.linesize[0] =
+          static_cast<int>(frame.metadata.right_rectified.grid.width);
+      rectified_format(frame.metadata.right_rectified.format);
       available = frame.right_rectified.size();
       break;
+    case Source::kLeftColor:
+    case Source::kRightColor: {
+      const auto& color = selected == Source::kLeftColor
+                              ? frame.left_color_yuv420
+                              : frame.right_color_yuv420;
+      const auto& grid = selected == Source::kLeftColor
+                             ? frame.metadata.left_rectified.grid
+                             : frame.metadata.right_rectified.grid;
+      result.width = grid.width;
+      result.height = grid.height;
+      if (grid.width == 0U || grid.height == 0U || grid.width % 2U != 0U ||
+          grid.height % 2U != 0U ||
+          grid.height > std::numeric_limits<std::size_t>::max() / grid.width) {
+        throw std::invalid_argument("selected color source grid is invalid");
+      }
+      const auto pixels = static_cast<std::size_t>(grid.width) * grid.height;
+      if (color.size() != pixels * 3U / 2U) {
+        throw std::invalid_argument(
+            "selected color source is unavailable for this frame");
+      }
+      result.pixel_format = AV_PIX_FMT_YUVJ420P;
+      result.data[0] = color.data();
+      result.data[1] = color.data() + pixels;
+      result.data[2] = color.data() + pixels + pixels / 4U;
+      result.linesize[0] = static_cast<int>(grid.width);
+      result.linesize[1] = static_cast<int>(grid.width / 2U);
+      result.linesize[2] = static_cast<int>(grid.width / 2U);
+      available = color.size();
+      break;
+    }
+    case Source::kLeftMono:
+    case Source::kRightMono:
+    case Source::kLeftRgb:
+    case Source::kRightRgb:
+    case Source::kLeftRectifiedRgb:
+    case Source::kRightRectifiedRgb:
+    case Source::kRectifiedStereo:
+    case Source::kRectifiedStereoRgb: {
+      const std::vector<std::uint8_t>* pixels{};
+      switch (selected) {
+        case Source::kLeftMono: pixels = &frame.left_mono; break;
+        case Source::kRightMono: pixels = &frame.right_mono; break;
+        case Source::kLeftRgb: pixels = &frame.left_rgb; break;
+        case Source::kRightRgb: pixels = &frame.right_rgb; break;
+        case Source::kLeftRectifiedRgb: pixels = &frame.left_rectified_rgb; break;
+        case Source::kRightRectifiedRgb: pixels = &frame.right_rectified_rgb; break;
+        case Source::kRectifiedStereo: pixels = &frame.rectified_stereo; break;
+        case Source::kRectifiedStereoRgb: pixels = &frame.rectified_stereo_rgb; break;
+        default: break;
+      }
+      const bool stereo = selected == Source::kRectifiedStereo ||
+                          selected == Source::kRectifiedStereoRgb;
+      const bool color = selected != Source::kLeftMono && selected != Source::kRightMono &&
+                         selected != Source::kRectifiedStereo;
+      result.width = frame.metadata.left_rectified.grid.width * (stereo ? 2U : 1U);
+      result.height = frame.metadata.left_rectified.grid.height;
+      result.linesize[0] = static_cast<int>(result.width * (color ? 3U : 1U));
+      result.pixel_format = color ? AV_PIX_FMT_RGB24 : AV_PIX_FMT_GRAY8;
+      result.data[0] = pixels->data();
+      available = pixels->size();
+      break;
+    }
     case Source::kDisparity:
     case Source::kDepth: {
       const auto disparity_scale =
@@ -164,7 +267,7 @@ struct SourcePlane {
                                                           : frame.depth_m;
       result.width = grid.width;
       result.height = grid.height;
-      result.stride = grid.width;
+      result.linesize[0] = static_cast<int>(grid.width);
       if (grid.width == 0U ||
           grid.height > std::numeric_limits<std::size_t>::max() / grid.width) {
         throw std::invalid_argument("selected encoder source grid is invalid");
@@ -189,15 +292,18 @@ struct SourcePlane {
         result.storage[index] = static_cast<std::uint8_t>(
             std::lround(normalized * 255.0F));
       }
-      result.data = result.storage.data();
+      result.data[0] = result.storage.data();
       available = result.storage.size();
       break;
     }
   }
-  if (result.data == nullptr || result.width == 0U || result.height == 0U ||
-      result.stride < result.width ||
-      result.height > std::numeric_limits<std::size_t>::max() / result.stride ||
-      available < result.stride * result.height) {
+  if (result.data[0] == nullptr || result.width == 0U ||
+      result.height == 0U || result.linesize[0] < 0 ||
+      static_cast<std::uint32_t>(result.linesize[0]) < result.width ||
+      result.height > std::numeric_limits<std::size_t>::max() /
+                          static_cast<std::size_t>(result.linesize[0]) ||
+      available < static_cast<std::size_t>(result.linesize[0]) *
+                      result.height) {
     throw std::invalid_argument("selected encoder source is invalid");
   }
   return result;
@@ -226,8 +332,33 @@ class FfmpegFrameEncoder final : public FrameEncoder {
 
   EncodedFrame encode(const FrameSetStorage& frame,
                       const std::uint64_t stream_sequence) override {
+    return encode_plane(source_plane(frame, config_.source), frame.metadata,
+                        stream_sequence);
+  }
+
+  EncodedFrame encode_image(const ImageView& image,
+                            const ProductSetMetadata& metadata,
+                            const std::uint64_t stream_sequence) override {
+    SourcePlane input;
+    input.width = image.width;
+    input.height = image.height;
+    input.data[0] = image.data;
+    input.linesize[0] = static_cast<int>(image.stride_bytes);
+    switch (image.encoding) {
+      case ImageEncoding::kGray8: input.pixel_format = AV_PIX_FMT_GRAY8; break;
+      case ImageEncoding::kRgb8: input.pixel_format = AV_PIX_FMT_RGB24; break;
+      case ImageEncoding::kBgr8: input.pixel_format = AV_PIX_FMT_BGR24; break;
+    }
+    if (!image.data || image.width == 0U || image.height == 0U) {
+      throw std::invalid_argument("preview image is incomplete");
+    }
+    return encode_plane(input, metadata, stream_sequence);
+  }
+
+  EncodedFrame encode_plane(const SourcePlane& input,
+                            const ProductSetMetadata& metadata,
+                            const std::uint64_t stream_sequence) {
     const auto started = std::chrono::steady_clock::now();
-    const auto input = source_plane(frame, config_.source);
     // The disparity/depth matcher grid can be odd-sized (the Pi 5 profile is
     // 273x204), while the browser-compatible YUV420 encoders require even
     // dimensions.  Native sizing therefore trims at most one edge pixel;
@@ -239,8 +370,10 @@ class FfmpegFrameEncoder final : public FrameEncoder {
                             ? input.height & ~std::uint32_t{1U}
                             : config_.height;
     if (!context_ || width != width_ || height != height_ ||
-        input.width != input_width_ || input.height != input_height_) {
-      initialize(width, height, input.width, input.height);
+        input.width != input_width_ || input.height != input_height_ ||
+        input.pixel_format != input_pixel_format_) {
+      initialize(width, height, input.width, input.height,
+                 input.pixel_format);
     }
 
     const int writable = av_frame_make_writable(output_.get());
@@ -248,9 +381,8 @@ class FfmpegFrameEncoder final : public FrameEncoder {
       throw std::runtime_error("FFmpeg frame is not writable: " +
                                av_error(writable));
     }
-    const std::uint8_t* input_data[4]{input.data, nullptr, nullptr, nullptr};
-    const int input_lines[4]{static_cast<int>(input.stride), 0, 0, 0};
-    const auto scaled = sws_scale(scaler_.get(), input_data, input_lines, 0,
+    const auto scaled = sws_scale(scaler_.get(), input.data.data(),
+                                  input.linesize.data(), 0,
                                   static_cast<int>(input.height), output_->data,
                                   output_->linesize);
     if (scaled != static_cast<int>(height_)) {
@@ -267,7 +399,11 @@ class FfmpegFrameEncoder final : public FrameEncoder {
                                av_error(sent));
     }
     EncodedFrame result;
-    result.identity = frame.metadata.frame;
+    result.identity = metadata.frame;
+    result.calibration = metadata.calibration;
+    result.calibration_authority = metadata.calibration_authority;
+    result.encoding_configuration_generation = 1U;
+    result.encoding_applied_revision = revision::sha256_hex(configuration_json(config_));
     result.source = config_.source;
     result.codec = config_.codec;
     result.width = width_;
@@ -304,7 +440,8 @@ class FfmpegFrameEncoder final : public FrameEncoder {
  private:
   void initialize(const std::uint32_t width, const std::uint32_t height,
                   const std::uint32_t input_width,
-                  const std::uint32_t input_height) {
+                  const std::uint32_t input_height,
+                  const AVPixelFormat input_pixel_format) {
     if (width == 0U || height == 0U || width > 1920U || height > 1080U ||
         width % 2U != 0U || height % 2U != 0U) {
       throw std::invalid_argument(
@@ -353,8 +490,10 @@ class FfmpegFrameEncoder final : public FrameEncoder {
           31 - static_cast<int>((config_.jpeg_quality - 1U) * 29U / 99U),
           2, 31);
       context->global_quality = qscale * FF_QP2LAMBDA;
-      context->color_range = AVCOL_RANGE_JPEG;
     }
+    context->color_range = config_.codec == Codec::kH264
+        ? AVCOL_RANGE_MPEG : AVCOL_RANGE_JPEG;
+    context->colorspace = AVCOL_SPC_BT470BG;
     const int opened = avcodec_open2(context.get(), codec_impl, nullptr);
     if (opened < 0) {
       throw std::runtime_error("FFmpeg encoder open failed: " +
@@ -367,6 +506,8 @@ class FfmpegFrameEncoder final : public FrameEncoder {
     output->width = context->width;
     output->height = context->height;
     output->quality = context->global_quality;
+    output->color_range = context->color_range;
+    output->colorspace = context->colorspace;
     const int allocated = av_frame_get_buffer(output.get(), 32);
     if (allocated < 0) {
       throw std::runtime_error("FFmpeg frame allocation failed: " +
@@ -374,10 +515,17 @@ class FfmpegFrameEncoder final : public FrameEncoder {
     }
     std::unique_ptr<SwsContext, SwsDeleter> scaler(sws_getContext(
         static_cast<int>(input_width), static_cast<int>(input_height),
-        AV_PIX_FMT_GRAY8, static_cast<int>(width), static_cast<int>(height),
+        input_pixel_format, static_cast<int>(width), static_cast<int>(height),
         context->pix_fmt, SWS_FAST_BILINEAR, nullptr, nullptr, nullptr));
     if (!scaler) {
       throw std::runtime_error("FFmpeg scaler creation failed");
+    }
+    const auto* coefficients = sws_getCoefficients(SWS_CS_ITU601);
+    // Camera sYCC/I420 and packed gray/RGB inputs carry full-range samples.
+    // JPEG retains that range; H.264 uses explicitly signalled video range.
+    if (sws_setColorspaceDetails(scaler.get(), coefficients, 1, coefficients,
+          config_.codec == Codec::kJpeg ? 1 : 0, 0, 1 << 16, 1 << 16) < 0) {
+      throw std::runtime_error("FFmpeg encoder color range setup failed");
     }
     context_ = std::move(context);
     output_ = std::move(output);
@@ -387,6 +535,7 @@ class FfmpegFrameEncoder final : public FrameEncoder {
     height_ = height;
     input_width_ = input_width;
     input_height_ = input_height;
+    input_pixel_format_ = input_pixel_format;
     next_pts_ = 0;
   }
 
@@ -399,6 +548,7 @@ class FfmpegFrameEncoder final : public FrameEncoder {
   std::uint32_t height_{};
   std::uint32_t input_width_{};
   std::uint32_t input_height_{};
+  AVPixelFormat input_pixel_format_{AV_PIX_FMT_NONE};
   std::int64_t next_pts_{};
 };
 
@@ -420,6 +570,19 @@ void write_atomic(const std::filesystem::path& destination,
   std::filesystem::rename(temporary, destination);
 }
 
+std::string read_configuration_document(const std::filesystem::path& path) {
+  std::ifstream input(path, std::ios::binary | std::ios::ate);
+  if (!input || input.tellg() < 0 || input.tellg() > 64 * 1024) {
+    throw std::runtime_error("cannot read bounded encoding configuration");
+  }
+  const auto size = static_cast<std::size_t>(input.tellg());
+  std::string document(size, '\0');
+  input.seekg(0);
+  input.read(document.data(), static_cast<std::streamsize>(size));
+  if (!input) throw std::runtime_error("cannot read encoding configuration");
+  return document;
+}
+
 }  // namespace
 
 bool raw_enabled(const Configuration& config) noexcept {
@@ -428,6 +591,10 @@ bool raw_enabled(const Configuration& config) noexcept {
 
 bool encoded_enabled(const Configuration& config) noexcept {
   return config.mode != StreamMode::kRawOnly;
+}
+
+bool requires_depth(const Source source) noexcept {
+  return source == Source::kDisparity || source == Source::kDepth;
 }
 
 std::string_view name(const StreamMode value) noexcept {
@@ -451,8 +618,18 @@ std::string_view name(const Source value) noexcept {
   switch (value) {
     case Source::kLeftRectified: return "left_rectified";
     case Source::kRightRectified: return "right_rectified";
+    case Source::kLeftColor: return "left_color";
+    case Source::kRightColor: return "right_color";
     case Source::kDisparity: return "disparity";
     case Source::kDepth: return "depth";
+    case Source::kLeftMono: return "left_mono";
+    case Source::kRightMono: return "right_mono";
+    case Source::kLeftRgb: return "left_rgb";
+    case Source::kRightRgb: return "right_rgb";
+    case Source::kLeftRectifiedRgb: return "left_rectified_rgb";
+    case Source::kRightRectifiedRgb: return "right_rectified_rgb";
+    case Source::kRectifiedStereo: return "rectified_stereo";
+    case Source::kRectifiedStereoRgb: return "rectified_stereo_rgb";
   }
   return "unknown";
 }
@@ -488,6 +665,15 @@ void validate(const Configuration& config) {
   if (std::find(presets.begin(), presets.end(), config.preset) ==
       presets.end()) {
     throw std::invalid_argument("encoding.preset is not allowed");
+  }
+}
+
+void validate_latest_configuration(const Configuration& config) {
+  validate(config);
+  if (encoded_enabled(config) && config.codec == Codec::kH264 &&
+      config.keyframe_interval != 1U) {
+    throw std::invalid_argument(
+        "latest-frame H.264 delivery requires keyframe_interval=1");
   }
 }
 
@@ -551,15 +737,7 @@ Configuration load_configuration(const std::filesystem::path& path,
                                  const Configuration& fallback) {
   validate(fallback);
   if (path.empty() || !std::filesystem::exists(path)) return fallback;
-  std::ifstream input(path, std::ios::binary | std::ios::ate);
-  if (!input || input.tellg() < 0 || input.tellg() > 64 * 1024) {
-    throw std::runtime_error("cannot read bounded encoding configuration");
-  }
-  const auto size = static_cast<std::size_t>(input.tellg());
-  std::string document(size, '\0');
-  input.seekg(0);
-  input.read(document.data(), static_cast<std::streamsize>(size));
-  if (!input) throw std::runtime_error("cannot read encoding configuration");
+  const auto document = read_configuration_document(path);
   return parse_configuration(document);
 }
 
@@ -592,23 +770,86 @@ std::vector<std::byte> serialize(const EncodedFrame& frame) {
   return result;
 }
 
+EncodedFrame FrameEncoder::encode_image(const ImageView&,
+                                       const ProductSetMetadata&, std::uint64_t) {
+  throw std::runtime_error("encoder does not support direct image input");
+}
+
 std::unique_ptr<FrameEncoder> make_ffmpeg_encoder(
     const Configuration& config) {
   return std::make_unique<FfmpegFrameEncoder>(config);
 }
 
+namespace {
+
+bool same_capture_scope(const FrameSetIdentity& left,
+                        const FrameSetIdentity& right) noexcept {
+  return left.device_uuid == right.device_uuid && left.run_uuid == right.run_uuid &&
+         left.capture_epoch == right.capture_epoch;
+}
+
+bool same_capture(const FrameSetIdentity& left,
+                  const FrameSetIdentity& right) noexcept {
+  // Processing can apply a newer matcher revision after capture preflight.
+  // Its configuration_epoch does not change ownership of the captured image.
+  return same_capture_scope(left, right) &&
+         left.capture_sequence == right.capture_sequence &&
+         left.capture_time_ns == right.capture_time_ns &&
+         left.capture_clock == right.capture_clock;
+}
+
+}  // namespace
+
 struct AsyncFrameEncoder::Impl {
+  struct Preview {
+    ProductSetMetadata metadata;
+    std::vector<std::uint8_t> left;
+    std::vector<std::uint8_t> right;
+    std::vector<std::uint8_t> left_rgb;
+    std::vector<std::uint8_t> right_rgb;
+    std::vector<std::uint8_t> left_rectified;
+    std::vector<std::uint8_t> right_rectified;
+    std::vector<std::uint8_t> side_by_side;
+  };
+  struct Work {
+    std::shared_ptr<const FrameSetStorage> frame;
+    std::shared_ptr<Preview> preview;
+    Configuration config;
+    std::uint64_t generation{};
+    std::uint64_t configuration_generation{};
+    std::string applied_revision;
+  };
+
   Impl(std::filesystem::path control, std::filesystem::path output,
-       Configuration initial, std::filesystem::path trace)
+       Configuration initial, std::filesystem::path trace,
+       EncoderFactory factory, PreviewRectifierFactory rectifier_factory)
       : control_file(std::move(control)), output_file(std::move(output)),
         trace_directory(std::move(trace)), fallback(std::move(initial)),
-        config(fallback) {
-    validate(fallback);
+        config(fallback), encoder_factory(std::move(factory)),
+        preview_rectifier_factory(std::move(rectifier_factory)) {
+    validate_latest_configuration(fallback);
+    if (!encoder_factory) encoder_factory = make_ffmpeg_encoder;
+    for (auto& slot : preview_pool) slot = std::make_shared<Preview>();
+    stats_value.demand_cadence_hz = demand_cadence_hz;
+    active_revision = revision::sha256_hex(configuration_json(config));
+    stats_value.requested_revision = active_revision;
+    remove_latest();
+    refresh();
     stats_value.running = true;
     worker = std::thread(&Impl::run, this);
   }
 
+  void remove_latest() {
+    std::error_code error;
+    std::filesystem::remove(output_file, error);
+    if (error) throw std::runtime_error("cannot invalidate encoded output: " +
+                                        error.message());
+  }
+
   void refresh() {
+    // Capture preflight and completed-frame publication run on different
+    // threads. Serialize file observations as well as configuration updates.
+    std::lock_guard refresh_lock(refresh_mutex);
     std::error_code error;
     const bool exists = !control_file.empty() &&
                         std::filesystem::exists(control_file, error) && !error;
@@ -618,103 +859,432 @@ struct AsyncFrameEncoder::Impl {
       if (error) modified.reset();
     }
     if (observed_file == exists && observed_modified == modified) return;
+    std::string requested_revision;
     try {
-      auto updated = exists ? load_configuration(control_file, fallback)
-                            : fallback;
+      const auto document = exists ? read_configuration_document(control_file)
+                                   : configuration_json(fallback);
+      requested_revision = revision::sha256_hex(document);
+      auto updated = parse_configuration(document);
+      validate_latest_configuration(updated);
       std::lock_guard lock(mutex);
+      // Removal and the worker's final rename share this short lock. Encoding
+      // and writing a potentially large temporary payload happen outside it.
+      remove_latest();
       config = std::move(updated);
       ++generation;
+      pending.reset();
+      last_submitted.reset();
+      last_numeric_admitted.reset();
       ++stats_value.configuration_reloads;
+      ++stats_value.configuration_generation;
+      stats_value.requested_revision = requested_revision;
+      active_revision = requested_revision;
+      stats_value.applied_revision.clear();
+      stats_value.configuration_error.clear();
       observed_file = exists;
       observed_modified = modified;
       last_error.clear();
     } catch (const std::exception& exception) {
       std::lock_guard lock(mutex);
       ++stats_value.configuration_errors;
+      stats_value.requested_revision = requested_revision;
+      stats_value.configuration_error = exception.what();
       last_error = exception.what();
       observed_file = exists;
       observed_modified = modified;
     }
   }
 
-  SubmitResult submit(std::shared_ptr<const FrameSetStorage> frame) {
+  void align_scope(const FrameSetIdentity& identity) {
+    if (capture_scope && !same_capture_scope(*capture_scope, identity)) {
+      remove_latest();
+      ++generation;
+      pending.reset();
+      last_submitted.reset();
+      last_numeric_admitted.reset();
+    }
+    capture_scope = identity;
+  }
+
+  bool cadence_limited(const FrameSetIdentity& identity) const noexcept {
+    return cadence_limited_against(identity, last_submitted);
+  }
+
+  bool cadence_limited_against(const FrameSetIdentity& identity,
+      const std::optional<FrameSetIdentity>& previous) const noexcept {
+    if (!previous || !same_capture_scope(*previous, identity)) {
+      return false;
+    }
+    if (identity.capture_sequence <= previous->capture_sequence ||
+        identity.capture_time_ns <= previous->capture_time_ns) return true;
+    const auto period_ns = static_cast<std::uint64_t>(1'000'000'000.0 /
+        std::min(static_cast<double>(config.cadence_hz), demand_cadence_hz));
+    // Absorb camera timestamp jitter without raising output cadence materially.
+    const auto tolerance_ns = std::min<std::uint64_t>(period_ns / 10U, 2'000'000ULL);
+    const auto elapsed = static_cast<std::uint64_t>(
+        identity.capture_time_ns - previous->capture_time_ns);
+    return elapsed + tolerance_ns < period_ns;
+  }
+
+  CapturePlan prepare_capture(const FrameSetIdentity& identity) {
+    if (identity.capture_time_ns <= 0) {
+      throw std::invalid_argument("encoder capture timestamp must be positive");
+    }
+    refresh();
+    std::lock_guard lock(mutex);
+    CapturePlan plan;
+    plan.identity = identity;
+    ++stats_value.capture_preflights;
+    if (stop_requested) {
+      plan.result = SubmitResult::kStopped;
+      return plan;
+    }
+    align_scope(identity);
+    plan.generation = generation;
+    if (!encoded_enabled(config) || demand_cadence_hz == 0.0) return plan;
+    if (cadence_limited(identity) ||
+        (requires_depth(config.source) && cadence_limited_against(identity, last_numeric_admitted))) {
+      ++stats_value.capture_cadence_limited;
+      plan.result = SubmitResult::kCadenceLimited;
+      return plan;
+    }
+    plan.result = SubmitResult::kAccepted;
+    if (config.source == Source::kLeftColor) {
+      plan.color_preview = ColorPreviewRequest::kLeft;
+    } else if (config.source == Source::kRightColor) {
+      plan.color_preview = ColorPreviewRequest::kRight;
+    }
+    if (plan.color_preview != ColorPreviewRequest::kNone) {
+      ++stats_value.color_preview_requests;
+    }
+    // Do not reserve/advance cadence here. A slow processor replaces pending
+    // captures; every due replacement must still carry its own color plane.
+    return plan;
+  }
+
+  bool commit_native_capture(const CapturePlan& plan) {
+    std::lock_guard lock(mutex);
+    if (stop_requested || plan.result != SubmitResult::kAccepted ||
+        plan.generation != generation || !requires_depth(config.source) ||
+        !encoded_enabled(config) || demand_cadence_hz == 0.0 ||
+        (last_numeric_admitted &&
+         cadence_limited_against(plan.identity, last_numeric_admitted))) return false;
+    last_numeric_admitted = plan.identity;
+    ++stats_value.numeric_admitted;
+    return true;
+  }
+
+  SubmitResult submit(std::shared_ptr<const FrameSetStorage> frame,
+                      const CapturePlan* plan, const bool native_only = false) {
     if (!frame) throw std::invalid_argument("encoder cannot submit a null frame");
     refresh();
     std::lock_guard lock(mutex);
     if (stop_requested) return SubmitResult::kStopped;
-    if (!encoded_enabled(config)) {
-      pending.reset();
-      return SubmitResult::kDisabled;
+    if (native_only) {
+      if (!plan || plan->result != SubmitResult::kAccepted) {
+        return plan ? plan->result : SubmitResult::kDisabled;
+      }
+      if (plan->generation != generation) {
+        ++stats_value.stale_discarded;
+        return SubmitResult::kConfigurationChanged;
+      }
+      if (!requires_depth(config.source)) return SubmitResult::kDisabled;
     }
-    const auto capture_ns = static_cast<std::uint64_t>(
-        frame->metadata.frame.capture_time_ns);
-    const auto period_ns = 1'000'000'000ULL / config.cadence_hz;
-    // Camera timestamps wander slightly around their nominal cadence.  Without a
-    // small tolerance, a 10 Hz source arriving a few microseconds early is
-    // incorrectly reduced to 5 Hz.  Ten percent (capped at 2 ms) absorbs normal
-    // clock jitter without permitting a materially higher output rate.
-    const auto cadence_tolerance_ns =
-        std::min(period_ns / 10U, 2'000'000ULL);
-    if (last_submitted_capture_ns != 0U &&
-        capture_ns > last_submitted_capture_ns &&
-        capture_ns - last_submitted_capture_ns + cadence_tolerance_ns <
-            period_ns) {
+    if (plan) {
+      if (!same_capture(plan->identity, frame->metadata.frame)) {
+        throw std::invalid_argument("encoder capture plan belongs to another frame");
+      }
+      if (plan->generation != generation) {
+        ++stats_value.stale_discarded;
+        return SubmitResult::kConfigurationChanged;
+      }
+    } else {
+      align_scope(frame->metadata.frame);
+    }
+    if (!encoded_enabled(config) || demand_cadence_hz == 0.0) return SubmitResult::kDisabled;
+    if ((plan && plan->result == SubmitResult::kCadenceLimited) ||
+        cadence_limited(frame->metadata.frame)) {
       ++stats_value.cadence_limited;
       return SubmitResult::kCadenceLimited;
     }
-    last_submitted_capture_ns = capture_ns;
+    if (plan && plan->result != SubmitResult::kAccepted) {
+      return plan->result;
+    }
+    if ((config.source == Source::kLeftColor && frame->left_color_yuv420.empty()) ||
+        (config.source == Source::kRightColor && frame->right_color_yuv420.empty())) {
+      ++stats_value.preview_unavailable;
+      return SubmitResult::kPreviewUnavailable;
+    }
+    last_submitted = frame->metadata.frame;
     ++stats_value.submitted;
-    const bool replaced = static_cast<bool>(pending);
+    const bool replaced = pending.has_value();
     if (replaced) ++stats_value.pending_replaced;
-    pending = std::move(frame);
+    pending = Work{std::move(frame), {}, config, generation,
+                   stats_value.configuration_generation, active_revision};
     condition.notify_one();
     return replaced ? SubmitResult::kReplacedPending : SubmitResult::kAccepted;
+  }
+
+
+  static bool color_source(const Source source) noexcept {
+    return source == Source::kLeftColor || source == Source::kRightColor ||
+           source == Source::kLeftRgb || source == Source::kRightRgb ||
+           source == Source::kLeftRectifiedRgb || source == Source::kRightRectifiedRgb ||
+           source == Source::kRectifiedStereoRgb;
+  }
+  static bool stereo_source(const Source source) noexcept {
+    return source == Source::kRectifiedStereo || source == Source::kRectifiedStereoRgb;
+  }
+  static bool right_source(const Source source) noexcept {
+    return source == Source::kRightColor || source == Source::kRightRectified ||
+           source == Source::kRightMono || source == Source::kRightRgb ||
+           source == Source::kRightRectifiedRgb;
+  }
+  static bool rectified_source(const Source source) noexcept {
+    return source == Source::kLeftRectified || source == Source::kRightRectified ||
+           source == Source::kLeftRectifiedRgb || source == Source::kRightRectifiedRgb ||
+           stereo_source(source);
+  }
+
+  void set_demand(const double cadence) {
+    if (!std::isfinite(cadence) || cadence < 0.0 || cadence > 60.0) {
+      throw std::invalid_argument("preview demand cadence must be in 0..60");
+    }
+    std::lock_guard lock(mutex);
+    if (cadence == demand_cadence_hz) return;
+    remove_latest();
+    demand_cadence_hz = cadence;
+    stats_value.demand_cadence_hz = cadence;
+    ++generation;
+    pending.reset();
+    last_submitted.reset();
+    last_numeric_admitted.reset();
+  }
+
+  SubmitResult submit_capture(const ProductSetMetadata& metadata,
+                             const CaptureImageReader& reader) {
+    if (!reader) throw std::invalid_argument("preview requires a capture reader");
+    depthd::validate(metadata.frame);
+    const auto& grid = metadata.left_rectified.grid;
+    const auto pixels = static_cast<std::size_t>(grid.width) * grid.height;
+    // Includes both input planes, aligned RGB rows, rectified outputs, stereo
+    // output and FFmpeg's SIMD padding for every retained pool slot.
+    const auto bounded_slot_bytes = pixels * 21U +
+        static_cast<std::size_t>(grid.height) * 62U +
+        7U * AV_INPUT_BUFFER_PADDING_SIZE;
+    if (grid.width == 0U || grid.height == 0U || grid.width % 2U != 0U ||
+        grid.height % 2U != 0U || grid.width > 1920U || grid.height > 1080U ||
+        bounded_slot_bytes * preview_pool.size() > 256U * 1024U * 1024U) {
+      throw std::invalid_argument("preview input grid exceeds its memory bound");
+    }
+    refresh();
+    Configuration selected;
+    std::shared_ptr<Preview> slot;
+    std::uint64_t selected_generation{};
+    {
+      std::lock_guard lock(mutex);
+      ++stats_value.capture_preflights;
+      if (stop_requested) return SubmitResult::kStopped;
+      align_scope(metadata.frame);
+      if (!encoded_enabled(config) || demand_cadence_hz == 0.0 ||
+          requires_depth(config.source)) return SubmitResult::kDisabled;
+      if (cadence_limited(metadata.frame)) {
+        ++stats_value.capture_cadence_limited;
+        ++stats_value.cadence_limited;
+        return SubmitResult::kCadenceLimited;
+      }
+      for (const auto& candidate : preview_pool) {
+        if (candidate.use_count() == 1) { slot = candidate; break; }
+      }
+      if (!slot) {
+        ++stats_value.image_pool_dropped;
+        return SubmitResult::kPreviewUnavailable;
+      }
+      selected = config;
+      selected_generation = generation;
+      ++stats_value.image_admitted;
+    }
+    slot->metadata = metadata;
+    const auto color = color_source(selected.source);
+    const auto input_bytes = color ? pixels * 3U / 2U : pixels;
+    const auto copy = [&](const CameraRole role, std::vector<std::uint8_t>& output) {
+      // libswscale's SIMD readers need an addressable tail beyond the last
+      // packed plane. The capture reader still receives its exact pixel span.
+      output.resize(input_bytes + AV_INPUT_BUFFER_PADDING_SIZE, 0U);
+      reader(role, color, std::span<std::uint8_t>(output.data(), input_bytes));
+      std::lock_guard lock(mutex);
+      ++stats_value.image_copies;
+      if (color) ++stats_value.color_preview_requests;
+    };
+    if (!right_source(selected.source) || stereo_source(selected.source)) {
+      copy(CameraRole::kLogicalLeft, slot->left);
+    }
+    if (right_source(selected.source) || stereo_source(selected.source)) {
+      copy(CameraRole::kLogicalRight, slot->right);
+    }
+    std::lock_guard lock(mutex);
+    if (stop_requested) return SubmitResult::kStopped;
+    if (selected_generation != generation || demand_cadence_hz == 0.0) {
+      ++stats_value.stale_discarded;
+      return SubmitResult::kConfigurationChanged;
+    }
+    last_submitted = metadata.frame;
+    const bool replaced = pending.has_value();
+    if (replaced) ++stats_value.pending_replaced;
+    ++stats_value.submitted;
+    pending = Work{{}, std::move(slot), selected, selected_generation,
+                   stats_value.configuration_generation, active_revision};
+    condition.notify_one();
+    return replaced ? SubmitResult::kReplacedPending : SubmitResult::kAccepted;
+  }
+
+  ImageView render_preview(Preview& preview, const Source source) {
+    const auto& grid = preview.metadata.left_rectified.grid;
+    const auto color = color_source(source);
+    const auto channels = color ? 3U : 1U;
+    const auto bytes_per_row = static_cast<std::size_t>(grid.width) * channels;
+    const auto render = [&](const bool right) -> ImageView {
+      auto& raw = right ? preview.right : preview.left;
+      auto& rgb = right ? preview.right_rgb : preview.left_rgb;
+      ImageView image{raw.data(), grid.width, grid.height, grid.width,
+                      ImageEncoding::kGray8};
+      if (color) {
+        const auto pixels = static_cast<std::size_t>(grid.width) * grid.height;
+        const auto rgb_stride = (bytes_per_row + 31U) & ~std::size_t{31U};
+        // RGB24 SIMD conversion may write a complete aligned vector at a row
+        // edge. Give every row padding, including the final row of small images.
+        rgb.resize(rgb_stride * grid.height + AV_INPUT_BUFFER_PADDING_SIZE, 0U);
+        preview_scaler.reset(sws_getCachedContext(preview_scaler.release(),
+            static_cast<int>(grid.width), static_cast<int>(grid.height), AV_PIX_FMT_YUV420P,
+            static_cast<int>(grid.width), static_cast<int>(grid.height), AV_PIX_FMT_RGB24,
+            SWS_FAST_BILINEAR, nullptr, nullptr, nullptr));
+        if (!preview_scaler) throw std::runtime_error("preview color converter unavailable");
+        const auto* coefficients = sws_getCoefficients(SWS_CS_ITU601);
+        // Capture requests libcamera sYCC: Rec.601 chroma with full-range Y.
+        if (sws_setColorspaceDetails(preview_scaler.get(), coefficients, 1,
+              coefficients, 1, 0, 1 << 16, 1 << 16) < 0) {
+          throw std::runtime_error("preview sYCC color range setup failed");
+        }
+        const std::array<const std::uint8_t*, 4> input{
+            raw.data(), raw.data() + pixels, raw.data() + pixels * 5U / 4U, nullptr};
+        const std::array<int, 4> input_stride{static_cast<int>(grid.width),
+            static_cast<int>(grid.width / 2U), static_cast<int>(grid.width / 2U), 0};
+        const std::array<std::uint8_t*, 4> output{rgb.data(), nullptr, nullptr, nullptr};
+        const std::array<int, 4> output_stride{static_cast<int>(rgb_stride), 0, 0, 0};
+        if (sws_scale(preview_scaler.get(), input.data(), input_stride.data(), 0,
+                      static_cast<int>(grid.height), output.data(), output_stride.data()) !=
+            static_cast<int>(grid.height)) throw std::runtime_error("preview color conversion incomplete");
+        image = {rgb.data(), grid.width, grid.height, rgb_stride, ImageEncoding::kRgb8};
+      }
+      if (rectified_source(source)) {
+        if (!preview_rectifier) {
+          if (!preview_rectifier_factory) {
+            throw std::runtime_error("rectified preview requires its own rectifier");
+          }
+          preview_rectifier = preview_rectifier_factory();
+          if (!preview_rectifier) throw std::runtime_error("preview rectifier factory returned null");
+        }
+        auto& rectified = right ? preview.right_rectified : preview.left_rectified;
+        rectified.resize(bytes_per_row * grid.height + AV_INPUT_BUFFER_PADDING_SIZE, 0U);
+        RectificationStats timing;
+        preview_rectifier->rectify(right ? RectificationCamera::kRight : RectificationCamera::kLeft,
+            image, {rectified.data(), grid.width, grid.height, bytes_per_row, image.encoding}, timing);
+        image.data = rectified.data();
+        image.stride_bytes = bytes_per_row;
+        std::lock_guard lock(mutex);
+        ++stats_value.image_rectified;
+      }
+      return image;
+    };
+    if (!stereo_source(source)) return render(right_source(source));
+    const auto left = render(false);
+    const auto right = render(true);
+    preview.side_by_side.resize(bytes_per_row * 2U * grid.height + AV_INPUT_BUFFER_PADDING_SIZE, 0U);
+    for (std::uint32_t row = 0; row < grid.height; ++row) {
+      auto* output = preview.side_by_side.data() + row * bytes_per_row * 2U;
+      std::memcpy(output, left.data + row * left.stride_bytes, bytes_per_row);
+      std::memcpy(output + bytes_per_row, right.data + row * right.stride_bytes, bytes_per_row);
+    }
+    return {preview.side_by_side.data(), grid.width * 2U, grid.height,
+            bytes_per_row * 2U, left.encoding};
   }
 
   void run() noexcept {
     std::unique_ptr<FrameEncoder> encoder;
     std::uint64_t encoder_generation = std::numeric_limits<std::uint64_t>::max();
     for (;;) {
-      std::shared_ptr<const FrameSetStorage> frame;
-      Configuration work_config;
-      std::uint64_t work_generation{};
+      Work work;
       std::uint64_t sequence{};
       {
         std::unique_lock lock(mutex);
         condition.wait(lock, [&] { return stop_requested || pending; });
-        if (!pending && stop_requested) break;
-        frame = std::move(pending);
-        work_config = config;
-        work_generation = generation;
+        if (stop_requested) break;
+        work = std::move(*pending);
+        pending.reset();
         sequence = ++stream_sequence;
       }
+      auto temporary = output_file;
+      temporary += ".tmp";
       try {
-        if (!encoder || encoder_generation != work_generation) {
-          encoder = make_ffmpeg_encoder(work_config);
-          encoder_generation = work_generation;
-          sequence = 1U;
-          std::lock_guard lock(mutex);
-          stream_sequence = 1U;
+        if (!encoder || encoder_generation != work.generation) {
+          encoder = encoder_factory(work.config);
+          if (!encoder) throw std::runtime_error("encoder factory returned null");
+          encoder_generation = work.generation;
         }
-        auto encoded = encoder->encode(*frame, sequence);
+        auto encoded = work.preview
+            ? encoder->encode_image(render_preview(*work.preview, work.config.source),
+                                    work.preview->metadata, sequence)
+            : encoder->encode(*work.frame, sequence);
+        encoded.encoding_configuration_generation = work.configuration_generation;
+        encoded.encoding_applied_revision = work.applied_revision;
+        if (encoded.codec == Codec::kH264 && !encoded.keyframe) {
+          throw std::runtime_error("latest-frame encoder emitted predictive H.264");
+        }
         const auto bytes = serialize(encoded);
-        write_atomic(output_file, bytes);
+        // write_atomic() commits a separate temporary path, not the publicly
+        // readable snapshot. The final public rename is generation-checked.
+        write_atomic(temporary, bytes);
+        // Detect a control change that happened during a long encode even if
+        // capture is currently idle and has not refreshed it yet.
+        refresh();
+        {
+          std::lock_guard lock(mutex);
+          if (stop_requested || generation != work.generation ||
+              !encoded_enabled(config)) {
+            std::filesystem::remove(temporary);
+            ++stats_value.stale_discarded;
+            continue;
+          }
+          std::filesystem::rename(temporary, output_file);
+          ++stats_value.encoded;
+          stats_value.encoded_bytes += encoded.bytes.size();
+          stats_value.last_frame_bytes = encoded.bytes.size();
+          stats_value.last_encode_ms = encoded.encode_ms;
+          stats_value.applied_revision = work.applied_revision;
+          if (stats_value.requested_revision == work.applied_revision) {
+            stats_value.configuration_error.clear();
+          }
+          last_error.clear();
+        }
+        // Trace files retain historical frames; unlike latest.nve they are
+        // never used to select the currently configured preview.
         if (!trace_directory.empty()) {
           write_atomic(trace_directory /
                            ("post_encoding_" +
                             std::to_string(encoded.identity.capture_sequence) +
                             ".nve"), bytes);
         }
-        std::lock_guard lock(mutex);
-        ++stats_value.encoded;
-        stats_value.encoded_bytes += encoded.bytes.size();
-        stats_value.last_frame_bytes = encoded.bytes.size();
-        stats_value.last_encode_ms = encoded.encode_ms;
-        last_error.clear();
       } catch (const std::exception& exception) {
+        std::error_code ignored;
+        std::filesystem::remove(temporary, ignored);
         std::lock_guard lock(mutex);
-        ++stats_value.failures;
-        last_error = exception.what();
+        if (generation == work.generation && !stop_requested) {
+          ++stats_value.failures;
+          stats_value.configuration_error = exception.what();
+          last_error = exception.what();
+        } else {
+          ++stats_value.stale_discarded;
+        }
         encoder.reset();
       }
     }
@@ -727,6 +1297,7 @@ struct AsyncFrameEncoder::Impl {
       std::lock_guard lock(mutex);
       if (stop_requested) return;
       stop_requested = true;
+      pending.reset();
       condition.notify_all();
     }
     if (worker.joinable()) worker.join();
@@ -737,34 +1308,75 @@ struct AsyncFrameEncoder::Impl {
   std::filesystem::path trace_directory;
   Configuration fallback;
   mutable std::mutex mutex;
+  std::mutex refresh_mutex;
   std::condition_variable condition;
   Configuration config;
+  EncoderFactory encoder_factory;
+  PreviewRectifierFactory preview_rectifier_factory;
+  std::unique_ptr<RectificationBackend> preview_rectifier;
+  std::unique_ptr<SwsContext, SwsDeleter> preview_scaler;
+  std::array<std::shared_ptr<Preview>, 3> preview_pool;
+  double demand_cadence_hz{60.0};
   Stats stats_value{};
-  std::shared_ptr<const FrameSetStorage> pending;
+  std::optional<Work> pending;
+  std::optional<FrameSetIdentity> capture_scope;
+  std::optional<FrameSetIdentity> last_submitted;
+  std::optional<FrameSetIdentity> last_numeric_admitted;
   std::string last_error;
+  std::string active_revision;
   std::optional<std::filesystem::file_time_type> observed_modified;
   bool observed_file{};
   bool stop_requested{};
   std::uint64_t generation{};
   std::uint64_t stream_sequence{};
-  std::uint64_t last_submitted_capture_ns{};
   std::thread worker;
 };
 
 AsyncFrameEncoder::AsyncFrameEncoder(std::filesystem::path control_file,
                                      std::filesystem::path output_file,
                                      Configuration fallback,
-                                     std::filesystem::path trace_directory)
+                                     std::filesystem::path trace_directory,
+                                     EncoderFactory encoder_factory,
+                                     PreviewRectifierFactory preview_rectifier_factory)
     : impl_(std::make_unique<Impl>(std::move(control_file),
                                    std::move(output_file),
                                    std::move(fallback),
-                                   std::move(trace_directory))) {}
+                                   std::move(trace_directory),
+                                   std::move(encoder_factory),
+                                   std::move(preview_rectifier_factory))) {}
 
 AsyncFrameEncoder::~AsyncFrameEncoder() noexcept { stop(); }
 
 SubmitResult AsyncFrameEncoder::submit(
     std::shared_ptr<const FrameSetStorage> frame) {
-  return impl_->submit(std::move(frame));
+  return impl_->submit(std::move(frame), nullptr);
+}
+
+SubmitResult AsyncFrameEncoder::submit(
+    std::shared_ptr<const FrameSetStorage> frame, const CapturePlan& plan) {
+  return impl_->submit(std::move(frame), &plan);
+}
+
+SubmitResult AsyncFrameEncoder::submit_native(
+    std::shared_ptr<const FrameSetStorage> frame, const CapturePlan& plan) {
+  return impl_->submit(std::move(frame), &plan, true);
+}
+
+CapturePlan AsyncFrameEncoder::prepare_capture(const FrameSetIdentity& identity) {
+  return impl_->prepare_capture(identity);
+}
+
+bool AsyncFrameEncoder::commit_native_capture(const CapturePlan& plan) {
+  return impl_->commit_native_capture(plan);
+}
+
+SubmitResult AsyncFrameEncoder::submit_capture(
+    const ProductSetMetadata& metadata, const CaptureImageReader& reader) {
+  return impl_->submit_capture(metadata, reader);
+}
+
+void AsyncFrameEncoder::set_demand(const double cadence_hz) {
+  impl_->set_demand(cadence_hz);
 }
 
 Configuration AsyncFrameEncoder::configuration() const {
@@ -772,7 +1384,9 @@ Configuration AsyncFrameEncoder::configuration() const {
   return impl_->config;
 }
 
-Stats AsyncFrameEncoder::stats() const noexcept {
+void AsyncFrameEncoder::refresh_configuration() { impl_->refresh(); }
+
+Stats AsyncFrameEncoder::stats() const {
   std::lock_guard lock(impl_->mutex);
   return impl_->stats_value;
 }

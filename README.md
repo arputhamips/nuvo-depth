@@ -31,6 +31,15 @@ automated run cannot waive a manual gate.
 
 Useful entry points:
 
+For setup and normal operation, start with the
+[documentation index](docs/README.md) and [Pi 5 user guide](docs/user-guide.md).
+The current live-device evidence, performance, and release blockers are in the
+[September 14 release-readiness report](docs/pi5-release-readiness-20260914.md).
+Calibration profile production is a separate advanced process documented in
+[the calibration guide](docs/advanced-calibration.md). The official Debian and
+signed vendor-repository paths are in the
+[APT publication roadmap](docs/debian-archive-roadmap.md).
+
 Build presets, dependencies, and the consolidated history of the old
 `build-step*` folders are in the [build and test guide](docs/build-and-test.md).
 
@@ -61,9 +70,13 @@ For the assembled Pi, use
 
 ## Current Pi 5 candidate profile
 
-- Product profile: `balanced_728x544_10` at **728 x 544 / 10 Hz**.
-- Current camera profile: RGB888, 180-degree orientation, 10 Hz shared hardware
-  trigger on GPIO 17.
+- Calibration profile identity: `balanced_728x544_10`, retained for compatibility.
+- Capture target: **728 x 544 / 10 Hz**, with YUV420 ISP luma and a 180-degree
+  orientation on the shared GPIO 17 trigger. The target is not a depth-rate guarantee.
+- Default matcher: full-grid HH, 96 disparities, median 5. Historical Pi evidence
+  measured 342.01 ms median compute and 2.84 depth frames/s at a 60 Hz capture target.
+  Current profile throughput remains unqualified; see the
+  [performance profile catalog](docs/performance-profiles.md).
 - Rectified focal length: 493.542046188 px.
 - Nominal product baseline: **0.100 m**.
 - Appliance frame sets contain associated rectified left and right images,
@@ -90,7 +103,7 @@ are recorded in the [Pi 5 100 mm depth profile](docs/pi5-depth-100mm-profile.md)
 The opt-in native scheduler, IPC v2 ownership core, common Ethernet/USB-IP wire
 protocol, and SDK decoder skeleton are tracked in the
 [native runtime/IPC/gateway status](docs/native-runtime-ipc-gateway.md).
-The optional post-depth H.264/MJPEG path, raw/encoded/both modes, web controls,
+The optional post-depth H.264/MJPEG monitoring path, raw/encoded/both modes, web controls,
 wire envelope, and measured Pi 5 profiles are documented in the
 [Pi 5 image-stream encoding guide](docs/pi5-image-stream-encoding.md).
 

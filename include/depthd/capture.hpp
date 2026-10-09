@@ -17,6 +17,8 @@
 
 namespace depthd {
 
+inline constexpr std::uint32_t kExternalTriggerGuardUs = 250U;
+
 struct CameraIdentity {
   // Platform-stable identity supplied by the capture stack. On libcamera this
   // is Camera::id(), not the camera's discovery-list index.
@@ -158,6 +160,14 @@ struct CaptureOpenOptions {
 
 void validate(const CaptureOpenOptions& options);
 
+struct CaptureControls {
+  std::uint32_t exposure_time_us{8'000U};
+  double analogue_gain{2.0};
+  std::array<double, 2> colour_gains{2.4771, 2.3425};
+};
+
+void validate(const CaptureControls& controls);
+
 struct NegotiatedCameraStream {
   CameraBinding binding{};
   PixelGrid grid{};
@@ -175,12 +185,22 @@ struct CaptureSessionInfo {
 };
 
 struct CaptureRuntimeStats {
+  std::string trigger_source;
+  bool trigger_hardware_timed{};
+  bool trigger_pulse_timing_measured{};
+  std::uint64_t trigger_commanded_pulse_us{};
+  std::uint64_t trigger_period_ns{};
   PairerStats pairer{};
   std::uint64_t callback_or_trigger_errors{};
   std::uint64_t frame_completion_errors{};
   std::uint64_t trigger_errors{};
   std::uint64_t trigger_attempts{};
   std::uint64_t trigger_deadline_overruns{};
+  std::uint64_t trigger_last_pulse_us{};
+  std::uint64_t trigger_min_pulse_us{};
+  std::uint64_t trigger_max_pulse_us{};
+  std::uint64_t trigger_pulse_guard_overruns{};
+  std::uint64_t trigger_max_pulse_overshoot_us{};
   std::uint64_t ready_pair_replacements{};
   std::uint64_t request_requeue_failures{};
 };
@@ -194,6 +214,9 @@ class CaptureSource {
       const CaptureOpenOptions& options) = 0;
   [[nodiscard]] virtual std::optional<StereoPair> wait_for_pair(
       std::chrono::milliseconds timeout) = 0;
+  // Applies one shared command to both cameras. With external XTR capture,
+  // exposure_time_us also controls the active-low trigger duration.
+  virtual void set_controls(const CaptureControls& controls) = 0;
   virtual void stop() noexcept = 0;
   [[nodiscard]] virtual CaptureRuntimeStats runtime_stats() const noexcept = 0;
   [[nodiscard]] virtual std::size_t outstanding_leases() const noexcept = 0;

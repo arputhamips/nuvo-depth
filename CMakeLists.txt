@@ -127,6 +127,7 @@ find_package(Threads REQUIRED)
 add_library(depthd_capture STATIC
   src/core/pairer.cpp
   platform/pi5/camera_identity.cpp
+  platform/pi5/pio_pwm_trigger.cpp
   platform/pi5/capture_libcamera.cpp
 )
 add_library(depthd::capture ALIAS depthd_capture)
@@ -141,6 +142,7 @@ depthd_enable_warnings(depthd_capture)
 
 add_library(depthd_runtime STATIC
   src/core/runtime.cpp
+  src/core/native_capture_runner.cpp
   platform/linux/capture_mapping.cpp
 )
 add_library(depthd::runtime ALIAS depthd_runtime)
@@ -154,6 +156,24 @@ target_link_libraries(depthd_runtime PUBLIC
   depthd::capture depthd::rectification depthd::products Threads::Threads
 )
 depthd_enable_warnings(depthd_runtime)
+
+if(DEPTHD_WITH_CONFIG)
+  add_library(depthd_exposure_control STATIC src/exposure_control.cpp)
+  add_library(depthd::exposure_control ALIAS depthd_exposure_control)
+  target_include_directories(depthd_exposure_control
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:include>
+  )
+  target_compile_features(depthd_exposure_control PUBLIC cxx_std_20)
+  target_link_libraries(depthd_exposure_control PUBLIC
+    depthd::runtime ${DEPTHD_YAML_CPP_TARGET}
+  )
+  depthd_enable_warnings(depthd_exposure_control)
+  if(TARGET depthd)
+    target_link_libraries(depthd PRIVATE depthd::exposure_control)
+  endif()
+endif()
 
 if(DEPTHD_WITH_FFMPEG_ENCODER)
   if(NOT DEPTHD_WITH_CONFIG)
@@ -270,7 +290,8 @@ if(DEPTHD_WITH_GATEWAY)
   target_compile_features(nuvo-gateway PRIVATE cxx_std_20)
   target_link_libraries(nuvo-gateway PRIVATE
     Boost::system OpenSSL::SSL OpenSSL::Crypto Threads::Threads
-    depthd::ipc_v2
+    depthd::local_frame_server
+    depthd::gateway
   )
   if(TARGET depthd_image_encoder)
     target_link_libraries(nuvo-gateway PRIVATE depthd::image_encoder)
@@ -492,7 +513,7 @@ target_link_libraries(depthd_result_ring_inspect PRIVATE depthd::result_ring)
 depthd_enable_warnings(depthd_result_ring_inspect)
 
 if(DEPTHD_WITH_OPENCV)
-  find_package(OpenCV 4 QUIET COMPONENTS core imgproc imgcodecs calib3d)
+  find_package(OpenCV 4.6 QUIET COMPONENTS core imgproc imgcodecs calib3d)
   if(OpenCV_FOUND)
     add_library(depthd_opencv_rectification STATIC
       src/opencv_rectification_backend.cpp
@@ -587,7 +608,7 @@ if(DEPTHD_WITH_OPENCV)
       endif()
     endif()
   else()
-    message(STATUS "OpenCV not found; skipping the CPU SGBM backend")
+    message(STATUS "OpenCV 4.6 or newer not found; skipping the CPU SGBM backend")
   endif()
 endif()
 
@@ -747,8 +768,12 @@ install(DIRECTORY web/
 install(DIRECTORY presets/
   DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/presets"
 )
+install(FILES config/calibration/pi5-profile-matrix.example.json
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/calibration"
+)
 install(FILES config/nuvo_pi5_depth_100mm.yaml config/appliance.yaml
-  config/encoding.json config/stereo.json
+  config/encoding.json config/stereo.json config/exposure.json
+  config/gateway-qualification.example.json
   DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/examples"
 )
 install(FILES config/pi/depthd-imx296-trigger.conf
@@ -769,6 +794,7 @@ install(PROGRAMS
 )
 install(FILES
   deployment/systemd/nuvo-depth.target
+  deployment/systemd/nuvo-trigger-prepare.service
   deployment/systemd/nuvo-depthd-native.service
   deployment/systemd/nuvo-gateway.service
   deployment/systemd/nuvo-calibration@.service
@@ -778,6 +804,9 @@ install(FILES
   deployment/systemd/nuvo-transport-rollback.service
   deployment/systemd/nuvo-transport-rollback.timer
   DESTINATION "lib/systemd/system"
+)
+install(PROGRAMS tools/pi/nuvo_trigger_prepare.py
+  DESTINATION "lib/nuvo-depth" RENAME nuvo-trigger-prepare
 )
 install(FILES deployment/systemd/nuvo-depth.sysusers.conf
   DESTINATION "lib/sysusers.d" RENAME nuvo-depth.conf
@@ -789,9 +818,17 @@ install(FILES deployment/avahi/nuvo-depth.service
   DESTINATION "${CMAKE_INSTALL_DATADIR}/avahi/services"
 )
 install(FILES
+  docs/user-guide.md
+  docs/operations-troubleshooting.md
+  docs/pi5-release-readiness-20260914.md
+  docs/pi5-image-stream-encoding.md
+  docs/stereo-auto-exposure.md
+  docs/stereo-exposure-evaluation-20260916.md
+  docs/pi5-fullres-stereo-flicker-trace.md
   docs/production-implementation-status.md
   docs/native-runtime-ipc-gateway.md
   docs/pi5-depth-100mm-profile.md
+  docs/performance-profiles.md
   docs/pi5-hil-qualification-20260909.md
   docs/hardware-qualification-handoff-prompt.md
   docs/nuvo-depth-production-oracle-prompt.md
@@ -805,6 +842,7 @@ install(PROGRAMS
   tools/pi/capture_rectified_pair.py
   tools/pi/profile_cpu_pipeline.py
   tools/pi/stereo_auto_exposure.py
+  tools/pi/validate_exposure_live.py
   tools/pi/depthd_native_output.py
   tools/pi/depthd_egl_gl_rectification.py
   DESTINATION "${DEPTHD_LIBEXEC_DIR}"
@@ -845,6 +883,10 @@ install(FILES deployment/README.md
 if(BUILD_TESTING)
   find_package(Python3 COMPONENTS Interpreter QUIET)
   if(Python3_Interpreter_FOUND)
+    add_test(NAME depthd_trigger_prepare_test
+      COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/trigger_prepare_test.py
+    )
     add_test(NAME depthd_assets_test
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/depthd_assets_test.py
@@ -857,9 +899,22 @@ if(BUILD_TESTING)
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/python_sdk_test.py
     )
+    add_test(NAME depthd_frame_wire_sdk_roundtrip_test
+      COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/frame_wire_sdk_roundtrip_test.py
+        $<TARGET_FILE:depthd_frame_wire_test>
+    )
     add_test(NAME depthd_calibration_activation_test
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/calibration_activation_test.py
+    )
+    add_test(NAME depthd_calibration_session_test
+      COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/calibration_session_test.py
+    )
+    add_test(NAME depthd_calibration_charuco_synthetic_test
+      COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/calibration_charuco_synthetic_test.py
     )
     add_test(NAME depthd_nuvoctl_test
       COMMAND ${Python3_EXECUTABLE}
@@ -869,6 +924,17 @@ if(BUILD_TESTING)
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/system_agent_test.py
     )
+    add_test(NAME depthd_web_ui_static_test
+      COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/web_ui_static_test.py
+    )
+    if(DEPTHD_WITH_CONFIG)
+      add_test(NAME depthd_performance_profiles_test
+        COMMAND ${Python3_EXECUTABLE}
+          ${CMAKE_CURRENT_SOURCE_DIR}/tests/performance_profiles_test.py
+          $<TARGET_FILE:depthd>
+      )
+    endif()
     add_test(NAME depthd_qualification_tools_test
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/qualification_tools_test.py
@@ -883,6 +949,21 @@ if(BUILD_TESTING)
   endif()
 
   if(DEPTHD_WITH_CONFIG)
+    add_executable(depthd_exposure_control_test
+      tests/exposure_control_test.cpp
+    )
+    target_compile_features(depthd_exposure_control_test PRIVATE cxx_std_20)
+    target_compile_definitions(depthd_exposure_control_test PRIVATE
+      DEPTHD_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    target_link_libraries(depthd_exposure_control_test PRIVATE
+      depthd::exposure_control
+    )
+    depthd_enable_warnings(depthd_exposure_control_test)
+    add_test(NAME depthd_exposure_control_test
+      COMMAND depthd_exposure_control_test
+    )
+
     add_executable(depthd_config_test tests/config_test.cpp)
     target_compile_features(depthd_config_test PRIVATE cxx_std_20)
     target_compile_definitions(depthd_config_test PRIVATE
@@ -922,6 +1003,10 @@ if(BUILD_TESTING)
   target_link_libraries(depthd_capture_lease_test PRIVATE depthd::capture)
   depthd_enable_warnings(depthd_capture_lease_test)
   add_test(NAME depthd_capture_lease_test COMMAND depthd_capture_lease_test)
+  add_executable(depthd_pio_pwm_trigger_test tests/pio_pwm_trigger_test.cpp)
+  target_link_libraries(depthd_pio_pwm_trigger_test PRIVATE depthd::capture)
+  depthd_enable_warnings(depthd_pio_pwm_trigger_test)
+  add_test(NAME depthd_pio_pwm_trigger_test COMMAND depthd_pio_pwm_trigger_test)
 
   add_executable(depthd_pairer_test tests/pairer_test.cpp)
   target_link_libraries(depthd_pairer_test PRIVATE depthd::capture)
@@ -932,8 +1017,27 @@ if(BUILD_TESTING)
   target_link_libraries(depthd_runtime_test PRIVATE depthd::runtime)
   depthd_enable_warnings(depthd_runtime_test)
   add_test(NAME depthd_runtime_test COMMAND depthd_runtime_test)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(depthd_capture_mapping_cache_test tests/capture_mapping_cache_test.cpp)
+    target_link_libraries(depthd_capture_mapping_cache_test PRIVATE depthd::runtime)
+    depthd_enable_warnings(depthd_capture_mapping_cache_test)
+    add_test(NAME depthd_capture_mapping_cache_test COMMAND depthd_capture_mapping_cache_test)
+  endif()
+
+  add_executable(depthd_native_capture_runner_test
+    tests/native_capture_runner_test.cpp
+  )
+  target_link_libraries(depthd_native_capture_runner_test PRIVATE depthd::runtime)
+  depthd_enable_warnings(depthd_native_capture_runner_test)
+  add_test(NAME depthd_native_capture_runner_test
+    COMMAND depthd_native_capture_runner_test
+  )
 
   if(TARGET depthd_image_encoder)
+    target_link_libraries(depthd_native_capture_runner_test PRIVATE
+      depthd::image_encoder)
+    target_compile_definitions(depthd_native_capture_runner_test PRIVATE
+      DEPTHD_WITH_IMAGE_ENCODER=1)
     add_executable(depthd_image_encoder_test tests/image_encoder_test.cpp)
     target_link_libraries(depthd_image_encoder_test PRIVATE
       depthd::image_encoder PkgConfig::DEPTHD_FFMPEG)
@@ -1149,6 +1253,7 @@ if(BUILD_TESTING)
     add_executable(depthd_opencv_rectification_backend_test
       tests/opencv_rectification_backend_test.cpp
     )
+    target_include_directories(depthd_opencv_rectification_backend_test SYSTEM PRIVATE ${OpenCV_INCLUDE_DIRS})
     target_link_libraries(depthd_opencv_rectification_backend_test
       PRIVATE depthd::opencv_rectification
     )
@@ -1223,10 +1328,26 @@ if(BUILD_TESTING)
     add_executable(depthd_cpu_sgbm_test tests/cpu_sgbm_test.cpp)
     target_compile_features(depthd_cpu_sgbm_test PRIVATE cxx_std_20)
     target_include_directories(depthd_cpu_sgbm_test SYSTEM PRIVATE ${OpenCV_INCLUDE_DIRS})
-    target_link_libraries(depthd_cpu_sgbm_test PRIVATE depthd::cpu_sgbm ${OpenCV_LIBS})
+    target_link_libraries(depthd_cpu_sgbm_test PRIVATE
+      depthd::cpu_sgbm depthd::opencv_rectification ${OpenCV_LIBS})
     depthd_enable_warnings(depthd_cpu_sgbm_test)
     add_test(NAME depthd_cpu_sgbm_test COMMAND depthd_cpu_sgbm_test)
   endif()
+endif()
+
+if(BUILD_TESTING)
+  # Release hardware builds must exercise the same assertions as host tests.
+  # CMake's Release flags otherwise define NDEBUG and silently remove them.
+  get_property(DEPTHD_TEST_CANDIDATES DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+  foreach(DEPTHD_TEST_TARGET IN LISTS DEPTHD_TEST_CANDIDATES)
+    if(DEPTHD_TEST_TARGET MATCHES "_test$")
+      if(MSVC)
+        target_compile_options(${DEPTHD_TEST_TARGET} PRIVATE /UNDEBUG)
+      else()
+        target_compile_options(${DEPTHD_TEST_TARGET} PRIVATE -UNDEBUG)
+      endif()
+    endif()
+  endforeach()
 endif()
 
 set(CPACK_GENERATOR "DEB")
@@ -1247,7 +1368,7 @@ if(DEPTHD_PACKAGE_REVISION)
     "${PROJECT_VERSION}+git${DEPTHD_PACKAGE_REVISION}")
 endif()
 set(CPACK_DEBIAN_PACKAGE_DEPENDS
-  "python3, python3-numpy, python3-opencv, python3-yaml, python3-picamera2, libegl1, libgles2"
+  "python3, python3-numpy, python3-opencv (>= 4.6), python3-yaml, python3-picamera2, libegl1, libgles2"
 )
 if(DEPTHD_PACKAGE_REVISION AND
    NOT DEPTHD_WITH_EGL_GL_DMABUF_RECTIFICATION)

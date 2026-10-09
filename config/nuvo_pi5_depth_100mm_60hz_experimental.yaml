@@ -76,20 +76,21 @@ stereo:
   output_width: 728
   output_height: 544
   min_disparity: 0
-  max_disparity: 128
+  max_disparity: 96
   # Match directly at native capture resolution. The capture trigger remains
   # 60 Hz; full-resolution SGBM may publish fewer depth frames on Pi 5.
   working_width: 728
   working_height: 544
-  working_disparities: 128
+  working_disparities: 96
   block_size: 5
-  mode: sgbm_3way
-  uniqueness_ratio: 1
+  mode: sgbm_hh
+  uniqueness_ratio: 0
   speckle_window_size: 30
   speckle_range: 2
   disparity_12_max_diff: 1
   pre_filter_cap: 31
   opencv_threads: 4
+  median_filter_size: 5
 
 outputs:
   disparity_hz: 60

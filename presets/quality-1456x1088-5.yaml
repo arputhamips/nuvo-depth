@@ -1,7 +1,9 @@
 schema_version: 1
 preset_id: quality_1456x1088_5
 qualification: unqualified_candidate
+kind: historical_geometry_proposal
+selection: requires_daemon_restart_and_matching_calibration
 capture: {width: 1456, height: 1088, target_hz: 5}
 matching: {width: 728, height: 544, disparities: 128, block_size: 5}
 outputs: [left_rectified, right_rectified, disparity, depth, confidence, validity]
-notes: High-detail candidate; ship disabled until Pi 5 thermal, latency, and accuracy gates pass.
+notes: Retained geometry proposal, not the web Quality profile. Target 5 Hz is unqualified; this geometry is not selected by the packaged daemon or browser catalog.

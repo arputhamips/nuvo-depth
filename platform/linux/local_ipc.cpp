@@ -154,6 +154,8 @@ SeqpacketConnection::operator bool() const noexcept {
   return static_cast<bool>(socket_);
 }
 
+int SeqpacketConnection::native_handle() const noexcept { return socket_.get(); }
+
 PeerCredentials SeqpacketConnection::peer_credentials() const {
 #if defined(__linux__)
   validate_socket(socket_);
@@ -318,6 +320,13 @@ SeqpacketListener::SeqpacketListener(const std::filesystem::path& path,
   }
 
   OwnedFd candidate(::socket(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0));
+  // A full peer backlog or a non-reading peer must not indefinitely block a
+  // producer/gateway shutdown. Packet receives have their own explicit bound.
+  const timeval timeout{1, 0};
+  if (::setsockopt(candidate.get(), SOL_SOCKET, SO_SNDTIMEO, &timeout,
+                   sizeof(timeout)) != 0) {
+    system_error("set local IPC send/connect deadline");
+  }
   struct sockaddr_un address {};
   address.sun_family = AF_UNIX;
   std::memcpy(address.sun_path, native.c_str(), native.size() + 1U);
@@ -399,6 +408,11 @@ SeqpacketConnection connect_seqpacket(const std::filesystem::path& path) {
     throw std::invalid_argument("SOCK_SEQPACKET connection path is invalid");
   }
   OwnedFd candidate(::socket(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0));
+  const timeval timeout{1, 0};
+  if (::setsockopt(candidate.get(), SOL_SOCKET, SO_SNDTIMEO, &timeout,
+                   sizeof(timeout)) != 0) {
+    system_error("set local IPC connect/send deadline");
+  }
   struct sockaddr_un address {};
   address.sun_family = AF_UNIX;
   std::memcpy(address.sun_path, native.c_str(), native.size() + 1U);

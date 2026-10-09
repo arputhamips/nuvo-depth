@@ -26,6 +26,7 @@ void require(const bool condition, const std::string_view message) {
 
 class CopyRectifier final : public depthd::RectificationBackend {
  public:
+  explicit CopyRectifier(std::shared_ptr<unsigned> calls = {}) : calls_(std::move(calls)) {}
   [[nodiscard]] std::string_view name() const noexcept override {
     return "test_copy_rectifier";
   }
@@ -34,15 +35,19 @@ class CopyRectifier final : public depthd::RectificationBackend {
                const depthd::ImageView& input,
                const depthd::MutableImageView& output,
                depthd::RectificationStats& stats) override {
+    if (calls_) ++*calls_;
+    const auto channels = input.encoding == depthd::ImageEncoding::kGray8 ? 1U : 3U;
     for (std::uint32_t y = 0; y < input.height; ++y) {
       std::copy_n(input.data + static_cast<std::size_t>(y) * input.stride_bytes,
-                  input.width,
+                  input.width * channels,
                   output.data + static_cast<std::size_t>(y) *
                                     output.stride_bytes);
     }
     stats.compute_ms += 0.01;
     stats.total_ms += 0.01;
   }
+ private:
+  std::shared_ptr<unsigned> calls_;
 };
 
 class BlockingCopyRectifier final : public depthd::RectificationBackend {
@@ -139,8 +144,13 @@ class DmabufCopyRectifier final : public depthd::RectificationBackend {
 class FixedStereo final : public depthd::NativeDisparityBackend {
  public:
   explicit FixedStereo(depthd::PixelGrid grid,
-                       const std::atomic<unsigned>* expected_releases = nullptr)
-      : expected_releases_(expected_releases) {
+                       const std::atomic<unsigned>* expected_releases = nullptr,
+                       std::shared_ptr<std::vector<const std::uint8_t*>>
+                           validity_addresses = {},
+                       std::shared_ptr<depthd::StereoConfigurationState> controls = {})
+      : controls_(std::move(controls)),
+        expected_releases_(expected_releases),
+        validity_addresses_(std::move(validity_addresses)) {
     metadata_.grid = grid;
     metadata_.valid_roi = {0U, 0U, grid.width, grid.height};
     metadata_.accepted_min_disparity_px = 0.0F;
@@ -152,6 +162,10 @@ class FixedStereo final : public depthd::NativeDisparityBackend {
 
   [[nodiscard]] std::string_view name() const noexcept override {
     return "test_fixed_stereo";
+  }
+
+  [[nodiscard]] depthd::StereoConfigurationState configuration_state() const override {
+    return controls_ ? *controls_ : depthd::StereoConfigurationState{};
   }
 
   [[nodiscard]] depthd::DisparityMetadata metadata() const noexcept override {
@@ -168,6 +182,9 @@ class FixedStereo final : public depthd::NativeDisparityBackend {
     }
     require(left.data[0] == 11U && right.data[0] == 22U,
             "rectified pixels were not routed to stereo");
+    if (validity_addresses_) {
+      validity_addresses_->push_back(output.validity.data);
+    }
     for (std::uint32_t y = 0; y < metadata_.grid.height; ++y) {
       for (std::uint32_t x = 0; x < metadata_.grid.width; ++x) {
         const auto index = static_cast<std::size_t>(y) *
@@ -181,11 +198,14 @@ class FixedStereo final : public depthd::NativeDisparityBackend {
     }
     stats.valid_fraction = 1.0F;
     stats.searchable_valid_fraction = 1.0F;
+    stats.match_ms += 0.05;
   }
 
  private:
   depthd::DisparityMetadata metadata_{};
+  std::shared_ptr<depthd::StereoConfigurationState> controls_;
   const std::atomic<unsigned>* expected_releases_{};
+  std::shared_ptr<std::vector<const std::uint8_t*>> validity_addresses_;
 };
 
 depthd::RectifiedCalibrationView calibration(
@@ -323,6 +343,158 @@ void test_bounded_scheduler() {
           "stopped scheduler accepted work");
 }
 
+void test_pool_reuses_storage_without_mutating_retained_frames() {
+  auto config = configuration();
+  config.frame_pool_capacity = 2U;
+  auto scratch_addresses =
+      std::make_shared<std::vector<const std::uint8_t*>>();
+  auto instance = std::make_unique<depthd::NativeProcessingPipeline>(
+      config, std::make_unique<CopyRectifier>(),
+      std::make_unique<FixedStereo>(config.matching_calibration.grid, nullptr,
+                                    scratch_addresses));
+  std::atomic<unsigned> released{};
+  auto first = instance->process(request(10U, released));
+  auto retained = first;
+  const auto* storage_address = first.get();
+  const std::array<const void*, 6> product_addresses{
+      first->left_rectified.data(), first->right_rectified.data(),
+      first->disparity.data(), first->depth_m.data(), first->confidence.data(),
+      first->validity.data()};
+  auto second = instance->process(request(11U, released));
+  require(second && second.get() != storage_address &&
+              retained->metadata.frame.capture_sequence == 10U,
+          "pool reused or changed a consumer-pinned frame");
+  const auto dropped = instance->process(request(12U, released));
+  require(!dropped && !instance->has_available_storage() &&
+              released.load() == 6U && scratch_addresses->size() == 2U,
+          "exhausted pool did not drop the complete input before processing");
+  first.reset();
+  require(!instance->has_available_storage(),
+          "one remaining consumer did not pin its frame slot");
+  retained.reset();
+  require(instance->has_available_storage(),
+          "released consumer did not return its storage slot");
+  const auto reused = instance->process(request(13U, released));
+  const std::array<const void*, 6> reused_addresses{
+      reused->left_rectified.data(), reused->right_rectified.data(),
+      reused->disparity.data(), reused->depth_m.data(),
+      reused->confidence.data(), reused->validity.data()};
+  require(reused.get() == storage_address &&
+              reused_addresses == product_addresses &&
+              reused->metadata.frame.capture_sequence == 13U &&
+              second->metadata.frame.capture_sequence == 11U &&
+              reused->stats.rectification.total_ms == 0.02 &&
+              reused->stats.stereo.match_ms == 0.05,
+          "reused storage reallocated products or retained prior frame state");
+  require(scratch_addresses->size() == 3U &&
+              (*scratch_addresses)[0] == (*scratch_addresses)[1] &&
+              (*scratch_addresses)[0] == (*scratch_addresses)[2],
+          "disparity validity scratch was allocated again for each frame");
+  instance.reset();
+  require(reused->view().metadata.frame.capture_sequence == 13U &&
+              second->view().metadata.frame.capture_sequence == 11U,
+          "retained frame storage did not outlive its pipeline");
+}
+
+void test_pool_clears_optional_preview_products() {
+  auto config = configuration();
+  config.frame_pool_capacity = 1U;
+  auto instance = depthd::NativeProcessingPipeline(
+      config, std::make_unique<CopyRectifier>(),
+      std::make_unique<FixedStereo>(config.matching_calibration.grid));
+  std::atomic<unsigned> released{};
+  auto left = request(20U, released);
+  left.color_preview = depthd::ColorPreviewRequest::kLeft;
+  left.color_preview_yuv420.assign(72U, 19U);
+  auto frame = instance.process(std::move(left));
+  require(frame->left_color_yuv420.size() == 72U &&
+              frame->right_color_yuv420.empty(),
+          "left preview was not retained in its frame slot");
+  frame.reset();
+  auto right = request(21U, released);
+  right.color_preview = depthd::ColorPreviewRequest::kRight;
+  right.color_preview_yuv420.assign(72U, 29U);
+  frame = instance.process(std::move(right));
+  require(frame->left_color_yuv420.empty() &&
+              frame->right_color_yuv420.size() == 72U &&
+              frame->right_color_yuv420.front() == 29U,
+          "reused frame retained a stale preview from the other camera");
+  frame.reset();
+  frame = instance.process(request(22U, released));
+  require(frame->left_color_yuv420.empty() &&
+              frame->right_color_yuv420.empty(),
+          "raw-only frame retained a prior color preview");
+}
+
+void test_pool_rejects_unbounded_capacity_and_payload() {
+  for (const auto capacity : {0U, 65U}) {
+    auto config = configuration();
+    config.frame_pool_capacity = capacity;
+    bool threw = false;
+    try {
+      depthd::validate(config);
+    } catch (const std::invalid_argument&) {
+      threw = true;
+    }
+    require(threw, "invalid frame pool slot bound was accepted");
+  }
+  auto config = configuration();
+  // All fourteen outputs plus previews: 31 image bytes and 10 matching bytes
+  // per pixel; unpublished dependency scratch has 11 matching bytes/pixel.
+  config.frame_pool_payload_budget_bytes = 8U * (48U * 31U + 12U * 10U) + 12U * 11U;
+  depthd::validate(config);
+  --config.frame_pool_payload_budget_bytes;
+  bool threw = false;
+  try {
+    depthd::validate(config);
+  } catch (const std::invalid_argument&) {
+    threw = true;
+  }
+  require(threw, "frame geometry exceeding the total payload bound was accepted");
+  config.frame_pool_payload_budget_bytes = 256U * 1024U * 1024U + 1U;
+  threw = false;
+  try {
+    depthd::validate(config);
+  } catch (const std::invalid_argument&) {
+    threw = true;
+  }
+  require(threw, "frame payload budget exceeded the appliance memory bound");
+}
+
+void test_scheduler_recycles_stale_completions_and_drops_pinned_inputs() {
+  auto config = configuration();
+  config.frame_pool_capacity = 1U;
+  auto instance = std::make_unique<depthd::NativeProcessingPipeline>(
+      config, std::make_unique<CopyRectifier>(),
+      std::make_unique<FixedStereo>(config.matching_calibration.grid));
+  depthd::BoundedNativeScheduler scheduler({1U, 2U}, std::move(instance));
+  std::atomic<unsigned> released{};
+  const auto wait_for = [&](const auto& predicate) {
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::seconds(2);
+    while (!predicate() && std::chrono::steady_clock::now() < deadline) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    require(predicate(), "scheduler did not reach the expected pool state");
+  };
+  (void)scheduler.try_submit(request(30U, released));
+  wait_for([&] { return scheduler.stats().processed == 1U; });
+  (void)scheduler.try_submit(request(31U, released));
+  wait_for([&] { return scheduler.stats().processed == 2U; });
+  const auto newest = scheduler.wait_next(std::chrono::seconds(2));
+  require(newest && newest->metadata.frame.capture_sequence == 31U &&
+              scheduler.stats().completed_dropped == 1U,
+          "pool exhaustion did not recycle the oldest queued completion");
+  (void)scheduler.try_submit(request(32U, released));
+  wait_for([&] { return scheduler.stats().storage_exhausted_dropped == 1U; });
+  require(!scheduler.wait_next(std::chrono::milliseconds(0)) &&
+              scheduler.stats().processing_failures == 0U &&
+              scheduler.take_last_error().empty() && released.load() == 6U &&
+              newest->metadata.frame.capture_sequence == 31U,
+          "pinned pool enqueued null output, retained leases, or reported failure");
+  scheduler.stop();
+}
+
 void test_scheduler_replaces_stale_pending_request() {
   std::atomic<unsigned> released_leases{};
   auto mutex = std::make_shared<std::mutex>();
@@ -405,6 +577,7 @@ void test_move_assignment_releases_mapping_before_camera_lease() {
   std::atomic<unsigned> releases{};
   std::atomic<unsigned> ordering_failures{};
   auto mapping_alive = std::make_shared<std::atomic<bool>>(true);
+  auto dmabuf_lease_alive = std::make_shared<std::atomic<bool>>(true);
   auto mapping = std::shared_ptr<const void>(
       new std::uint8_t{0U},
       [mapping_alive](const void* pointer) {
@@ -415,8 +588,22 @@ void test_move_assignment_releases_mapping_before_camera_lease() {
   depthd::StereoProcessingRequest occupied;
   occupied.left_mapping_owner = mapping;
   occupied.right_mapping_owner = std::move(mapping);
+  occupied.left_dmabuf_lease =
+      std::shared_ptr<const depthd::DmabufRequestLease>(
+          new TestDmabufLease(1U),
+          [dmabuf_lease_alive](const depthd::DmabufRequestLease* lease) {
+            dmabuf_lease_alive->store(false);
+            delete lease;
+          });
+  occupied.right_dmabuf_lease = occupied.left_dmabuf_lease;
+  occupied.dmabuf.emplace();
+  occupied.left = {static_cast<const std::uint8_t*>(
+                       occupied.left_mapping_owner.get()),
+                   1U, 1U, 1U, depthd::ImageEncoding::kGray8};
+  occupied.right = occupied.left;
   const auto release = [&] {
-    if (mapping_alive->load()) {
+    if (mapping_alive->load() || dmabuf_lease_alive->load() ||
+        occupied.dmabuf || occupied.left.data || occupied.right.data) {
       ++ordering_failures;
     }
     ++releases;
@@ -429,12 +616,65 @@ void test_move_assignment_releases_mapping_before_camera_lease() {
   depthd::StereoProcessingRequest replacement;
   occupied = std::move(replacement);
   require(releases.load() == 2U && ordering_failures.load() == 0U &&
-              !mapping_alive->load(),
-          "move assignment released camera leases before mapping owners");
+              !mapping_alive->load() && !dmabuf_lease_alive->load(),
+          "move assignment released camera leases before dependent views");
+}
+
+void test_move_assignment_transfers_preview_and_preserves_self_assignment() {
+  for (const auto preview : {depthd::ColorPreviewRequest::kNone,
+                            depthd::ColorPreviewRequest::kLeft,
+                            depthd::ColorPreviewRequest::kRight}) {
+    std::atomic<unsigned> released{};
+    auto occupied = request(40U, released);
+    occupied.color_preview = depthd::ColorPreviewRequest::kLeft;
+    occupied.color_preview_yuv420.assign(72U, 17U);
+    auto replacement = request(41U, released);
+    replacement.color_preview = preview;
+    if (preview != depthd::ColorPreviewRequest::kNone) {
+      replacement.color_preview_yuv420.assign(72U, 31U);
+    }
+    const auto* payload = replacement.color_preview_yuv420.data();
+    occupied = std::move(replacement);
+    require(released.load() == 2U && occupied.color_preview == preview &&
+                replacement.color_preview == depthd::ColorPreviewRequest::kNone &&
+                replacement.color_preview_yuv420.empty() &&
+                occupied.color_preview_yuv420.size() ==
+                    (preview == depthd::ColorPreviewRequest::kNone ? 0U : 72U),
+            "move assignment lost the preview or retained the old payload");
+    if (preview != depthd::ColorPreviewRequest::kNone) {
+      require(occupied.color_preview_yuv420.data() == payload &&
+                  occupied.color_preview_yuv420.front() == 31U,
+              "move assignment copied or corrupted the optional preview");
+    }
+    const auto* image = occupied.left.data;
+    auto& alias = occupied;
+    occupied = std::move(alias);
+    require(released.load() == 2U && occupied.left.data == image &&
+                occupied.capture.pair_sequence == 41U &&
+                occupied.color_preview == preview &&
+                occupied.color_preview_yuv420.size() ==
+                    (preview == depthd::ColorPreviewRequest::kNone ? 0U : 72U),
+            "self-move assignment changed the live request");
+
+    const auto output = pipeline()->process(std::move(occupied));
+    const auto& selected = preview == depthd::ColorPreviewRequest::kRight
+                               ? output->right_color_yuv420
+                               : output->left_color_yuv420;
+    require(released.load() == 4U &&
+                output->metadata.frame.capture_sequence == 41U &&
+                selected.size() ==
+                    (preview == depthd::ColorPreviewRequest::kNone ? 0U : 72U) &&
+                (selected.empty() || selected.front() == 31U) &&
+                (preview == depthd::ColorPreviewRequest::kRight
+                     ? output->left_color_yuv420.empty()
+                     : output->right_color_yuv420.empty()),
+            "moved request did not produce the selected associated preview");
+  }
 }
 
 void test_rejects_provisional_metric_depth_without_override() {
   auto config = configuration();
+  config.frame_pool_capacity = 1U;
   config.image_calibration.authority =
       depthd::CalibrationAuthority::kProvisionalRecalibrationRequired;
   config.matching_calibration.authority =
@@ -443,15 +683,128 @@ void test_rejects_provisional_metric_depth_without_override() {
       config, std::make_unique<CopyRectifier>(),
       std::make_unique<FixedStereo>(config.matching_calibration.grid));
   std::atomic<unsigned> released{};
-  bool threw = false;
-  try {
-    (void)instance.process(request(9U, released));
-  } catch (const std::invalid_argument&) {
-    threw = true;
+  for (const auto sequence : {9U, 10U}) {
+    bool threw = false;
+    try {
+      (void)instance.process(request(sequence, released));
+    } catch (const std::invalid_argument&) {
+      threw = true;
+    }
+    require(threw,
+            "provisional depth was authorized or failure pinned its frame slot");
   }
-  require(threw, "provisional calibration silently authorized metric depth");
-  require(released.load() == 2U,
+  require(released.load() == 4U,
           "failed processing did not release camera leases");
+}
+
+void test_configuration_epoch_tracks_applied_matcher_changes() {
+  auto cfg = configuration();
+  auto controls = std::make_shared<depthd::StereoConfigurationState>();
+  controls->applied_revision = std::string(64U, 'a');
+  controls->requested_revision = controls->applied_revision;
+  depthd::NativeProcessingPipeline instance(cfg,std::make_unique<CopyRectifier>(),
+      std::make_unique<FixedStereo>(cfg.matching_calibration.grid,nullptr,nullptr,controls));
+  std::atomic<unsigned> released{};
+  const auto first = instance.process(request(1U,released));
+  require(first->metadata.frame.configuration_epoch == 7U,"initial configuration epoch changed");
+  controls->requested_revision = std::string(64U, 'b');
+  controls->rejection_error = "invalid range";
+  const auto rejected = instance.process(request(2U,released));
+  require(rejected->metadata.frame.configuration_epoch == 7U &&
+          rejected->stereo_configuration.applied_revision == std::string(64U, 'a') &&
+          rejected->stereo_configuration.rejection_error == "invalid range",
+          "rejected controls advanced the epoch or lost active provenance");
+  ++controls->generation;
+  controls->applied_revision = controls->requested_revision;
+  controls->rejection_error.clear();
+  const auto applied = instance.process(request(3U,released));
+  require(applied->metadata.frame.configuration_epoch == 8U &&
+          applied->stereo_configuration.applied_revision == std::string(64U, 'b'),
+          "applied matcher generation did not advance processing epoch");
+  controls->applied_revision = controls->requested_revision = std::string(64U, 'c');
+  const auto equivalent = instance.process(request(4U,released));
+  require(equivalent->metadata.frame.configuration_epoch == 8U &&
+          equivalent->stereo_configuration.applied_revision == std::string(64U, 'c'),
+          "equivalent controls advanced processing epoch");
+  require(first->stereo_configuration.applied_revision == std::string(64U, 'a'),
+          "retained frame configuration provenance was mutated");
+}
+
+void test_demand_computes_only_required_stages_and_products() {
+  using namespace depthd::ipc_v2;
+  auto cfg = configuration();
+  cfg.frame_pool_capacity = 1U;
+  auto rectifications = std::make_shared<unsigned>(0U);
+  auto matches = std::make_shared<std::vector<const std::uint8_t*>>();
+  depthd::NativeProcessingPipeline instance(cfg, std::make_unique<CopyRectifier>(rectifications),
+      std::make_unique<FixedStereo>(cfg.matching_calibration.grid, nullptr, matches));
+  std::atomic<unsigned> released{};
+  for (std::size_t index = 0; index < kProductCount; ++index) {
+    const auto kind = static_cast<ProductKind>(index);
+    auto input = request(index + 1U, released);
+    input.products = product_bit(kind);
+    const auto before_rectification = *rectifications;
+    const auto before_matching = matches->size();
+    const auto output = instance.process(std::move(input));
+    require(output && output->available_products == product_bit(kind), "selected output mask changed");
+    (void)output->view();
+    const bool matcher = (product_bit(kind) & kMatcherProducts) != 0U;
+    require(matches->size() - before_matching == (matcher ? 1U : 0U),
+            "an image-only selection ran the matcher");
+    const bool raw = kind == ProductKind::kLeftMono || kind == ProductKind::kRightMono ||
+        kind == ProductKind::kLeftRgb || kind == ProductKind::kRightRgb;
+    const bool stereo = kind == ProductKind::kRectifiedStereo || kind == ProductKind::kRectifiedStereoRgb;
+    require(*rectifications - before_rectification == (raw ? 0U : matcher || stereo ? 2U : 1U),
+            "selection rectified an unwanted camera");
+    const bool metric = kind == ProductKind::kDepth || kind == ProductKind::kValidity;
+    require(output->stats.depth.pixel_count == (metric ? 12U : 0U),
+            "nonmetric selection ran depth conversion");
+    require(output->disparity.empty() == (kind != ProductKind::kDisparity) &&
+            output->depth_m.empty() == (kind != ProductKind::kDepth) &&
+            output->confidence.empty() == (kind != ProductKind::kConfidence) &&
+            output->validity.empty() == (kind != ProductKind::kValidity),
+            "unrequested matcher products retained output arrays");
+    if (kind == ProductKind::kRectifiedStereo) {
+      require(output->rectified_stereo.size() == 96U && output->rectified_stereo[0] == 11U &&
+              output->rectified_stereo[8] == 22U && output->rectified_stereo[16] == 11U,
+              "mono stereo output is not row-wise side by side");
+    }
+    if (kind == ProductKind::kRectifiedStereoRgb) {
+      require(output->rectified_stereo_rgb.size() == 288U &&
+              output->rectified_stereo_rgb[0] == 11U && output->rectified_stereo_rgb[24] == 22U,
+              "RGB stereo output is not row-wise side by side");
+    }
+    require(released.load() == 2U * (index + 1U), "image selection retained camera leases");
+  }
+  // A mono-only subscription is still useful before metric calibration is
+  // authorized; it must not accidentally enter the provisional depth gate.
+  cfg.image_calibration.authority = cfg.matching_calibration.authority =
+      depthd::CalibrationAuthority::kProvisionalRecalibrationRequired;
+  depthd::NativeProcessingPipeline uncalibrated(cfg, std::make_unique<CopyRectifier>(),
+      std::make_unique<FixedStereo>(cfg.matching_calibration.grid));
+  auto mono = request(20U, released);
+  mono.products = product_bit(ProductKind::kLeftMono);
+  require(uncalibrated.process(std::move(mono))->left_mono.size() == 48U,
+          "mono-only output entered metric authorization");
+}
+
+void test_capture_rgb_preserves_channels_and_padded_rows() {
+  std::atomic<unsigned> released{};
+  auto input = request(1U, released);
+  auto pixels = std::make_shared<std::vector<std::uint8_t>>(6U * 27U, 99U);
+  for (std::size_t row = 0; row < 6U; ++row) for (std::size_t column = 0; column < 8U; ++column) {
+    const auto offset = row * 27U + column * 3U;
+    (*pixels)[offset] = 5U; (*pixels)[offset + 1U] = 31U; (*pixels)[offset + 2U] = 207U;
+  }
+  input.left_mapping_owner = pixels;
+  input.left = {pixels->data(), 8U, 6U, 27U, depthd::ImageEncoding::kBgr8};
+  std::vector<std::uint8_t> rgb(144U), mono(48U);
+  depthd::copy_capture_rgb(input, depthd::CameraRole::kLogicalLeft, rgb);
+  depthd::copy_capture_image(input, depthd::CameraRole::kLogicalLeft, false, mono);
+  for (std::size_t pixel = 0; pixel < 48U; ++pixel)
+    require(rgb[pixel * 3U] == 207U && rgb[pixel * 3U + 1U] == 31U && rgb[pixel * 3U + 2U] == 5U &&
+            mono[pixel] == ((77U * 207U + 150U * 31U + 29U * 5U + 128U) >> 8U),
+            "capture RGB/mono copy mixed channels or included row padding");
 }
 
 }  // namespace
@@ -459,10 +812,18 @@ void test_rejects_provisional_metric_depth_without_override() {
 int main() {
   try {
     test_synchronous_pipeline();
+    test_configuration_epoch_tracks_applied_matcher_changes();
+    test_demand_computes_only_required_stages_and_products();
+    test_capture_rgb_preserves_channels_and_padded_rows();
     test_bounded_scheduler();
+    test_pool_reuses_storage_without_mutating_retained_frames();
+    test_pool_clears_optional_preview_products();
+    test_pool_rejects_unbounded_capacity_and_payload();
+    test_scheduler_recycles_stale_completions_and_drops_pinned_inputs();
     test_scheduler_replaces_stale_pending_request();
     test_capture_native_dmabuf_path();
     test_move_assignment_releases_mapping_before_camera_lease();
+    test_move_assignment_transfers_preview_and_preserves_self_assignment();
     test_rejects_provisional_metric_depth_without_override();
     std::cout << "runtime_test: pass\n";
     return EXIT_SUCCESS;

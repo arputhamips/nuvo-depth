@@ -38,7 +38,41 @@ bounded packets, and inode-safe socket cleanup. Shared memory is created with a
 producer mapping before `F_SEAL_FUTURE_WRITE`; clients receive a separate
 read-only descriptor.
 
-NuvoStream uses one common protocol for physical Ethernet and USB Ethernet:
+The production daemon publishes complete frame pointers to the local frame
+service. It does not also copy them into an unused in-process broker or write
+raw snapshots each frame. `depthd --snapshot-dir DIR` explicitly enables raw
+disk diagnostics. The broker API remains available for library consumers.
+
+The gateway holds one persistent raw subscription to
+`/run/nuvo-depth/data.sock` for the union of active consumers' selected products
+and their maximum cadence. It fetches nothing while no raw consumer is open.
+A separate persistent subscription carries maximum encoded-preview demand;
+preview encoding stops after its last consumer disconnects. Snapshot requests
+also acquire demand, wait at most three seconds for matching fresh products,
+then hold the selected immutable publication and reservation through the write.
+A failed wait returns 503. Native `boottime` captures older than one second are
+rejected before a retrieved cached memfd can satisfy that wait. First requests never depend on an eager all-product
+background reader. Persistent `NVS2` subscription updates acknowledge with
+`NVA2`; raw `NVW2` waits remain bounded to 500 ms. Disconnect releases demand.
+
+All 14 product kinds are independently selectable: the legacy rectified mono
+pair, disparity/depth/confidence/validity; unrectified `left_mono`/`right_mono`,
+`left_rgb`/`right_rgb`; `left_rectified_rgb`/`right_rectified_rgb`; and
+`rectified_stereo`/`rectified_stereo_rgb` side-by-side pairs. Stereo pair images
+have twice the single-camera width. Explicit RGB products carry `rgb8` data;
+legacy descriptors retain their actual `gray8`, `rgb8`, or `bgr8` format. Image
+consumers do not request the depth matcher. Native processing follows aggregate
+raw and encoded demands, so an image preview can continue while depth matching
+is busy.
+
+At most eight local clients are served concurrently. Local serialization caches
+four masks within 64 MiB, and the gateway shares four variants within 16 MiB per
+source generation. `selected_products` is rewritten for each filtered response;
+`available_products` retains the source union. Publication identities and whole
+RGB payloads are preserved. Shutdown wakes waiters and closes tracked network
+connections. `--snapshot-file` remains an explicit diagnostic fallback.
+
+NuvoStream uses one common protocol for Ethernet, USB Ethernet, and WiFi:
 
 - HTTPS/UI/control target: TCP 7443;
 - authenticated HTTPS snapshot and WebSocket stream target: TLS/TCP 7443;
@@ -49,10 +83,99 @@ NuvoStream uses one common protocol for physical Ethernet and USB Ethernet:
 - Protobuf metadata schema in `protocol/nuvo_stream_v1.proto`.
 
 The gateway admission core reserves the exact framed byte rate against the
-qualified capacity of Ethernet or USB Ethernet. Preference can be Ethernet,
-USB, both, or off. It never silently removes products or reduces cadence. Each
+configured capacity of the actual accepted Ethernet, USB Ethernet, or WiFi
+interface. Preferences are `auto`, `wifi`, `ethernet`, `usb`, `both` (wired and
+USB), or `off`. `auto` supports every detected connection without reconnecting
+to another link; `wifi` restricts data to WiFi. It never silently removes products or reduces cadence. Each
 client has at most one unsent complete frame and one in-flight frame. Once any
 TCP bytes have been sent, that frame must finish or the session closes.
+
+The executable now uses that admission core and `SessionQueue`. Raw exact
+subscriptions use `/api/v1/stream?cadence_hz=10&products=depth,confidence,validity`.
+Both raw parameters are required together; duplicate/unknown products, invalid cadence,
+and unknown parameters return 400. Before accepting the upgrade, the gateway
+acquires the requested source demand, waits boundedly for matching products,
+then admits their selected payload plus the
+64 KiB metadata ceiling. Each accepted socket is matched to its actual local
+network interface. A connection on USB cannot reserve Ethernet capacity. When
+the preferred qualified interface can admit a request arriving on the other
+interface, the request is rejected with a reconnect alternative. `both` permits
+either wired interface; `off` disables data. Changing transport policy
+closes existing data streams so their contracts must be negotiated again.
+
+Exact source and link evidence is read at startup from
+`/etc/nuvo-depth/gateway-qualification.json`, or `--qualification-file PATH`.
+The installed `gateway-qualification.example.json` is disabled and contains
+zero bounds. Enable it only after filling its retained measurement report ID,
+source lower cadence bound, maximum frame size, applied stereo file SHA256,
+calibration SHA256, configuration epoch, and each measured interface's framed
+payload rate, maximum frame size, and session count. Frames must have validated
+calibration authority, equal requested/applied stereo revisions, and no stereo
+reload error. Requested cadence above the measured source bound, missing
+qualification, or exhausted connected-interface capacity returns 409. No
+nominal network speed or preset name is interpreted as measured capacity.
+Existing qualified streams close when the profile/calibration identity or
+qualification document changes. Restart the gateway to load new evidence.
+
+WiFi is supported without an engineering override and always reports
+`X-Nuvo-Stream-Qualification: best-effort`. The optional `delivery` parameter is
+`auto`, `best_effort`, or `exact`. Explicit `auto` selects qualified exact only
+when current evidence covers the source, requested cadence and wired link;
+otherwise its handshake explicitly says best effort. `best_effort` applies the
+requested cadence as a maximum on any supported link. `exact` rejects WiFi and
+unqualified sources. Legacy paired products/cadence requests without `delivery`
+retain their exact-on-wired requirement. Plain legacy streams remain best
+effort at a 10 Hz maximum. No path silently changes the chosen products or
+formats. Encoded stream/snapshot requests accept `cadence_hz` as a preview
+maximum and never claim an exact raw-product contract.
+
+`/api/v1/capabilities` includes the accepted connection's interface, detected
+kind, whether wired link capacity has current measured evidence, resource byte
+budget, preview recommendation, and active raw/encoded consumer counts. WiFi
+has an explicit default 8 MiB/s resource budget; `--wifi-byte-budget BYTES`
+allows a deployment to configure a measured or desired safe best-effort limit.
+`--engineering-byte-budget` sets the unqualified wired resource limit (default
+64 MiB/s). These limits are not substituted for exact qualification. All active
+sessions reserve framed rates against the same link controller; an additional
+shared token budget bounds actual variable-size output. Best-effort overload
+can skip whole frames; qualified streams fail closed if a bound is violated.
+
+`--engineering-interface lo` remains available for temporary local testing and
+reports `engineering-best-effort`. It does not change production network
+configuration. Handshakes also report requested cadence and `exact` or
+`maximum-best-effort` cadence semantics; the SDK exposes `stream.qualification`.
+
+The Outputs page defaults to unrectified left mono at 5 Hz, allows all 14 raw
+product choices and independent preview cadence, and shows a conservative
+byte-rate estimate beside the connection's budget. Users may select image-only,
+matcher-only, or mixed outputs and choose delivery semantics explicitly.
+Streaming configures preview codec/source/size/quality; merely saving an
+encoder configuration does not create a consumer. Browser navigation away from
+preview pages, hiding the tab, disabling output, and disconnecting release
+browser demand. Selections are saved locally for that browser; other consumers
+retain their own masks and rates.
+
+Gateway source storage is limited to 16 MiB per raw serialized frame (checked
+before allocating the memfd copy) and 4 MiB per encoded access unit. Product
+subsets are shared per source generation and mask, with four cached masks and
+16 MiB aggregate storage. Each session reserves two worst-case serialized
+frames against a shared 64 MiB memory budget, including encoded sessions.
+Snapshots without an explicit cadence hint register 1 Hz demand and rate
+reservation, while first-frame processing can start immediately. Their actual
+full byte size still charges the shared token budget, so rapid repeat callers
+cannot bypass output limits. Explicit product/cadence queries retain their
+requested contract.
+HTTP raw and encoded snapshots reserve from the same budget before copying
+their response bodies and hold that reservation through the write. Each
+response pins the exact admitted publication; a newer, larger frame cannot
+replace it between admission and serialization. Exhausted requests return 409,
+and a failed partial write closes the connection.
+Oversize or changed-format frames close the session. Event notifications are
+coalesced; slow clients retain one complete pending frame and one in-flight
+frame. WebSocket reads stay active for ping/pong and close frames. Writes must
+complete within five seconds; shutdown interrupts tracked connections and has
+a five-second client deadline. The service sets a ten-second stop timeout.
+Removing or reconfiguring the native encoded output clears the gateway cache.
 
 The first C++ SDK surface is `nuvo::StreamDecoder`. It is an incremental,
 bounded decoder for bytes after TLS authentication/decryption and handles both
@@ -97,3 +220,22 @@ read-only sealed memory, and safe socket lifecycle.
 
 Current hardware evidence and the still-pending manual gates are recorded in
 `docs/pi5-hil-qualification-20260909.md`.
+
+Configuration endpoints (`/api/v1/stereo`, `/api/v1/exposure`, and
+`/api/v1/encoding`) return requested JSON with a strong SHA256 `ETag` of those
+exact bytes. POST requires that ETag in `If-Match`: missing preconditions return
+428 and changed revisions return 412. `nuvoctl` checks the revision and replaces
+the file while holding the shared privileged configuration lock; the gateway's
+precheck alone is not the concurrency protection. Successful writes return 202,
+the exact saved JSON and its ETag, and `X-Nuvo-Configuration-State: pending`.
+GET reports `requested`; no response implies that the camera or matcher applied
+commands merely because the file was saved.
+
+Stereo reloads hash and parse the same bounded document. Frames and status
+carry `stereo_requested_revision`, `stereo_applied_revision`,
+`stereo_configuration_generation`, and `stereo_configuration_error`. A valid
+semantic change advances the processing `configuration_epoch` at the next
+processing boundary. Formatting-only changes acknowledge a new file revision
+without rebuilding or advancing the epoch. Rejected controls leave the prior
+matcher and applied revision intact and expose the rejection error. Per-camera
+exposure metadata describes actual settings separately from requested commands.

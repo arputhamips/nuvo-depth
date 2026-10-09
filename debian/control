@@ -3,11 +3,11 @@ Section: video
 Priority: optional
 Maintainer: Meridian Robotics <packages@meridianrobotics.example>
 Build-Depends: debhelper-compat (= 13), cmake (>= 3.20), ninja-build,
- pkgconf, g++ (>= 12), libyaml-cpp-dev, libopencv-dev,
+ pkgconf, g++ (>= 12), libyaml-cpp-dev, libopencv-dev (>= 4.6),
  libavcodec-dev, libavutil-dev, libswscale-dev,
  libboost-system-dev, libssl-dev (>= 3.0), libsystemd-dev,
  libegl-dev, libgles-dev, libcamera-dev [arm64],
- python3, python3-numpy, python3-opencv, python3-yaml
+ python3, python3-numpy, python3-opencv (>= 4.6), python3-yaml
 Standards-Version: 4.7.2
 Rules-Requires-Root: no
 
@@ -25,7 +25,8 @@ Description: Nuvo Depth stereo camera appliance metapackage
 
 Package: nuvo-depth-core
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, python3, python3-yaml
+Depends: ${shlibs:Depends}, ${misc:Depends}, python3, python3-yaml,
+ nuvo-depth-calibration (= ${source:Version})
 Conflicts: nuvo-depthd (<< 0.1.1~)
 Replaces: nuvo-depthd (<< 0.1.1~)
 Provides: nuvo-depthd
@@ -73,16 +74,18 @@ Description: Python client SDK for Nuvo Depth cameras
 
 Package: nuvo-depth-calibration
 Architecture: all
-Depends: python3, python3-numpy, python3-opencv, python3-yaml,
+Depends: python3, python3-numpy, python3-opencv (>= 4.6), python3-yaml,
  python3-cryptography, ${misc:Depends}
 Description: Nuvo Depth stereo calibration workflow
- Target capture solving, quantitative validation, immutable bundle activation,
+ Synchronized target-pair solving, profile-matrix generation, quantitative validation,
+ immutable bundle activation,
  tamper detection, and atomic calibration rollback.
 
 Package: nuvo-depth-tools
 Architecture: all
 Depends: python3, python3-yaml, openssl,
- python3-nuvo-depth (= ${source:Version}), ${misc:Depends}
+ python3-nuvo-depth (= ${source:Version}),
+ nuvo-depth-calibration (= ${source:Version}), ${misc:Depends}
 Description: Nuvo Depth administration and diagnostic tools
  Appliance identity, platform preflight/preparation, transport transactions,
  recorder/replay entry points, and support diagnostics.

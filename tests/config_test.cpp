@@ -246,5 +246,24 @@ int main() {
     }
   }
 
+  for (const auto mode : {"sgbm_3way", "sgbm_standard", "sgbm_hh4", "sgbm_hh"}) {
+    const TemporaryConfig temporary(
+        replace_once(active_yaml, "mode: sgbm_3way", std::string("mode: ") + mode));
+    if (depthd::config::load(temporary.path()).effective.stereo.mode != mode) {
+      return fail(26, "supported aggregation mode was not preserved");
+    }
+  }
+  if (!expect_validation(replace_once(active_yaml, "mode: sgbm_3way", "mode: mystery"),
+                         "stereo.mode") ||
+      !expect_validation(replace_once(active_yaml, "median_filter_size: 0",
+                                      "median_filter_size: 4"),
+                         "stereo.median_filter_size")) {
+    return fail(27, "invalid aggregation or smoothing was accepted");
+  }
+  const TemporaryConfig without_median(
+      replace_once(active_yaml, "  median_filter_size: 0\n", ""));
+  if (depthd::config::load(without_median.path()).effective.stereo.median_filter_size != 0U) {
+    return fail(28, "legacy schema-v1 smoothing default changed");
+  }
   return 0;
 }

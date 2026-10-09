@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <span>
 #include <string>
@@ -30,6 +31,16 @@ enum class Source : std::uint8_t {
   kRightRectified = 1,
   kDisparity = 2,
   kDepth = 3,
+  kLeftColor = 4,
+  kRightColor = 5,
+  kLeftMono = 6,
+  kRightMono = 7,
+  kLeftRgb = 8,
+  kRightRgb = 9,
+  kLeftRectifiedRgb = 10,
+  kRightRectifiedRgb = 11,
+  kRectifiedStereo = 12,
+  kRectifiedStereoRgb = 13,
 };
 
 struct Configuration {
@@ -44,18 +55,23 @@ struct Configuration {
   std::uint32_t cadence_hz{10U};
   std::uint32_t bitrate_bps{4'000'000U};
   std::uint32_t jpeg_quality{80U};
-  std::uint32_t keyframe_interval{30U};
-  std::uint32_t threads{4U};
+  std::uint32_t keyframe_interval{1U};
+  std::uint32_t threads{1U};
   bool low_latency{true};
   std::string preset{"veryfast"};
 };
 
 [[nodiscard]] bool raw_enabled(const Configuration& config) noexcept;
 [[nodiscard]] bool encoded_enabled(const Configuration& config) noexcept;
+[[nodiscard]] bool requires_depth(Source source) noexcept;
 [[nodiscard]] std::string_view name(StreamMode value) noexcept;
 [[nodiscard]] std::string_view name(Codec value) noexcept;
 [[nodiscard]] std::string_view name(Source value) noexcept;
 void validate(const Configuration& config);
+// Latest-frame delivery can replace or skip any access unit. H.264 therefore
+// requires independent frames. Standalone/offline FrameEncoder still permits
+// predictive GOPs through validate().
+void validate_latest_configuration(const Configuration& config);
 [[nodiscard]] Configuration parse_configuration(std::string_view document);
 [[nodiscard]] std::string configuration_json(const Configuration& config);
 [[nodiscard]] Configuration load_configuration(
@@ -64,6 +80,11 @@ void validate(const Configuration& config);
 
 struct EncodedFrame {
   FrameSetIdentity identity{};
+  CalibrationIdentity calibration{};
+  CalibrationAuthority calibration_authority{
+      CalibrationAuthority::kProvisionalRecalibrationRequired};
+  std::uint64_t encoding_configuration_generation{};
+  std::string encoding_applied_revision;
   Source source{Source::kLeftRectified};
   Codec codec{Codec::kH264};
   std::uint32_t width{};
@@ -87,6 +108,9 @@ class FrameEncoder {
   virtual ~FrameEncoder() = default;
   [[nodiscard]] virtual EncodedFrame encode(
       const FrameSetStorage& frame, std::uint64_t stream_sequence) = 0;
+  [[nodiscard]] virtual EncodedFrame encode_image(
+      const ImageView& image, const ProductSetMetadata& metadata,
+      std::uint64_t stream_sequence);
 };
 
 [[nodiscard]] std::unique_ptr<FrameEncoder> make_ffmpeg_encoder(
@@ -98,6 +122,15 @@ enum class SubmitResult : std::uint8_t {
   kAccepted = 2,
   kReplacedPending = 3,
   kStopped = 4,
+  kConfigurationChanged = 5,
+  kPreviewUnavailable = 6,
+};
+
+struct CapturePlan {
+  FrameSetIdentity identity{};
+  std::uint64_t generation{};
+  ColorPreviewRequest color_preview{ColorPreviewRequest::kNone};
+  SubmitResult result{SubmitResult::kDisabled};
 };
 
 struct Stats {
@@ -109,20 +142,47 @@ struct Stats {
   std::uint64_t configuration_reloads{};
   std::uint64_t configuration_errors{};
   std::uint64_t encoded_bytes{};
+  std::uint64_t capture_preflights{};
+  std::uint64_t capture_cadence_limited{};
+  std::uint64_t color_preview_requests{};
+  std::uint64_t stale_discarded{};
+  std::uint64_t preview_unavailable{};
+  std::uint64_t image_admitted{};
+  std::uint64_t image_copies{};
+  std::uint64_t image_pool_dropped{};
+  std::uint64_t image_rectified{};
+  std::uint64_t numeric_admitted{};
+  double demand_cadence_hz{};
+  std::uint64_t configuration_generation{1U};
+  std::string requested_revision;
+  std::string applied_revision;
+  std::string configuration_error;
   std::size_t last_frame_bytes{};
   double last_encode_ms{};
   bool running{};
 };
 
-// Encoding owns only an already-complete frame-set and runs after native depth
-// processing. Its one-item pending slot always favors the newest frame; it can
-// never hold a camera request or block the capture/rectification/depth worker.
+// Image previews admit capture copies directly into a bounded owning pool and
+// rectify/encode on this private worker, independently from stereo matching.
+// Numeric disparity/depth previews instead accept completed native frame sets.
+// One pending slot favors the newest frame. No queued work retains a camera
+// request or blocks the capture/rectification/depth worker.
 class AsyncFrameEncoder final {
  public:
+  using EncoderFactory =
+      std::function<std::unique_ptr<FrameEncoder>(const Configuration&)>;
+  using PreviewRectifierFactory =
+      std::function<std::unique_ptr<RectificationBackend>()>;
+  // Copies tightly packed mono or ISP I420 into already allocated pool memory.
+  // Called synchronously only after demand, cadence, and pool admission.
+  using CaptureImageReader = std::function<void(
+      CameraRole, bool color, std::span<std::uint8_t>)>;
   AsyncFrameEncoder(std::filesystem::path control_file,
                     std::filesystem::path output_file,
                     Configuration fallback = Configuration{},
-                    std::filesystem::path trace_directory = {});
+                    std::filesystem::path trace_directory = {},
+                    EncoderFactory encoder_factory = {},
+                    PreviewRectifierFactory preview_rectifier_factory = {});
   ~AsyncFrameEncoder() noexcept;
 
   AsyncFrameEncoder(const AsyncFrameEncoder&) = delete;
@@ -130,8 +190,30 @@ class AsyncFrameEncoder final {
 
   [[nodiscard]] SubmitResult submit(
       std::shared_ptr<const FrameSetStorage> frame);
+  [[nodiscard]] SubmitResult submit(
+      std::shared_ptr<const FrameSetStorage> frame, const CapturePlan& plan);
+  // Native completions can outlive source/demand changes. Only accepted
+  // numeric plans enter the encoder; raw-only/default plans are skipped before
+  // strict capture association checks.
+  [[nodiscard]] SubmitResult submit_native(
+      std::shared_ptr<const FrameSetStorage> frame, const CapturePlan& plan);
+  // Ask before mapping/copying optional ISP color. A plan does not consume
+  // cadence: dropped captures must not starve a slow latest-frame processor.
+  // Keep the returned value with this pair's publication context.
+  [[nodiscard]] CapturePlan prepare_capture(const FrameSetIdentity& identity);
+  // Commit numeric cadence after its protected native request enters the
+  // scheduler. Failed admission leaves the next capture due.
+  [[nodiscard]] bool commit_native_capture(const CapturePlan& plan);
+  [[nodiscard]] SubmitResult submit_capture(
+      const ProductSetMetadata& metadata, const CaptureImageReader& reader);
+  // Native daemon sets this from persistent subscribed consumers. Zero drops
+  // pending work and invalidates the latest encoded output immediately.
+  void set_demand(double cadence_hz);
   [[nodiscard]] Configuration configuration() const;
-  [[nodiscard]] Stats stats() const noexcept;
+  // Refreshes an atomically replaced control file before capture decides
+  // whether an optional color plane is needed for the next frame.
+  void refresh_configuration();
+  [[nodiscard]] Stats stats() const;
   [[nodiscard]] std::string take_last_error();
   void stop() noexcept;
 

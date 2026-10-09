@@ -2,7 +2,7 @@
 Description=Nuvo Depth privileged control socket
 
 [Socket]
-ListenSequentialPacket=/run/nuvo-depth/system-agent.sock
+ListenSequentialPacket=/run/nuvo-system-agent.sock
 SocketMode=0660
 SocketUser=root
 SocketGroup=nuvo-control

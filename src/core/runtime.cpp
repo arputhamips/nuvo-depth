@@ -74,6 +74,9 @@ void release_rectified_capture_input(
 }  // namespace
 
 void validate(const StereoProcessingRequest& request) {
+  if (request.products == 0U || (request.products & ~ipc_v2::kSupportedProducts) != 0U) {
+    throw std::invalid_argument("processing output selection is invalid");
+  }
   const auto& pair = request.capture;
   if (pair.capture_epoch == 0U || pair.pair_sequence == 0U ||
       pair.capture_timestamp_ns <= 0) {
@@ -113,9 +116,29 @@ void validate(const StereoProcessingRequest& request) {
       request.right.stride_bytes < request.right.width * channels) {
     throw std::invalid_argument("processing image stride is too small");
   }
+  if (request.color_preview == ColorPreviewRequest::kNone) {
+    if (!request.color_preview_yuv420.empty()) {
+      throw std::invalid_argument(
+          "unrequested color preview payload must be empty");
+    }
+  } else {
+    const auto color_pixels = static_cast<std::uint64_t>(request.left.width) *
+                              request.left.height;
+    if (request.left.width % 2U != 0U || request.left.height % 2U != 0U ||
+        color_pixels > std::numeric_limits<std::size_t>::max() / 3U * 2U ||
+        (!request.color_preview_yuv420.empty() &&
+         request.color_preview_yuv420.size() != color_pixels * 3U / 2U)) {
+      throw std::invalid_argument(
+          "requested color preview payload is not packed YUV420");
+    }
+  }
 }
 
 void validate(const NativePipelineConfiguration& configuration) {
+  if (configuration.frame_pool_capacity == 0U ||
+      configuration.frame_pool_capacity > 64U) {
+    throw std::invalid_argument("native frame storage capacity must be 1..64");
+  }
   if (!uuid_present(configuration.device_uuid) ||
       !uuid_present(configuration.run_uuid) ||
       configuration.configuration_epoch == 0U) {
@@ -124,6 +147,28 @@ void validate(const NativePipelineConfiguration& configuration) {
   }
   validate(configuration.image_calibration);
   validate(configuration.matching_calibration);
+  constexpr std::size_t maximum_payload_budget = 256U * 1024U * 1024U;
+  const auto budget = configuration.frame_pool_payload_budget_bytes;
+  const auto image_pixels = pixel_count(configuration.image_calibration.grid);
+  const auto matching_pixels =
+      pixel_count(configuration.matching_calibration.grid);
+  if (budget == 0U || budget > maximum_payload_budget ||
+      matching_pixels > budget / 11U) {
+    throw std::invalid_argument("native frame storage payload budget is invalid");
+  }
+  // All fourteen selectable outputs plus optional I420 previews occupy at
+  // most 31 image bytes/pixel and 10 matching bytes/pixel per slot. Shared
+  // scratch retains dependency planes for unrequested matcher/depth outputs
+  // (11 matching bytes/pixel including native disparity validity).
+  // Subtract shared scratch first and use division to
+  // reject oversized grids without overflowing any intermediate product.
+  const auto slot_budget =
+      (budget - matching_pixels * 11U) / configuration.frame_pool_capacity;
+  if (image_pixels > slot_budget / 31U ||
+      matching_pixels > (slot_budget - image_pixels * 31U) / 10U) {
+    throw std::invalid_argument(
+        "native frame pool geometry exceeds its payload budget");
+  }
   if (configuration.image_calibration.identity.sha256 !=
           configuration.matching_calibration.identity.sha256 ||
       configuration.image_calibration.authority !=
@@ -146,15 +191,31 @@ ProductSetView FrameSetStorage::view() const {
   const auto matching_pixels = pixel_count(metadata.disparity.grid);
   const auto left_channels = channel_count(metadata.left_rectified.format);
   const auto right_channels = channel_count(metadata.right_rectified.format);
-  if (left_rectified.size() != image_pixels * left_channels ||
-      right_rectified.size() != image_pixels * right_channels ||
-      disparity.size() != matching_pixels || depth_m.size() != matching_pixels ||
-      confidence.size() != matching_pixels || validity.size() != matching_pixels) {
-    throw std::invalid_argument(
-        "owning frame-set storage does not match its product descriptors");
-  }
+  using namespace ipc_v2;
+  if (available_products == 0U || (available_products & ~kSupportedProducts) != 0U)
+    throw std::invalid_argument("owning frame-set product mask is invalid");
+  const auto check = [&](const ProductKind kind, const std::size_t actual,
+                         const std::size_t expected) {
+    if (actual != ((available_products & product_bit(kind)) != 0U ? expected : 0U))
+      throw std::invalid_argument("owning frame-set storage does not match its product descriptors");
+  };
+  check(ProductKind::kLeftRectified, left_rectified.size(), image_pixels * left_channels);
+  check(ProductKind::kRightRectified, right_rectified.size(), image_pixels * right_channels);
+  check(ProductKind::kDisparity, disparity.size(), matching_pixels);
+  check(ProductKind::kDepth, depth_m.size(), matching_pixels);
+  check(ProductKind::kConfidence, confidence.size(), matching_pixels);
+  check(ProductKind::kValidity, validity.size(), matching_pixels);
+  check(ProductKind::kLeftMono, left_mono.size(), image_pixels);
+  check(ProductKind::kRightMono, right_mono.size(), image_pixels);
+  check(ProductKind::kLeftRgb, left_rgb.size(), image_pixels * 3U);
+  check(ProductKind::kRightRgb, right_rgb.size(), image_pixels * 3U);
+  check(ProductKind::kLeftRectifiedRgb, left_rectified_rgb.size(), image_pixels * 3U);
+  check(ProductKind::kRightRectifiedRgb, right_rectified_rgb.size(), image_pixels * 3U);
+  check(ProductKind::kRectifiedStereo, rectified_stereo.size(), image_pixels * 2U);
+  check(ProductKind::kRectifiedStereoRgb, rectified_stereo_rgb.size(), image_pixels * 6U);
   ProductSetView result;
   result.metadata = metadata;
+  result.available_products = available_products;
   result.left_rectified = {left_rectified.data(),
                            metadata.left_rectified.grid,
                            static_cast<std::size_t>(
@@ -181,28 +242,43 @@ ProductSetView FrameSetStorage::view() const {
 
 std::size_t FrameSetStorage::payload_bytes() const noexcept {
   return left_rectified.size() + right_rectified.size() + confidence.size() +
-         validity.size() + disparity.size() * sizeof(float) +
-         depth_m.size() * sizeof(float);
+         validity.size() + left_color_yuv420.size() +
+         right_color_yuv420.size() + disparity.size() * sizeof(float) +
+         depth_m.size() * sizeof(float) + left_mono.size() + right_mono.size() +
+         left_rgb.size() + right_rgb.size() + left_rectified_rgb.size() +
+         right_rectified_rgb.size() + rectified_stereo.size() + rectified_stereo_rgb.size();
 }
 
 NativeProcessingPipeline::NativeProcessingPipeline(
     NativePipelineConfiguration configuration,
     std::unique_ptr<RectificationBackend> rectifier,
-    std::unique_ptr<NativeDisparityBackend> stereo)
+    std::unique_ptr<NativeDisparityBackend> stereo,
+    std::unique_ptr<RectificationBackend> rgb_rectifier)
     : configuration_(std::move(configuration)),
       rectifier_(std::move(rectifier)),
+      rgb_rectifier_(std::move(rgb_rectifier)),
       stereo_(std::move(stereo)) {
   validate(configuration_);
   if (!rectifier_ || !stereo_) {
     throw std::invalid_argument(
         "native pipeline requires rectification and stereo backends");
   }
+  stereo_generation_ = stereo_->configuration_state().generation;
   const auto disparity = stereo_->metadata();
   validate(disparity);
   if (!same_grid(disparity.grid, configuration_.matching_calibration.grid)) {
     throw std::invalid_argument(
         "stereo native grid does not match the matching calibration");
   }
+  frame_pool_.reserve(configuration_.frame_pool_capacity);
+  for (std::size_t slot = 0; slot < configuration_.frame_pool_capacity; ++slot) {
+    frame_pool_.push_back(std::make_shared<FrameSetStorage>());
+  }
+}
+
+bool NativeProcessingPipeline::has_available_storage() const noexcept {
+  return std::any_of(frame_pool_.begin(), frame_pool_.end(),
+                     [](const auto& slot) { return slot.use_count() == 1; });
 }
 
 std::shared_ptr<const FrameSetStorage> NativeProcessingPipeline::process(
@@ -214,49 +290,146 @@ std::shared_ptr<const FrameSetStorage> NativeProcessingPipeline::process(
         "capture geometry does not match the prepared image calibration");
   }
 
+  // The pool keeps one owner of each slot. Only a sole-owned slot can be
+  // changed; shared_ptr consumers may release on other threads and keep their
+  // complete frame alive even after this pipeline is destroyed.
+  const auto available =
+      std::find_if(frame_pool_.begin(), frame_pool_.end(),
+                   [](const auto& slot) { return slot.use_count() == 1; });
+  if (available == frame_pool_.end()) {
+    release_rectified_capture_input(request);
+    return {};
+  }
+  auto output = *available;
+  output->metadata = {};
+  output->available_products = request.products;
+  output->publication_context = std::move(request.publication_context);
+  output->stats = {};
+  output->left_color_yuv420.clear();
+  output->right_color_yuv420.clear();
+
   const auto started = Clock::now();
   stereo_->refresh_configuration();
-  auto output = std::make_shared<FrameSetStorage>();
+  output->stereo_configuration = stereo_->configuration_state();
+  if (output->stereo_configuration.generation != stereo_generation_) {
+    if (configuration_.configuration_epoch ==
+        std::numeric_limits<std::uint64_t>::max()) {
+      throw std::overflow_error("configuration epoch exhausted");
+    }
+    ++configuration_.configuration_epoch;
+    stereo_generation_ = output->stereo_configuration.generation;
+  }
   const auto& image_grid = configuration_.image_calibration.grid;
   const auto disparity_metadata = stereo_->metadata();
+  validate(disparity_metadata);
+  if (!same_grid(disparity_metadata.grid,
+                 configuration_.matching_calibration.grid)) {
+    throw std::invalid_argument(
+        "refreshed stereo grid does not match the prepared calibration");
+  }
   const auto& matching_grid = disparity_metadata.grid;
   const auto image_pixels = pixel_count(image_grid);
   const auto matching_pixels = pixel_count(matching_grid);
+  // Camera views are cleared when their leases are released below. Keep the
+  // format describing the owned rectified bytes independently of those views.
+  const auto image_format = product_format(request.left.encoding);
   const auto channels = channel_count(request.left.encoding);
-  output->left_rectified.resize(image_pixels * channels);
-  output->right_rectified.resize(image_pixels * channels);
-  output->disparity.resize(matching_pixels);
-  output->depth_m.resize(matching_pixels);
-  output->confidence.resize(matching_pixels);
-  output->validity.resize(matching_pixels);
-  std::vector<std::uint8_t> disparity_validity(matching_pixels);
-
-  MutableImageView left_rectified{output->left_rectified.data(),
-                                  image_grid.width, image_grid.height,
-                                  image_grid.width * channels,
-                                  request.left.encoding};
-  MutableImageView right_rectified{output->right_rectified.data(),
-                                   image_grid.width, image_grid.height,
-                                   image_grid.width * channels,
-                                   request.right.encoding};
-  if (request.dmabuf && rectifier_->supports_dmabuf_pair()) {
-    rectifier_->rectify_dmabuf_pair(*request.dmabuf, left_rectified,
-                                    right_rectified,
-                                    output->stats.rectification);
-  } else {
-    std::optional<CpuFallbackStereoInput> fallback;
+  using namespace ipc_v2;
+  const auto has = [&](const ProductKind kind) {
+    return (request.products & product_bit(kind)) != 0U;
+  };
+  const bool match = (request.products & kMatcherProducts) != 0U;
+  const bool metric = has(ProductKind::kDepth) || has(ProductKind::kValidity);
+  const bool rectify_mono = match || has(ProductKind::kLeftRectified) ||
+      has(ProductKind::kRightRectified) || has(ProductKind::kRectifiedStereo);
+  const bool rectify_rgb = has(ProductKind::kLeftRectifiedRgb) ||
+      has(ProductKind::kRightRectifiedRgb) || has(ProductKind::kRectifiedStereoRgb);
+  const bool left_rect = match || has(ProductKind::kLeftRectified) || has(ProductKind::kRectifiedStereo);
+  const bool right_rect = match || has(ProductKind::kRightRectified) || has(ProductKind::kRectifiedStereo);
+  const bool left_rgb_rect = has(ProductKind::kLeftRectifiedRgb) || has(ProductKind::kRectifiedStereoRgb);
+  const bool right_rgb_rect = has(ProductKind::kRightRectifiedRgb) || has(ProductKind::kRectifiedStereoRgb);
+  auto resize = [](auto& buffer, const std::size_t count, const std::size_t capacity) {
+    buffer.reserve(capacity);
+    buffer.resize(count);
+  };
+  const auto acquire_cpu = [&] {
     if (request.left.data == nullptr || request.right.data == nullptr) {
       if (!request.dmabuf || !request.dmabuf->acquire_cpu_fallback) {
         throw std::runtime_error("rectification backend requires CPU mappings");
       }
-      fallback.emplace(request.dmabuf->acquire_cpu_fallback());
-      request.left_mapping_owner = fallback->left_owner;
-      request.right_mapping_owner = fallback->right_owner;
-      request.left = fallback->left;
-      request.right = fallback->right;
+      const auto fallback = request.dmabuf->acquire_cpu_fallback();
+      request.left_mapping_owner = fallback.left_owner;
+      request.right_mapping_owner = fallback.right_owner;
+      request.left = fallback.left;
+      request.right = fallback.right;
     }
-    rectifier_->rectify_pair(request.left, request.right, left_rectified,
-                             right_rectified, output->stats.rectification);
+  };
+  for (const auto role : {CameraRole::kLogicalLeft, CameraRole::kLogicalRight}) {
+    const bool left = role == CameraRole::kLogicalLeft;
+    if (has(left ? ProductKind::kLeftMono : ProductKind::kRightMono)) {
+      auto& buffer = left ? output->left_mono : output->right_mono;
+      resize(buffer, image_pixels, image_pixels);
+      copy_capture_image(request, role, false, buffer);
+    }
+    if ((left ? left_rgb_rect : right_rgb_rect) || has(left ? ProductKind::kLeftRgb : ProductKind::kRightRgb)) {
+      auto& buffer = left ? output->left_rgb : output->right_rgb;
+      resize(buffer, image_pixels * 3U, image_pixels * 3U);
+      copy_capture_rgb(request, role, buffer);
+    }
+  }
+  MutableImageView left_rectified{}, right_rectified{};
+  if (rectify_mono) {
+    if (left_rect) resize(output->left_rectified, image_pixels * channels, image_pixels * 3U);
+    if (right_rect) resize(output->right_rectified, image_pixels * channels, image_pixels * 3U);
+    left_rectified = {output->left_rectified.data(), image_grid.width,
+                      image_grid.height, image_grid.width * channels, request.left.encoding};
+    right_rectified = {output->right_rectified.data(), image_grid.width,
+                       image_grid.height, image_grid.width * channels, request.right.encoding};
+    if (left_rect && right_rect && request.dmabuf && rectifier_->supports_dmabuf_pair() && channels == 1U) {
+      rectifier_->rectify_dmabuf_pair(*request.dmabuf, left_rectified, right_rectified,
+                                    output->stats.rectification);
+    } else {
+      acquire_cpu();
+      if (left_rect && right_rect) {
+        rectifier_->rectify_pair(request.left, request.right, left_rectified,
+                                right_rectified, output->stats.rectification);
+      } else {
+        auto& backend = rgb_rectifier_ ? *rgb_rectifier_ : *rectifier_;
+        backend.rectify(left_rect ? RectificationCamera::kLeft : RectificationCamera::kRight,
+                        left_rect ? request.left : request.right,
+                        left_rect ? left_rectified : right_rectified, output->stats.rectification);
+      }
+    }
+  }
+  if (rectify_rgb) {
+    if (left_rgb_rect) resize(output->left_rectified_rgb, image_pixels * 3U, image_pixels * 3U);
+    if (right_rgb_rect) resize(output->right_rectified_rgb, image_pixels * 3U, image_pixels * 3U);
+    auto& backend = rgb_rectifier_ ? *rgb_rectifier_ : *rectifier_;
+    RectificationStats rgb_stats{};
+    const ImageView left_input{output->left_rgb.data(), image_grid.width, image_grid.height,
+                              image_grid.width * 3U, ImageEncoding::kRgb8};
+    const ImageView right_input{output->right_rgb.data(), image_grid.width, image_grid.height,
+                               image_grid.width * 3U, ImageEncoding::kRgb8};
+    const MutableImageView left_output{output->left_rectified_rgb.data(), image_grid.width,
+        image_grid.height, image_grid.width * 3U, ImageEncoding::kRgb8};
+    const MutableImageView right_output{output->right_rectified_rgb.data(), image_grid.width,
+        image_grid.height, image_grid.width * 3U, ImageEncoding::kRgb8};
+    if (left_rgb_rect && right_rgb_rect)
+      backend.rectify_pair(left_input, right_input, left_output, right_output, rgb_stats);
+    else backend.rectify(left_rgb_rect ? RectificationCamera::kLeft : RectificationCamera::kRight,
+                         left_rgb_rect ? left_input : right_input,
+                         left_rgb_rect ? left_output : right_output, rgb_stats);
+    output->stats.rectification.input_transfer_ms += rgb_stats.input_transfer_ms;
+    output->stats.rectification.compute_ms += rgb_stats.compute_ms;
+    output->stats.rectification.output_transfer_ms += rgb_stats.output_transfer_ms;
+    output->stats.rectification.total_ms += rgb_stats.total_ms;
+  }
+  if (request.color_preview != ColorPreviewRequest::kNone) {
+    auto& buffer = request.color_preview == ColorPreviewRequest::kLeft ?
+        output->left_color_yuv420 : output->right_color_yuv420;
+    resize(buffer, image_pixels * 3U / 2U, image_pixels * 3U / 2U);
+    copy_capture_image(request, request.color_preview == ColorPreviewRequest::kLeft ?
+        CameraRole::kLogicalLeft : CameraRole::kLogicalRight, true, buffer);
   }
 
   // No stage below this point reads camera memory. Requeue both capture
@@ -272,22 +445,73 @@ std::shared_ptr<const FrameSetStorage> NativeProcessingPipeline::process(
                                    right_rectified.height,
                                    right_rectified.stride_bytes,
                                    right_rectified.encoding};
-  MutableDisparityProductsView disparity_output;
-  disparity_output.disparity = {output->disparity.data(), matching_grid,
-                                matching_grid.width};
-  disparity_output.confidence = {output->confidence.data(), matching_grid,
-                                 matching_grid.width};
-  disparity_output.validity = {disparity_validity.data(), matching_grid,
-                               matching_grid.width};
-  stereo_->process_native(left_for_stereo, right_for_stereo, disparity_output,
-                          output->stats.stereo);
-
-  output->stats.depth = convert_disparity_to_depth(
-      {output->disparity.data(), matching_grid, matching_grid.width},
-      {disparity_validity.data(), matching_grid, matching_grid.width},
-      configuration_.matching_calibration, configuration_.depth,
-      {output->depth_m.data(), matching_grid, matching_grid.width},
-      {output->validity.data(), matching_grid, matching_grid.width});
+  if (match) {
+    auto& disparity = has(ProductKind::kDisparity) ? output->disparity : disparity_scratch_;
+    auto& confidence = has(ProductKind::kConfidence) ? output->confidence : confidence_scratch_;
+    resize(disparity, matching_pixels, matching_pixels);
+    resize(confidence, matching_pixels, matching_pixels);
+    disparity_validity_.resize(matching_pixels);
+    stereo_->process_native(left_for_stereo, right_for_stereo,
+        {{disparity.data(), matching_grid, matching_grid.width},
+         {confidence.data(), matching_grid, matching_grid.width},
+         {disparity_validity_.data(), matching_grid, matching_grid.width}}, output->stats.stereo);
+    if (metric) {
+      auto& depth = has(ProductKind::kDepth) ? output->depth_m : depth_scratch_;
+      auto& validity = has(ProductKind::kValidity) ? output->validity : depth_validity_scratch_;
+      resize(depth, matching_pixels, matching_pixels);
+      resize(validity, matching_pixels, matching_pixels);
+      output->stats.depth = convert_disparity_to_depth(
+          {disparity.data(), matching_grid, matching_grid.width},
+          {disparity_validity_.data(), matching_grid, matching_grid.width},
+          configuration_.matching_calibration, configuration_.depth,
+          {depth.data(), matching_grid, matching_grid.width},
+          {validity.data(), matching_grid, matching_grid.width});
+    }
+  }
+  const auto combine = [&](const auto& left, const auto& right, auto& target,
+                           const std::size_t source_channels, const bool mono) {
+    const auto target_channels = mono ? 1U : 3U;
+    resize(target, image_pixels * 2U * target_channels, image_pixels * 2U * target_channels);
+    for (std::size_t row = 0; row < image_grid.height; ++row) {
+      for (std::size_t side = 0; side < 2U; ++side) {
+        const auto& source = side == 0U ? left : right;
+        for (std::size_t column = 0; column < image_grid.width; ++column) {
+          const auto input = (row * image_grid.width + column) * source_channels;
+          const auto dest = ((row * 2U + side) * image_grid.width + column) * target_channels;
+          if (mono && source_channels == 3U) {
+            const auto red = image_format == ImageProductFormat::kRgb8 ? 0U : 2U;
+            target[dest] = static_cast<std::uint8_t>((77U * source[input + red] +
+                150U * source[input + 1U] + 29U * source[input + (2U - red)] + 128U) >> 8U);
+          } else {
+            std::copy_n(source.data() + input, target_channels, target.data() + dest);
+          }
+        }
+      }
+    }
+  };
+  if (has(ProductKind::kRectifiedStereo))
+    combine(output->left_rectified, output->right_rectified, output->rectified_stereo, channels, true);
+  if (has(ProductKind::kRectifiedStereoRgb))
+    combine(output->left_rectified_rgb, output->right_rectified_rgb, output->rectified_stereo_rgb, 3U, false);
+  // Dependency planes may occupy reusable capacity but are never published as
+  // unwanted products, and stale selections cannot survive slot reuse.
+  const auto clear_unselected = [&](const ProductKind kind, auto& buffer) {
+    if (!has(kind)) buffer.clear();
+  };
+  clear_unselected(ProductKind::kLeftRectified, output->left_rectified);
+  clear_unselected(ProductKind::kRightRectified, output->right_rectified);
+  clear_unselected(ProductKind::kDisparity, output->disparity);
+  clear_unselected(ProductKind::kDepth, output->depth_m);
+  clear_unselected(ProductKind::kConfidence, output->confidence);
+  clear_unselected(ProductKind::kValidity, output->validity);
+  clear_unselected(ProductKind::kLeftMono, output->left_mono);
+  clear_unselected(ProductKind::kRightMono, output->right_mono);
+  clear_unselected(ProductKind::kLeftRgb, output->left_rgb);
+  clear_unselected(ProductKind::kRightRgb, output->right_rgb);
+  clear_unselected(ProductKind::kLeftRectifiedRgb, output->left_rectified_rgb);
+  clear_unselected(ProductKind::kRightRectifiedRgb, output->right_rectified_rgb);
+  clear_unselected(ProductKind::kRectifiedStereo, output->rectified_stereo);
+  clear_unselected(ProductKind::kRectifiedStereoRgb, output->rectified_stereo_rgb);
 
   output->metadata.frame = make_frame_set_identity(
       request.capture, configuration_.device_uuid, configuration_.run_uuid,
@@ -295,24 +519,29 @@ std::shared_ptr<const FrameSetStorage> NativeProcessingPipeline::process(
   output->metadata.calibration = configuration_.image_calibration.identity;
   output->metadata.calibration_authority =
       configuration_.image_calibration.authority;
-  const auto format = product_format(request.left.encoding);
   output->metadata.left_rectified = {
       image_grid, {0U, 0U, image_grid.width, image_grid.height},
-      CameraRole::kLogicalLeft, format};
+      CameraRole::kLogicalLeft, image_format};
   output->metadata.right_rectified = {
       image_grid, {0U, 0U, image_grid.width, image_grid.height},
-      CameraRole::kLogicalRight, format};
+      CameraRole::kLogicalRight, image_format};
   output->metadata.disparity = disparity_metadata;
   output->metadata.depth = {matching_grid,
                             configuration_.depth.minimum_depth_m,
                             configuration_.depth.maximum_depth_m};
   const auto rectification_diagnostics = rectifier_->dmabuf_diagnostics();
-  output->rectification_backend = rectification_diagnostics.selected_backend.empty()
-                                      ? std::string(rectifier_->name())
-                                      : rectification_diagnostics.selected_backend;
-  output->rectification_fallback_reason =
-      rectification_diagnostics.fallback_reason;
-  output->stereo_backend = std::string(stereo_->name());
+  if (!rectify_mono && !rectify_rgb) {
+    output->rectification_backend = "disabled";
+  } else if (rectify_rgb && !rectify_mono && rgb_rectifier_) {
+    output->rectification_backend.assign(rgb_rectifier_->name());
+  } else if (rectification_diagnostics.selected_backend.empty()) {
+    output->rectification_backend.assign(rectifier_->name());
+  } else {
+    output->rectification_backend = rectification_diagnostics.selected_backend;
+  }
+  output->rectification_fallback_reason = rectify_mono ?
+      rectification_diagnostics.fallback_reason : std::string{};
+  output->stereo_backend.assign(match ? stereo_->name() : "disabled");
   output->stats.total_ms = elapsed_ms(started);
   validate(output->metadata, configuration_.image_calibration,
            configuration_.matching_calibration);
@@ -349,8 +578,17 @@ SubmitResult BoundedNativeScheduler::try_submit(
       return SubmitResult::kStopped;
     }
     if (pending_.size() >= configuration_.pending_capacity) {
-      replaced.emplace(std::move(pending_.front()));
-      pending_.pop_front();
+      auto victim = pending_.begin();
+      if (!request.preserve_for_preview) {
+        victim = std::find_if(pending_.begin(), pending_.end(),
+            [](const auto& queued) { return !queued.preserve_for_preview; });
+        if (victim == pending_.end()) {
+          ++stats_.protected_pending_dropped;
+          return SubmitResult::kQueueFull;
+        }
+      }
+      replaced.emplace(std::move(*victim));
+      pending_.erase(victim);
       ++stats_.pending_replaced;
     }
     pending_.push_back(std::move(request));
@@ -427,10 +665,26 @@ void BoundedNativeScheduler::worker_loop() noexcept {
     }
 
     try {
+      // Release stale queued completions before trying to reuse their storage.
+      // Frames already handed to consumers remain immutable and pinned. If
+      // those consume every slot, drop this input whole rather than allocate
+      // more memory or wait while retaining camera requests.
+      {
+        std::lock_guard lock(mutex_);
+        while (!pipeline_->has_available_storage() && !completed_.empty()) {
+          completed_.pop_front();
+          ++stats_.completed_dropped;
+        }
+        stats_.completed = completed_.size();
+      }
       auto result = pipeline_->process(std::move(*request));
       std::lock_guard lock(mutex_);
       if (stop_requested_) {
         return;
+      }
+      if (!result) {
+        ++stats_.storage_exhausted_dropped;
+        continue;
       }
       if (completed_.size() >= configuration_.completed_capacity) {
         completed_.pop_front();

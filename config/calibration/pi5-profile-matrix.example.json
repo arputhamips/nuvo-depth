@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "unit_id": "REPLACE-WITH-UNIT-ID",
+  "left_camera_id": "REPLACE-WITH-LEFT-CAMERA-ID",
+  "right_camera_id": "REPLACE-WITH-RIGHT-CAMERA-ID",
+  "target": {
+    "type": "chessboard",
+    "columns": 9,
+    "rows": 6,
+    "square_m": 0.024
+  },
+  "minimum_pairs": 20,
+  "maximum_rms_px": 0.5,
+  "maximum_epipolar_p95_px": 0.5,
+  "profiles": [
+    {
+      "profile_id": "imx296-1456x1088-native",
+      "sensor_mode": "1456x1088-native",
+      "width": 1456,
+      "height": 1088,
+      "frame_rates_hz": [10, 30, 60],
+      "left": "captures/1456x1088/left/*.png",
+      "right": "captures/1456x1088/right/*.png"
+    },
+    {
+      "profile_id": "imx296-1456x1088-to-728x544-isp",
+      "sensor_mode": "1456x1088-native-to-728x544-isp",
+      "width": 728,
+      "height": 544,
+      "frame_rates_hz": [10, 30, 60],
+      "left": "captures/728x544/left/*.png",
+      "right": "captures/728x544/right/*.png"
+    }
+  ]
+}

@@ -19,6 +19,14 @@ rectification_matrix:
   rows: 3
   cols: 3
   data: [0.999891729501, -0.0143325429095, 0.0033327900547, 0.0143195073831, 0.999889853842, 0.00390280571691, -0.00338836009108, -0.00385465924639, 0.999986830222]
+# Empirical residual alignment fitted robustly across three retained captures.
+# This forward output-grid transform reduces median vertical feature error from
+# 1.77 px to 0.15 px. It is part of this provisional calibration seed only and
+# must be replaced by a full target calibration after final assembly.
+rectified_output_correction:
+  rows: 3
+  cols: 3
+  data: [1, 0, 0, -0.0091791619, 1.0191521645, -0.1733816713, 0, 0, 1]
 projection_matrix:
   rows: 3
   cols: 4

@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import shutil
@@ -35,13 +37,61 @@ def atomic_write(path: Path, data: str, mode: int = 0o640) -> None:
         # mode on the still-private temporary inode before writing or renaming.
         if os.name != "nt":
             os.fchmod(descriptor, mode)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as output:
             output.write(data); output.flush(); os.fsync(output.fileno())
         os.replace(temporary, path); fsync_dir(path.parent)
     except Exception:
         try: temporary.unlink()
         except FileNotFoundError: pass
         raise
+
+
+class ConfigurationConflict(RuntimeError):
+    pass
+
+
+@contextmanager
+def configuration_lock(root: Path):
+    # Every privileged configuration writer uses one persistent lock inode;
+    # atomic replacement must not replace the inode providing the lock.
+    path = root / "var/lib/nuvo-depth/transactions/configuration.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+b") as lock:
+        if os.name == "nt":
+            import msvcrt
+            if lock.seek(0, os.SEEK_END) == 0:
+                lock.write(b"\0"); lock.flush()
+            lock.seek(0)
+            msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if os.name == "nt":
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def write_configuration(root: Path, name: str, value: dict,
+                        expected_revision: str | None = None) -> dict:
+    if expected_revision is not None and not re.fullmatch(r'"[a-f0-9]{64}"', expected_revision):
+        raise ValueError("If-Match must be one strong configuration ETag")
+    path = root / "etc/nuvo-depth" / name
+    data = json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n"
+    with configuration_lock(root):
+        if expected_revision is not None:
+            current = hashlib.sha256(path.read_bytes() if path.exists() else b"").hexdigest()
+            if expected_revision != '"' + current + '"':
+                raise ConfigurationConflict("configuration changed; reload before saving")
+        atomic_write(path, data, 0o644)
+        if expected_revision is not None:
+            return {"configuration":value,"configuration_json":data,"requested_revision":hashlib.sha256(data.encode()).hexdigest(),
+                    "state":"pending"}
+    return value
 
 
 def device_model(root: Path) -> str:
@@ -145,13 +195,15 @@ def provision_identity(root: Path, hostname: str) -> dict:
 
 
 def stage_transport(root: Path, mode: str, physical_confirmation: bool) -> dict:
+    if mode not in {"auto","wifi","ethernet","usb","both","off"}:
+        raise ValueError("invalid transport preference")
     if mode == "off" and not physical_confirmation:
         raise RuntimeError("transport off requires --physical-confirmation")
     config = root / "etc/nuvo-depth/transport.json"
-    previous = json.loads(config.read_text()) if config.exists() else {"preference":"ethernet"}
+    previous = json.loads(config.read_text()) if config.exists() else {"preference":"auto"}
     transaction = root / "var/lib/nuvo-depth/transactions/network-pending.json"
     now = time.time_ns()
-    staged = {"schema_version":1,"preference":mode,"previous":previous.get("preference","ethernet"),
+    staged = {"schema_version":1,"preference":mode,"previous":previous.get("preference","auto"),
               "staged_unix_ns":now,"expires_unix_ns":now+60_000_000_000,"confirmed":False}
     atomic_write(
         config,
@@ -188,8 +240,8 @@ def reconcile_transport(root: Path) -> dict:
     transaction = root / "var/lib/nuvo-depth/transactions/network-pending.json"
     config = root / "etc/nuvo-depth/transport.json"
     if not transaction.exists():
-        current = json.loads(config.read_text()) if config.exists() else {"schema_version":1,"preference":"ethernet"}
-        return {"status":"no_pending_change","preference":current.get("preference","ethernet")}
+        current = json.loads(config.read_text()) if config.exists() else {"schema_version":1,"preference":"auto"}
+        return {"status":"no_pending_change","preference":current.get("preference","auto")}
     value = json.loads(transaction.read_text())
     if value.get("confirmed") is True:
         return {"status":"confirmed","preference":value["preference"]}
@@ -209,7 +261,7 @@ def validate_encoding(value: dict) -> dict:
     if value["schema_version"]!=1: raise ValueError("encoding schema_version must be 1")
     if value["mode"] not in {"raw","encoded","both"}: raise ValueError("invalid encoding mode")
     if value["codec"] not in {"h264","jpeg"}: raise ValueError("invalid encoding codec")
-    if value["source"] not in {"left_rectified","right_rectified","disparity","depth"}: raise ValueError("invalid encoding source")
+    if value["source"] not in {"left_rectified","right_rectified","left_color","right_color","disparity","depth","left_mono","right_mono","left_rgb","right_rgb","left_rectified_rgb","right_rectified_rgb","rectified_stereo","rectified_stereo_rgb"}: raise ValueError("invalid encoding source")
     for name in ("width","height","cadence_hz","bitrate_bps","jpeg_quality","keyframe_interval","threads"):
         if isinstance(value[name],bool) or not isinstance(value[name],int): raise ValueError(f"encoding {name} must be an integer")
     width,height=value["width"],value["height"]
@@ -219,25 +271,23 @@ def validate_encoding(value: dict) -> dict:
     if not 100_000<=value["bitrate_bps"]<=50_000_000: raise ValueError("encoding bitrate is out of range")
     if not 1<=value["jpeg_quality"]<=100: raise ValueError("encoding JPEG quality is out of range")
     if not 1<=value["keyframe_interval"]<=600: raise ValueError("encoding keyframe interval is out of range")
+    if value["mode"]!="raw" and value["codec"]=="h264" and value["keyframe_interval"]!=1:
+        raise ValueError("latest-frame H.264 delivery requires keyframe_interval=1")
     if not 1<=value["threads"]<=4: raise ValueError("encoding thread count is out of range")
     if not isinstance(value["low_latency"],bool): raise ValueError("encoding low_latency must be boolean")
     if value["preset"] not in {"ultrafast","superfast","veryfast","faster","fast"}: raise ValueError("invalid encoding preset")
     return value
 
 
-def set_encoding(root: Path, value: dict) -> dict:
+def set_encoding(root: Path, value: dict, expected_revision: str | None = None) -> dict:
     validated=validate_encoding(value)
-    atomic_write(root/"etc/nuvo-depth/encoding.json",
-                 json.dumps(validated,sort_keys=True,separators=(",",":"))+"\n",0o644)
-    return validated
+    return write_configuration(root,"encoding.json",validated,expected_revision)
 
-
-STEREO_FIELDS={"schema_version","algorithm","min_disparity","search_range",
+STEREO_FIELDS={"schema_version","algorithm","sgbm_mode","min_disparity","search_range",
                "max_disparity","block_size","uniqueness_ratio",
                "speckle_window_size","speckle_range","disparity_12_max_diff",
                "pre_filter_cap","bm_pre_filter_size","bm_texture_threshold",
-               "specular_threshold","opencv_threads"}
-
+               "specular_threshold","median_filter_size","opencv_threads"}
 
 def validate_stereo(value: dict) -> dict:
     if not isinstance(value,dict) or set(value)!=STEREO_FIELDS:
@@ -246,7 +296,9 @@ def validate_stereo(value: dict) -> dict:
         raise ValueError("unsupported stereo schema")
     if value["algorithm"] not in {"sgbm","bm"}:
         raise ValueError("algorithm must be sgbm or bm")
-    for name in STEREO_FIELDS-{"schema_version","algorithm"}:
+    if value["sgbm_mode"] not in {"3way","standard","hh4","hh"}:
+        raise ValueError("sgbm_mode must be 3way, standard, hh4, or hh")
+    for name in STEREO_FIELDS-{"schema_version","algorithm","sgbm_mode"}:
         if type(value[name]) is not int: raise ValueError(f"{name} must be an integer")
     def bounded(name: str, minimum: int, maximum: int) -> None:
         if not minimum<=value[name]<=maximum: raise ValueError(f"{name} must be in {minimum}..{maximum}")
@@ -269,16 +321,60 @@ def validate_stereo(value: dict) -> dict:
     if value["bm_pre_filter_size"]%2==0: raise ValueError("bm_pre_filter_size must be odd")
     bounded("bm_texture_threshold",0,255)
     bounded("specular_threshold",1,256)
+    if value["median_filter_size"] not in {0,3,5}:
+        raise ValueError("median_filter_size must be 0, 3, or 5")
     bounded("opencv_threads",1,4)
     return value
 
 
-def set_stereo(root: Path, value: dict) -> dict:
+def set_stereo(root: Path, value: dict, expected_revision: str | None = None) -> dict:
     validated=validate_stereo(value)
-    atomic_write(root/"etc/nuvo-depth/stereo.json",
-                 json.dumps(validated,sort_keys=True,separators=(",",":"))+"\n",0o644)
-    return validated
+    return write_configuration(root,"stereo.json",validated,expected_revision)
 
+EXPOSURE_FIELDS={"schema_version","mode","manual_exposure_us",
+                 "manual_analogue_gain","red_gain","blue_gain",
+                 "auto_target_median","auto_min_median","auto_max_median",
+                 "auto_min_exposure_us","auto_max_exposure_us",
+                 "auto_min_analogue_gain","auto_max_analogue_gain",
+                 "auto_update_interval_frames","auto_settle_frames_after_update"}
+
+def validate_exposure(value: dict) -> dict:
+    if not isinstance(value,dict) or set(value)!=EXPOSURE_FIELDS:
+        raise ValueError("exposure configuration fields are incomplete or unknown")
+    if type(value["schema_version"]) is not int or value["schema_version"]!=1:
+        raise ValueError("unsupported exposure schema")
+    if value["mode"] not in {"manual","auto"}:
+        raise ValueError("exposure mode must be manual or auto")
+    integer_fields={"manual_exposure_us","auto_min_exposure_us","auto_max_exposure_us",
+                    "auto_update_interval_frames","auto_settle_frames_after_update"}
+    number_fields=EXPOSURE_FIELDS-{"schema_version","mode"}-integer_fields
+    if any(type(value[name]) is not int for name in integer_fields):
+        raise ValueError("exposure times and cadences must be integers")
+    if any(isinstance(value[name],bool) or not isinstance(value[name],(int,float))
+           for name in number_fields):
+        raise ValueError("exposure gains and targets must be numbers")
+    if not 250<=value["manual_exposure_us"]<=8000:
+        raise ValueError("manual exposure must be in 250..8000 microseconds")
+    if not 1.0<=value["manual_analogue_gain"]<=3.0:
+        raise ValueError("manual analogue gain must be in 1..3")
+    if not 0.1<=value["red_gain"]<=16.0 or not 0.1<=value["blue_gain"]<=16.0:
+        raise ValueError("colour gains must be in 0.1..16")
+    if not 1<=value["auto_min_median"]<=value["auto_target_median"]<=value["auto_max_median"]<=254:
+        raise ValueError("auto median target/deadband is invalid")
+    if not 250<=value["auto_min_exposure_us"]<=value["auto_max_exposure_us"]<=8000:
+        raise ValueError("auto exposure range is invalid")
+    if not 1.0<=value["auto_min_analogue_gain"]<=value["auto_max_analogue_gain"]<=3.0:
+        raise ValueError("auto gain range is invalid")
+    if not 1<=value["auto_update_interval_frames"]<=120:
+        raise ValueError("auto update interval must be in 1..120")
+    if not 0<=value["auto_settle_frames_after_update"]<=120:
+        raise ValueError("auto settle frames must be in 0..120")
+    return value
+
+
+def set_exposure(root: Path, value: dict, expected_revision: str | None = None) -> dict:
+    validated=validate_exposure(value)
+    return write_configuration(root,"exposure.json",validated,expected_revision)
 
 def usb_identity(root: Path) -> tuple[str, str, str]:
     serial_path=root/"var/lib/nuvo-depth/identity/device.uuid"
@@ -372,13 +468,14 @@ def parse() -> argparse.Namespace:
     identity=commands.add_parser("identity").add_subparsers(dest="operation",required=True)
     provision=identity.add_parser("provision"); provision.add_argument("--hostname",default="nuvo-depth.local")
     transport=commands.add_parser("transport").add_subparsers(dest="operation",required=True)
-    stage=transport.add_parser("stage"); stage.add_argument("mode",choices=["ethernet","usb","both","off"]); stage.add_argument("--physical-confirmation",action="store_true")
+    stage=transport.add_parser("stage"); stage.add_argument("mode",choices=["auto","wifi","ethernet","usb","both","off"]); stage.add_argument("--physical-confirmation",action="store_true")
     transport.add_parser("confirm"); transport.add_parser("rollback"); transport.add_parser("reconcile")
     encoding=commands.add_parser("encoding").add_subparsers(dest="operation",required=True)
     configure_encoding=encoding.add_parser("set")
+    configure_encoding.add_argument("--if-match")
     configure_encoding.add_argument("--mode",choices=["raw","encoded","both"],required=True)
     configure_encoding.add_argument("--codec",choices=["h264","jpeg"],required=True)
-    configure_encoding.add_argument("--source",choices=["left_rectified","right_rectified","disparity","depth"],required=True)
+    configure_encoding.add_argument("--source",choices=["left_rectified","right_rectified","left_color","right_color","disparity","depth","left_mono","right_mono","left_rgb","right_rgb","left_rectified_rgb","right_rectified_rgb","rectified_stereo","rectified_stereo_rgb"],required=True)
     configure_encoding.add_argument("--width",type=int,required=True)
     configure_encoding.add_argument("--height",type=int,required=True)
     configure_encoding.add_argument("--cadence-hz",type=int,required=True)
@@ -390,7 +487,12 @@ def parse() -> argparse.Namespace:
     configure_encoding.add_argument("--preset",choices=["ultrafast","superfast","veryfast","faster","fast"],required=True)
     stereo=commands.add_parser("stereo").add_subparsers(dest="operation",required=True)
     configure_stereo=stereo.add_parser("set")
+    configure_stereo.add_argument("--if-match")
     configure_stereo.add_argument("--json",required=True)
+    exposure=commands.add_parser("exposure").add_subparsers(dest="operation",required=True)
+    configure_exposure=exposure.add_parser("set")
+    configure_exposure.add_argument("--if-match")
+    configure_exposure.add_argument("--json",required=True)
     usb=commands.add_parser("usb").add_subparsers(dest="operation",required=True)
     usb.add_parser("plan")
     usb.add_parser("apply-saved")
@@ -404,8 +506,9 @@ def main() -> None:
     if args.command=="platform" and args.operation=="preflight": result=platform_preflight(root)
     elif args.command=="platform": result=platform_prepare(root,args.apply)
     elif args.command=="identity": result=provision_identity(root,args.hostname)
-    elif args.command=="encoding": result=set_encoding(root,{"schema_version":1,"mode":args.mode,"codec":args.codec,"source":args.source,"width":args.width,"height":args.height,"cadence_hz":args.cadence_hz,"bitrate_bps":args.bitrate_bps,"jpeg_quality":args.jpeg_quality,"keyframe_interval":args.keyframe_interval,"threads":args.threads,"low_latency":args.low_latency=="true","preset":args.preset})
-    elif args.command=="stereo": result=set_stereo(root,json.loads(args.json))
+    elif args.command=="encoding": result=set_encoding(root,{"schema_version":1,"mode":args.mode,"codec":args.codec,"source":args.source,"width":args.width,"height":args.height,"cadence_hz":args.cadence_hz,"bitrate_bps":args.bitrate_bps,"jpeg_quality":args.jpeg_quality,"keyframe_interval":args.keyframe_interval,"threads":args.threads,"low_latency":args.low_latency=="true","preset":args.preset},args.if_match)
+    elif args.command=="stereo": result=set_stereo(root,json.loads(args.json),args.if_match)
+    elif args.command=="exposure": result=set_exposure(root,json.loads(args.json),args.if_match)
     elif args.command=="usb" and args.operation=="plan": result=usb_plan(root)
     elif args.command=="usb" and args.operation=="configure": result=usb_configure(root,args.vid,args.pid,args.electrical_approval,args.apply)
     elif args.command=="usb" and args.operation=="apply-saved": result=usb_apply_saved(root)
@@ -417,4 +520,9 @@ def main() -> None:
     print(json.dumps(result,sort_keys=True,indent=2))
 
 
-if __name__ == "__main__": main()
+if __name__ == "__main__":
+    try:
+        main()
+    except ConfigurationConflict as error:
+        print(json.dumps({"error_code":"precondition_failed","error":str(error)}))
+        raise SystemExit(3)

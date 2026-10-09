@@ -1,4 +1,5 @@
 #include "depthd/opencv_rectification_backend.hpp"
+#include "depthd/opencv_execution.hpp"
 
 #include <chrono>
 #include <cstddef>
@@ -81,6 +82,7 @@ void validate_views(const RectificationBackendConfig& config,
 struct FixedPointMap {
   cv::Mat coordinates;
   cv::Mat interpolation;
+  cv::Mat cached_input;
 };
 
 FixedPointMap make_fixed_point_map(const RectificationMap& map) {
@@ -99,6 +101,7 @@ class OpenCvRectificationBackend final : public RectificationBackend {
   OpenCvRectificationBackend(RectificationBackendConfig config,
                              const StereoRectificationMaps& maps)
       : config_(config) {
+    const auto execution = opencv_execution::compute_guard();
     validate_config(config_, maps);
     left_map_ = make_fixed_point_map(maps.left);
     right_map_ = make_fixed_point_map(maps.right);
@@ -111,6 +114,7 @@ class OpenCvRectificationBackend final : public RectificationBackend {
   void rectify(RectificationCamera camera, const ImageView& input,
                const MutableImageView& output,
                RectificationStats& stats) override {
+    const auto execution = opencv_execution::compute_guard();
     validate_views(config_, input, output);
     const auto started = Clock::now();
     const auto type = cv_type(input.encoding);
@@ -120,9 +124,13 @@ class OpenCvRectificationBackend final : public RectificationBackend {
     cv::Mat destination(static_cast<int>(output.height),
                         static_cast<int>(output.width), type, output.data,
                         output.stride_bytes);
-    const auto& map = camera == RectificationCamera::kLeft ? left_map_
+    auto& map = camera == RectificationCamera::kLeft ? left_map_
                                                            : right_map_;
-    cv::remap(source, destination, map.coordinates, map.interpolation,
+    // Camera DMA mappings are uncached on Pi5. One sequential read into reused
+    // normal RAM avoids the much slower random reads performed by remap.
+    // copyTo reallocates only when geometry or channel count changes.
+    source.copyTo(map.cached_input);
+    cv::remap(map.cached_input, destination, map.coordinates, map.interpolation,
               cv::INTER_LINEAR, cv::BORDER_CONSTANT,
               cv::Scalar::all(config_.border_value));
     stats = {};

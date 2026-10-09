@@ -17,7 +17,7 @@ struct Utilization {
 [[nodiscard]] const QualifiedTransport& transport_config(
     const AdmissionConfiguration& configuration, const TransportKind kind) {
   return kind == TransportKind::kEthernet ? configuration.ethernet
-                                          : configuration.usb_ethernet;
+      : (kind == TransportKind::kUsbEthernet ? configuration.usb_ethernet : configuration.wifi);
 }
 
 [[nodiscard]] Utilization& utilization(AdmissionState& state,
@@ -60,6 +60,10 @@ struct Utilization {
       return {TransportKind::kEthernet, TransportKind::kUsbEthernet};
     case TransportPreference::kOff:
       return {};
+    case TransportPreference::kAuto:
+      return {TransportKind::kEthernet, TransportKind::kUsbEthernet, TransportKind::kWifi};
+    case TransportPreference::kWifiOnly:
+      return {TransportKind::kWifi};
   }
   return {};
 }
@@ -71,13 +75,15 @@ struct AdmissionState {
   mutable std::mutex mutex;
   Utilization ethernet{};
   Utilization usb{};
+  Utilization wifi{};
   AdmissionStats stats{};
 };
 
 namespace {
 
 Utilization& utilization(AdmissionState& state, const TransportKind kind) {
-  return kind == TransportKind::kEthernet ? state.ethernet : state.usb;
+  return kind == TransportKind::kEthernet ? state.ethernet
+      : (kind == TransportKind::kUsbEthernet ? state.usb : state.wifi);
 }
 
 }  // namespace
@@ -185,13 +191,59 @@ AdmissionResult AdmissionController::admit(const SubscriptionRequest& request) {
   return result;
 }
 
+AdmissionResult AdmissionController::admit(
+    const SubscriptionRequest& request, const TransportKind connected_transport,
+    const std::optional<TransportPreference> preference) {
+  validate(request);
+  const auto rate = required_rate(request);
+  AdmissionResult result;
+  std::lock_guard lock(state_->mutex);
+  const auto policy = preference.value_or(state_->configuration.preference);
+  const auto order = preference_order(policy);
+  const bool preferred_available = policy != TransportPreference::kBoth &&
+      policy != TransportPreference::kAuto && !order.empty() &&
+      order.front() != connected_transport &&
+      can_admit(transport_config(state_->configuration, order.front()),
+                utilization(*state_, order.front()), request, rate);
+  if (!preferred_available &&
+      std::find(order.begin(), order.end(), connected_transport) != order.end()) {
+    const auto& config = transport_config(state_->configuration, connected_transport);
+    auto& used = utilization(*state_, connected_transport);
+    if (can_admit(config, used, request, rate)) {
+      used.reserved += rate;
+      ++used.sessions;
+      ++state_->stats.admitted;
+      auto impl = std::make_unique<AdmissionLease::Impl>();
+      impl->state = state_;
+      impl->transport = connected_transport;
+      impl->rate = rate;
+      result.lease.emplace(AdmissionLease(std::move(impl)));
+  result.reason = "admitted requested rate on connected interface";
+      return result;
+    }
+  }
+  for (const auto kind : order) {
+    if (kind != connected_transport &&
+        can_admit(transport_config(state_->configuration, kind),
+                  utilization(*state_, kind), request, rate)) {
+      result.compatible_alternatives.push_back(kind);
+    }
+  }
+  ++state_->stats.rejected;
+  result.reason = order.empty() ? "all data transports are disabled by policy"
+      : "connected transport has no available configured capacity; reduce the requested rate or reconnect on a compatible interface";
+  return result;
+}
+
 AdmissionStats AdmissionController::stats() const noexcept {
   std::lock_guard lock(state_->mutex);
   auto result = state_->stats;
   result.ethernet_reserved_bytes_per_second = state_->ethernet.reserved;
   result.usb_reserved_bytes_per_second = state_->usb.reserved;
+  result.wifi_reserved_bytes_per_second = state_->wifi.reserved;
   result.ethernet_sessions = state_->ethernet.sessions;
   result.usb_sessions = state_->usb.sessions;
+  result.wifi_sessions = state_->wifi.sessions;
   return result;
 }
 
@@ -219,7 +271,8 @@ OfferResult SessionQueue::offer(std::shared_ptr<const wire::Message> message) {
     return OfferResult::kClosed;
   }
   ++stats_.offered;
-  const auto replaced = static_cast<bool>(pending_);
+  const auto replaced = static_cast<bool>(pending_) || static_cast<bool>(pending_bytes_);
+  pending_bytes_.reset();
   pending_ = std::move(message);
   if (replaced) {
     ++stats_.pending_replaced;
@@ -229,9 +282,26 @@ OfferResult SessionQueue::offer(std::shared_ptr<const wire::Message> message) {
                   : OfferResult::kAccepted;
 }
 
+OfferResult SessionQueue::offer_serialized(
+    std::shared_ptr<const std::vector<std::byte>> bytes) {
+  if (!bytes || bytes->empty()) {
+    throw std::invalid_argument("gateway cannot offer empty serialized data");
+  }
+  if (bytes->size() > maximum_wire_bytes_) return OfferResult::kOversize;
+  std::lock_guard lock(mutex_);
+  if (!open_) return OfferResult::kClosed;
+  ++stats_.offered;
+  const auto replaced = static_cast<bool>(pending_) || static_cast<bool>(pending_bytes_);
+  pending_.reset();
+  pending_bytes_ = std::move(bytes);
+  if (replaced) ++stats_.pending_replaced;
+  stats_.pending_messages = 1U;
+  return replaced ? OfferResult::kReplacedPendingComplete : OfferResult::kAccepted;
+}
+
 std::shared_ptr<const wire::Message> SessionQueue::begin_transmission() {
   std::lock_guard lock(mutex_);
-  if (!open_ || in_flight_ || !pending_) {
+  if (!open_ || in_flight_ || in_flight_bytes_ || !pending_) {
     return {};
   }
   in_flight_ = std::move(pending_);
@@ -243,10 +313,24 @@ std::shared_ptr<const wire::Message> SessionQueue::begin_transmission() {
   return in_flight_;
 }
 
+std::shared_ptr<const std::vector<std::byte>>
+SessionQueue::begin_serialized_transmission() {
+  std::lock_guard lock(mutex_);
+  if (!open_ || in_flight_ || in_flight_bytes_ || !pending_bytes_) return {};
+  in_flight_bytes_ = std::move(pending_bytes_);
+  in_flight_bytes_sent_ = 0U;
+  stats_.pending_messages = 0U;
+  stats_.in_flight = true;
+  stats_.in_flight_bytes_sent = 0U;
+  return in_flight_bytes_;
+}
+
 void SessionQueue::note_bytes_sent(const std::size_t bytes) {
   std::lock_guard lock(mutex_);
-  if (!open_ || !in_flight_ || bytes == 0U ||
-      bytes > in_flight_->wire_bytes() - in_flight_bytes_sent_) {
+  const auto total = in_flight_ ? in_flight_->wire_bytes()
+                              : (in_flight_bytes_ ? in_flight_bytes_->size() : 0U);
+  if (!open_ || total == 0U || bytes == 0U ||
+      bytes > total - in_flight_bytes_sent_) {
     throw std::logic_error("gateway transmission progress is invalid");
   }
   in_flight_bytes_sent_ += bytes;
@@ -255,12 +339,14 @@ void SessionQueue::note_bytes_sent(const std::size_t bytes) {
 
 void SessionQueue::complete_transmission() {
   std::lock_guard lock(mutex_);
-  if (!open_ || !in_flight_ ||
-      in_flight_bytes_sent_ != in_flight_->wire_bytes()) {
+  const auto total = in_flight_ ? in_flight_->wire_bytes()
+                              : (in_flight_bytes_ ? in_flight_bytes_->size() : 0U);
+  if (!open_ || total == 0U || in_flight_bytes_sent_ != total) {
     throw std::logic_error(
         "gateway cannot complete a partial or inactive transmission");
   }
   in_flight_.reset();
+  in_flight_bytes_.reset();
   in_flight_bytes_sent_ = 0U;
   ++stats_.transmissions_completed;
   stats_.in_flight = false;
@@ -272,12 +358,16 @@ void SessionQueue::close_incomplete() noexcept {
   if (!open_) {
     return;
   }
-  if (in_flight_ && in_flight_bytes_sent_ != in_flight_->wire_bytes()) {
+  const auto total = in_flight_ ? in_flight_->wire_bytes()
+                              : (in_flight_bytes_ ? in_flight_bytes_->size() : 0U);
+  if (total != 0U && in_flight_bytes_sent_ != total) {
     ++stats_.sessions_closed_incomplete;
   }
   open_ = false;
   pending_.reset();
   in_flight_.reset();
+  pending_bytes_.reset();
+  in_flight_bytes_.reset();
   in_flight_bytes_sent_ = 0U;
   stats_.pending_messages = 0U;
   stats_.in_flight = false;
@@ -288,8 +378,8 @@ void SessionQueue::close_incomplete() noexcept {
 SessionQueueStats SessionQueue::stats() const noexcept {
   std::lock_guard lock(mutex_);
   auto result = stats_;
-  result.pending_messages = pending_ ? 1U : 0U;
-  result.in_flight = static_cast<bool>(in_flight_);
+  result.pending_messages = pending_ || pending_bytes_ ? 1U : 0U;
+  result.in_flight = static_cast<bool>(in_flight_) || static_cast<bool>(in_flight_bytes_);
   result.in_flight_bytes_sent = in_flight_bytes_sent_;
   result.open = open_;
   return result;
@@ -308,16 +398,17 @@ void validate(const AdmissionConfiguration& configuration) {
          transport.maximum_sessions == 0U ||
          transport.maximum_sessions > 1024U)) {
       throw std::invalid_argument(std::string(name) +
-                                  " enabled transport is not qualified");
+                                  " enabled transport has invalid resource bounds");
     }
   };
   validate_transport(configuration.ethernet, "Ethernet");
   validate_transport(configuration.usb_ethernet, "USB Ethernet");
+  validate_transport(configuration.wifi, "WiFi");
 }
 
 void validate(const SubscriptionRequest& request) {
   if (request.products == 0U ||
-      (request.products & ~ipc_v2::kAllProducts) != 0U ||
+      (request.products & ~ipc_v2::kSupportedProducts) != 0U ||
       request.frame_payload_bytes == 0U ||
       request.frame_payload_bytes > wire::kHardMaximumPayloadBytes ||
       request.metadata_bytes == 0U ||
