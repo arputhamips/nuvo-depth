@@ -285,6 +285,7 @@ class Pi5LibcameraCapture final : public CaptureSource {
       result.push_back(identity_for(cameras[index],
                                     static_cast<std::uint32_t>(index)));
     }
+    canonicalize_camera_order(result);
     return result;
   }
 
@@ -297,7 +298,7 @@ class Pi5LibcameraCapture final : public CaptureSource {
       }
     }
 
-    const auto cameras = manager_->cameras();
+    const auto cameras = enumerate();
     if (options.left_camera_index >= cameras.size() ||
         options.right_camera_index >= cameras.size()) {
       throw std::runtime_error(
@@ -308,13 +309,13 @@ class Pi5LibcameraCapture final : public CaptureSource {
     auto right = std::make_unique<CameraState>();
     left->role = CameraRole::kLogicalLeft;
     right->role = CameraRole::kLogicalRight;
-    left->camera = manager_->get(cameras[options.left_camera_index]->id());
-    right->camera = manager_->get(cameras[options.right_camera_index]->id());
+    left->camera = manager_->get(cameras[options.left_camera_index].stable_id);
+    right->camera = manager_->get(cameras[options.right_camera_index].stable_id);
     if (!left->camera || !right->camera) {
       throw std::runtime_error("libcamera camera disappeared during selection");
     }
-    left->identity = identity_for(left->camera, options.left_camera_index);
-    right->identity = identity_for(right->camera, options.right_camera_index);
+    left->identity = cameras[options.left_camera_index];
+    right->identity = cameras[options.right_camera_index];
     const CameraBinding left_binding{CameraRole::kLogicalLeft, left->identity};
     const CameraBinding right_binding{CameraRole::kLogicalRight, right->identity};
     validate_stereo_bindings(left_binding, right_binding);

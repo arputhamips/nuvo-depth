@@ -25,6 +25,7 @@ struct CameraIdentity {
   std::string stable_id;
   std::string model;
   std::string location;
+  // Index in the platform-stable ID ordering returned by enumerate().
   std::uint32_t discovery_index{};
 };
 
@@ -34,6 +35,9 @@ struct CameraBinding {
 };
 
 void validate(const CameraIdentity& identity);
+// Driver probe completion order can change after reboot. Apply configured
+// indices only after canonicalizing the physical camera IDs.
+void canonicalize_camera_order(std::vector<CameraIdentity>& cameras);
 void validate(const CameraBinding& binding);
 void validate_stereo_bindings(const CameraBinding& left,
                               const CameraBinding& right);

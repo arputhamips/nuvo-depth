@@ -24,6 +24,23 @@ void validate(const CameraIdentity& identity) {
   }
 }
 
+void canonicalize_camera_order(std::vector<CameraIdentity>& cameras) {
+  for (const auto& camera : cameras) {
+    validate(camera);
+  }
+  std::sort(cameras.begin(), cameras.end(),
+            [](const CameraIdentity& left, const CameraIdentity& right) {
+              return left.stable_id < right.stable_id;
+            });
+  for (std::size_t index = 0; index < cameras.size(); ++index) {
+    if (index != 0U &&
+        cameras[index - 1U].stable_id == cameras[index].stable_id) {
+      throw std::invalid_argument("camera discovery contains duplicate physical IDs");
+    }
+    cameras[index].discovery_index = static_cast<std::uint32_t>(index);
+  }
+}
+
 void validate(const CameraBinding& binding) {
   if (!valid_role(binding.role)) {
     throw std::invalid_argument("camera binding has an unknown logical role");

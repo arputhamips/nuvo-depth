@@ -999,6 +999,11 @@ if(BUILD_TESTING)
   depthd_enable_warnings(depthd_products_test)
   add_test(NAME depthd_products_test COMMAND depthd_products_test)
 
+  add_executable(depthd_camera_identity_test tests/camera_identity_test.cpp)
+  target_link_libraries(depthd_camera_identity_test PRIVATE depthd::capture)
+  depthd_enable_warnings(depthd_camera_identity_test)
+  add_test(NAME depthd_camera_identity_test COMMAND depthd_camera_identity_test)
+
   add_executable(depthd_capture_lease_test tests/capture_lease_test.cpp)
   target_link_libraries(depthd_capture_lease_test PRIVATE depthd::capture)
   depthd_enable_warnings(depthd_capture_lease_test)
