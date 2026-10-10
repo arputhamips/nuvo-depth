@@ -92,6 +92,7 @@ class LocalFrames:
         self.auto_encode = True
         self.serve_frames = True
         self.stale_frames = False
+        self.stale_deliveries = 0
         self.listener = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         self.listener.bind(str(path)); self.listener.listen(8); self.listener.settimeout(.1)
         self.worker = threading.Thread(target=self.serve, daemon=True); self.worker.start()
@@ -151,6 +152,10 @@ class LocalFrames:
                     if request[16:] == cursor or self.stopping or not self.serve_frames:
                         connection.send(b"NVN2"); continue
                     value = raw_frame(*parameters, mask=mask, capture_time_ns=1 if self.stale_frames else None)
+                    if self.stale_frames:
+                        with self.condition:
+                            self.stale_deliveries += 1
+                            self.condition.notify_all()
                     descriptor = os.memfd_create("gateway-test-frame", os.MFD_ALLOW_SEALING)
                     try:
                         os.write(descriptor, value)
@@ -381,6 +386,49 @@ class GatewayIntegrationTest(unittest.TestCase):
             self.assertLess(time.monotonic() - start, 4)
         finally:
             self.local.stale_frames = False
+        self.wait_demand((0, 0, 0))
+
+    def test_stale_cached_frame_keeps_demand_until_fresh_capture(self):
+        self.wait_demand((0, 0, 0))
+        previous = self.local.parameters
+        self.local.stale_frames = True
+        self.local.publish(100)
+        updates = len(self.local.subscription_updates)
+        stale_deliveries = self.local.stale_deliveries
+        result = []
+
+        def fetch():
+            try:
+                with self.open("/api/v1/frame/latest?products=left_mono&cadence_hz=5&delivery=best_effort",
+                               headers={"Authorization": f"Bearer {self.token}"}) as response:
+                    result.append(response.read())
+            except Exception as error:
+                result.append(error)
+
+        consumer = threading.Thread(target=fetch)
+        consumer.start()
+        try:
+            with self.local.condition:
+                self.assertTrue(self.local.condition.wait_for(
+                    lambda: self.local.stale_deliveries > stale_deliveries, timeout=1.5))
+            # An idle producer needs time to observe demand. During that wait
+            # the gateway must retain its connection instead of repeatedly
+            # reconnecting to the cached capture with a reset cursor.
+            time.sleep(.35)
+            self.assertEqual(len(self.local.subscription_updates) - updates, 1)
+            self.wait_demand((1 << 6, 5, 0))
+            self.local.stale_frames = False
+            self.local.publish(101)
+            consumer.join(timeout=2)
+            self.assertFalse(consumer.is_alive())
+            self.assertEqual(len(result), 1)
+            if isinstance(result[0], Exception):
+                raise result[0]
+            self.assertEqual(struct.unpack_from(">Q", result[0], 24)[0], 101)
+        finally:
+            self.local.stale_frames = False
+            self.local.publish(*previous)
+            consumer.join(timeout=5)
         self.wait_demand((0, 0, 0))
 
     def test_configuration_etags_pending_receipt_and_preconditions(self):

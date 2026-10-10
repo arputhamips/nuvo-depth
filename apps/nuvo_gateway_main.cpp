@@ -862,7 +862,10 @@ class FrameSource final {
         if (::clock_gettime(CLOCK_BOOTTIME, &current) != 0) throw std::runtime_error("capture freshness clock unavailable");
         const auto now = static_cast<std::uint64_t>(current.tv_sec) * 1'000'000'000U + static_cast<std::uint64_t>(current.tv_nsec);
         const auto captured = metadata.get<std::uint64_t>("capture_time_ns", 0U);
-        if (captured == 0U || captured > now || now - captured > 1'000'000'000U) throw std::runtime_error("stale source capture");
+        // Keep the subscription and its advanced cursor while dropping old
+        // captures. Reconnecting would fetch the same cached frame again and
+        // withdraw demand before an idle producer can capture a fresh pair.
+        if (captured == 0U || captured > now || now - captured > 1'000'000'000U) return;
       }
       for (const auto& item : metadata.get_child("products")) {
         products |= product_mask(item.second.get<std::string>("kind"));
