@@ -88,12 +88,14 @@ errors. Validation diagnostics name the logical YAML path.
 
 ## Schema-v1 keys
 
-Pi capture indices refer to cameras sorted by their stable libcamera IDs,
-so asynchronous sensor probe order cannot swap calibration or logical roles
-after a reboot. On the dual-IMX296 Pi 5 topology, index 0 is the sensor at
-`i2c@80000` and index 1 is the sensor at `i2c@88000`; the product rig uses
-logical left 1 and logical right 0. Rewiring the physical rig requires reviewing
-these bindings and its calibration.
+The Pi 5 product binds logical left to the IMX296 on RP1 `i2c@80000` and
+logical right to RP1 `i2c@88000`. These fixed CSI port paths determine roles;
+discovery order, extra cameras and configurable list indices cannot swap them.
+A missing or ambiguous required port prevents capture instead of selecting
+another sensor. The legacy schema indices remain for compatibility and describe
+left 0/right 1 in the sorted dual-camera inventory. The provisional seed keeps
+each sensor's intrinsics, rectification and historical output correction with
+its physical port. Rewiring requires updating these bindings and recalibrating.
 
 All mappings are closed: listed keys are required except the optional
 `stereo.median_filter_size`, and unknown or duplicate keys are errors.

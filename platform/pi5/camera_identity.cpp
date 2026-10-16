@@ -48,6 +48,32 @@ void validate(const CameraBinding& binding) {
   validate(binding.camera);
 }
 
+std::array<CameraBinding, 2> bind_pi5_fixed_csi_ports(
+    const std::vector<CameraIdentity>& cameras) {
+  const auto select = [&](const std::string_view port, const CameraRole role) {
+    const CameraIdentity* selected = nullptr;
+    for (const auto& camera : cameras) {
+      validate(camera);
+      if (!camera.stable_id.ends_with(port)) continue;
+      if (selected != nullptr) {
+        throw std::runtime_error("multiple cameras match fixed Pi5 CSI port " +
+                                 std::string(port));
+      }
+      selected = &camera;
+    }
+    if (selected == nullptr) {
+      throw std::runtime_error("required Pi5 CSI camera is missing: " +
+                               std::string(port));
+    }
+    return CameraBinding{role, *selected};
+  };
+  std::array<CameraBinding, 2> bindings{
+      select("/rp1/i2c@80000/imx296@1a", CameraRole::kLogicalLeft),
+      select("/rp1/i2c@88000/imx296@1a", CameraRole::kLogicalRight)};
+  validate_stereo_bindings(bindings[0], bindings[1]);
+  return bindings;
+}
+
 void validate_stereo_bindings(const CameraBinding& left,
                               const CameraBinding& right) {
   validate(left);

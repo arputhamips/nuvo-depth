@@ -37,9 +37,12 @@ int main() {
   assert(prepared.matching_view.grid.width == 364U);
   assert(std::abs(prepared.image_view.baseline_m - 0.1) < 1e-8);
   assert(depthd::is_valid(prepared.maps));
-  assert(!prepared.left.has_rectified_output_correction);
-  assert(prepared.right.has_rectified_output_correction);
-  assert(std::abs(prepared.right.rectified_output_correction[3] +
+  // Port-bound camera parameters must follow the corrected physical roles.
+  assert(std::abs(prepared.left.camera_matrix[0] - 475.149382139) < 1e-9);
+  assert(std::abs(prepared.right.camera_matrix[0] - 475.256118788) < 1e-9);
+  assert(prepared.left.has_rectified_output_correction);
+  assert(!prepared.right.has_rectified_output_correction);
+  assert(std::abs(prepared.left.rectified_output_correction[3] +
                   0.0091791619) < 1e-12);
   assert(prepared.maps.left.source_x.size() == 728U * 544U);
   assert(depthd::calibration_identity_to_sha256(prepared.identity).size() ==

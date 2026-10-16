@@ -50,7 +50,7 @@ int main() {
       "config/nuvo_pi5_depth_100mm.yaml");
   const auto& config = loaded.effective;
   if (loaded.configuration_sha256 !=
-      "5ea680500f83e616e458612ab3e0f9baab2bedc3dfbbd732ec70c7c265f3c741") {
+      "f6814bf1c599e74febe5ae81b08a761abff3c82d78d1738d8675c2554c41502c") {
     return fail(1, "balanced candidate effective configuration identity changed");
   }
   if (config.capture.width != config.stereo.output_width ||

@@ -13,8 +13,8 @@ rig:
 
 capture:
   backend: libcamera
-  left_camera_index: 1
-  right_camera_index: 0
+  left_camera_index: 0
+  right_camera_index: 1
   width: 728
   height: 544
   stream_profile: isp_luma_rgb_left

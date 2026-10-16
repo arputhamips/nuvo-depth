@@ -89,7 +89,7 @@ int main() {
                 "/config/nuvo_pi5_depth_100mm.yaml");
   if (!contains_all(
           config,
-          {"left_camera_index: 1", "right_camera_index: 0", "width: 728",
+          {"left_camera_index: 0", "right_camera_index: 1", "width: 728",
            "height: 544", "stream_profile: isp_luma_rgb_left",
            "main_pixel_format: YUV420", "depth_plane: Y",
            "left_color_stream: lores", "left_color_pixel_format: RGB888",

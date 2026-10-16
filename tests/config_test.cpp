@@ -212,8 +212,8 @@ int main() {
     return fail(19, "out-of-bounds metering ROI was accepted");
   }
   if (!expect_validation(
-          replace_once(active_yaml, "  right_camera_index: 0",
-                       "  right_camera_index: 1"),
+          replace_once(active_yaml, "  right_camera_index: 1",
+                       "  right_camera_index: 0"),
           "capture.right_camera_index")) {
     return fail(20, "duplicate logical camera assignment was accepted");
   }

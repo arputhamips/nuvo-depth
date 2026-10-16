@@ -38,6 +38,10 @@ void validate(const CameraIdentity& identity);
 // Driver probe completion order can change after reboot. Apply configured
 // indices only after canonicalizing the physical camera IDs.
 void canonicalize_camera_order(std::vector<CameraIdentity>& cameras);
+// Product wiring is fixed: logical-left is the IMX296 on RP1 i2c@80000,
+// logical-right is on i2c@88000. Never infer these roles from list indices.
+[[nodiscard]] std::array<CameraBinding, 2> bind_pi5_fixed_csi_ports(
+    const std::vector<CameraIdentity>& cameras);
 void validate(const CameraBinding& binding);
 void validate_stereo_bindings(const CameraBinding& left,
                               const CameraBinding& right);
@@ -141,8 +145,9 @@ class StereoPairer final {
 };
 
 struct CaptureOpenOptions {
-  std::uint32_t left_camera_index{1U};
-  std::uint32_t right_camera_index{0U};
+  // Legacy schema/reporting values. The Pi5 backend selects fixed CSI ports.
+  std::uint32_t left_camera_index{0U};
+  std::uint32_t right_camera_index{1U};
   std::uint32_t width{728U};
   std::uint32_t height{544U};
   std::string pixel_format{"YUV420"};

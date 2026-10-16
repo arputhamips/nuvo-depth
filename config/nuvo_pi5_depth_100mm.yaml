@@ -14,9 +14,10 @@ rig:
 
 capture:
   backend: libcamera
-  # Logical assignments proven on the current dual-IMX296 Pi topology.
-  left_camera_index: 1
-  right_camera_index: 0
+  # Fixed product CSI wiring: left i2c@80000, right i2c@88000.
+  # Legacy indices describe this ordering; the backend binds physical ports.
+  left_camera_index: 0
+  right_camera_index: 1
   width: 728
   height: 544
   stream_profile: isp_luma_rgb_left

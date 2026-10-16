@@ -298,27 +298,21 @@ class Pi5LibcameraCapture final : public CaptureSource {
       }
     }
 
-    const auto cameras = enumerate();
-    if (options.left_camera_index >= cameras.size() ||
-        options.right_camera_index >= cameras.size()) {
-      throw std::runtime_error(
-          "configured stereo camera index is not present in libcamera");
-    }
+    const auto bindings = bind_pi5_fixed_csi_ports(enumerate());
+    const auto& left_binding = bindings[0];
+    const auto& right_binding = bindings[1];
 
     auto left = std::make_unique<CameraState>();
     auto right = std::make_unique<CameraState>();
     left->role = CameraRole::kLogicalLeft;
     right->role = CameraRole::kLogicalRight;
-    left->camera = manager_->get(cameras[options.left_camera_index].stable_id);
-    right->camera = manager_->get(cameras[options.right_camera_index].stable_id);
+    left->camera = manager_->get(left_binding.camera.stable_id);
+    right->camera = manager_->get(right_binding.camera.stable_id);
     if (!left->camera || !right->camera) {
       throw std::runtime_error("libcamera camera disappeared during selection");
     }
-    left->identity = cameras[options.left_camera_index];
-    right->identity = cameras[options.right_camera_index];
-    const CameraBinding left_binding{CameraRole::kLogicalLeft, left->identity};
-    const CameraBinding right_binding{CameraRole::kLogicalRight, right->identity};
-    validate_stereo_bindings(left_binding, right_binding);
+    left->identity = left_binding.camera;
+    right->identity = right_binding.camera;
 
     if (options.hardware_trigger_enabled) {
       require_external_trigger_mode();
