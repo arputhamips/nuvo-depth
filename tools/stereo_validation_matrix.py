@@ -222,19 +222,32 @@ def epipolar_metrics(left: np.ndarray, right: np.ndarray) -> dict:
     detector = cv2.SIFT_create(nfeatures=5000, contrastThreshold=0.01)
     left_keys, left_desc = detector.detectAndCompute(left, None)
     right_keys, right_desc = detector.detectAndCompute(right, None)
+    if left_desc is None or right_desc is None or len(right_desc) < 2:
+        raise RuntimeError("not enough stereo texture for epipolar scoring")
     pairs = cv2.BFMatcher().knnMatch(left_desc, right_desc, k=2)
-    points = []
-    for first, second in pairs:
+    left_points, right_points = [], []
+    for candidates in pairs:
+        if len(candidates) != 2:
+            continue
+        first, second = candidates
         if first.distance >= 0.7 * second.distance:
             continue
-        lx, ly = left_keys[first.queryIdx].pt
-        rx, ry = right_keys[first.trainIdx].pt
-        disparity = lx - rx
-        if -16 <= disparity <= 160:
-            points.append((rx, ry, ly - ry))
-    values = np.asarray(points, np.float64)
-    if len(values) < 12:
+        left_points.append(left_keys[first.queryIdx].pt)
+        right_points.append(right_keys[first.trainIdx].pt)
+    if len(left_points) < 12:
         raise RuntimeError("not enough reliable stereo features for epipolar scoring")
+    left_points = np.asarray(left_points, np.float32)
+    right_points = np.asarray(right_points, np.float32)
+    # Do not prefilter by the disparity sign/range expected by the matcher:
+    # that hides reversed stereo geometry and scores unrelated matches instead.
+    # Reject feature outliers geometrically before measuring vertical error.
+    fundamental, inliers = cv2.findFundamentalMat(
+        left_points, right_points, cv2.FM_RANSAC, 1.0, 0.999)
+    if fundamental is None or inliers is None or np.sum(inliers) < 12:
+        raise RuntimeError("not enough geometric stereo inliers for epipolar scoring")
+    geometric_inliers = inliers.reshape(-1).astype(bool)
+    delta = left_points[geometric_inliers] - right_points[geometric_inliers]
+    values = np.c_[right_points[geometric_inliers], delta[:, 1]].astype(np.float64)
     design = np.c_[values[:, 0], values[:, 1], np.ones(len(values))]
     keep = np.ones(len(values), dtype=bool)
     coefficients = np.zeros(3)
@@ -245,8 +258,13 @@ def epipolar_metrics(left: np.ndarray, right: np.ndarray) -> dict:
         mad = np.median(np.abs(residual[keep] - center)) + 1e-9
         keep = np.abs(residual - center) < 3.0 * 1.4826 * mad
     return {
-        "feature_matches": int(len(values)),
+        "feature_matches": int(len(left_points)),
+        "geometric_inlier_matches": int(len(values)),
         "inlier_matches": int(np.sum(keep)),
+        "horizontal_disparity_p05_px": float(np.percentile(delta[:, 0], 5)),
+        "horizontal_disparity_p50_px": float(np.percentile(delta[:, 0], 50)),
+        "horizontal_disparity_p95_px": float(np.percentile(delta[:, 0], 95)),
+        "negative_disparity_fraction": float(np.mean(delta[:, 0] < 0)),
         "vertical_abs_p50_px": float(np.percentile(np.abs(values[:, 2]), 50)),
         "vertical_abs_p95_px": float(np.percentile(np.abs(values[:, 2]), 95)),
         "vertical_affine_dx": float(coefficients[0]),

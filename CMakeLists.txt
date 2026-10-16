@@ -1236,6 +1236,10 @@ if(BUILD_TESTING)
         ERROR_QUIET
       )
       if(DEPTHD_PYTHON_OPENCV_RESULT EQUAL 0)
+        add_test(NAME depthd_stereo_validation_diagnostics_test
+          COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/stereo_validation_diagnostics_test.py
+        )
         add_test(NAME depthd_egl_gl_map_adapter_test
           COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/egl_gl_map_adapter_test.py
