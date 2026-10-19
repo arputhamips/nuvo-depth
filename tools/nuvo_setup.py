@@ -175,6 +175,7 @@ def status(root):
     return {**{key: value.get(key) for key in (
         "schema_version", "origin", "access_policy", "access_stage", "display_name", "hostname",
         "ap_ssid", "ap_address", "phase", "reboot_required", "engineering", "calibration_state", "capture_error", "error")},
+        "reboot_required": bool(value.get("reboot_required") and value.get("prepared_boot_id") == boot_id(root)),
         "claimed": bool(auth.get("claimed")),
         "needs_owner_password": bool(auth.get("claimed") and not auth.get("password")),
         "shipping_ready": False}

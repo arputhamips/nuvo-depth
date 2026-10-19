@@ -58,6 +58,12 @@ class ProvisioningTest(unittest.TestCase):
         self.assertFalse((self.root / setup.AP_ENABLED).exists())
         self.assertFalse(any(call[0] == "nmcli" for call in self.calls))
 
+    def test_completed_reboot_clears_the_reported_requirement(self):
+        self.apply(self.factory_plan())
+        self.assertTrue(setup.status(self.root)["reboot_required"])
+        setup.admin.atomic_write(self.root / "proc/sys/kernel/random/boot_id", "boot-two", 0o644)
+        self.assertFalse(setup.status(self.root)["reboot_required"])
+
     def test_terminal_hotspot_is_not_factory_origin(self):
         answers = iter(["2", "", "2", "", "n", "y", "n", "n"])
         with redirect_stdout(io.StringIO()):
