@@ -27,12 +27,15 @@ class ProvisioningTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        for name, text in {"etc/hostname": "nuvo-test\n", "proc/sys/kernel/random/boot_id": "boot-one"}.items():
+        for name, text in {"etc/hostname": "nuvo-test\n", "proc/sys/kernel/random/boot_id": "boot-one",
+                           "boot/firmware/config.txt": "[all]\n", "boot/firmware/cmdline.txt": "root=PARTUUID=test rootwait\n"}.items():
             setup.admin.atomic_write(self.root / name, text, 0o644)
         self.calls = []
 
     def run_command(self, args, **kwargs):
         self.calls.append(args)
+        if args[:3] == ["/usr/bin/raspi-config", "nonint", "do_wifi_country"]:
+            (self.root / "boot/firmware/cmdline.txt").write_text("rootwait cfg80211.ieee80211_regdom="+args[3]+"\n")
         output = json.dumps({"accepted": False}) if "provisioning-status" in args else ""
         return subprocess.CompletedProcess(args, 0, output, "")
 
@@ -57,6 +60,7 @@ class ProvisioningTest(unittest.TestCase):
         self.assertFalse((self.root / setup.PROFILE).exists())
         self.assertFalse((self.root / setup.AP_ENABLED).exists())
         self.assertFalse(any(call[0] == "nmcli" for call in self.calls))
+        self.assertFalse(any("do_wifi_country" in call for call in self.calls))
 
     def test_completed_reboot_clears_the_reported_requirement(self):
         self.apply(self.factory_plan())
@@ -161,13 +165,30 @@ class ProvisioningTest(unittest.TestCase):
         self.assertIn("Capture did not start",state["capture_error"])
         self.assertTrue(any("nuvo-gateway.service" in call and "restart" in call for call in self.calls))
 
+    def test_country_tool_cannot_silently_fail_before_hotspot_is_armed(self):
+        plan=self.factory_plan()
+        def runner(args, **kwargs):
+            if "do_wifi_country" in args:
+                return subprocess.CompletedProcess(args,0,"","sed: read-only file system")
+            return self.run_command(args,**kwargs)
+        with mock.patch.object(setup.admin,"provision_identity",return_value={"device_uuid":"123456"}),mock.patch.object(setup.admin,"platform_prepare",return_value={"reboot_required":False}):
+            with self.assertRaisesRegex(RuntimeError,"country was not persisted"):
+                setup.apply_configuration(self.root,plan,runner)
+        self.assertFalse((self.root/setup.AP_ENABLED).exists())
+        self.assertFalse(any(call[0]=="nmcli" for call in self.calls))
+
     def test_hotspot_only_after_deliberate_activation_or_new_boot(self):
         self.apply(self.factory_plan())
+        self.assertIn(["/usr/bin/raspi-config", "nonint", "do_wifi_country", "US"],self.calls)
+        self.calls.clear()
         setup.reconcile(self.root, self.run_command)
         self.assertFalse(any(call[0] == "nmcli" for call in self.calls))
         (self.root / "proc/sys/kernel/random/boot_id").write_text("boot-two")
         setup.reconcile(self.root, self.run_command)
         self.assertEqual(setup.status(self.root)["access_stage"], "active")
+        self.assertIn(["iw", "reg", "set", "US"],self.calls)
+        self.assertIn(["nmcli", "radio", "wifi", "on"],self.calls)
+        self.assertFalse(any("do_wifi_country" in call for call in self.calls))
         self.assertFalse(setup.status(self.root)["reboot_required"])
         (self.root / "proc/sys/kernel/random/boot_id").write_text("boot-three")
         self.calls.clear()
@@ -265,6 +286,15 @@ class ProvisioningTest(unittest.TestCase):
         self.assertEqual(response.status,200)
         self.assertEqual(response.getheader("Cache-Control"),"no-store")
         self.assertNotIn(b"ap_password",data)
+        setup.save(self.root,setup.STATE,{"phase":"installed","hostname":"Nuvo-Test","access_stage":"active","ap_address":"127.0.0.1/24"})
+        self.assertEqual(request("/", headers={"Host":"nuvo-test.local"})[0].status,200)
+        self.assertEqual(request("/", headers={"Host":"NUVO-TEST.local:80","Origin":"http://nuvo-test.local"})[0].status,200)
+        self.assertEqual(request("/", headers={"Host":"nuvo-test.local:8080"})[0].status,403)
+        self.assertEqual(request("/", headers={"Host":"nuvo-test.local","Origin":"http://foreign.test"})[0].status,403)
+        state=setup.read(self.root,setup.STATE)
+        state["error"]="Wi-Fi failed; retry <network>"
+        setup.save(self.root,setup.STATE,state)
+        self.assertIn(b"Wi-Fi failed; retry &lt;network&gt;",request("/")[1])
         body=json.dumps({"ssid":"home","password":"password123"})
         self.assertEqual(request("/network",body,{"Origin":"http://foreign.test","X-Nuvo-Setup":"test-nonce"})[0].status,400)
         self.assertEqual(request("/network",body,{"X-Nuvo-Setup":"wrong"})[0].status,400)

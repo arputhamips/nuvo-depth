@@ -265,6 +265,15 @@ def apply_configuration(root, plan, run=command):
                            "[Unit]\nWants=\nWants=nuvo-system-agent.socket\nAfter=\nAfter=network.target nuvo-system-agent.socket\n", 0o644)
         admin.atomic_write(root / "etc/systemd/system/nuvo-depthd-native.service.d/20-setup.conf",
                            "[Unit]\nConditionPathExists=/etc/nuvo-depth/capture-enabled\n", 0o644)
+        if plan["access_policy"] == "setup_ap":
+            # Current raspi-config persists the country in the boot command
+            # line. Do this in the installer, which can write the boot volume,
+            # before arming the sandboxed first-boot network service.
+            run(["/usr/bin/raspi-config", "nonint", "do_wifi_country", state["wifi_country"]])
+            cmdline = admin.boot_config(root).with_name("cmdline.txt")
+            configured = re.findall(r"(?:^|\s)cfg80211\.ieee80211_regdom=(\S+)", cmdline.read_text())
+            if configured != [state["wifi_country"]]:
+                raise RuntimeError("Wi-Fi country was not persisted in the boot command line; check boot volume permissions")
         if plan["access_policy"] == "setup_ap" and (not old or old.get("access_policy") != "setup_ap" or old.get("access_stage") not in {"confirmed", "active"}):
             state.update(access_stage="armed", activate_after_boot_id=boot_id(root), activate_now=False)
             admin.atomic_write(root / PROFILE, ap_profile(state, private), 0o600)
@@ -334,7 +343,8 @@ def activate_ap(root, run=command):
         save(root, STATE, state)
         # Hold the configuration lock through the access switch so an installer
         # cannot start package work between admission and a disruptive NM call.
-        run(["/usr/bin/raspi-config", "nonint", "do_wifi_country", state["wifi_country"]])
+        run(["iw", "reg", "set", state["wifi_country"]])
+        run(["nmcli", "radio", "wifi", "on"])
         forwarding_rule(state, "add", run)
         try:
             run(["nmcli", "connection", "load", "/" + PROFILE])
@@ -364,7 +374,7 @@ def stage_network(root, ssid, password, run=command):
                 f"[wifi]\nmode=infrastructure\nssid={ssid}\n\n[wifi-security]\nkey-mgmt=wpa-psk\npsk={password}\n\n"
                 "[ipv4]\nmethod=auto\n\n[ipv6]\nmethod=auto\n")
         admin.atomic_write(root / STATION, text, 0o600)
-        state.update(access_stage="connecting", network_deadline=time.time()+180,
+        state.update(access_stage="connecting", error=None, network_deadline=time.time()+180,
                      network_start_after=time.time()+4, transaction_boot_id=boot_id(root), network_started=False)
         save(root, PRIVATE, private)
         save(root, STATE, state)
@@ -432,7 +442,7 @@ def reconcile(root, run=command):
 PAGE = r'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuvo network setup</title>
 <style>body{font:17px system-ui;max-width:34rem;margin:8vh auto;padding:1.5rem;background:#101b27;color:#edf6ff}input,button{box-sizing:border-box;width:100%;padding:.8rem;margin:.6rem 0 1rem;font:inherit;border-radius:.5rem}button{background:#68dec5;border:0}label{display:block}#message{white-space:pre-wrap}a{color:#68dec5}</style>
 <h1>Connect your Nuvo</h1><p>This private setup network has no internet. Keep this page open while Nuvo joins your Wi-Fi.</p>
-<form id="network"><label>Network name (SSID)<input name="ssid" required maxlength="32" autocomplete="off"></label><label>Wi-Fi password<input name="password" type="password" required minlength="8" maxlength="64" autocomplete="off"></label><button>Connect to Wi-Fi</button></form><p id="message"></p>
+<form id="network"><label>Network name (SSID)<input name="ssid" required maxlength="32" autocomplete="off"></label><label>Wi-Fi password<input name="password" type="password" required minlength="8" maxlength="64" autocomplete="off"></label><button>Connect to Wi-Fi</button></form><p id="message" role="status">__MESSAGE__</p>
 <script>const nonce=__NONCE__;const form=document.getElementById('network'),message=document.getElementById('message');
 async function send(path,value){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-Nuvo-Setup':nonce},body:JSON.stringify(value)});const d=await r.json();if(!r.ok)throw new Error(d.error||'Setup failed');return d;}
 const finish=location.hash.startsWith('#finish=')?location.hash.slice(8):'';if(finish){history.replaceState(null,'',location.pathname);form.hidden=true;send('/confirm',{ticket:finish}).then(d=>{message.textContent='Wi-Fi confirmed. ';const a=document.createElement('a');a.href=d.console_url;a.textContent='Open Nuvo console';message.append(a);}).catch(e=>message.textContent=e.message);}
@@ -488,12 +498,19 @@ def make_handler(root):
 
         def context(self):
             state = read(root, STATE, {})
-            host = self.headers.get("Host", "")
-            allowed = {str(ipaddress.IPv4Interface(state.get("ap_address", "192.168.4.1/24")).ip), state.get("hostname", "") + ".local"}
+            # DNS names are case-insensitive. Browsers lowercase the hostname
+            # in the generated handoff URL even if /etc/hostname uses capitals.
+            host = self.headers.get("Host", "").lower()
+            if host.endswith(":80"):
+                host = host[:-3]
+            allowed = {str(ipaddress.IPv4Interface(state.get("ap_address", "192.168.4.1/24")).ip), state.get("hostname", "").lower() + ".local"}
             # Request must target this actual local address/name, not a rebound
             # remote domain. Origin checks are required for every mutation.
             allowed.add(self.connection.getsockname()[0])
-            if host not in allowed or self.headers.get("Origin", "http://" + host) != "http://" + host:
+            origin = self.headers.get("Origin", "http://" + host).lower()
+            if origin.endswith(":80"):
+                origin = origin[:-3]
+            if host not in allowed or origin != "http://" + host:
                 raise ValueError("setup host/origin rejected")
             return state
 
@@ -506,7 +523,8 @@ def make_handler(root):
                 ap_ip = str(ipaddress.IPv4Interface(state["ap_address"]).ip)
                 if state["access_stage"] == "active" and local != ap_ip:
                     self.respond(403, {"error": "Join the private Nuvo setup network"}); return
-                self.respond(200, PAGE.replace("__NONCE__", json.dumps(self.server.nonce)), "text/html; charset=utf-8")
+                page = PAGE.replace("__NONCE__", json.dumps(self.server.nonce)).replace("__MESSAGE__", html.escape(state.get("error") or ""))
+                self.respond(200, page, "text/html; charset=utf-8")
             except ValueError as error:
                 self.respond(403, {"error": str(error)})
 

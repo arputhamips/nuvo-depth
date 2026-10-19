@@ -145,7 +145,8 @@ and evidence must pass before shipment; the setup status never certifies them.
    Nuvo only commits autoconnection after confirmation arrives through the new
    network while the expected NetworkManager connection is active.
 4. If joining or confirmation fails, the same protected hotspot returns with
-   the same password. Interrupted changes, including reboots, follow this
+   the same password and explains the failed handoff on the setup page.
+   Interrupted changes, including reboots, follow this
    recovery path. An ordinary outage after confirmed setup does not reopen it.
 5. Open `https://HOSTNAME.local:7443/`, verify the self-signed device certificate
    against the printed SHA-256 fingerprint, then enter the owner password or

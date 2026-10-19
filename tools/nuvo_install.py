@@ -152,7 +152,8 @@ def preflight(root, manifest=None, *, architecture=None, kernel=None, run=setup.
     kernel = kernel or platform.release()
     if manifest and kernel not in manifest["platform"]["kernels"]:
         raise ValueError("kernel is outside this release's qualified cohort; use its documented base OS image")
-    setup.admin.boot_config(root)
+    if not setup.admin.boot_config(root).with_name("cmdline.txt").is_file():
+        raise ValueError("Raspberry Pi boot command line is missing; use the qualified base OS image")
     if run(["dpkg", "--audit"]).stdout.strip():
         raise ValueError("repair the existing interrupted dpkg transaction before installing Nuvo")
     if run(["systemctl", "is-active", "NetworkManager.service"], check=False).returncode:
