@@ -13,8 +13,6 @@ FOR A PARTICULAR PURPOSE. See LICENSE for the complete terms.
 
 Third-party software and assets retain their own copyright and license notices:
 
-- third_party/LiteAnyStereo: MIT; see its upstream LICENSE. This research
-  submodule is excluded from the product binaries.
 - web/assets/fonts: SIL Open Font License 1.1; see OFL.txt in that directory.
 - web/assets/benchmark: DIODE sample images under MIT; see LICENSE and README.md
   in that directory and https://diode-dataset.org/.

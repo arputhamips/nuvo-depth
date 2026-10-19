@@ -85,9 +85,8 @@ DEB_BUILD_OPTIONS=parallel=2 dpkg-buildpackage -b -us -uc
 
 The disposable container setup is in `tools/ci/prepare-trixie-builder.sh`.
 Do not run that CI repository-configuration script on a customer's installed OS.
-The optional research submodule is excluded from the production build and is
-not needed to rebuild the attached source archive. Third-party build/runtime
-dependencies come from Debian/Raspberry Pi APT and are recorded in `.buildinfo`.
+Third-party build/runtime dependencies come from Debian/Raspberry Pi APT and
+are recorded in `.buildinfo`. No Git submodule initialization is required.
 
 For an editable working-tree handoff, `tools/release/create_source_bundle.py`
 exports tracked Git source with its current contents and index file modes.

@@ -58,7 +58,7 @@ def source_files(root: Path, *, staged_tree: bool = False):
             raise ValueError(f'resolve the Git index conflict before exporting: {name}')
         mode = int(mode_text, 8)
         if mode == 0o160000:
-            continue  # The pinned submodule checkout is not part of this tree.
+            continue  # Nested repository checkouts are outside this source tree.
         if mode not in {0o100644, 0o100755, 0o120000}:
             raise ValueError(f'unsupported Git file mode: {name}')
         if item := _read(root, name, mode):

@@ -24,8 +24,13 @@ material, and `.codex-tmp` were already ignored rather than published on GitHub.
 | `web/` | 31 | Live console, shared modules, offline fonts, referenced benchmark photos and parked prototype source. Removed three generated prototype outputs. |
 | `debian/`, `deployment/` | 43 | Package manifests, services, release platform/key, asset provisioning and deployment references. Retained. |
 | `docs/` | 61 | Specifications, technical references, research and dated physical evidence. Retained, with old reviews identified as historical. |
-| `models/`, `scripts/` | 9 | Optional export/accelerator research source and manifests, not model binaries. Retained outside the product build. |
-| `third_party/LiteAnyStereo` | One Git link | Optional research checkout pinned to a commit. Not needed by the product build; the checkout is not embedded in source exports. |
+| `models/`, former export scripts | 9 | Semantic-model manifest and notes retained. The obsolete stereo export experiment and its external research checkout were subsequently removed. |
+
+The subsequent cleanup removed the external research checkout, its Git
+submodule configuration, model export/compilation scripts, dedicated validation
+tool and porting/feasibility notes. The current tree has no Git submodules;
+`scripts/` and `third_party/` no longer contain tracked files. The complete
+current folder list is in the [README](../README.md#repository-layout).
 
 Filename-reference searches were checked against CMake, Debian conventions,
 Python/module imports, dynamic asset loading and manual diagnostic entry points.

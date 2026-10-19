@@ -22,11 +22,6 @@ License: GPL-3+
  On Debian systems the complete GPL version 3 is available in
  /usr/share/common-licenses/GPL-3. The source tree also includes LICENSE.
 
-Files: third_party/LiteAnyStereo/*
-Copyright: 2025 Junpeng Jing
-License: Expat
-Comment: This research submodule is excluded from all product binary packages.
-
 Files: web/assets/benchmark/diode-*.jpg web/assets/benchmark/LICENSE
 Copyright: 2021 diode-dataset
 License: Expat

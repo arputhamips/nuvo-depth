@@ -73,5 +73,3 @@ The package profile and calibration seed are documented in
 Production installation and asset verification are documented in the
 [`deployment` guide](../../deployment/README.md).
 
-`validate_hef.py` is retained only as an uninstalled historical experiment; it
-is not called by the product runtime, service, tests, or Debian package.
