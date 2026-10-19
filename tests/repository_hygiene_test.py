@@ -9,13 +9,10 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest import mock
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE = ROOT / 'tools/release'
-sys.path.insert(0, str(RELEASE))
-from nuvo_source_files import source_files
 
 
 @unittest.skipUnless(shutil.which('git'), 'Git is required for export fixtures')
@@ -117,21 +114,18 @@ class PackageTest(unittest.TestCase):
     def test_real_install_ignores_stray_files_and_keeps_referenced_assets(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory); source = base/'source'; source.mkdir()
-            # A Git checkout uses its index. A released source archive is already
-            # a prepared tree and has no .git directory.
-            # Debhelper isolates HOME, hiding the runner's global Git trust.
-            # Trust only this known test checkout, scoped to fixture discovery.
-            with mock.patch.dict(os.environ, {
-                'GIT_CONFIG_COUNT': '1', 'GIT_CONFIG_KEY_0': 'safe.directory',
-                'GIT_CONFIG_VALUE_0': str(ROOT),
-            }):
-                inputs = list(source_files(ROOT, staged_tree=not (ROOT/'.git').exists()))
-            for name, data, mode in inputs:
-                path = source/name; path.parent.mkdir(parents=True, exist_ok=True)
-                if mode & 0o170000 == 0o120000:
-                    path.symlink_to(os.fsdecode(data))
-                else:
-                    path.write_bytes(data)
+            # Copy CMake inputs, never a development checkout's output tree.
+            # This also works inside debhelper and unpacked source archives,
+            # where Git metadata or the runner's Git configuration is absent.
+            for name in ('CMakeLists.txt','CMakePresets.json','LICENSE','NOTICE'):
+                shutil.copy2(ROOT/name, source/name)
+            for name in ('apps','cmake','config','deployment','docs','include',
+                         'platform','presets','protocol','qualification','sdk',
+                         'src','tests','tools','web'):
+                shutil.copytree(ROOT/name, source/name, symlinks=True,
+                                ignore=shutil.ignore_patterns('.git','__pycache__',
+                                    'node_modules','dist','local-research',
+                                    'build','build-*','obj-*','*.pyc'))
             for name in ('web/.env', 'web/pipeline-canvas.js', 'web/node_modules/canary.txt',
                          'web/assets/benchmark/unused-secret.jpg',
                          'sdk/python/nuvo_depth/private_notes.py',
