@@ -2,11 +2,14 @@
 import copy
 import json
 import os
+import io
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
+import tarfile
+import urllib.error
 import unittest
 import zipfile
 from unittest import mock
@@ -56,6 +59,7 @@ class ReleaseTest(unittest.TestCase):
         self.assertIn("--factory", help_text)
         self.assertNotIn(self.key.read_text(), (self.assets/"install-nuvo-depth.sh").read_text())
         self.assertIn('DEFAULT_REPOSITORY="test-owner/nuvo"', (self.assets/"install-nuvo-depth.sh").read_text())
+        self.assertIn('DEFAULT_RELEASE="v1.2.3"', (self.assets/"install-nuvo-depth.sh").read_text())
         # A fork's signing key must replace the already-pinned upstream key.
         self.assertIn((self.assets/"release.pub").read_text().strip(), (self.assets/"install-nuvo-depth.sh").read_text())
 
@@ -129,36 +133,166 @@ class ReleaseTest(unittest.TestCase):
         with self.assertRaises(ValueError): release.load_json(path)
         with self.assertRaises(ValueError): release.HTTPSRedirect().redirect_request(None,None,302,"",{},"http://insecure.test")
 
-    def test_standalone_shell_verifies_before_executing_archive(self):
-        directory=self.directory/"bootstrap"
+    def bootstrap_fixture(self, name, program="print('verified fixture installer executed')\n"):
+        directory=self.directory/name
         directory.mkdir()
         assets=directory/"assets"
         shutil.copytree(self.assets,assets)
         with zipfile.ZipFile(assets/"nuvo-install.pyz","w") as archive:
-            archive.writestr("__main__.py","print('verified fixture installer executed')\n")
+            archive.writestr("__main__.py",program)
         import hashlib
         manifest=json.loads((assets/"manifest.json").read_text())
         item=next(f for f in manifest["files"] if f["name"]=="nuvo-install.pyz")
         item.update(size=(assets/item["name"]).stat().st_size,sha256=hashlib.sha256((assets/item["name"]).read_bytes()).hexdigest())
         (assets/"manifest.json").write_text(json.dumps(manifest))
         subprocess.run(["openssl","pkeyutl","-sign","-inkey",str(self.key),"-rawin","-in",str(assets/"manifest.json"),"-out",str(assets/"manifest.sig")],check=True)
-        shell=directory/"install-nuvo-depth.sh"
-        shutil.copyfile(ROOT/"install-nuvo-depth.sh",shell)
+        publication=directory/"downloads"
+        builder.publish_bundle(assets,publication,self.key)
+        shell=publication/"install-nuvo-depth.sh"
         commands=directory/"bin"
         commands.mkdir()
         curl=commands/"curl"
-        curl.write_text('#!/usr/bin/python3\nimport os,pathlib,shutil,sys\na=sys.argv\nurl=next(v for v in a if v.startswith("https://"))\nassert url.startswith("https://github.com/test-owner/nuvo/releases/download/v1.2.3/")\nshutil.copyfile(pathlib.Path(os.environ["FIXTURE_ASSETS"])/url.rsplit("/",1)[1],a[a.index("-o")+1])\n')
+        curl.write_text('#!/usr/bin/python3\nimport os,pathlib,shutil,sys\na=sys.argv\nurl=next(v for v in a if v.startswith("https://"))\nassert url.startswith("https://github.com/test-owner/nuvo/releases/download/v1.2.3/")\np=pathlib.Path(os.environ["FIXTURE_ASSETS"])/url.rsplit("/",1)[1]\nif "-o" in a: shutil.copyfile(p,a[a.index("-o")+1])\nelse: sys.stdout.buffer.write(p.read_bytes())\n')
         curl.chmod(0o700)
-        env=os.environ|{"PATH":str(commands)+os.pathsep+os.environ["PATH"],"FIXTURE_ASSETS":str(assets)}
-        args=["bash",str(shell),"--repository","test-owner/nuvo","--release","v1.2.3","--public-key",str(assets/"release.pub"),"--factory"]
+        env=os.environ|{"PATH":str(commands)+os.pathsep+os.environ["PATH"],"FIXTURE_ASSETS":str(publication)}
+        return directory,assets,publication,shell,env
+
+    def test_standalone_shell_verifies_before_executing_archive(self):
+        directory,assets,publication,shell,env=self.bootstrap_fixture("bootstrap")
+        args=["bash",str(shell),"--factory"]
         result=subprocess.run(args,env=env,capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertIn("verified fixture installer executed",result.stdout)
-        with (assets/"nuvo-install.pyz").open("ab") as output: output.write(b"tamper")
+        with (publication/release.BUNDLE_NAME).open("ab") as output: output.write(b"tamper")
         result=subprocess.run(args,env=env,capture_output=True,text=True)
         self.assertNotEqual(result.returncode,0)
         self.assertNotIn("verified fixture installer executed",result.stdout)
+        self.assertIn("bundle signature verification failed",result.stderr)
+        # A signed archive cannot bypass the inner installer's signed checksum.
+        with (assets/"nuvo-install.pyz").open("ab") as output: output.write(b"tamper")
+        with tarfile.open(publication/release.BUNDLE_NAME,"w:gz") as archive:
+            for path in assets.iterdir(): archive.add(path,arcname=path.name)
+        subprocess.run(["openssl","pkeyutl","-sign","-inkey",str(self.key),"-rawin","-in",str(publication/release.BUNDLE_NAME),"-out",str(publication/(release.BUNDLE_NAME+".sig"))],check=True)
+        result=subprocess.run(args,env=env,capture_output=True,text=True)
+        self.assertNotEqual(result.returncode,0)
         self.assertIn("checksum mismatch",result.stderr)
+        self.assertNotIn("verified fixture installer executed",result.stdout)
+
+    def test_three_downloads_include_all_signed_source_and_package_files(self):
+        directory,assets,publication,shell,env=self.bootstrap_fixture("three-files")
+        self.assertEqual({p.name for p in publication.iterdir()},{"install-nuvo-depth.sh",release.BUNDLE_NAME,release.BUNDLE_NAME+".sig"})
+        release.verify_signature(publication/release.BUNDLE_NAME,publication/(release.BUNDLE_NAME+".sig"),assets/"release.pub")
+        unpacked=directory/"unpacked"
+        release.unpack_bundle(publication/release.BUNDLE_NAME,unpacked)
+        for item in release.load_json(unpacked/"manifest.json")["files"]: release.check_asset(unpacked/item["name"],item)
+        result=subprocess.run(["bash",str(shell),"--bundle",str(unpacked),"--factory"],env=env,capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertNotIn("Downloading",result.stdout)
+
+    def test_online_bundle_and_legacy_releases_remain_installable(self):
+        directory,assets,publication,_,_=self.bootstrap_fixture("online-bundle")
+        calls=[]
+        def download(url,target,limit):
+            calls.append(target.name)
+            shutil.copyfile(publication/target.name,target)
+        with mock.patch.object(release,"download",side_effect=download):
+            manifest,packages=release.acquire_release(directory/"online",assets/"release.pub","test-owner/nuvo","v1.2.3")
+        self.assertEqual(len(packages),8)
+        self.assertEqual(calls,[release.BUNDLE_NAME,release.BUNDLE_NAME+".sig"])
+        def corrupted(url,target,limit):
+            download(url,target,limit)
+            if target.name==release.BUNDLE_NAME:
+                with target.open("ab") as file: file.write(b"tamper")
+        with mock.patch.object(release,"download",side_effect=corrupted),mock.patch.object(release,"unpack_bundle") as unpack:
+            with self.assertRaises(ValueError):
+                release.acquire_release(directory/"corrupted",assets/"release.pub","test-owner/nuvo","v1.2.3")
+            unpack.assert_not_called()
+        calls.clear()
+        def legacy(url,target,limit):
+            calls.append(target.name)
+            if target.name==release.BUNDLE_NAME: raise urllib.error.HTTPError(url,404,"not found",{},None)
+            shutil.copyfile(assets/target.name,target)
+        with mock.patch.object(release,"download",side_effect=legacy):
+            _,packages=release.acquire_release(directory/"legacy",assets/"release.pub","test-owner/nuvo","v1.2.3")
+        self.assertEqual(len(packages),8)
+        self.assertIn("manifest.json",calls)
+        with mock.patch.object(release,"download",side_effect=urllib.error.HTTPError("https://fixture",403,"forbidden",{},None)) as downloads:
+            with self.assertRaises(urllib.error.HTTPError):
+                release.acquire_release(directory/"forbidden",assets/"release.pub","test-owner/nuvo","v1.2.3")
+        self.assertEqual(downloads.call_count,1)
+
+    def test_bundle_rejects_path_traversal_links_duplicates_and_special_files(self):
+        for index,(name,kind,duplicate) in enumerate([("../outside",tarfile.REGTYPE,False),("link",tarfile.SYMTYPE,False),("device",tarfile.CHRTYPE,False),("same",tarfile.REGTYPE,True)]):
+            path=self.directory/f"unsafe-{index}.tar.gz"
+            with tarfile.open(path,"w:gz") as archive:
+                member=tarfile.TarInfo(name); member.type=kind; member.size=1 if kind==tarfile.REGTYPE else 0
+                archive.addfile(member,io.BytesIO(b"x") if member.size else None)
+                if duplicate: archive.addfile(member,io.BytesIO(b"x"))
+            with self.assertRaises(ValueError): release.unpack_bundle(path,self.directory/f"unsafe-{index}")
+        self.assertFalse((self.directory/"outside").exists())
+
+    def test_factory_pipe_ignores_code_in_the_working_directory(self):
+        directory,_,_,shell,env=self.bootstrap_fixture("factory-pipe")
+        (directory/"tools").mkdir()
+        (directory/"tools/nuvo_install.py").write_text("raise SystemExit('untrusted local code executed')")
+        (directory/"environment").touch()
+        env=env|{"BOOTSTRAP_URL":"https://github.com/test-owner/nuvo/releases/download/v1.2.3/install-nuvo-depth.sh"}
+        result=subprocess.run(["bash","-c",'set -o pipefail; curl -fsSL "$BOOTSTRAP_URL" | bash -s -- --factory'],cwd=directory,env=env,capture_output=True,text=True,timeout=15)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn("verified fixture installer executed",result.stdout)
+
+    @unittest.skipUnless(os.name=="posix","requires a controlling PTY")
+    def test_curl_pipe_preserves_questions_and_masked_passwords(self):
+        import errno, pty, select, signal, time
+        program="import getpass,sys\nassert sys.stdin.isatty()\nassert input('Network choice: ')=='current'\nassert getpass.getpass('Owner password: ')=='private test password'\nprint('interactive fixture complete')\n"
+        directory,_,_,_,env=self.bootstrap_fixture("interactive-pipe",program)
+        env=env|{"BOOTSTRAP_URL":"https://github.com/test-owner/nuvo/releases/download/v1.2.3/install-nuvo-depth.sh"}
+        pid,master=pty.fork()
+        if pid==0:
+            os.chdir(directory)
+            os.execvpe("bash",["bash","-c",'set -o pipefail; curl -fsSL "$BOOTSTRAP_URL" | bash'],env)
+        transcript=b""; answered=set(); status=None
+        try:
+            deadline=time.monotonic()+15
+            while time.monotonic()<deadline:
+                if select.select([master],[],[],.1)[0]:
+                    try: chunk=os.read(master,65536)
+                    except OSError as error:
+                        if error.errno!=errno.EIO: raise
+                        break
+                    if not chunk: break
+                    transcript+=chunk
+                    for prompt,answer in [(b"Network choice: ",b"current\n"),(b"Owner password: ",b"private test password\n")]:
+                        if prompt in transcript and prompt not in answered:
+                            os.write(master,answer); answered.add(prompt)
+                done,child_status=os.waitpid(pid,os.WNOHANG)
+                if done: status=child_status; break
+            if status is None:
+                done,child_status=os.waitpid(pid,os.WNOHANG)
+                if done: status=child_status
+            if status is None:
+                os.killpg(pid,signal.SIGKILL); _,status=os.waitpid(pid,0)
+                self.fail("Interactive piped installer did not exit: "+transcript.decode(errors="replace"))
+            while select.select([master],[],[],.1)[0]:
+                try: chunk=os.read(master,65536)
+                except OSError as error:
+                    if error.errno!=errno.EIO: raise
+                    break
+                if not chunk: break
+                transcript+=chunk
+            self.assertEqual(os.waitstatus_to_exitcode(status),0,transcript.decode(errors="replace"))
+            self.assertIn(b"interactive fixture complete",transcript)
+            self.assertNotIn(b"private test password",transcript)
+        finally:
+            os.close(master)
+
+    def test_normal_pipe_without_a_terminal_fails_before_downloads(self):
+        directory,_,_,_,env=self.bootstrap_fixture("no-terminal")
+        env=env|{"BOOTSTRAP_URL":"https://github.com/test-owner/nuvo/releases/download/v1.2.3/install-nuvo-depth.sh"}
+        result=subprocess.run(["bash","-c",'set -o pipefail; curl -fsSL "$BOOTSTRAP_URL" | bash'],env=env,capture_output=True,text=True,start_new_session=True,timeout=10)
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn("controlling terminal",result.stderr)
+        self.assertNotIn("Downloading",result.stdout)
 
     @unittest.skipUnless(os.name == "posix", "worker flock requires Linux")
     def test_pending_handoff_survives_a_rejected_installer_job(self):

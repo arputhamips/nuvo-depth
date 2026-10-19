@@ -111,13 +111,25 @@ already reviewed draft, publish that draft in GitHub rather than rebuilding it.
 The workflow first uploads all assets to a draft, then applies the selected
 visibility, so users are not offered a partially uploaded release.
 
-Each install release contains eight runtime packages at one exact version,
-`install-nuvo-depth.sh`, `nuvo-install.pyz`, `release.pub`, `manifest.json`,
-`manifest.sig`, LICENSE/NOTICE, matching source and build evidence. GitHub-safe asset filenames use dots in place of Debian version tildes; package
+From beta 4 onward, each install release exposes three customer downloads:
+
+| File | Purpose |
+| --- | --- |
+| `install-nuvo-depth.sh` | Release-pinned installer, used by the one-line terminal command. |
+| `nuvo-depth-pi5-arm64.tar.gz` | All eight runtime packages, installer archive, manifest, public key, LICENSE/NOTICE, README, matching source and build evidence. |
+| `nuvo-depth-pi5-arm64.tar.gz.sig` | Ed25519 signature of the complete bundle, checked before extraction. |
+
+GitHub also generates its standard source-code ZIP/tar downloads. Customers do
+not choose individual `.deb` files. Older published releases retain their
+individual assets so their original installer URLs keep working.
+
+The bundle retains eight runtime packages at one exact version. GitHub-safe
+internal filenames use dots in place of Debian version tildes; package
 control metadata retains the exact `~beta.N` version. This normalization happens
 before signing, so downloaded filenames match the manifest. The signed
 manifest binds every included file's name, size and SHA-256. The bootstrap
-checks it before running the Python archive; the installer checks package
+checks the bundle signature before unpacking, then checks the manifest and
+Python archive. The installer checks package
 hashes and control metadata before APT installs them. Customers need HTTPS
 access to public GitHub releases and their OS APT sources, with no GitHub
 account, token or SSH key. See [customer install commands](install.md).

@@ -2,6 +2,15 @@
 
 Public source and release repository: [arputhamips/nuvo-depth](https://github.com/arputhamips/nuvo-depth).
 
+Install on a supported Raspberry Pi 5 from its terminal:
+
+```bash
+curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.4/install-nuvo-depth.sh | sudo bash
+```
+
+The installer asks the setup questions and installs all required Nuvo packages.
+See [supported OS and setup instructions](docs/install.md) before installing.
+
 Native stereo-depth runtime for the Nuvo Raspberry Pi 5 and dual
 hardware-triggered IMX296 cameras. Stereo processing is selected through a
 ROS-free backend interface; the production backend is OpenCV CPU SGBM. Capture,

@@ -97,7 +97,7 @@ jobs:
                   --extra output/packages/build-packages.txt --extra output/packages/ctest.log)
           for file in output/packages/*.buildinfo; do extras+=(--extra "$file"); done
           python3 tools/build_install_release.py --source release-source --packages output/packages \
-            --output output/install-release --repository "$NUVO_REPOSITORY" --tag "$NUVO_TAG" \
+            --output output/install-release --publication-output output/downloads --repository "$NUVO_REPOSITORY" --tag "$NUVO_TAG" \
             --version "$(dpkg-parsechangelog -l release-source/debian/changelog -S Version)" \
             --platform release-source/deployment/release-platform.json --private-key "$key_file" "${extras[@]}"
       - name: Publish selected release visibility
@@ -110,17 +110,31 @@ jobs:
           python3 - <<'PY'
           import os, pathlib
           repo, tag = os.environ['NUVO_REPOSITORY'], os.environ['NUVO_TAG']
-          pathlib.Path('output/release-notes.md').write_text(f'''Signed Nuvo Depth ARM64 packages for the Raspberry Pi 5. See `manifest.json` for the exact supported OS image and kernels.
+          pathlib.Path('output/release-notes.md').write_text(f'''## Install Nuvo Depth
 
-          Matching GPL-3.0-or-later source: attached `nuvo-depth-source.tar.gz` and https://github.com/{repo}/tree/{tag} . Build instructions and signing fingerprint: https://github.com/{repo}/blob/{tag}/docs/releases.md . Third-party terms are in LICENSE/NOTICE and debian/copyright.
+          On a Raspberry Pi 5 running the supported Raspberry Pi OS Lite 64-bit Trixie image, open a terminal and run:
 
-          Download and inspect `install-nuvo-depth.sh`, then run `sudo bash ./install-nuvo-depth.sh --release {tag}` from an interactive terminal. It verifies the signed manifest and all packages before installation. Factory use adds `--factory` with the unit's actual Wi-Fi country and calibration inputs. Full instructions: https://github.com/{repo}/blob/{tag}/docs/install.md .
+          ```bash
+          curl -fsSL https://github.com/{repo}/releases/download/{tag}/install-nuvo-depth.sh | sudo bash
+          ```
 
-          Package tests do not certify per-unit calibration, electrical safety or manufacturing acceptance.
+          Answer the terminal questions, then open the console URL printed at the end. The installer selects all packages and verifies their signatures automatically. No GitHub account or SSH key is needed.
+
+          | Download | Purpose |
+          | --- | --- |
+          | `install-nuvo-depth.sh` | The installer used by the command above. |
+          | `nuvo-depth-pi5-arm64.tar.gz` | Complete installer bundle, including packages, matching GPL source, licenses and build records. Useful for caching; OS dependencies still need APT access/cache. |
+          | `nuvo-depth-pi5-arm64.tar.gz.sig` | Signature checked automatically by the installer. |
+
+          GitHub's additional Source code downloads are for developers. You do not need to select individual packages.
+
+          [Supported OS and full instructions](https://github.com/{repo}/blob/{tag}/docs/install.md) · [Release signing and building from source](https://github.com/{repo}/blob/{tag}/docs/releases.md)
+
+          Factory provisioning adds `-s -- --factory --wifi-country CC` after `sudo bash`, using the actual operating country and any per-unit calibration inputs. Package tests do not certify per-unit calibration, electrical safety or manufacturing acceptance.
           ''')
           PY
           # No clobber/update: an existing tag's release assets are never overwritten.
-          gh release create "$NUVO_TAG" output/install-release/* --repo "$NUVO_REPOSITORY" \
+          gh release create "$NUVO_TAG" output/downloads/* --repo "$NUVO_REPOSITORY" \
             --verify-tag --draft --title "Nuvo Depth $NUVO_TAG" --notes-file output/release-notes.md
           case "$NUVO_PUBLICATION" in
             draft) ;;

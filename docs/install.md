@@ -11,7 +11,7 @@ signed manifest. Use only an explicitly published release. The public source and
 release repository is [arputhamips/nuvo-depth](https://github.com/arputhamips/nuvo-depth).
 
 The current prerelease tested for setup is
-[v0.1.1-beta.3](https://github.com/arputhamips/nuvo-depth/releases/tag/v0.1.1-beta.3).
+[v0.1.1-beta.4](https://github.com/arputhamips/nuvo-depth/releases/tag/v0.1.1-beta.4).
 Use that exact tag in the commands below. The
 [qualification record](release-qualification-20261019.md#uf-01-and-uf-02-physical-setup-acceptance)
 distinguishes physical first-use tests from fresh-SD and manufacturing acceptance.
@@ -37,29 +37,45 @@ available when deliberately switching a Wi-Fi SSH connection to a hotspot.
 
 ## Terminal installation (UF-02)
 
-For a reviewed source checkout, the command is:
+Open a terminal on the Pi (locally or in an interactive SSH session) and run:
+
+```bash
+curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.4/install-nuvo-depth.sh | sudo bash
+```
+
+Answer the questions, review the plan, and let the installer finish. Then open
+the console URL it prints. You do not need to choose or download Debian packages.
+The published script is pinned to its release; `--release` is optional for that
+script. Terminal questions and masked passwords continue to work when piped.
+
+The same command can be copied into the product wiki. To use a future release,
+update the version in the URL after its qualification and publication.
+
+For a reviewed source checkout, explicitly select the release:
 
 ```bash
 # Replace vX.Y.Z with an exact published, qualified release tag.
 sudo bash ./install-nuvo-depth.sh --release vX.Y.Z
 ```
 
-The source and published shell contain the repository and pinned public key.
-Download the script from the exact release, inspect it, then run:
+To inspect the script before running it:
 
 ```bash
-VERSION=vX.Y.Z # choose an exact published release
+VERSION=v0.1.1-beta.4
 curl --proto '=https' --proto-redir '=https' -fL \
   "https://github.com/arputhamips/nuvo-depth/releases/download/$VERSION/install-nuvo-depth.sh" \
   -o install-nuvo-depth.sh
 less install-nuvo-depth.sh
-sudo bash ./install-nuvo-depth.sh --release "$VERSION"
+sudo bash ./install-nuvo-depth.sh
 ```
 
-Do not pipe the script into Bash: normal mode requires an interactive terminal
-for questions and masked passwords. A downloaded script verifies the release
-manifest and installer archive before executing the archive. It refuses moving
-aliases such as `latest`/`main`. The initial script and public-key fingerprint
+The script downloads one installer bundle and checks its Ed25519 signature
+before extracting it. It then verifies the inner manifest and installer archive;
+the installer checks all package hashes and metadata before APT installs them.
+Piped normal setup reconnects input to the controlling terminal; an unattended
+session without a terminal receives an explicit error. The signed payload still
+names an exact release and refuses moving aliases such as `latest`/`main`.
+The initial script and public-key fingerprint
 must come through a trusted distribution channel; a key fetched alongside an
 untrusted installer does not establish trust.
 
@@ -107,8 +123,9 @@ the calibration bundle leaves calibration pending and capture disabled. The
 factory preset never enables provisional preview or claims a customer owner.
 Set `--wifi-country` to the unit's actual operating region (US is an example),
 or preconfigure it in the OS. Factory mode refuses an unknown country rather
-than choosing one. Radio/country changes happen only when the AP is activated,
-after package work and delivery of setup material have finished.
+than choosing one. The installer persists the country while preparing the unit.
+It retains the station connection until deliberate AP activation after package
+work and delivery of setup material have finished.
 
 Factory mode asks no questions. It creates unique per-unit identity, certificate,
 AP password and eight-character setup proof (displayed as `ABCD-EFGH`), enables
@@ -194,10 +211,17 @@ When starting without calibration, use the terminal's explicit engineering
 preview option for calibration capture, then rerun with the accepted bundle
 and disable engineering preview for authority-enforced operation.
 
-An extracted signed bundle can be used from a reviewed checkout:
+For a cached bundle, download `nuvo-depth-pi5-arm64.tar.gz` and its `.sig` from
+the same release. Verify it using your independently trusted release key before
+extracting:
 
 ```bash
-sudo bash ./install-nuvo-depth.sh --bundle /path/to/release --public-key /trusted/release.pub
+openssl pkeyutl -verify -pubin -inkey /trusted/release.pub -rawin \
+  -in nuvo-depth-pi5-arm64.tar.gz -sigfile nuvo-depth-pi5-arm64.tar.gz.sig
+mkdir nuvo-install
+tar -xzf nuvo-depth-pi5-arm64.tar.gz -C nuvo-install
+cd nuvo-install
+sudo bash ./install-nuvo-depth.sh --bundle "$PWD" --public-key /trusted/release.pub
 ```
 
 This avoids downloading Nuvo packages. OS dependencies still need configured

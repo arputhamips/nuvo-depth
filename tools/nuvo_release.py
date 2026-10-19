@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import tarfile
 import urllib.error
 import urllib.request
 
@@ -21,6 +22,24 @@ RUNTIME_PACKAGES = {
 REPOSITORY = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
 TAG = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.+-]*\Z")
 NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.+~-]{0,190}\Z")
+BUNDLE_NAME = "nuvo-depth-pi5-arm64.tar.gz"
+BUNDLE_LIMIT = 256 * 1024**2
+
+
+def unpack_bundle(archive: Path, destination: Path):
+    """Unpack an authenticated, flat release without links or special files."""
+    destination.mkdir(parents=True, exist_ok=True)
+    names, total = set(), 0
+    with tarfile.open(archive, "r:gz") as bundle:
+        for member in bundle:
+            total += member.size
+            if (not member.isfile() or not NAME.fullmatch(member.name) or member.name in names
+                    or len(names) >= 66 or member.size > 1024**3 or total > 4 * 1024**3 + 1024**2):
+                raise ValueError("unsafe release bundle entry")
+            names.add(member.name)
+            with bundle.extractfile(member) as source, (destination/member.name).open("xb") as target:
+                import shutil
+                shutil.copyfileobj(source, target)
 
 
 def unique_object(items):
@@ -143,8 +162,21 @@ def acquire_release(destination: Path, public_key: Path, repository=None, tag=No
         directory = destination
         directory.mkdir(parents=True, exist_ok=True)
         base = f"https://github.com/{repository}/releases/download/{tag}"
-        download(base + "/manifest.json", directory / "manifest.json", 1024 * 1024)
-        download(base + "/manifest.sig", directory / "manifest.sig", 64)
+        archive = directory / BUNDLE_NAME
+        try:
+            download(base + "/" + BUNDLE_NAME, archive, BUNDLE_LIMIT)
+        except urllib.error.HTTPError as error:
+            if error.code != 404:
+                raise
+            # Preserve installation of older releases with individual assets.
+            download(base + "/manifest.json", directory / "manifest.json", 1024 * 1024)
+            download(base + "/manifest.sig", directory / "manifest.sig", 64)
+        else:
+            signature = directory / (BUNDLE_NAME + ".sig")
+            download(base + "/" + signature.name, signature, 64)
+            verify_signature(archive, signature, public_key)
+            unpack_bundle(archive, directory)
+            bundle = directory
     verify_signature(directory / "manifest.json", directory / "manifest.sig", public_key)
     manifest = validate_manifest(load_json(directory / "manifest.json"), repository, tag)
     if not bundle:
