@@ -22,7 +22,11 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install Git before checkout (minimal container has no Git)
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.source_ref || github.sha }}
           persist-credentials: false
@@ -34,10 +38,11 @@ jobs:
           CTEST_OUTPUT_ON_FAILURE: '1'
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          dpkg-buildpackage -b -us -uc
           mkdir -p output/package-build
-          cp ../*.deb ../*.buildinfo ../*.changes output/package-build/
+          git rev-parse --verify HEAD
           git archive --format=tar.gz --prefix=nuvo-depth/ --output=output/package-build/nuvo-depth-source.tar.gz HEAD
+          dpkg-buildpackage -b -us -uc
+          cp ../*.deb ../*.buildinfo ../*.changes output/package-build/
           cp obj-aarch64-linux-gnu/Testing/Temporary/LastTest.log output/package-build/ctest.log
           dpkg-query -W -f='${binary:Package}\t${Version}\t${Architecture}\n' > output/package-build/build-packages.txt
           python3 - <<'PY'
@@ -68,7 +73,7 @@ jobs:
           depthd --check-config /etc/nuvo-depth/daemon.yaml
           nuvo-setup --help
           dpkg --audit
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nuvo-debian-arm64
           path: output/package-build/
@@ -76,7 +81,7 @@ jobs:
           retention-days: 30
       - name: Retain failed test diagnostics
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: arm64-test-diagnostics
           path: obj-aarch64-linux-gnu/Testing/Temporary/
