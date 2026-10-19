@@ -104,6 +104,7 @@ cameras. Normal device installation uses the signed installer above.
 | `tools/` | Installation, calibration, diagnostics, and release tools |
 | `debian/`, `deployment/` | Packages, services, and release configuration |
 | `tests/`, `docs/` | Automated checks, specifications, and qualification evidence |
+| `models/`, `scripts/hailo/`, `third_party/` | Optional research sources, excluded from the product build |
 
 ## License
 

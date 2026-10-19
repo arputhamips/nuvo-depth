@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -118,7 +119,14 @@ class PackageTest(unittest.TestCase):
             base = Path(directory); source = base/'source'; source.mkdir()
             # A Git checkout uses its index. A released source archive is already
             # a prepared tree and has no .git directory.
-            for name, data, mode in source_files(ROOT, staged_tree=not (ROOT/'.git').exists()):
+            # Debhelper isolates HOME, hiding the runner's global Git trust.
+            # Trust only this known test checkout, scoped to fixture discovery.
+            with mock.patch.dict(os.environ, {
+                'GIT_CONFIG_COUNT': '1', 'GIT_CONFIG_KEY_0': 'safe.directory',
+                'GIT_CONFIG_VALUE_0': str(ROOT),
+            }):
+                inputs = list(source_files(ROOT, staged_tree=not (ROOT/'.git').exists()))
+            for name, data, mode in inputs:
                 path = source/name; path.parent.mkdir(parents=True, exist_ok=True)
                 if mode & 0o170000 == 0o120000:
                     path.symlink_to(os.fsdecode(data))
