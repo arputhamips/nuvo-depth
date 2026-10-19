@@ -4,4 +4,4 @@ nuvo-depth (0.1.0) unstable; urgency=medium
   installation. Review `nuvoctl platform prepare --platform pi5`, then run it
   again with `--apply` only on the intended unit. A reboot is normally required.
 
- -- Meridian Robotics <packages@meridianrobotics.example>  Tue, 08 Sep 2026 12:00:00 -0500
+ -- NuvoHardware <nml@meridian.cv>  Tue, 08 Sep 2026 12:00:00 -0500

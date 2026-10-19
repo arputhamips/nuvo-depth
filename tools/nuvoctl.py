@@ -437,7 +437,7 @@ def usb_configure(root: Path, vid: str, pid: str, electrical_approval: bool,
     _attribute(gadget/"idVendor",vid); _attribute(gadget/"idProduct",pid)
     _attribute(gadget/"bcdUSB","0x0200"); _attribute(gadget/"bcdDevice","0x0100")
     strings=gadget/"strings/0x409"; strings.mkdir(parents=True,exist_ok=True)
-    _attribute(strings/"serialnumber",serial); _attribute(strings/"manufacturer","Meridian Robotics")
+    _attribute(strings/"serialnumber",serial); _attribute(strings/"manufacturer","NuvoHardware")
     _attribute(strings/"product","Nuvo Depth")
     function=gadget/"functions/ecm.usb0"; function.mkdir(parents=True,exist_ok=True)
     _attribute(function/"dev_addr",device_mac); _attribute(function/"host_addr",host_mac)

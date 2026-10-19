@@ -32,4 +32,4 @@ nuvo-depth (0.1.0) unstable; urgency=medium
 
   * Initial native Nuvo Depth appliance package skeleton.
 
- -- Meridian Robotics <packages@meridianrobotics.example>  Tue, 08 Sep 2026 12:00:00 -0500
+ -- NuvoHardware <nml@meridian.cv>  Tue, 08 Sep 2026 12:00:00 -0500

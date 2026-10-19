@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright (C) 2026 Meridian Robotics. See LICENSE for terms and warranty notice.
+# Copyright (C) 2026 NuvoHardware. See LICENSE for terms and warranty notice.
 # The release builder pins DEFAULT_RELEASE in each published installer.
 DEFAULT_REPOSITORY="arputhamips/nuvo-depth"
 DEFAULT_RELEASE=""

@@ -1375,8 +1375,8 @@ endif()
 
 set(CPACK_GENERATOR "DEB")
 set(CPACK_PACKAGE_NAME "nuvo-depthd")
-set(CPACK_PACKAGE_CONTACT "Meridian Robotics")
-set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Meridian Robotics")
+set(CPACK_PACKAGE_CONTACT "NuvoHardware")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "NuvoHardware")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 set(DEPTHD_PACKAGE_REVISION "" CACHE STRING
   "Clean Git revision embedded in the Debian package version")
