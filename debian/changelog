@@ -1,3 +1,10 @@
+nuvo-depth (0.1.1~beta.2) unstable; urgency=medium
+
+  * Normalize GitHub asset names before signing the release manifest.
+  * Pin the tested Pi camera ABI cohort and retain setup state on reinstall.
+
+ -- Nirmal <nml@meridian.cv>  Mon, 19 Oct 2026 15:20:00 -0500
+
 nuvo-depth (0.1.1~beta.1) unstable; urgency=medium
 
   * Add shared terminal/factory provisioning and protected setup networking.

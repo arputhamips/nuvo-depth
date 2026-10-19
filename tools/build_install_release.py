@@ -13,6 +13,13 @@ import zipfile
 import nuvo_release as release
 
 
+def asset_name(name):
+    # GitHub normalizes characters such as Debian's '~' during asset upload.
+    # Choose that portable spelling BEFORE hashing/signing; control Version is
+    # authoritative and keeps its exact Debian value, including '~beta.N'.
+    return re.sub(r"[^A-Za-z0-9_.-]", ".", name)
+
+
 def build(source, packages, output, repository, tag, version, platform, private_key, extras=None):
     if not release.REPOSITORY.fullmatch(repository) or not release.TAG.fullmatch(tag):
         raise ValueError("supply the final owner/repository and exact release tag")
@@ -30,7 +37,7 @@ def build(source, packages, output, repository, tag, version, platform, private_
         selected.append((path, metadata))
         with path.open("rb") as package_file:
             digest = hashlib.file_digest(package_file, "sha256").hexdigest()
-        files.append({"name": path.name, "size": path.stat().st_size, "sha256": digest,
+        files.append({"name": asset_name(path.name), "size": path.stat().st_size, "sha256": digest,
                       "package": metadata["Package"], "version": metadata["Version"], "architecture": metadata["Architecture"]})
     # Validate everything before producing an output directory.
     placeholder = {"name": "nuvo-install.pyz", "size": 1, "sha256": "0"*64}
@@ -40,13 +47,13 @@ def build(source, packages, output, repository, tag, version, platform, private_
     extras = list(extras or [])
     reserved = {f["name"] for f in files} | {"manifest.json", "manifest.sig", "nuvo-install.pyz", "install-nuvo-depth.sh", "release.pub", "LICENSE", "NOTICE"}
     for path in extras:
-        if not release.NAME.fullmatch(path.name) or path.name in reserved or path.is_symlink() or not path.is_file() or path.suffix not in {".gz", ".json", ".txt", ".buildinfo", ".log"}:
+        if not release.NAME.fullmatch(path.name) or asset_name(path.name) in reserved or path.is_symlink() or not path.is_file() or path.suffix not in {".gz", ".json", ".txt", ".buildinfo", ".log"}:
             raise ValueError("unsafe or duplicate supplementary release asset")
-        reserved.add(path.name)
+        reserved.add(asset_name(path.name))
     output.mkdir(parents=True, exist_ok=False)
     import shutil
     for path, _ in selected:
-        shutil.copyfile(path, output / path.name)
+        shutil.copyfile(path, output / asset_name(path.name))
     with zipfile.ZipFile(output / "nuvo-install.pyz", "x", compression=zipfile.ZIP_DEFLATED) as archive:
         for name in ("nuvo_install.py", "nuvo_setup.py", "nuvo_release.py", "nuvoctl.py"):
             text = (source / "tools" / name).read_text(encoding="utf-8")
@@ -74,10 +81,10 @@ def build(source, packages, output, repository, tag, version, platform, private_
         data = (output / name).read_bytes()
         manifest["files"].append({"name": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()})
     for path in extras:
-        shutil.copyfile(path, output / path.name)
+        shutil.copyfile(path, output / asset_name(path.name))
         with path.open("rb") as asset:
             digest = hashlib.file_digest(asset, "sha256").hexdigest()
-        manifest["files"].append({"name": path.name, "size": path.stat().st_size, "sha256": digest})
+        manifest["files"].append({"name": asset_name(path.name), "size": path.stat().st_size, "sha256": digest})
     release.validate_manifest(manifest)
     (output / "manifest.json").write_text(json.dumps(manifest, sort_keys=True, indent=2)+"\n", encoding="utf-8")
     subprocess.run(["openssl", "pkeyutl", "-sign", "-inkey", str(private_key), "-rawin", "-in", str(output/"manifest.json"), "-out", str(output/"manifest.sig")], check=True)

@@ -73,6 +73,26 @@ class ReleaseTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 builder.build(ROOT, self.directory/"packages", self.directory/"rejected-output", "test-owner/nuvo", "v1.2.3", "1.2.3", self.platform, self.key, extras)
 
+    def test_github_safe_beta_names_keep_exact_debian_control_versions(self):
+        packages = self.directory / "beta-packages"
+        packages.mkdir()
+        version = "1.2.3~beta.2"
+        for package in release.RUNTIME_PACKAGES:
+            tree = packages/package/"DEBIAN"
+            tree.mkdir(parents=True)
+            (tree/"control").write_text(f"Package: {package}\nVersion: {version}\nArchitecture: arm64\nMaintainer: Test <test@example.com>\nDescription: Beta fixture\n")
+            subprocess.run(["dpkg-deb","--build","--root-owner-group",str(tree.parent),str(packages/f"{package}_{version}_arm64.deb")],check=True,capture_output=True)
+        extra = packages / "cohort_1.2.3~beta.2_arm64.buildinfo"
+        extra.write_text("test build record")
+        assets = self.directory/"beta-release"
+        manifest = builder.build(ROOT,packages,assets,"test-owner/nuvo","v1.2.3-beta.2",version,self.platform,self.key,[extra])
+        self.assertTrue(all("~" not in f["name"] and "+" not in f["name"] for f in manifest["files"]))
+        self.assertTrue((assets/"cohort_1.2.3.beta.2_arm64.buildinfo").is_file())
+        actual, paths = release.acquire_release(self.directory, assets/"release.pub",bundle=assets)
+        self.assertEqual(actual["version"], version)
+        self.assertEqual(len(paths),8)
+        self.assertTrue(all(f.get("version",version)==version for f in actual["files"]))
+
     def test_source_trust_defaults_match_published_public_key(self):
         import re
         public_key = (ROOT/"deployment/release-signing.pub").read_text()

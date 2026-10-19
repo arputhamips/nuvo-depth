@@ -53,8 +53,8 @@ published release assets are the durable customer distribution.
 
 Before tagging an install release:
 
-1. Set `debian/changelog` to a new version. A beta such as `0.1.1~beta.1` maps
-   to tag `v0.1.1-beta.1`; stable `0.1.1` maps to `v0.1.1`.
+1. Set `debian/changelog` to a new version. A beta such as `0.1.1~beta.2` maps
+   to tag `v0.1.1-beta.2`; stable `0.1.1` maps to `v0.1.1`.
 2. Install and exercise the exact built packages on the target Pi. Preserve its
    current configuration, ownership, identity and accepted calibration. Verify
    APT dependency resolution, daemon/gateway configuration, console access,
@@ -97,10 +97,10 @@ be on main's history, the version to match the changelog and the platform
 manifest to be complete. For example:
 
 ```bash
-git tag -a v0.1.1-beta.1 -m 'Nuvo Depth 0.1.1 beta 1'
-git push origin refs/tags/v0.1.1-beta.1
+git tag -a v0.1.1-beta.2 -m 'Nuvo Depth 0.1.1 beta 1'
+git push origin refs/tags/v0.1.1-beta.2
 gh workflow run install-release.yml --ref main \
-  -f tag=v0.1.1-beta.1 -f publication=prerelease
+  -f tag=v0.1.1-beta.2 -f publication=prerelease
 ```
 
 Choose `draft` to stage a release for review; customers cannot download draft
@@ -113,7 +113,9 @@ visibility, so users are not offered a partially uploaded release.
 
 Each install release contains eight runtime packages at one exact version,
 `install-nuvo-depth.sh`, `nuvo-install.pyz`, `release.pub`, `manifest.json`,
-`manifest.sig`, LICENSE/NOTICE, matching source and build evidence. The signed
+`manifest.sig`, LICENSE/NOTICE, matching source and build evidence. GitHub-safe asset filenames use dots in place of Debian version tildes; package
+control metadata retains the exact `~beta.N` version. This normalization happens
+before signing, so downloaded filenames match the manifest. The signed
 manifest binds every included file's name, size and SHA-256. The bootstrap
 checks it before running the Python archive; the installer checks package
 hashes and control metadata before APT installs them. Customers need HTTPS
