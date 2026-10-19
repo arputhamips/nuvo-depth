@@ -56,6 +56,12 @@ exercised the configured production release key without publishing assets.
 The final tagged release is rebuilt by the signed-release workflow and its
 signed draft is checked before promotion to a public beta.
 
+The initial unpublished beta 1 draft exposed GitHub normalizing `~` in uploaded
+asset filenames. Download-and-verify caught the mismatch. The release builder
+now normalizes names before signing, with a real Debian beta-package regression
+test. Beta 2 is the first public install release; the beta 1 source tag remains
+as immutable engineering history.
+
 The updated libcamera package changed its public C++ Span ABI while retaining
 upstream version 0.7.2 and SONAME 0.7. A load test rejected the October-built
 Nuvo binary against the Pi's August library before installation. The tested
@@ -77,6 +83,32 @@ consumed or changed by the browser check. The first cold boot needed one
 service startup retry; it recovered automatically. Subsequent bounded capture
 restarts passed. The installer now reports a completed required reboot correctly
 and explicitly reinstalls its selected Nuvo cohort on a retry.
+
+## Final public beta 2 verification
+
+[Signed release workflow](https://github.com/arputhamips/nuvo-depth/actions/runs/39318514456)
+built, tested, installed and signed tag `v0.1.1-beta.2`, commit
+`e436832d89b38baf9d5549a585c39f644d1e99fe`. The downloaded draft passed Ed25519
+verification, SHA-256/size checks for all 18 signed assets, exact metadata checks
+for all eight runtime packages, and comparison of all 399 source files with
+the tagged Git tree.
+
+That exact signed draft installed on the Pi as `0.1.1~beta.2` and passed the
+HTTPS/browser/setup-IPC checks, a 396,881-byte 728 x 544 raw frame decode, and
+another three capture cycles of 100 stereo pairs each. Maximum consumed sensor
+skew was 19 us; pairer/callback/trigger/requeue error counts and outstanding
+leases were zero. All 17 preserved-file hashes matched and throttling stayed
+`0x0`.
+
+The release was then [published as a prerelease](https://github.com/arputhamips/nuvo-depth/releases/tag/v0.1.1-beta.2).
+Anonymous HTTPS downloads matched the signed draft byte-for-byte. The standalone
+shell installer then ran directly from those GitHub URLs on the Pi, verified
+its Python archive and all packages, and successfully reinstalled the same
+version through the detached worker. The dpkg log confirmed all eight
+same-version reinstalls. The final receipt was complete, network access was
+confirmed, no reboot was pending, and the gateway/capture/NetworkManager services
+were active. Identity, certificate, existing administrative access, calibration
+and the original encoded-only output setting were preserved.
 
 ## Preservation and remaining gates
 
