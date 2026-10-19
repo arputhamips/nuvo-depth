@@ -56,6 +56,29 @@ class ReleaseTest(unittest.TestCase):
         self.assertIn("--factory", help_text)
         self.assertNotIn(self.key.read_text(), (self.assets/"install-nuvo-depth.sh").read_text())
         self.assertIn('DEFAULT_REPOSITORY="test-owner/nuvo"', (self.assets/"install-nuvo-depth.sh").read_text())
+        # A fork's signing key must replace the already-pinned upstream key.
+        self.assertIn((self.assets/"release.pub").read_text().strip(), (self.assets/"install-nuvo-depth.sh").read_text())
+
+    def test_supplementary_source_and_build_records_are_signed(self):
+        extra = self.directory / "nuvo-depth-source.tar.gz"
+        extra.write_bytes(b"test source archive fixture")
+        assets = self.directory / "release-with-source"
+        manifest = builder.build(ROOT, self.directory/"packages", assets, "test-owner/nuvo", "v1.2.3", "1.2.3", self.platform, self.key, [extra])
+        release.verify_signature(assets/"manifest.json", assets/"manifest.sig", assets/"release.pub")
+        item = next(f for f in manifest["files"] if f["name"] == extra.name)
+        release.check_asset(assets/extra.name, item)
+        (assets/extra.name).write_bytes(b"tampered source")
+        with self.assertRaises(ValueError): release.check_asset(assets/extra.name, item)
+        for extras in ([extra, extra], [self.key], [self.assets/"manifest.json"]):
+            with self.assertRaises(ValueError):
+                builder.build(ROOT, self.directory/"packages", self.directory/"rejected-output", "test-owner/nuvo", "v1.2.3", "1.2.3", self.platform, self.key, extras)
+
+    def test_source_trust_defaults_match_published_public_key(self):
+        import re
+        public_key = (ROOT/"deployment/release-signing.pub").read_text()
+        self.assertEqual(release.DEFAULT_PUBLIC_KEY, public_key)
+        match = re.search(r"^RELEASE_PUBLIC_KEY_PEM='([^']*)'", (ROOT/"install-nuvo-depth.sh").read_text(), re.M)
+        self.assertEqual(match.group(1)+"\n", public_key)
 
     def test_tampering_wrong_key_and_asset_hash_fail(self):
         bad = self.directory / "bad.json"

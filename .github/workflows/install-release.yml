@@ -1,57 +1,131 @@
-name: Build draft install release
+name: Signed install release
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing reviewed release tag
+        description: Existing reviewed tag, matching the Debian changelog (vX.Y.Z)
         required: true
         type: string
+      publication:
+        description: Release visibility after every build, test and signing check passes
+        required: true
+        default: draft
+        type: choice
+        options: [draft, prerelease, publish]
 permissions:
-  contents: write
+  contents: read
+concurrency:
+  group: install-release-${{ inputs.tag }}
+  cancel-in-progress: false
 jobs:
-  release:
-    # TODO(GITHUB): configure this protected environment, a dedicated qualified
-    # Trixie arm64 builder, and NUVO_RELEASE_ED25519_PEM. Never use it for PRs.
-    if: vars.NUVO_INSTALL_RELEASE_ENABLED == 'true'
-    environment: nuvo-install-release
-    runs-on: [self-hosted, Linux, ARM64, nuvo-trixie]
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    outputs:
+      source_commit: ${{ steps.tag.outputs.source_commit }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.tag }}
+          fetch-depth: 0
           persist-credentials: false
-      - name: Check builder and build exact Debian cohort
+      - name: Validate reviewed tag and complete platform manifest
+        id: tag
         env:
           NUVO_TAG: ${{ inputs.tag }}
         run: |
+          [[ "$NUVO_TAG" =~ ^v[0-9][A-Za-z0-9.+-]*$ ]]
           git check-ref-format "refs/tags/$NUVO_TAG"
-          git show-ref --verify --quiet "refs/tags/$NUVO_TAG"
-          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$NUVO_TAG^{}")"
-          test "$(dpkg --print-architecture)" = arm64
-          . /etc/os-release
-          test "$VERSION_CODENAME" = trixie
-          dpkg-checkbuilddeps
-          dpkg-buildpackage -b -us -uc
-      - name: Sign installer assets
+          commit="$(git rev-parse "refs/tags/$NUVO_TAG^{commit}")"
+          git merge-base --is-ancestor "$commit" HEAD
+          git checkout --detach "$commit"
+          version="$(dpkg-parsechangelog -S Version)"
+          test "$NUVO_TAG" = "v${version//\~/-}"
+          python3 - <<'PY'
+          import json, sys
+          sys.path.insert(0, 'tools')
+          import nuvo_release
+          nuvo_release.validate_platform(json.load(open('deployment/release-platform.json')))
+          PY
+          echo "source_commit=$commit" >> "$GITHUB_OUTPUT"
+  build:
+    needs: prepare
+    uses: ./.github/workflows/package-build.yml
+    with:
+      source_ref: ${{ needs.prepare.outputs.source_commit }}
+  sign-and-release:
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: nuvo-install-release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.prepare.outputs.source_commit }}
+          path: release-source
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: nuvo-debian-arm64
+          path: output/packages
+      - name: Check source provenance and sign exact package cohort
         env:
           NUVO_SIGNING_KEY: ${{ secrets.NUVO_RELEASE_ED25519_PEM }}
           NUVO_REPOSITORY: ${{ github.repository }}
           NUVO_TAG: ${{ inputs.tag }}
+          NUVO_SOURCE_COMMIT: ${{ needs.prepare.outputs.source_commit }}
         run: |
           umask 077
           key_file="$(mktemp)"
-          trap 'rm -f -- "$key_file"' EXIT
+          trap 'rm -f -- "$key_file" "$key_file.pub"' EXIT
+          test -n "$NUVO_SIGNING_KEY"
           printf '%s\n' "$NUVO_SIGNING_KEY" > "$key_file"
-          python3 tools/build_install_release.py --packages .. --output output/install-release \
-            --repository "$NUVO_REPOSITORY" --tag "$NUVO_TAG" \
-            --version "$(dpkg-parsechangelog -S Version)" \
-            --platform deployment/release-platform.json --private-key "$key_file"
-      - name: Create draft for review
+          unset NUVO_SIGNING_KEY
+          openssl pkey -in "$key_file" -pubout -out "$key_file.pub"
+          cmp "$key_file.pub" deployment/release-signing.pub
+          cmp deployment/release-signing.pub release-source/deployment/release-signing.pub
+          python3 - <<'PY'
+          import json, os
+          record = json.load(open('output/packages/build-record.json'))
+          assert record['source_commit'] == os.environ['NUVO_SOURCE_COMMIT'], 'build source mismatch'
+          PY
+          extras=(--extra output/packages/nuvo-depth-source.tar.gz --extra output/packages/build-record.json \
+                  --extra output/packages/build-packages.txt --extra output/packages/ctest.log)
+          for file in output/packages/*.buildinfo; do extras+=(--extra "$file"); done
+          python3 tools/build_install_release.py --source release-source --packages output/packages \
+            --output output/install-release --repository "$NUVO_REPOSITORY" --tag "$NUVO_TAG" \
+            --version "$(dpkg-parsechangelog -l release-source/debian/changelog -S Version)" \
+            --platform release-source/deployment/release-platform.json --private-key "$key_file" "${extras[@]}"
+      - name: Publish selected release visibility
         env:
           GH_TOKEN: ${{ github.token }}
           NUVO_REPOSITORY: ${{ github.repository }}
           NUVO_TAG: ${{ inputs.tag }}
+          NUVO_PUBLICATION: ${{ inputs.publication }}
         run: |
+          python3 - <<'PY'
+          import os, pathlib
+          repo, tag = os.environ['NUVO_REPOSITORY'], os.environ['NUVO_TAG']
+          pathlib.Path('output/release-notes.md').write_text(f'''Signed Nuvo Depth ARM64 packages for the Raspberry Pi 5. See `manifest.json` for the exact supported OS image and kernels.
+
+          Matching GPL-3.0-or-later source: attached `nuvo-depth-source.tar.gz` and https://github.com/{repo}/tree/{tag} . Build instructions and signing fingerprint: https://github.com/{repo}/blob/{tag}/docs/releases.md . Third-party terms are in LICENSE/NOTICE and debian/copyright.
+
+          Download and inspect `install-nuvo-depth.sh`, then run `sudo bash ./install-nuvo-depth.sh --release {tag}` from an interactive terminal. It verifies the signed manifest and all packages before installation. Factory use adds `--factory` with the unit's actual Wi-Fi country and calibration inputs. Full instructions: https://github.com/{repo}/blob/{tag}/docs/install.md .
+
+          Package tests do not certify per-unit calibration, electrical safety or manufacturing acceptance.
+          ''')
+          PY
+          # No clobber/update: an existing tag's release assets are never overwritten.
           gh release create "$NUVO_TAG" output/install-release/* --repo "$NUVO_REPOSITORY" \
-            --verify-tag --draft --title "$NUVO_TAG" \
-            --notes "Signed Nuvo installer and qualified arm64 package cohort. GPL-3.0-or-later. Matching source and build/install instructions: https://github.com/$NUVO_REPOSITORY/tree/$NUVO_TAG . Review platform manifest and manufacturing acceptance before publication."
+            --verify-tag --draft --title "Nuvo Depth $NUVO_TAG" --notes-file output/release-notes.md
+          case "$NUVO_PUBLICATION" in
+            draft) ;;
+            prerelease) gh release edit "$NUVO_TAG" --repo "$NUVO_REPOSITORY" --draft=false --prerelease --latest=false ;;
+            publish) gh release edit "$NUVO_TAG" --repo "$NUVO_REPOSITORY" --draft=false --prerelease=false --latest ;;
+            *) exit 2 ;;
+          esac
+          echo "Release: https://github.com/$NUVO_REPOSITORY/releases/tag/$NUVO_TAG" >> "$GITHUB_STEP_SUMMARY"

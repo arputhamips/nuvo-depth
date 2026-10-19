@@ -1,7 +1,10 @@
 Source: nuvo-depth
 Section: video
 Priority: optional
-Maintainer: Meridian Robotics <packages@meridianrobotics.example>
+Maintainer: Nirmal <nml@meridian.cv>
+Homepage: https://github.com/arputhamips/nuvo-depth
+Vcs-Git: https://github.com/arputhamips/nuvo-depth.git
+Vcs-Browser: https://github.com/arputhamips/nuvo-depth
 Build-Depends: debhelper-compat (= 13), cmake (>= 3.20), ninja-build,
  pkgconf, g++ (>= 12), libyaml-cpp-dev, libopencv-dev (>= 4.6),
  libavcodec-dev, libavutil-dev, libswscale-dev,

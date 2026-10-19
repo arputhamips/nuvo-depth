@@ -5,10 +5,9 @@ Normal installation asks questions; `--factory` supplies the same plan from
 manufacturing defaults. The installed gateway also accepts the owner password
 or a short single-use setup code.
 
-**Current status:** implemented and tested with Linux fixtures. The GitHub
-release signing key, qualified OS image/kernel list and published
-arm64 packages are still release inputs. This checkout intentionally cannot
-download a production release until those inputs exist. The public source and
+**Current status:** GitHub ARM64 package builds and Ed25519 signing are configured.
+Customer install releases require the platform qualification recorded in their
+signed manifest. Use only an explicitly published release. The public source and
 release repository is [arputhamips/nuvo-depth](https://github.com/arputhamips/nuvo-depth).
 Physical Pi acceptance, USB power/data qualification and shipping approval
 remain separate gates.
@@ -34,17 +33,19 @@ For a reviewed source checkout, the command is:
 
 ```bash
 # Replace vX.Y.Z with an exact published, qualified release tag.
-# release.pub must be obtained and fingerprint-checked independently.
-sudo bash ./install-nuvo-depth.sh \
-  --release vX.Y.Z --public-key ./release.pub
+sudo bash ./install-nuvo-depth.sh --release vX.Y.Z
 ```
 
-The final published shell asset will contain the repository and public-key
-defaults. Download it from the exact release, inspect it, then run:
+The source and published shell contain the repository and pinned public key.
+Download the script from the exact release, inspect it, then run:
 
 ```bash
-# https://github.com/arputhamips/nuvo-depth/releases/download/vX.Y.Z/install-nuvo-depth.sh
-sudo bash ./install-nuvo-depth.sh --release vX.Y.Z
+VERSION=vX.Y.Z # choose an exact published release
+curl --proto '=https' --proto-redir '=https' -fL \
+  "https://github.com/arputhamips/nuvo-depth/releases/download/$VERSION/install-nuvo-depth.sh" \
+  -o install-nuvo-depth.sh
+less install-nuvo-depth.sh
+sudo bash ./install-nuvo-depth.sh --release "$VERSION"
 ```
 
 Do not pipe the script into Bash: normal mode requires an interactive terminal
@@ -92,7 +93,7 @@ sudo bash ./install-nuvo-depth.sh --factory --release vX.Y.Z \
   --wifi-country US --calibration-bundle /path/to/this-units-signed-bundle --reboot
 ```
 
-For a checkout, also provide `--repository` and `--public-key` as above. Omitting
+Forks can override `--repository` and supply their own `--public-key`. Omitting
 the calibration bundle leaves calibration pending and capture disabled. The
 factory preset never enables provisional preview or claims a customer owner.
 Set `--wifi-country` to the unit's actual operating region (US is an example),
@@ -192,59 +193,13 @@ sudo bash ./install-nuvo-depth.sh --bundle /path/to/release --public-key /truste
 This avoids downloading Nuvo packages. OS dependencies still need configured
 APT sources or a prepared cache; it is not a fully offline OS provisioning kit.
 
-## Preparing the eventual GitHub release
+## Building and publishing releases
 
-The source defaults point to `arputhamips/nuvo-depth`. Release public-key TODOs
-remain empty in `install-nuvo-depth.sh` and `tools/nuvo_release.py` until release
-trust is configured. `tools/build_install_release.py` fills the selected
-repository and public-key defaults into generated assets without changing this
-checkout. The GitHub workflow uses `github.repository`, so forks can publish
-their own separately signed release assets.
+See [Release operations](releases.md) for the configured signing key fingerprint,
+GitHub environment, ARM64 Trixie build, source archives, platform qualification,
+and draft/prerelease/publication commands. The release and factory-calibration
+keys are separate trust domains. Modified software may be built and installed
+using an owner's own release key and `--public-key` / `--bundle`.
 
-1. Nuvo software is GPL-3.0-or-later; preserve third-party notices, provide
-   matching source/build/install instructions with binary releases, and finish
-   Debian maintainer metadata. Configure one public GitHub repository for source
-   and releases, protect release tags, and
-   distribute an independently authenticated release-key fingerprint.
-2. Fill `deployment/release-platform.json` from actual Pi qualification: exact
-   tested kernel list plus upstream base image URL and SHA-256. Its empty
-   template intentionally blocks release construction.
-3. Keep an Ed25519 release private key outside the repository. For example:
-
-   ```bash
-   umask 077
-   openssl genpkey -algorithm ED25519 -out /secure/nuvo-release.key
-   openssl pkey -in /secure/nuvo-release.key -pubout -out /secure/release.pub
-   openssl pkey -pubin -in /secure/release.pub -outform DER | sha256sum
-   ```
-
-4. Build the existing Debian packaging on a qualified arm64 Trixie builder
-   with the documented build dependencies already installed. An Ubuntu ARM
-   runner does not establish Raspberry Pi OS library/kernel compatibility.
-5. Generate assets locally or enable the draft workflow:
-
-   ```bash
-   python3 tools/build_install_release.py --packages /path/to/debs \
-     --output output/install-release --repository arputhamips/nuvo-depth --tag vX.Y.Z \
-     --version DEBIAN_VERSION --platform deployment/release-platform.json \
-     --private-key /secure/nuvo-release.key
-   ```
-
-The builder requires all eight runtime `.deb` packages at exactly one version,
-checks Debian control metadata, creates a self-contained standard-library
-installer `.pyz`, hashes the assets, signs the manifest, and verifies its own
-signature. Release and factory-calibration keys are separate trust domains.
-
-`.github/workflows/installer-checks.yml` runs on hosted Linux without hardware.
-`install-release.yml` is manual, disabled until
-`NUVO_INSTALL_RELEASE_ENABLED=true`, uses a dedicated self-hosted runner labeled
-`nuvo-trixie`, and requires the protected `nuvo-install-release` environment and
-`NUVO_RELEASE_ED25519_PEM` secret. Configure access restrictions on that
-environment. It creates a **draft** GitHub release from an existing reviewed tag;
-review and publish it after the hardware gates pass. Do not attach the signing
-key, factory credentials or local scratch folders.
-
-The download layout uses GitHub's standard versioned release assets; see the
-[GitHub release asset API](https://docs.github.com/en/rest/releases/assets).
 Wi-Fi profiles use the documented
 [NetworkManager keyfile format](https://networkmanager.dev/docs/api/latest/nm-settings-keyfile.html).

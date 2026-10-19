@@ -13,7 +13,7 @@ import zipfile
 import nuvo_release as release
 
 
-def build(source, packages, output, repository, tag, version, platform, private_key):
+def build(source, packages, output, repository, tag, version, platform, private_key, extras=None):
     if not release.REPOSITORY.fullmatch(repository) or not release.TAG.fullmatch(tag):
         raise ValueError("supply the final owner/repository and exact release tag")
     public_key = subprocess.check_output(["openssl", "pkey", "-in", str(private_key), "-pubout"], text=True)
@@ -37,6 +37,12 @@ def build(source, packages, output, repository, tag, version, platform, private_
     manifest = {"schema_version": 1, "format": "nuvo-depth-release", "repository": repository,
                 "tag": tag, "version": version, "platform": platform, "files": files + [placeholder]}
     release.validate_manifest(manifest)
+    extras = list(extras or [])
+    reserved = {f["name"] for f in files} | {"manifest.json", "manifest.sig", "nuvo-install.pyz", "install-nuvo-depth.sh", "release.pub", "LICENSE", "NOTICE"}
+    for path in extras:
+        if not release.NAME.fullmatch(path.name) or path.name in reserved or path.is_symlink() or not path.is_file() or path.suffix not in {".gz", ".json", ".txt", ".buildinfo", ".log"}:
+            raise ValueError("unsafe or duplicate supplementary release asset")
+        reserved.add(path.name)
     output.mkdir(parents=True, exist_ok=False)
     import shutil
     for path, _ in selected:
@@ -53,7 +59,9 @@ def build(source, packages, output, repository, tag, version, platform, private_
             archive.write(source / name, name)
     shell = (source / "install-nuvo-depth.sh").read_text(encoding="utf-8")
     shell = re.sub(r'^DEFAULT_REPOSITORY="[^"]*"$', lambda _: f'DEFAULT_REPOSITORY="{repository}"', shell, count=1, flags=re.M)
-    shell = shell.replace("RELEASE_PUBLIC_KEY_PEM=''", "RELEASE_PUBLIC_KEY_PEM='" + public_key.strip() + "'", 1)
+    shell, replacements = re.subn(r"^RELEASE_PUBLIC_KEY_PEM='[^']*'", lambda _: "RELEASE_PUBLIC_KEY_PEM='" + public_key.strip() + "'", shell, count=1, flags=re.M)
+    if replacements != 1:
+        raise ValueError("bootstrap public-key assignment not found")
     (output / "install-nuvo-depth.sh").write_text(shell, encoding="utf-8", newline="\n")
     (output / "release.pub").write_text(public_key, encoding="ascii", newline="\n")
     for name in ("LICENSE", "NOTICE"):
@@ -62,6 +70,11 @@ def build(source, packages, output, repository, tag, version, platform, private_
     for name in ("nuvo-install.pyz", "install-nuvo-depth.sh", "release.pub", "LICENSE", "NOTICE"):
         data = (output / name).read_bytes()
         manifest["files"].append({"name": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+    for path in extras:
+        shutil.copyfile(path, output / path.name)
+        with path.open("rb") as asset:
+            digest = hashlib.file_digest(asset, "sha256").hexdigest()
+        manifest["files"].append({"name": path.name, "size": path.stat().st_size, "sha256": digest})
     release.validate_manifest(manifest)
     (output / "manifest.json").write_text(json.dumps(manifest, sort_keys=True, indent=2)+"\n", encoding="utf-8")
     subprocess.run(["openssl", "pkeyutl", "-sign", "-inkey", str(private_key), "-rawin", "-in", str(output/"manifest.json"), "-out", str(output/"manifest.sig")], check=True)
@@ -79,8 +92,9 @@ def main():
     parser.add_argument("--version", required=True)
     parser.add_argument("--platform", type=Path, required=True)
     parser.add_argument("--private-key", type=Path, required=True, help="offline release secret; never committed")
+    parser.add_argument("--extra", type=Path, action="append", default=[], help="supplementary source/build evidence to include in signed manifest")
     args = parser.parse_args()
-    build(args.source, args.packages, args.output, args.repository, args.tag, args.version, release.load_json(args.platform), args.private_key)
+    build(args.source, args.packages, args.output, args.repository, args.tag, args.version, release.load_json(args.platform), args.private_key, args.extra)
     print("Signed install assets ready: " + str(args.output))
 
 

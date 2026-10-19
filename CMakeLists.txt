@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 if(POLICY CMP0167)
   cmake_policy(SET CMP0167 NEW)
 endif()
-project(depth_daemon VERSION 0.1.0 LANGUAGES CXX)
+project(depth_daemon VERSION 0.1.1 LANGUAGES CXX)
 
 include(CTest)
 include(GNUInstallDirs)

@@ -1,0 +1,31 @@
+name: Check release signing
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: nuvo-install-release
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Sign and verify a disposable challenge with the configured release key
+        env:
+          NUVO_SIGNING_KEY: ${{ secrets.NUVO_RELEASE_ED25519_PEM }}
+        run: |
+          umask 077
+          directory="$(mktemp -d)"
+          trap 'rm -rf -- "$directory"' EXIT
+          test -n "$NUVO_SIGNING_KEY"
+          printf '%s\n' "$NUVO_SIGNING_KEY" > "$directory/private.key"
+          unset NUVO_SIGNING_KEY
+          openssl pkey -in "$directory/private.key" -pubout -out "$directory/public.key"
+          cmp "$directory/public.key" deployment/release-signing.pub
+          openssl rand -out "$directory/challenge" 32
+          openssl pkeyutl -sign -inkey "$directory/private.key" -rawin -in "$directory/challenge" -out "$directory/signature"
+          openssl pkeyutl -verify -pubin -inkey deployment/release-signing.pub -rawin -in "$directory/challenge" -sigfile "$directory/signature"
+          echo 'Configured Ed25519 signing key matches the pinned installer public key.' >> "$GITHUB_STEP_SUMMARY"

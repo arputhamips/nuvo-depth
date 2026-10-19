@@ -11,8 +11,8 @@ import urllib.request
 
 # Public source and signed release assets; forks can override --repository.
 DEFAULT_REPOSITORY = "arputhamips/nuvo-depth"
-# TODO(RELEASE_TRUST): fill in the public PEM or distribute a pinned public key.
-DEFAULT_PUBLIC_KEY = ""
+# Matches deployment/release-signing.pub. Private key never belongs in source.
+DEFAULT_PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAQ0zwQ1yw+Tu532eeDs+iBZpSfVBCobIrCbJzlHaGRWk=\n-----END PUBLIC KEY-----\n"
 RUNTIME_PACKAGES = {
     "nuvo-depth", "nuvo-depth-core", "nuvo-depth-platform-pi5",
     "nuvo-depth-gateway", "libnuvo-depth1", "python3-nuvo-depth",
@@ -38,6 +38,17 @@ def load_json(path: Path, limit=1024 * 1024):
     return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_object)
 
 
+def validate_platform(platform):
+    if not isinstance(platform, dict) or platform.get("architecture") != "arm64" or platform.get("codename") != "trixie":
+        raise ValueError("only the qualified arm64 Trixie platform is supported")
+    if not isinstance(platform.get("kernels"), list) or not platform["kernels"] or any(not isinstance(k, str) or not re.fullmatch(r"[A-Za-z0-9.+_\-]{1,128}", k) for k in platform["kernels"]):
+        raise ValueError("release must list qualified kernel releases")
+    image = platform.get("base_image", {})
+    if not isinstance(image, dict) or not image.get("url", "").startswith("https://") or not re.fullmatch(r"[a-f0-9]{64}", image.get("sha256", "")):
+        raise ValueError("release must pin the qualified upstream base image URL and SHA-256")
+    return platform
+
+
 def validate_manifest(value, repository=None, tag=None):
     if not isinstance(value, dict) or value.get("schema_version") != 1 or value.get("format") != "nuvo-depth-release":
         raise ValueError("unsupported release manifest")
@@ -48,14 +59,7 @@ def validate_manifest(value, repository=None, tag=None):
     version = value.get("version", "")
     if not isinstance(version, str) or not re.fullmatch(r"[0-9][A-Za-z0-9.+:~\-]{0,100}", version):
         raise ValueError("invalid Debian release version")
-    platform = value.get("platform", {})
-    if platform.get("architecture") != "arm64" or platform.get("codename") != "trixie":
-        raise ValueError("only the qualified arm64 Trixie platform is supported")
-    if not isinstance(platform.get("kernels"), list) or not platform["kernels"] or any(not isinstance(k, str) or not re.fullmatch(r"[A-Za-z0-9.+_\-]{1,128}", k) for k in platform["kernels"]):
-        raise ValueError("release must list qualified kernel releases")
-    image = platform.get("base_image", {})
-    if not isinstance(image, dict) or not image.get("url", "").startswith("https://") or not re.fullmatch(r"[a-f0-9]{64}", image.get("sha256", "")):
-        raise ValueError("release must pin the qualified upstream base image URL and SHA-256")
+    validate_platform(value.get("platform", {}))
     files = value.get("files")
     if not isinstance(files, list) or not 1 <= len(files) <= 64:
         raise ValueError("release file list is invalid")

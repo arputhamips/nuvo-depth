@@ -1,0 +1,64 @@
+name: ARM64 Debian packages
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      source_ref:
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    container:
+      # Debian userspace, not Ubuntu libraries; resolved dependencies are recorded.
+      image: debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
+      - name: Prepare Trixie and Raspberry Pi build dependencies
+        run: bash tools/ci/prepare-trixie-builder.sh
+      - name: Build and test Debian packages
+        env:
+          DEB_BUILD_OPTIONS: parallel=2
+          CTEST_OUTPUT_ON_FAILURE: '1'
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          dpkg-buildpackage -b -us -uc
+          mkdir -p output/package-build
+          cp ../*.deb ../*.buildinfo ../*.changes output/package-build/
+          git archive --format=tar.gz --prefix=nuvo-depth/ --output=output/package-build/nuvo-depth-source.tar.gz HEAD
+          cp obj-aarch64-linux-gnu/Testing/Temporary/LastTest.log output/package-build/ctest.log
+          dpkg-query -W -f='${binary:Package}\t${Version}\t${Architecture}\n' > output/package-build/build-packages.txt
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess
+          record = {"schema_version": 1, "source_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+                    "version": subprocess.check_output(["dpkg-parsechangelog", "-S", "Version"], text=True).strip(),
+                    "architecture": "arm64", "codename": "trixie",
+                    "workflow_run": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
+                    "hardware_tests": "not run: hosted ARM64 builder has no Pi cameras"}
+          pathlib.Path("output/package-build/build-record.json").write_text(json.dumps(record, indent=2)+"\n")
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nuvo-debian-arm64
+          path: output/package-build/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Retain failed test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: arm64-test-diagnostics
+          path: obj-aarch64-linux-gnu/Testing/Temporary/
+          retention-days: 7

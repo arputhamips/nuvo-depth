@@ -7,9 +7,11 @@ umask 077
 
 # Public Nuvo source and signed release assets; override with --repository.
 DEFAULT_REPOSITORY="arputhamips/nuvo-depth"
-# TODO(RELEASE_TRUST): paste the public Ed25519 PEM here (never the private key).
-# Generate the release key using the instructions in docs/install.md.
-RELEASE_PUBLIC_KEY_PEM=''
+# SHA-256 of DER public key: 6cd440dd00741e095a4dc436001463506eab7e295dcf608a156311e46344ee15
+# Private release key is held separately from the repository's SSH deploy key.
+RELEASE_PUBLIC_KEY_PEM='-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAQ0zwQ1yw+Tu532eeDs+iBZpSfVBCobIrCbJzlHaGRWk=
+-----END PUBLIC KEY-----'
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$script_dir/tools/nuvo_install.py" ]]; then
