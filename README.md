@@ -9,7 +9,9 @@ curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-be
 ```
 
 The installer asks the setup questions and installs all required Nuvo packages.
-See [supported OS and setup instructions](docs/install.md) before installing.
+Use the main [Vision One setup guide](https://docs.nuvohardware.com/vision-one/guide/getting-started)
+and [Pi installation guide](https://docs.nuvohardware.com/vision-one/install/byo-pi).
+The [installer reference](docs/install.md) covers supported OS and advanced options.
 
 Native stereo-depth runtime for the Nuvo Raspberry Pi 5 and dual
 hardware-triggered IMX296 cameras. Stereo processing is selected through a

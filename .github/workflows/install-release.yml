@@ -128,7 +128,7 @@ jobs:
 
           GitHub's additional Source code downloads are for developers. You do not need to select individual packages.
 
-          [Supported OS and full instructions](https://github.com/{repo}/blob/{tag}/docs/install.md) · [Release signing and building from source](https://github.com/{repo}/blob/{tag}/docs/releases.md)
+          [Vision One setup guide](https://docs.nuvohardware.com/vision-one/guide/getting-started) · [Supported OS and Pi installation](https://docs.nuvohardware.com/vision-one/install/byo-pi) · [Versioned installer reference](https://github.com/{repo}/blob/{tag}/docs/install.md) · [Release signing and building from source](https://github.com/{repo}/blob/{tag}/docs/releases.md)
 
           Factory provisioning adds `-s -- --factory --wifi-country CC` after `sudo bash`, using the actual operating country and any per-unit calibration inputs. Package tests do not certify per-unit calibration, electrical safety or manufacturing acceptance.
           ''')

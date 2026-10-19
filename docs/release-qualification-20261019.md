@@ -229,3 +229,45 @@ It does not qualify a newly flashed card, physical power loss during dpkg/SD
 writes, captive-portal discovery, enterprise Wi-Fi, USB power/data arrangements,
 or manufacturing electrical/calibration/shipping acceptance. Device HTTPS still
 requires the documented per-unit certificate verification by the user.
+
+## Beta 4 bundled downloads and piped installation
+
+The [signed release workflow](https://github.com/arputhamips/nuvo-depth/actions/runs/39325370639)
+built tag `v0.1.1-beta.4`, commit
+`7d4a5d1f63e89f5e4f094222da462e63b4b25854`. All 55 CTest entries and the clean
+Trixie container installation passed. The installer/provisioning/helper suites
+also passed 71 logical checks locally, including a real controlling-terminal
+`curl | bash` test with masked password entry, invalid bundle signatures,
+unsafe archive members, and compatibility with older release layouts.
+
+The release now publishes three files: `install-nuvo-depth.sh` (7,056 bytes),
+`nuvo-depth-pi5-arm64.tar.gz` (4,474,829 bytes), and its 64-byte Ed25519 signature.
+GitHub's automatically generated source downloads remain additional developer
+downloads. The archive contains the eight runtime packages, installer, matching
+GPL source, licenses, build records and inner signed manifest. Both signatures,
+all 19 inner file hashes, exact package metadata, and all 399 source files
+against the tagged Git tree passed verification before publication.
+
+An extracted signed draft passed a piped terminal dry run on the Pi. After
+publishing the [beta 4 prerelease](https://github.com/arputhamips/nuvo-depth/releases/tag/v0.1.1-beta.4),
+anonymous downloads of all three assets matched the verified draft byte-for-byte.
+The documented `curl -fsSL .../v0.1.1-beta.4/install-nuvo-depth.sh | sudo bash`
+command then completed an actual upgrade from beta 3 on the Pi through the
+detached worker. It retained the original network and calibration and deferred
+owner changes. All eight installed Nuvo packages reported `0.1.1~beta.4` and
+the dpkg audit was clean.
+
+After installation, certificate-verified console, health, capabilities, setup
+IPC, and the existing authenticated session passed. A fresh 396,881-byte
+NuvoStream response decoded as `left_mono`, 728 x 544, with accepted calibration
+authority 1. The temporary raw-delivery setting was restored byte-for-byte.
+All 18 saved configuration/identity/calibration hashes and the boot command line
+still matched. NetworkManager, gateway and native capture were active, there
+were no failed units, and throttling remained `0x0`.
+
+This change packages the already exercised first-use backend and makes its
+downloaded terminal installer work through a pipe. The beta 3 hotspot/ownership
+acceptance above remains the physical evidence for those unchanged paths;
+this bounded beta 4 upgrade does not add fresh-SD or manufacturing qualification.
+The main user guides are maintained in the
+[Nuvo Hardware wiki](https://docs.nuvohardware.com/vision-one/), not GitHub's wiki.

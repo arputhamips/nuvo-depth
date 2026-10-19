@@ -1,5 +1,10 @@
 # Install Nuvo Depth
 
+The main user documentation is the [Nuvo Hardware wiki](https://docs.nuvohardware.com/vision-one/),
+including [first-use setup](https://docs.nuvohardware.com/vision-one/guide/getting-started)
+and [terminal installation](https://docs.nuvohardware.com/vision-one/install/byo-pi).
+This file is the versioned installer and provisioning reference.
+
 The terminal installer and manufacturing preset use one provisioning backend.
 Normal installation asks questions; `--factory` supplies the same plan from
 manufacturing defaults. The installed gateway also accepts the owner password
@@ -48,7 +53,7 @@ the console URL it prints. You do not need to choose or download Debian packages
 The published script is pinned to its release; `--release` is optional for that
 script. Terminal questions and masked passwords continue to work when piped.
 
-The same command can be copied into the product wiki. To use a future release,
+The same command is documented in the product wiki. To use a future release,
 update the version in the URL after its qualification and publication.
 
 For a reviewed source checkout, explicitly select the release:
