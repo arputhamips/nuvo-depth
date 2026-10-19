@@ -118,7 +118,7 @@ void apply_request_controls(libcamera::Request& request,
       static_cast<float>(controls.colour_gains[0]),
       static_cast<float>(controls.colour_gains[1])};
   request.controls().set(libcamera::controls::ColourGains,
-                         libcamera::Span<const float, 2>(colour_gains));
+                         {colour_gains[0], colour_gains[1]});
 }
 
 void recycle_request(const std::shared_ptr<RequestGate>& gate,
@@ -718,13 +718,13 @@ class Pi5LibcameraCapture final : public CaptureSource {
         static_cast<float>(options.colour_gains[0]),
         static_cast<float>(options.colour_gains[1])};
     controls.set(libcamera::controls::ColourGains,
-                 libcamera::Span<const float, 2>(colour_gains));
+                 {colour_gains[0], colour_gains[1]});
     const std::int64_t frame_duration =
         static_cast<std::int64_t>(1'000'000.0 / options.target_hz);
     const std::array<std::int64_t, 2> duration_limits{frame_duration,
                                                      frame_duration};
     controls.set(libcamera::controls::FrameDurationLimits,
-                 libcamera::Span<const std::int64_t, 2>(duration_limits));
+                 {duration_limits[0], duration_limits[1]});
     if (state.camera->start(&controls) != 0) {
       throw std::runtime_error("failed to start camera " +
                                state.identity.stable_id);
