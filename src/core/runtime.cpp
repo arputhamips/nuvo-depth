@@ -578,14 +578,15 @@ SubmitResult BoundedNativeScheduler::try_submit(
       return SubmitResult::kStopped;
     }
     if (pending_.size() >= configuration_.pending_capacity) {
-      auto victim = pending_.begin();
-      if (!request.preserve_for_preview) {
-        victim = std::find_if(pending_.begin(), pending_.end(),
-            [](const auto& queued) { return !queued.preserve_for_preview; });
-        if (victim == pending_.end()) {
-          ++stats_.protected_pending_dropped;
-          return SubmitResult::kQueueFull;
-        }
+      auto victim = std::find_if(pending_.begin(), pending_.end(),
+            [&request](const auto& queued) {
+              return (!queued.preserve_for_preview || request.preserve_for_preview) &&
+                  ((queued.products & ipc_v2::kMatcherProducts) == 0U ||
+                   (request.products & queued.products) == queued.products);
+            });
+      if (victim == pending_.end()) {
+        ++stats_.protected_pending_dropped;
+        return SubmitResult::kQueueFull;
       }
       replaced.emplace(std::move(*victim));
       pending_.erase(victim);

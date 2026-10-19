@@ -302,6 +302,9 @@ struct NativeActivityTelemetry {
   std::uint64_t raw_cadence_skipped{};
   std::uint64_t idle_captures{};
   std::uint64_t statistics_capture_sequence{};
+  std::uint64_t matched_frames{};
+  std::uint64_t matcher_statistics_capture_sequence{};
+  depthd::NativePipelineStats matcher_statistics{};
   std::size_t processed_payload_bytes{};
   bool capture_active{true};
   bool rectification_active{};
@@ -703,6 +706,13 @@ std::string frame_json(const depthd::FrameSetStorage& frame,
            << ",\"raw_cadence_skipped\":" << activity->raw_cadence_skipped
            << ",\"idle_captures\":" << activity->idle_captures
            << ",\"processing_statistics_capture_sequence\":" << activity->statistics_capture_sequence
+           << ",\"matched_frames\":" << activity->matched_frames
+           << ",\"matcher_statistics\":{\"capture_sequence\":" << activity->matcher_statistics_capture_sequence
+           << ",\"processing_ms\":" << activity->matcher_statistics.total_ms
+           << ",\"rectification_ms\":" << activity->matcher_statistics.rectification.total_ms
+           << ",\"stereo_preprocess_ms\":" << activity->matcher_statistics.stereo.preprocess_ms
+           << ",\"stereo_match_ms\":" << activity->matcher_statistics.stereo.match_ms
+           << ",\"stereo_postprocess_ms\":" << activity->matcher_statistics.stereo.postprocess_ms << '}'
            << ",\"capture_active\":" << (activity->capture_active ? "true" : "false")
            << ",\"rectification_active\":" << (activity->rectification_active ? "true" : "false")
            << ",\"matcher_active\":" << (activity->matcher_active ? "true" : "false")
@@ -1146,6 +1156,9 @@ int run_native_daemon(const PipelineArguments& arguments) {
   // One worker owns the stateful backends and one newest pending request is
   // replaceable under overload. Complete outputs are likewise latest-first.
   depthd::BoundedNativeScheduler scheduler({1U, 1U}, std::move(pipeline));
+#if defined(DEPTHD_WITH_LOCAL_FRAME_SERVER)
+  depthd::ipc_v2::LocalFrameServer local_frames;
+#endif
 #if defined(DEPTHD_WITH_IMAGE_ENCODER)
   depthd::encoding::Configuration encoder_fallback;
   // Missing or invalid runtime controls fail safe to the original raw stream.
@@ -1157,7 +1170,7 @@ int run_native_daemon(const PipelineArguments& arguments) {
   encoder_fallback.jpeg_quality = loaded.effective.outputs.jpeg_quality;
   depthd::encoding::AsyncFrameEncoder image_encoder(
       arguments.encoding_config_path,
-      arguments.snapshot_directory / "latest.nve", encoder_fallback,
+      arguments.diagnostic_raw_snapshots ? arguments.snapshot_directory / "latest.nve" : std::filesystem::path{}, encoder_fallback,
       arguments.trace_directory, {}, [&] {
         depthd::RectificationBackendRegistry registry;
         depthd::register_opencv_rectification_backend(registry);
@@ -1168,7 +1181,14 @@ int run_native_daemon(const PipelineArguments& arguments) {
         preview_configuration.output_height = calibration.image_view.grid.height;
         return registry.create("cpu_opencv", "cpu_opencv", false,
                                preview_configuration, calibration.maps);
-      });
+      }
+#if defined(DEPTHD_WITH_LOCAL_FRAME_SERVER)
+      , [&](const depthd::FrameSetIdentity& frame, std::uint64_t sequence,
+            std::span<const std::byte> bytes) {
+        local_frames.publish_encoded({frame.run_uuid, frame.capture_epoch, sequence}, bytes);
+      }
+#endif
+      );
   image_encoder.set_demand(0.0);
 #endif
   auto capture = depthd::make_pi5_libcamera_capture_source();
@@ -1196,18 +1216,18 @@ int run_native_daemon(const PipelineArguments& arguments) {
     throw std::runtime_error(
         "active calibration does not match the bound logical cameras");
   }
-#if defined(DEPTHD_WITH_LOCAL_FRAME_SERVER)
-  depthd::ipc_v2::LocalFrameServer local_frames;
-#endif
   std::shared_ptr<const depthd::FrameSetStorage> last_frame;
   std::shared_ptr<const NativeCaptureContext> last_context;
   std::uint64_t published{};
+  std::uint64_t matched_published{}, matched_statistics_sequence{};
+  depthd::NativePipelineStats matched_statistics{};
   std::uint64_t capture_sequence_gaps{};
   std::uint64_t previous_capture_sequence{};
   std::mutex capture_status_mutex;
   std::shared_ptr<const NativeCaptureContext> newest_capture_context;
   NativeActivityTelemetry capture_activity;
   depthd::NativeCaptureCadence raw_capture_cadence;
+  depthd::NativeCaptureCadence matcher_capture_cadence;
 #if defined(DEPTHD_WITH_SYSTEMD)
   bool ready_notified{};
 #endif
@@ -1253,10 +1273,20 @@ int run_native_daemon(const PipelineArguments& arguments) {
           raw_cadence = std::max(raw_cadence, loaded.effective.capture.target_hz);
         }
         const auto raw_product_demand = products;
-        const bool raw_due = raw_capture_cadence.admit(
-            context->identity, products, raw_cadence);
+        bool raw_due{};
+#if defined(DEPTHD_WITH_LOCAL_FRAME_SERVER)
+        if (!arguments.diagnostic_raw_snapshots && arguments.trace_directory.empty()) {
+          products = 0U;
+          if (raw_capture_cadence.admit(context->identity, demand.image_products, demand.image_cadence_hz))
+            products |= demand.image_products;
+          if (matcher_capture_cadence.admit(context->identity, demand.matcher_products, demand.matcher_cadence_hz))
+            products |= demand.matcher_products;
+          raw_due = products != 0U;
+        } else
+#endif
+        raw_due = raw_capture_cadence.admit(context->identity, products, raw_cadence);
         if (!raw_due) {
-          if (products != 0U && raw_cadence > 0.0) ++capture_activity.raw_cadence_skipped;
+          if (raw_product_demand != 0U && raw_cadence > 0.0) ++capture_activity.raw_cadence_skipped;
           products = 0U;
         }
         auto processing = depthd::make_cpu_dmabuf_processing_request(std::move(pair));
@@ -1394,6 +1424,9 @@ int run_native_daemon(const PipelineArguments& arguments) {
         }
         previous_capture_sequence = sequence;
         ++published;
+        if ((frame->available_products & depthd::ipc_v2::kMatcherProducts) != 0U) {
+          ++matched_published; matched_statistics = frame->stats; matched_statistics_sequence = sequence;
+        }
         trace_depth_frame(arguments.trace_directory, *frame);
 #if defined(DEPTHD_WITH_LOCAL_FRAME_SERVER)
         local_frames.publish(frame);
@@ -1431,6 +1464,9 @@ int run_native_daemon(const PipelineArguments& arguments) {
       status_frame.metadata.right_rectified.grid = calibration.image_view.grid;
       status_frame.metadata.depth.grid = calibration.matching_view.grid;
       auto activity = latest_capture->activity;
+      activity.matched_frames = matched_published;
+      activity.matcher_statistics = matched_statistics;
+      activity.matcher_statistics_capture_sequence = matched_statistics_sequence;
       activity.mappings = depthd::cpu_dmabuf_mapping_stats();
 #if defined(DEPTHD_WITH_IMAGE_ENCODER)
       activity.encoding = image_encoder.stats();
@@ -1502,6 +1538,9 @@ int run_native_daemon(const PipelineArguments& arguments) {
     final_status.metadata.right_rectified.grid = calibration.image_view.grid;
     final_status.metadata.depth.grid = calibration.matching_view.grid;
     auto activity = final_capture->activity;
+    activity.matched_frames = matched_published;
+    activity.matcher_statistics = matched_statistics;
+    activity.matcher_statistics_capture_sequence = matched_statistics_sequence;
     activity.mappings = mapping_stats;
     activity.capture_active = false;
     activity.rectification_active = false;
@@ -1526,6 +1565,7 @@ int run_native_daemon(const PipelineArguments& arguments) {
   std::cout << "{\"schema_version\":1,\"status\":\"stopped\""
             << ",\"capture_epoch\":" << session.capture_epoch
             << ",\"published_frames\":" << published
+            << ",\"matched_frames\":" << matched_published
             << ",\"captured_pairs\":" << capture_activity.captured_pairs
             << ",\"raw_processing_submissions\":" << capture_activity.raw_submissions
             << ",\"raw_cadence_skipped\":" << capture_activity.raw_cadence_skipped

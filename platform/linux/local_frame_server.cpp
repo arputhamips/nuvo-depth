@@ -12,6 +12,8 @@
 #if defined(__linux__)
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 #endif
 
@@ -32,6 +34,10 @@ constexpr std::array<std::byte, 4> kSubscribeMagic{
     std::byte{'N'}, std::byte{'V'}, std::byte{'S'}, std::byte{'2'}};
 constexpr std::array<std::byte, 4> kAckMagic{
     std::byte{'N'}, std::byte{'V'}, std::byte{'A'}, std::byte{'2'}};
+constexpr std::array<std::byte, 4> kEncodedWaitMagic{
+    std::byte{'N'}, std::byte{'V'}, std::byte{'Y'}, std::byte{'2'}};
+constexpr std::array<std::byte, 4> kInvalidatedMagic{
+    std::byte{'N'}, std::byte{'V'}, std::byte{'I'}, std::byte{'2'}};
 constexpr std::size_t kCacheMaximumBytes = 64U * 1024U * 1024U;
 constexpr std::size_t kCacheMaximumEntries = 4U;
 
@@ -108,6 +114,11 @@ void LocalFrameServer::publish(std::shared_ptr<const FrameSetStorage> frame) {
     throw std::logic_error("local frame server is stopped");
   }
   latest_ = std::move(frame);
+  if (latest_matcher_ && (latest_matcher_->metadata.frame.run_uuid != latest_->metadata.frame.run_uuid ||
+      latest_matcher_->metadata.frame.capture_epoch != latest_->metadata.frame.capture_epoch ||
+      latest_matcher_->metadata.frame.configuration_epoch != latest_->metadata.frame.configuration_epoch))
+    latest_matcher_.reset();
+  if ((latest_->available_products & kMatcherProducts) != 0U) latest_matcher_ = latest_;
   cache_.clear();
   cache_bytes_ = 0U;
   changed_.notify_all();
@@ -128,6 +139,20 @@ void LocalFrameServer::stop() noexcept {
   if (worker_.joinable()) worker_.join();
 }
 
+void LocalFrameServer::publish_encoded(const LocalFrameCursor& identity,
+                                       std::span<const std::byte> bytes) {
+  if (bytes.size() > 4U * 1024U * 1024U) throw std::length_error("encoded local frame exceeds bounds");
+  std::shared_ptr<EncodedPublication> value;
+  if (!bytes.empty()) {
+    value = std::make_shared<EncodedPublication>();
+    value->cursor = identity;
+    value->memory = SealedSharedMemory::create("nuvo-local-preview", bytes.size());
+    std::copy(bytes.begin(), bytes.end(), value->memory.writable_bytes().begin());
+  }
+  std::lock_guard lock(mutex_);
+  encoded_ = std::move(value); changed_.notify_all();
+}
+
 LocalFrameDemand LocalFrameServer::demand() const noexcept {
   std::lock_guard lock(mutex_);
   return demand_;
@@ -140,11 +165,21 @@ void LocalFrameServer::recompute_demand_locked() noexcept {
     next.products |= client.products;
     next.cadence_hz = std::max(next.cadence_hz, client.cadence_hz);
     next.preview_cadence_hz = std::max(next.preview_cadence_hz, client.preview_cadence_hz);
+    if ((client.products & kMatcherProducts) != 0U) {
+      next.matcher_products |= client.products;
+      next.matcher_cadence_hz = std::max(next.matcher_cadence_hz, client.cadence_hz);
+    } else {
+      next.image_products |= client.products;
+      next.image_cadence_hz = std::max(next.image_cadence_hz, client.cadence_hz);
+    }
   }
   next.generation = demand_.generation;
   if (next.products != demand_.products || next.cadence_hz != demand_.cadence_hz ||
-      next.preview_cadence_hz != demand_.preview_cadence_hz) ++next.generation;
+      next.preview_cadence_hz != demand_.preview_cadence_hz ||
+      next.image_products != demand_.image_products || next.image_cadence_hz != demand_.image_cadence_hz ||
+      next.matcher_products != demand_.matcher_products || next.matcher_cadence_hz != demand_.matcher_cadence_hz) ++next.generation;
   demand_ = next;
+  if (next.matcher_products == 0U) latest_matcher_.reset();
 }
 
 void LocalFrameServer::run() noexcept {
@@ -214,6 +249,43 @@ void LocalFrameServer::serve(SeqpacketConnection connection) {
     connection.send_packet(kAckMagic);
     continue;
   }
+  if (request.payload.size() == 48U &&
+      std::equal(kEncodedWaitMagic.begin(), kEncodedWaitMagic.end(), request.payload.begin())) {
+    const auto wait_ms = get_u32(request.payload.data() + 8U);
+    LocalFrameCursor after{};
+    std::memcpy(after.run_uuid.data(), request.payload.data() + 16U, 16U);
+    after.capture_epoch = get_u64(request.payload.data() + 32U);
+    after.capture_sequence = get_u64(request.payload.data() + 40U);
+    std::unique_lock lock(mutex_);
+    if (!persistent || clients_.at(client_id).preview_cadence_hz <= 0.0 ||
+        wait_ms > 500U || get_u32(request.payload.data() + 4U) != 0U ||
+        get_u32(request.payload.data() + 12U) != 0U) {
+      lock.unlock(); send_error(connection, "invalid encoded wait bounds"); return;
+    }
+    clients_.at(client_id).waiting = true;
+    changed_.wait_for(lock, std::chrono::milliseconds(wait_ms), [&] {
+      return stopping_ || (encoded_ && encoded_->cursor != after) ||
+          (!encoded_ && after != LocalFrameCursor{});
+    });
+    clients_.at(client_id).waiting = false;
+    const auto value = encoded_;
+    const bool stopped = stopping_;
+    lock.unlock();
+    if (stopped || !value || value->cursor == after) {
+      connection.send_packet(!value ? kInvalidatedMagic : kNoFrameMagic);
+      if (stopped) return;
+      continue;
+    }
+    std::array<std::byte, 48> response{};
+    std::copy(kResponseMagic.begin(), kResponseMagic.end(), response.begin());
+    put_u64(response.data() + 8U, value->memory.size());
+    std::memcpy(response.data() + 16U, value->cursor.run_uuid.data(), 16U);
+    put_u64(response.data() + 32U, value->cursor.capture_epoch);
+    put_u64(response.data() + 40U, value->cursor.capture_sequence);
+    const std::array handle{value->memory.readonly_handle()};
+    connection.send_packet(response, handle);
+    continue;
+  }
   const bool wait = request.payload.size() == 48U &&
       std::equal(kWaitMagic.begin(), kWaitMagic.end(), request.payload.begin());
   if (!wait && (request.payload.size() != 8U ||
@@ -254,15 +326,20 @@ void LocalFrameServer::serve(SeqpacketConnection connection) {
   }
   {
     std::unique_lock lock(mutex_);
+    const auto selected_frame = [&]() -> std::shared_ptr<const FrameSetStorage> {
+      if (latest_ && (products & ~latest_->available_products) == 0U) return latest_;
+      if (latest_matcher_ && (products & ~latest_matcher_->available_products) == 0U) return latest_matcher_;
+      return {};
+    };
     if (wait) {
       clients_.at(client_id).waiting = true;
       changed_.wait_for(lock, std::chrono::milliseconds(wait_ms), [&] {
-        return stopping_ || (latest_ && cursor(*latest_) != after &&
-            (products & ~latest_->available_products) == 0U);
+        const auto candidate = selected_frame();
+        return stopping_ || (candidate && cursor(*candidate) != after);
       });
       clients_.at(client_id).waiting = false;
-      if (stopping_ || !latest_ || cursor(*latest_) == after ||
-          (products & ~latest_->available_products) != 0U) {
+      const auto candidate = selected_frame();
+      if (stopping_ || !candidate || cursor(*candidate) == after) {
         const bool stopped = stopping_;
         lock.unlock();
         connection.send_packet(kNoFrameMagic);
@@ -270,7 +347,7 @@ void LocalFrameServer::serve(SeqpacketConnection connection) {
         continue;
       }
     }
-    frame = latest_;
+    frame = selected_frame();
   }
   if (!frame) {
     send_error(connection, "no frame available");
@@ -334,7 +411,7 @@ void LocalFrameServer::serve(SeqpacketConnection connection) {
 }
 
 namespace {
-[[nodiscard]] std::optional<SerializedLocalFrame> receive_frame(
+[[nodiscard]] std::optional<MappedLocalFrame> receive_mapped_frame(
     SeqpacketConnection& connection, const bool wait,
     const std::chrono::milliseconds timeout,
     const std::size_t maximum_wire_bytes = wire::kHeaderBytes +
@@ -342,6 +419,9 @@ namespace {
 #if defined(__linux__)
   auto response = connection.receive_packet(
       1032U, 1U, timeout);
+  if (wait && response.payload.size() == 4U && response.handles.empty() &&
+      std::equal(kInvalidatedMagic.begin(), kInvalidatedMagic.end(), response.payload.begin()))
+    return MappedLocalFrame{};
   if (wait && response.payload.size() == 4U && response.handles.empty() &&
       std::equal(kNoFrameMagic.begin(), kNoFrameMagic.end(), response.payload.begin())) {
     return std::nullopt;
@@ -364,27 +444,28 @@ namespace {
                                wire::kHardMaximumPayloadBytes) {
     throw std::length_error("local frame exceeds NuvoStream bounds");
   }
-  std::vector<std::byte> bytes(static_cast<std::size_t>(size));
-  std::size_t offset{};
-  while (offset < bytes.size()) {
-    const auto read = ::pread(response.handles.front().get(),
-                              bytes.data() + offset, bytes.size() - offset,
-                              static_cast<off_t>(offset));
-    if (read < 0) {
-      if (errno == EINTR) continue;
-      throw std::runtime_error(std::string("read local frame: ") +
-                               std::strerror(errno));
-    }
-    if (read == 0) throw std::runtime_error("local frame memfd is truncated");
-    offset += static_cast<std::size_t>(read);
-  }
-  SerializedLocalFrame result;
+  const auto descriptor = response.handles.front().get();
+  struct stat information{};
+  const auto seals = ::fcntl(descriptor, F_GET_SEALS);
+  if (::fstat(descriptor, &information) != 0 || information.st_size < 0 ||
+      static_cast<std::uint64_t>(information.st_size) != size || seals < 0 ||
+      (seals & (F_SEAL_GROW | F_SEAL_SHRINK)) != (F_SEAL_GROW | F_SEAL_SHRINK) ||
+      (seals & (F_SEAL_WRITE | F_SEAL_FUTURE_WRITE)) == 0)
+    throw std::runtime_error("local frame descriptor lacks sealed immutable extent");
+  auto retained = std::make_shared<OwnedFd>(std::move(response.handles.front()));
+  auto* mapped = ::mmap(nullptr, static_cast<std::size_t>(size), PROT_READ, MAP_PRIVATE, descriptor, 0);
+  if (mapped == MAP_FAILED) throw std::runtime_error(std::string("map local frame failed: ") + std::strerror(errno));
+  MappedLocalFrame result;
+  result.owner = std::shared_ptr<const void>(mapped, [size, retained](const void* address) {
+    (void)retained;
+    (void)::munmap(const_cast<void*>(address), static_cast<std::size_t>(size));
+  });
   if (wait) {
     std::memcpy(result.cursor.run_uuid.data(), response.payload.data() + 16U, 16U);
     result.cursor.capture_epoch = get_u64(response.payload.data() + 32U);
     result.cursor.capture_sequence = get_u64(response.payload.data() + 40U);
   }
-  result.bytes = std::move(bytes);
+  result.bytes = {static_cast<const std::byte*>(mapped), static_cast<std::size_t>(size)};
   return result;
 #else
   (void)connection;
@@ -392,6 +473,13 @@ namespace {
   (void)timeout;
   throw std::runtime_error("local frame service is available only on Linux");
 #endif
+}
+[[nodiscard]] std::optional<SerializedLocalFrame> receive_frame(
+    SeqpacketConnection& connection, bool wait, std::chrono::milliseconds timeout,
+    std::size_t maximum_wire_bytes = wire::kHeaderBytes + wire::kHardMaximumMetadataBytes + wire::kHardMaximumPayloadBytes) {
+  auto value = receive_mapped_frame(connection, wait, timeout, maximum_wire_bytes);
+  if (!value) return {};
+  return SerializedLocalFrame{value->cursor, {value->bytes.begin(), value->bytes.end()}};
 }
 }  // namespace
 
@@ -462,6 +550,14 @@ void LocalFrameClient::set_demand(const ProductMask products,
 std::optional<SerializedLocalFrame> LocalFrameClient::next(
     const LocalFrameCursor& after, const std::chrono::milliseconds timeout,
     const std::size_t maximum_wire_bytes) {
+  auto value = next_mapped(after, timeout, maximum_wire_bytes);
+  if (!value) return {};
+  return SerializedLocalFrame{value->cursor, {value->bytes.begin(), value->bytes.end()}};
+}
+
+std::optional<MappedLocalFrame> LocalFrameClient::next_mapped(
+    const LocalFrameCursor& after, const std::chrono::milliseconds timeout,
+    const std::size_t maximum_wire_bytes) {
   if (products_ == 0U) return std::nullopt;
   if (timeout.count() < 0 || timeout.count() > 500 || maximum_wire_bytes < wire::kHeaderBytes ||
       maximum_wire_bytes > wire::kHeaderBytes + wire::kHardMaximumMetadataBytes + wire::kHardMaximumPayloadBytes)
@@ -474,7 +570,30 @@ std::optional<SerializedLocalFrame> LocalFrameClient::next(
   put_u64(request.data() + 32U, after.capture_epoch);
   put_u64(request.data() + 40U, after.capture_sequence);
   connection_.send_packet(request);
-  return receive_frame(connection_, true, timeout + std::chrono::milliseconds(750), maximum_wire_bytes);
+  return receive_mapped_frame(connection_, true, timeout + std::chrono::milliseconds(750), maximum_wire_bytes);
+}
+
+std::optional<SerializedLocalFrame> LocalFrameClient::next_encoded(
+    const LocalFrameCursor& after, const std::chrono::milliseconds timeout,
+    const std::size_t maximum_wire_bytes) {
+  auto value = next_encoded_mapped(after, timeout, maximum_wire_bytes);
+  if (!value) return {};
+  return SerializedLocalFrame{value->cursor, {value->bytes.begin(), value->bytes.end()}};
+}
+
+std::optional<MappedLocalFrame> LocalFrameClient::next_encoded_mapped(
+    const LocalFrameCursor& after, const std::chrono::milliseconds timeout,
+    const std::size_t maximum_wire_bytes) {
+  if (timeout.count() < 0 || timeout.count() > 500 || maximum_wire_bytes < wire::kHeaderBytes ||
+      maximum_wire_bytes > 4U * 1024U * 1024U) throw std::invalid_argument("invalid encoded wait bounds");
+  std::array<std::byte, 48> request{};
+  std::copy(kEncodedWaitMagic.begin(), kEncodedWaitMagic.end(), request.begin());
+  put_u32(request.data() + 8U, static_cast<std::uint32_t>(timeout.count()));
+  std::memcpy(request.data() + 16U, after.run_uuid.data(), 16U);
+  put_u64(request.data() + 32U, after.capture_epoch);
+  put_u64(request.data() + 40U, after.capture_sequence);
+  connection_.send_packet(request);
+  return receive_mapped_frame(connection_, true, timeout + std::chrono::milliseconds(750), maximum_wire_bytes);
 }
 
 }  // namespace depthd::ipc_v2

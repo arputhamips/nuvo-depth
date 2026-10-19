@@ -822,11 +822,12 @@ struct AsyncFrameEncoder::Impl {
 
   Impl(std::filesystem::path control, std::filesystem::path output,
        Configuration initial, std::filesystem::path trace,
-       EncoderFactory factory, PreviewRectifierFactory rectifier_factory)
+       EncoderFactory factory, PreviewRectifierFactory rectifier_factory,
+       OutputPublisher publisher)
       : control_file(std::move(control)), output_file(std::move(output)),
         trace_directory(std::move(trace)), fallback(std::move(initial)),
         config(fallback), encoder_factory(std::move(factory)),
-        preview_rectifier_factory(std::move(rectifier_factory)) {
+        preview_rectifier_factory(std::move(rectifier_factory)), output_publisher(std::move(publisher)) {
     validate_latest_configuration(fallback);
     if (!encoder_factory) encoder_factory = make_ffmpeg_encoder;
     for (auto& slot : preview_pool) slot = std::make_shared<Preview>();
@@ -840,6 +841,8 @@ struct AsyncFrameEncoder::Impl {
   }
 
   void remove_latest() {
+    if (output_publisher) output_publisher({}, 0U, {});
+    if (output_file.empty()) return;
     std::error_code error;
     std::filesystem::remove(output_file, error);
     if (error) throw std::runtime_error("cannot invalidate encoded output: " +
@@ -1243,7 +1246,7 @@ struct AsyncFrameEncoder::Impl {
         const auto bytes = serialize(encoded);
         // write_atomic() commits a separate temporary path, not the publicly
         // readable snapshot. The final public rename is generation-checked.
-        write_atomic(temporary, bytes);
+        if (!output_file.empty()) write_atomic(temporary, bytes);
         // Detect a control change that happened during a long encode even if
         // capture is currently idle and has not refreshed it yet.
         refresh();
@@ -1251,11 +1254,12 @@ struct AsyncFrameEncoder::Impl {
           std::lock_guard lock(mutex);
           if (stop_requested || generation != work.generation ||
               !encoded_enabled(config)) {
-            std::filesystem::remove(temporary);
+            if (!output_file.empty()) std::filesystem::remove(temporary);
             ++stats_value.stale_discarded;
             continue;
           }
-          std::filesystem::rename(temporary, output_file);
+          if (!output_file.empty()) std::filesystem::rename(temporary, output_file);
+          if (output_publisher) output_publisher(encoded.identity, encoded.stream_sequence, bytes);
           ++stats_value.encoded;
           stats_value.encoded_bytes += encoded.bytes.size();
           stats_value.last_frame_bytes = encoded.bytes.size();
@@ -1276,7 +1280,7 @@ struct AsyncFrameEncoder::Impl {
         }
       } catch (const std::exception& exception) {
         std::error_code ignored;
-        std::filesystem::remove(temporary, ignored);
+        if (!output_file.empty()) std::filesystem::remove(temporary, ignored);
         std::lock_guard lock(mutex);
         if (generation == work.generation && !stop_requested) {
           ++stats_value.failures;
@@ -1313,6 +1317,7 @@ struct AsyncFrameEncoder::Impl {
   Configuration config;
   EncoderFactory encoder_factory;
   PreviewRectifierFactory preview_rectifier_factory;
+  OutputPublisher output_publisher;
   std::unique_ptr<RectificationBackend> preview_rectifier;
   std::unique_ptr<SwsContext, SwsDeleter> preview_scaler;
   std::array<std::shared_ptr<Preview>, 3> preview_pool;
@@ -1337,13 +1342,15 @@ AsyncFrameEncoder::AsyncFrameEncoder(std::filesystem::path control_file,
                                      Configuration fallback,
                                      std::filesystem::path trace_directory,
                                      EncoderFactory encoder_factory,
-                                     PreviewRectifierFactory preview_rectifier_factory)
+                                     PreviewRectifierFactory preview_rectifier_factory,
+                                     OutputPublisher output_publisher)
     : impl_(std::make_unique<Impl>(std::move(control_file),
                                    std::move(output_file),
                                    std::move(fallback),
                                    std::move(trace_directory),
                                    std::move(encoder_factory),
-                                   std::move(preview_rectifier_factory))) {}
+                                   std::move(preview_rectifier_factory),
+                                   std::move(output_publisher))) {}
 
 AsyncFrameEncoder::~AsyncFrameEncoder() noexcept { stop(); }
 

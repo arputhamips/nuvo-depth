@@ -19,6 +19,7 @@
 #include <vector>
 
 #include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 
 int main() {
   constexpr int width = 728;
@@ -339,6 +340,39 @@ int main() {
   }
   preview_worker.request_stop();
   preview_worker.join();
+  // Full-grid gray views alias immutable padded input only for this call.
+  // Colour conversion, resize scratch, and lazy compatibility storage must
+  // remain independent when one backend alternates these paths.
+  cv::Mat color_left, color_right;
+  cv::cvtColor(left, color_left, cv::COLOR_GRAY2BGR);
+  cv::cvtColor(right, color_right, cv::COLOR_GRAY2BGR);
+  const auto saved_left = left.clone(), saved_right = right.clone();
+  for (bool half : {false, true}) {
+    auto mixed_config = full;
+    mixed_config.control_file.clear();
+    mixed_config.opencv_threads = 2;
+    if (half) { mixed_config.working_width = width / 2; mixed_config.working_height = height / 2; }
+    auto mixed = depthd::make_cpu_sgbm_native_backend(mixed_config);
+    const auto grid = mixed->metadata().grid;
+    std::vector<float> disparity(grid.width * grid.height);
+    std::vector<std::uint8_t> confidence(disparity.size()), validity(disparity.size());
+    const depthd::MutableDisparityProductsView output{
+        {disparity.data(), grid, grid.width}, {confidence.data(), grid, grid.width}, {validity.data(), grid, grid.width}};
+    mixed->process_native(left_view,right_view,output,bm_stats);
+    const auto baseline = disparity; const auto baseline_validity = validity;
+    auto* compatible = dynamic_cast<depthd::StereoBackend*>(mixed.get());
+    if (!compatible) return 27;
+    const depthd::ImageView color_l{color_left.data,width,height,color_left.step,depthd::ImageEncoding::kBgr8};
+    const depthd::ImageView color_r{color_right.data,width,height,color_right.step,depthd::ImageEncoding::kBgr8};
+    mixed->process_native(color_l,color_r,output,bm_stats);
+    std::vector<float> legacy(width * height);
+    compatible->process(color_l,color_r,{legacy.data(),width,height,width},bm_stats);
+    mixed->process_native(left_view,right_view,output,bm_stats);
+    if (validity != baseline_validity) return 28;
+    for (std::size_t index = 0; index < disparity.size(); ++index)
+      if (!(disparity[index] == baseline[index] || (std::isnan(disparity[index]) && std::isnan(baseline[index])))) return 29;
+    if (cv::norm(left,saved_left,cv::NORM_INF) != 0 || cv::norm(right,saved_right,cv::NORM_INF) != 0) return 30;
+  }
   std::filesystem::remove(control);
   return 0;
 }

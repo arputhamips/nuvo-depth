@@ -8,7 +8,7 @@ function parseFrame(buffer) {
   const sequence = Number(view.getBigUint64(24,false));
   if (32 + metadataLength + payloadLength !== buffer.byteLength || metadataLength > 65536 || payloadLength > 67108864) throw new Error('Frame bounds rejected');
   const metadata = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer,32,metadataLength)));
-  if(!Array.isArray(metadata.products))throw new Error('Missing products');
+  if(!Array.isArray(metadata.products)||metadata.products.length>14)throw new Error('Missing or excessive products');
   const names=new Set();
   for(const p of metadata.products){
     const channels=['rgb8','bgr8'].includes(p.format)?3:['gray8','uint8'].includes(p.format)?1:p.format==='float32_le'?4:0;
@@ -27,36 +27,68 @@ function parseEncoded(buffer) {
   const metadata=JSON.parse(new TextDecoder().decode(new Uint8Array(buffer,32,metadataLength)));
   return {metadata,streamSequence,payload:new Uint8Array(buffer,32+metadataLength,payloadLength)};
 }
-function drawGray(canvas, frame, descriptor) {
-  if (!descriptor) return; canvas.width=descriptor.width; canvas.height=descriptor.height;
-  canvas.style.aspectRatio=`${descriptor.width} / ${descriptor.height}`;
+const canvasStates = new WeakMap(), imageBuffers = new Map();
+let renderedFrame = null, renderedProducts = new Map();
+function prepareCanvas(canvas, width, height) {
+  let state=canvasStates.get(canvas);
+  if(!state){state={context:canvas.getContext('2d')};canvasStates.set(canvas,state);}
+  if(canvas.width!==width)canvas.width=width;
+  if(canvas.height!==height)canvas.height=height;
+  canvas.style.aspectRatio=`${width} / ${height}`;
+  return state;
+}
+function drawProduct(canvas, frame, descriptor, maximum=128) {
+  if(!descriptor)return;
+  const state=prepareCanvas(canvas,descriptor.width,descriptor.height);
+  const key=`${descriptor.kind}:${descriptor.format}:${descriptor.width}:${descriptor.height}:${maximum}`;
+  if(renderedFrame!==frame){renderedFrame=frame;renderedProducts.clear();}
+  let rendered=renderedProducts.get(descriptor.kind);
+  if(!rendered||rendered.key!==key){
+    let buffer=imageBuffers.get(descriptor.kind);
+    if(!buffer||buffer.width!==descriptor.width||buffer.height!==descriptor.height){
+      buffer={image:state.context.createImageData(descriptor.width,descriptor.height),width:descriptor.width,height:descriptor.height};
+      if(!imageBuffers.has(descriptor.kind)&&imageBuffers.size>=14)imageBuffers.delete(imageBuffers.keys().next().value);
+      imageBuffers.set(descriptor.kind,buffer);
+    }
+    const image=buffer.image;
+    const valid=fillProduct(image,frame,descriptor,maximum);
+    rendered={image,valid,key};renderedProducts.set(descriptor.kind,rendered);
+  }
+  state.context.putImageData(rendered.image,0,0);
+  return rendered.valid;
+}
+function fillProduct(image, frame, descriptor, maximum) {
+  const numeric=descriptor.format==='float32_le';
+  if(numeric){
+    const values=new DataView(frame.buffer,frame.payloadOffset+descriptor.offset,descriptor.length);
+    let valid=0;
+    for(let i=0,j=0;i<descriptor.length;i+=4,j+=4){
+      const value=values.getFloat32(i,true),accepted=Number.isFinite(value)&&(descriptor.kind!=='depth'||value>0);
+      if(accepted){
+        valid++;
+        const t=Math.max(0,Math.min(1,descriptor.kind==='depth'?(value-.2)/12:value/maximum));
+        image.data[j]=Math.round(255*Math.max(0,Math.min(1,1.5-Math.abs(4*t-3))));
+        image.data[j+1]=Math.round(255*Math.max(0,Math.min(1,1.5-Math.abs(4*t-2))));
+        image.data[j+2]=Math.round(255*Math.max(0,Math.min(1,1.5-Math.abs(4*t-1))));
+      }else image.data[j]=image.data[j+1]=image.data[j+2]=0;
+      image.data[j+3]=255;
+    }
+    return 100*valid/(descriptor.width*descriptor.height);
+  }
   const source = new Uint8Array(frame.buffer,frame.payloadOffset+descriptor.offset,descriptor.length);
-  const image = canvas.getContext('2d').createImageData(descriptor.width,descriptor.height);
   const color=descriptor.format==='rgb8'||descriptor.format==='bgr8',bgr=descriptor.format==='bgr8';
   for(let pixel=0;pixel<descriptor.width*descriptor.height;pixel++){
     const i=pixel*(color?3:1),j=pixel*4;
     image.data[j]=source[i+(color&&bgr?2:0)];image.data[j+1]=source[i+(color?1:0)];
     image.data[j+2]=source[i+(color?(bgr?0:2):0)];image.data[j+3]=255;
   }
-  canvas.getContext('2d').putImageData(image,0,0);
 }
+function drawGray(canvas,frame,descriptor){return drawProduct(canvas,frame,descriptor);}
 function drawDepth(canvas, frame, descriptor) {
-  if (!descriptor) return; canvas.width=descriptor.width; canvas.height=descriptor.height;
-  canvas.style.aspectRatio=`${descriptor.width} / ${descriptor.height}`;
-  const values = new DataView(frame.buffer,frame.payloadOffset+descriptor.offset,descriptor.length);
-  const image = canvas.getContext('2d').createImageData(descriptor.width,descriptor.height); let valid=0;
-  for(let i=0,j=0;i<descriptor.length;i+=4,j+=4){const z=values.getFloat32(i,true);if(Number.isFinite(z)&&z>0){valid++;const t=Math.max(0,Math.min(1,(z-.2)/12));image.data[j]=Math.round(255*Math.max(0,1.5-Math.abs(4*t-3)));image.data[j+1]=Math.round(255*Math.max(0,1.5-Math.abs(4*t-2)));image.data[j+2]=Math.round(255*Math.max(0,1.5-Math.abs(4*t-1)));}image.data[j+3]=255}
-  canvas.getContext('2d').putImageData(image,0,0); return 100*valid/(descriptor.width*descriptor.height);
+  return drawProduct(canvas,frame,descriptor);
 }
-function turbo(t) { return [Math.round(255*Math.max(0,Math.min(1,1.5-Math.abs(4*t-3)))),Math.round(255*Math.max(0,Math.min(1,1.5-Math.abs(4*t-2)))),Math.round(255*Math.max(0,Math.min(1,1.5-Math.abs(4*t-1))))]; }
 function drawDisparity(canvas, frame, descriptor, maximum=128) {
-  if (!descriptor) return; canvas.width=descriptor.width; canvas.height=descriptor.height;
-  canvas.style.aspectRatio=`${descriptor.width} / ${descriptor.height}`;
-  const values=new DataView(frame.buffer,frame.payloadOffset+descriptor.offset,descriptor.length);
-  const image=canvas.getContext('2d').createImageData(descriptor.width,descriptor.height);
-  const scale=maximum;
-  for(let i=0,j=0;i<descriptor.length;i+=4,j+=4){const d=values.getFloat32(i,true);if(Number.isFinite(d)){const [r,g,b]=turbo(Math.max(0,Math.min(1,d/scale)));image.data[j]=r;image.data[j+1]=g;image.data[j+2]=b;}image.data[j+3]=255;}
-  canvas.getContext('2d').putImageData(image,0,0);
+  return drawProduct(canvas,frame,descriptor,maximum);
 }
-return Object.freeze({parseFrame,parseEncoded,drawGray,drawDepth,drawDisparity});
+return Object.freeze({parseFrame,parseEncoded,drawGray,drawDepth,drawDisparity,prepareCanvas});
 });

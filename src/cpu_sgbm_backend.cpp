@@ -236,22 +236,11 @@ class CpuSgbmBackend final : public StereoBackend,
     disparity_scale_ = static_cast<float>(native_grid_.x_scale_to_reference);
     rebuild_matcher();
 
-    const cv::Size input_size(static_cast<int>(config_.input_width),
-                              static_cast<int>(config_.input_height));
     const cv::Size working_size(static_cast<int>(config_.working_width),
                                 static_cast<int>(config_.working_height));
-    left_gray_.create(input_size, CV_8UC1);
-    right_gray_.create(input_size, CV_8UC1);
-    left_working_.create(working_size, CV_8UC1);
-    right_working_.create(working_size, CV_8UC1);
     disparity_fixed_.create(working_size, CV_16SC1);
     disparity_filtered_.create(working_size, CV_16SC1);
-    disparity_working_.create(working_size, CV_32FC1);
-    confidence_working_.create(working_size, CV_8UC1);
-    validity_working_.create(working_size, CV_8UC1);
     valid_pixels_by_row_.resize(config_.working_height);
-    legacy_confidence_.create(input_size, CV_8UC1);
-    legacy_validity_.create(input_size, CV_8UC1);
     refresh_configuration();
   }
 
@@ -413,6 +402,13 @@ class CpuSgbmBackend final : public StereoBackend,
     validate_input_views(left, right);
     const auto execution = opencv_execution::compute_guard();
     validate_legacy_output(output);
+    const cv::Size working_size(static_cast<int>(native_grid_.width), static_cast<int>(native_grid_.height));
+    const cv::Size input_size(static_cast<int>(input_grid_.width), static_cast<int>(input_grid_.height));
+    disparity_working_.create(working_size, CV_32FC1);
+    confidence_working_.create(working_size, CV_8UC1);
+    validity_working_.create(working_size, CV_8UC1);
+    legacy_confidence_.create(input_size, CV_8UC1);
+    legacy_validity_.create(input_size, CV_8UC1);
     const auto stages = compute_match(left, right);
 
     const MutableDisparityProductsView native_scratch{
@@ -453,11 +449,12 @@ class CpuSgbmBackend final : public StereoBackend,
                                          const ImageView& right) {
     StageTimes stages;
     stages.started = Clock::now();
-    prepare_working(left, left_gray_, left_working_);
-    prepare_working(right, right_gray_, right_working_);
+    const cv::Size size(static_cast<int>(native_grid_.width), static_cast<int>(native_grid_.height));
+    left_match_input_ = prepare_working(left, left_gray_, left_working_, size);
+    const auto right_input = prepare_working(right, right_gray_, right_working_, size);
     stages.preprocessed = Clock::now();
 
-    matcher_->compute(left_working_, right_working_, disparity_fixed_);
+    matcher_->compute(left_match_input_, right_input, disparity_fixed_);
     stages.matched = Clock::now();
     return stages;
   }
@@ -518,7 +515,7 @@ class CpuSgbmBackend final : public StereoBackend,
                   ? ValidityCode::kInconsistent
                   : original_px >= maximum
                         ? ValidityCode::kOutsideDisparityRange
-                        : left_working_.ptr<std::uint8_t>(y)[x] >=
+                        : left_match_input_.ptr<std::uint8_t>(y)[x] >=
                                   config_.specular_threshold
                               ? ValidityCode::kInconsistent
                               : ValidityCode::kValid;
@@ -618,30 +615,30 @@ class CpuSgbmBackend final : public StereoBackend,
     }
   }
 
-  static void prepare_working(const ImageView& view, cv::Mat& gray_scratch,
-                              cv::Mat& working) {
+  static cv::Mat prepare_working(const ImageView& view, cv::Mat& gray_scratch,
+                                 cv::Mat& working, const cv::Size size) {
     const cv::Mat source(static_cast<int>(view.height),
                          static_cast<int>(view.width), cv_type(view.encoding),
                          const_cast<std::uint8_t*>(view.data), view.stride_bytes);
+    cv::Mat gray;
     switch (view.encoding) {
       case ImageEncoding::kGray8:
-        if (source.size() == working.size()) source.copyTo(working);
-        else cv::resize(source, working, working.size(), 0.0, 0.0,
-                        cv::INTER_AREA);
+        gray = source;
         break;
       case ImageEncoding::kBgr8:
         cv::cvtColor(source, gray_scratch, cv::COLOR_BGR2GRAY);
-        if (gray_scratch.size() == working.size()) gray_scratch.copyTo(working);
-        else cv::resize(gray_scratch, working, working.size(), 0.0, 0.0,
-                        cv::INTER_AREA);
+        gray = gray_scratch;
         break;
       case ImageEncoding::kRgb8:
         cv::cvtColor(source, gray_scratch, cv::COLOR_RGB2GRAY);
-        if (gray_scratch.size() == working.size()) gray_scratch.copyTo(working);
-        else cv::resize(gray_scratch, working, working.size(), 0.0, 0.0,
-                        cv::INTER_AREA);
+        gray = gray_scratch;
         break;
     }
+    // Return a temporary view without retargeting the owned resize scratch.
+    // Alternating gray/colour and native/legacy calls keeps ownership stable.
+    if (gray.size() == size) return gray;
+    cv::resize(gray, working, size, 0.0, 0.0, cv::INTER_AREA);
+    return working;
   }
 
   CpuSgbmConfig base_config_;
@@ -657,6 +654,7 @@ class CpuSgbmBackend final : public StereoBackend,
   cv::Mat right_gray_;
   cv::Mat left_working_;
   cv::Mat right_working_;
+  cv::Mat left_match_input_;
   cv::Mat disparity_fixed_;
   cv::Mat disparity_filtered_;
   cv::Mat disparity_working_;

@@ -222,6 +222,33 @@ void test_serialized_storage_is_shared_and_complete() {
       "partial serialized frame did not close session");
   require(queue.offer_serialized(std::make_shared<const std::vector<std::byte>>(1025U)) ==
       depthd::gateway::OfferResult::kOversize, "oversize serialized data not bounded");
+  depthd::gateway::SessionQueue views(1024U);
+  auto owner = std::make_shared<const depthd::gateway::SerializedBytes>(bytes);
+  std::weak_ptr<const depthd::gateway::SerializedBytes> lifetime = owner;
+  const auto payload = owner->prefix().subspan(16U, 32U);
+  auto selected = std::make_shared<const depthd::gateway::SerializedBytes>(
+      std::vector<std::byte>(8U, std::byte{3}), owner,
+      std::vector<std::span<const std::byte>>{payload});
+  require(selected->parts()[1].data() == payload.data() && selected->size() == 40U &&
+      selected->retained_size() == 136U, "selected payload was copied or backing memory was undercounted");
+  require(views.offer_buffered(selected) == depthd::gateway::OfferResult::kAccepted,
+      "buffered selection refused");
+  selected.reset(); owner.reset();
+  auto transmitting = views.begin_buffered_transmission();
+  require(!lifetime.expired() && transmitting->copy().at(8U) == 7U,
+      "queued selection lost its immutable source owner");
+  views.note_bytes_sent(40U); views.complete_transmission(); transmitting.reset();
+  require(lifetime.expired(), "completed segmented transmission retained source owner");
+  auto source = std::make_shared<const depthd::gateway::SerializedBytes>(bytes);
+  auto prefix_and_payload = std::make_shared<const depthd::gateway::SerializedBytes>(
+      std::vector<std::byte>(8U, std::byte{3}), source,
+      std::vector<std::span<const std::byte>>{source->prefix().subspan(16U, 32U)});
+  depthd::gateway::SessionQueue copying_api(1024U);
+  (void)copying_api.offer_buffered(prefix_and_payload);
+  const auto flattened = copying_api.begin_serialized_transmission();
+  require(flattened && flattened->size() == 40U && flattened->at(0U) == std::byte{3} &&
+          flattened->at(8U) == std::byte{7}, "legacy vector transmission returned only a segmented prefix");
+  copying_api.note_bytes_sent(flattened->size()); copying_api.complete_transmission();
 }
 
 }  // namespace

@@ -1,6 +1,8 @@
 #include "depthd/image_encoder.hpp"
 
 #include <algorithm>
+#include <atomic>
+#include <future>
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -385,6 +387,48 @@ void test_independent_capture_sources() {
   std::filesystem::remove_all(root);
 }
 
+void test_event_publication_without_snapshot_and_inflight_stop() {
+  auto gate = std::make_shared<EncodeGate>();
+  auto config = depthd::encoding::Configuration{};
+  config.codec = depthd::encoding::Codec::kJpeg;
+  std::atomic<unsigned> publications{}, invalidations{};
+  depthd::encoding::AsyncFrameEncoder encoder({}, {}, config, {},
+      [gate](const auto&) { return std::make_unique<BlockingEncoder>(gate); }, {},
+      [&](const auto& identity, std::uint64_t sequence, std::span<const std::byte> bytes) {
+        if (bytes.empty()) { ++invalidations; return; }
+        require(identity.capture_sequence == 1U && sequence > 0U && bytes.size() > 32U,
+                "event output lost frame identity or serialized bytes");
+        ++publications;
+      });
+  const ReleaseEncoder release_on_failure{gate};
+  require(encoder.submit(frame()) == depthd::encoding::SubmitResult::kAccepted,
+          "event encoder rejected frame");
+  eventually([&] { std::lock_guard lock(gate->mutex); return gate->entered; }, "event encoder did not start");
+  {
+    std::lock_guard lock(gate->mutex); gate->release = true; gate->condition.notify_all();
+  }
+  eventually([&] { return publications == 1U; }, "event encoder still requires a snapshot file");
+  encoder.set_demand(0.0);
+  require(invalidations >= 2U, "disconnect did not invalidate event output");
+  encoder.set_demand(10.0);
+  {
+    std::lock_guard lock(gate->mutex); gate->entered = false; gate->release = false;
+  }
+  auto next = frame(); next->metadata.frame.capture_sequence = 8U;
+  next->metadata.frame.capture_time_ns += 1'000'000'000;
+  require(encoder.submit(next) == depthd::encoding::SubmitResult::kAccepted, "inflight stop frame was rejected");
+  eventually([&] { std::lock_guard lock(gate->mutex); return gate->entered; }, "inflight stop encode did not start");
+  auto stopped = std::async(std::launch::async, [&] { encoder.stop(); });
+  eventually([&] { return encoder.prepare_capture(next->metadata.frame).result == depthd::encoding::SubmitResult::kStopped; },
+             "encoder did not begin stop");
+  {
+    std::lock_guard lock(gate->mutex); gate->release = true; gate->condition.notify_all();
+  }
+  stopped.get();
+  require(publications == 1U && encoder.stats().failures == 0U,
+          "stopping encoder published a stale in-flight result");
+}
+
 void test_capture_plans_and_reload() {
   using depthd::encoding::SubmitResult;
   const auto root = std::filesystem::temp_directory_path() / "depthd-encoder-reload-test";
@@ -674,6 +718,7 @@ int main() {
   assert(async.stats().configuration_reloads == 2U);
   std::filesystem::remove_all(root);
   test_capture_plans_and_reload();
+  test_event_publication_without_snapshot_and_inflight_stop();
   test_independent_capture_sources();
   test_sycc_full_range_conversion();
 

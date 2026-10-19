@@ -40,7 +40,6 @@ from nuvo_depth.frame import PRODUCT_FORMATS
 
 ETC = Path("/etc/nuvo-depth")
 STATUS = Path("/run/nuvo-depth/status.json")
-ENCODED = Path("/run/nuvo-depth/snapshots/latest.nve")
 NATIVE = "nuvo-depthd-native.service"
 GATEWAY = "nuvo-gateway.service"
 GATEWAY_PORT = 7443
@@ -111,8 +110,9 @@ def cgroup_memory(unit):
 
 
 class Consumer:
-    def __init__(self, mask, raw_hz, preview_hz):
+    def __init__(self, mask, raw_hz, preview_hz, encoded=False):
         self.mask, self.raw_hz, self.preview_hz = mask, raw_hz, preview_hz
+        self.encoded = encoded
         self.stopped = threading.Event()
         self.lock = threading.Lock()
         self.samples = []
@@ -133,7 +133,7 @@ class Consumer:
                 connection.sendall(subscription)
                 if connection.recv(100) != b"NVA2":
                     raise RuntimeError("native subscription was rejected")
-                if self.mask == 0:
+                if self.mask == 0 and not self.encoded:
                     # Keep the image-only lease alive across the server's
                     # ten-second idle timeout without requesting raw data.
                     while not self.stopped.wait(2):
@@ -142,7 +142,7 @@ class Consumer:
                             raise RuntimeError("native preview heartbeat was rejected")
                     return
                 while not self.stopped.is_set():
-                    connection.sendall(struct.pack(">4sIII16sQQ", b"NVW2", self.mask, 200, 0, *cursor))
+                    connection.sendall(struct.pack(">4sIII16sQQ", b"NVY2" if self.encoded else b"NVW2", self.mask, 200, 0, *cursor))
                     packet, ancillary, flags, _ = connection.recvmsg(1032, socket.CMSG_SPACE(4))
                     descriptors = []
                     for level, kind, data in ancillary:
@@ -151,20 +151,27 @@ class Consumer:
                     try:
                         if packet == b"NVN2":
                             continue
+                        if packet == b"NVI2":
+                            cursor = (bytes(16), 0, 0)
+                            continue
                         if packet[:4]!=b"NVR2" or len(descriptors)!=1:
                             raise RuntimeError("invalid native frame response")
                         length=struct.unpack_from(">Q",packet,8)[0]
                         wire=os.pread(descriptors[0],length,0)
-                        frame=decode_frame(wire)
-                        cursor=(bytes.fromhex(frame.run_uuid),frame.capture_epoch,frame.capture_sequence)
+                        frame=decode_encoded_frame(wire) if self.encoded else decode_frame(wire)
+                        cursor=(packet[16:32],*struct.unpack_from(">QQ",packet,32))
                         now=time.clock_gettime_ns(time.CLOCK_BOOTTIME)
                         age=(now-frame.metadata["capture_time_ns"])/1e6
                         if age<0 or age>1500:
                             self.stale_ages_ms.append(age)
                             continue
                         with self.lock:
-                            self.samples.append({"time":time.monotonic(),"sequence":frame.capture_sequence,
-                                "capture_ns":frame.metadata["capture_time_ns"],"age_ms":age,"wire_bytes":length})
+                            if self.encoded:
+                                self.samples.append(dict(frame.metadata,stream_sequence=frame.stream_sequence,
+                                    packet_bytes=len(frame.data),observed_time=time.monotonic()))
+                            else:
+                                self.samples.append({"time":time.monotonic(),"sequence":frame.capture_sequence,
+                                    "capture_ns":frame.metadata["capture_time_ns"],"age_ms":age,"wire_bytes":length})
                     finally:
                         for descriptor in descriptors:
                             os.close(descriptor)
@@ -346,6 +353,8 @@ def run_case(case, output, originals):
     pid=service_pid(NATIVE)
     consumer=Consumer(case.get("mask",(1<<3)|(1<<5)),case.get("raw_hz",case["capture_hz"]),case.get("preview_hz",0))
     consumer.start()
+    preview_consumer=Consumer(0,0,case["preview_hz"],encoded=True) if case.get("preview_hz") else None
+    if preview_consumer:preview_consumer.start()
     samples=[];health=[];encoded=[];seen=set();seen_encoded=set()
     started=time.monotonic();warmup=case.get("warmup",4)
     before=vmstat();calibration=None;calibration_status=None;calibration_log=None;current=None
@@ -385,12 +394,11 @@ def run_case(case, output, originals):
                          if case.get("mask",40) else h.get("capture_sequence"))
                     if key not in seen:
                         seen.add(key);health.append(h)
-                    if case.get("preview_hz") and ENCODED.exists():
-                        e=decode_encoded_frame(ENCODED.read_bytes())
-                        age_ns=time.clock_gettime_ns(time.CLOCK_BOOTTIME)-e.metadata["capture_time_ns"]
-                        if 0<=age_ns<1_500_000_000 and e.stream_sequence not in seen_encoded:
-                            seen_encoded.add(e.stream_sequence)
-                            encoded.append(dict(e.metadata,stream_sequence=e.stream_sequence,packet_bytes=len(e.data),observed_time=time.monotonic()))
+                    if preview_consumer:
+                        with preview_consumer.lock:
+                            encoded=[e for e in preview_consumer.samples if e["observed_time"]>=started+warmup]
+                        if preview_consumer.errors:
+                            raise RuntimeError(f"encoded IPC observer failed: {preview_consumer.errors}")
                 except (OSError,ValueError):pass
             minimum=case.get("minimum_available_mib",48)
             if current["mem"]["MemAvailable"]<minimum*MIB:
@@ -411,6 +419,7 @@ def run_case(case, output, originals):
         measurement_finished=time.monotonic()
         if viewers:viewers.close()
         consumer.close()
+        if preview_consumer:preview_consumer.close()
         if calibration:
             try:calibration_status=calibration.wait(timeout=30)
             except subprocess.TimeoutExpired:

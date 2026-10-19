@@ -578,15 +578,16 @@ async function refreshHealth() {
     $('calibrationPresetId').value=health.profile_id||'';
     const now=performance.now();
     let depthActivity='Waiting for sample';
-    if (health.run_uuid===lastHealthRun && lastHealthPublished!==null && health.published_frames>=lastHealthPublished && now>lastHealthAt) {
-      const fps=1000*(health.published_frames-lastHealthPublished)/(now-lastHealthAt);
+    const depthPublished=depthPublicationCount(health);
+    if (health.run_uuid===lastHealthRun && lastHealthPublished!==null && depthPublished>=lastHealthPublished && now>lastHealthAt) {
+      const fps=1000*(depthPublished-lastHealthPublished)/(now-lastHealthAt);
       depthOutputRate=fps;
       setMeasurement('frameRate',fps.toFixed(1),'fps');
       depthActivity=fps>0?'Active':'No new frames';
     } else { $('frameRate').textContent='—'; depthOutputRate=null; }
     // matcher_active is an instantaneous sample and can be false between frames.
     if(health.matcher_active===false&&!(depthOutputRate>0)){depthOutputRate=0;setMeasurement('frameRate','0.0','fps');depthActivity='Idle · no new depth frames';}
-    lastHealthRun=health.run_uuid||'';lastHealthPublished=health.published_frames;lastHealthAt=now;
+    lastHealthRun=health.run_uuid||'';lastHealthPublished=depthPublished;lastHealthAt=now;
     $('connection').textContent = 'Connected'; $('connection').className = 'pill online';
     document.querySelector('.status-strip').classList.remove('stale');
     setFlowState('flowConnectionState','Secure session','complete');
@@ -664,23 +665,21 @@ document.querySelectorAll('[data-benchmark-scene]').forEach(button => button.add
   document.querySelectorAll('[data-benchmark-scene]').forEach(item => item.setAttribute('aria-pressed',String(item===button)));
 }));
 function drawGray(canvas,frame,descriptor) { return window.NuvoFrameCodec.drawGray(canvas,frame,descriptor); }
-function drawDepth(canvas, frame, descriptor) {
-  if (!descriptor) return; canvas.width=descriptor.width; canvas.height=descriptor.height;
-  canvas.style.aspectRatio=`${descriptor.width} / ${descriptor.height}`;
-  const values = new DataView(frame.buffer,frame.payloadOffset+descriptor.offset,descriptor.length);
-  const image = canvas.getContext('2d').createImageData(descriptor.width,descriptor.height); let valid=0;
-  for(let i=0,j=0;i<descriptor.length;i+=4,j+=4){const z=values.getFloat32(i,true);if(Number.isFinite(z)&&z>0){valid++;const t=Math.max(0,Math.min(1,(z-.2)/12));image.data[j]=Math.round(255*Math.max(0,1.5-Math.abs(4*t-3)));image.data[j+1]=Math.round(255*Math.max(0,1.5-Math.abs(4*t-2)));image.data[j+2]=Math.round(255*Math.max(0,1.5-Math.abs(4*t-1)));}image.data[j+3]=255}
-  canvas.getContext('2d').putImageData(image,0,0); $('validity').textContent=`Valid ${(100*valid/(descriptor.width*descriptor.height)).toFixed(1)}%`;
+function drawDepth(canvas,frame,descriptor) {
+  const valid=window.NuvoFrameCodec.drawDepth(canvas,frame,descriptor);
+  if(valid!==undefined)$('validity').textContent=`Valid ${valid.toFixed(1)}%`;
 }
-function turbo(t) { return [Math.round(255*Math.max(0,Math.min(1,1.5-Math.abs(4*t-3)))),Math.round(255*Math.max(0,Math.min(1,1.5-Math.abs(4*t-2)))),Math.round(255*Math.max(0,Math.min(1,1.5-Math.abs(4*t-1))))]; }
 function drawDisparity(canvas, frame, descriptor) {
-  if (!descriptor) return; canvas.width=descriptor.width; canvas.height=descriptor.height;
-  canvas.style.aspectRatio=`${descriptor.width} / ${descriptor.height}`;
-  const values=new DataView(frame.buffer,frame.payloadOffset+descriptor.offset,descriptor.length);
-  const image=canvas.getContext('2d').createImageData(descriptor.width,descriptor.height);
-  const scale=stereo?.max_disparity||128;
-  for(let i=0,j=0;i<descriptor.length;i+=4,j+=4){const d=values.getFloat32(i,true);if(Number.isFinite(d)){const [r,g,b]=turbo(Math.max(0,Math.min(1,d/scale)));image.data[j]=r;image.data[j+1]=g;image.data[j+2]=b;}image.data[j+3]=255;}
-  canvas.getContext('2d').putImageData(image,0,0);
+  return window.NuvoFrameCodec.drawDisparity(canvas,frame,descriptor,stereo?.max_disparity||128);
+}
+function canvasVisible(canvas) {
+  return !document.hidden && !!canvas.closest('.page.active') && !canvas.closest('[hidden]');
+}
+function drawVisibleProduct(canvas,frame,descriptor) {
+  if(!descriptor||!canvasVisible(canvas))return;
+  if(descriptor.kind==='depth')drawDepth(canvas,frame,descriptor);
+  else if(descriptor.kind==='disparity')drawDisparity(canvas,frame,descriptor);
+  else drawGray(canvas,frame,descriptor);
 }
 function renderFrame(frame) {
   const identity=`${frame.metadata.run_uuid}:${frame.metadata.capture_epoch}:${frame.metadata.capture_sequence}:${frame.metadata.products.map(p=>p.kind).join(',')}`;
@@ -688,18 +687,22 @@ function renderFrame(frame) {
   const left=product(frame,'left_rectified'),right=product(frame,'right_rectified');
   const disparity=product(frame,'disparity'),depth=product(frame,'depth');
   const firstImage=left||frame.metadata.products.find(p=>['gray8','rgb8','bgr8'].includes(p.format));
-  drawGray($('leftCanvas'),frame,firstImage); drawGray($('rightCanvas'),frame,right);
   for(const [id,descriptor] of [['leftCanvas',firstImage],['rightCanvas',right],['disparityCanvas',disparity],['depthCanvas',depth]])$(id).closest('figure').hidden=!descriptor;
   if(firstImage)$('leftCanvas').closest('figure').querySelector('figcaption').textContent=OUTPUT_PRODUCTS.find(p=>p[0]===firstImage.kind)?.[1]||firstImage.kind;
-  drawDisparity($('disparityCanvas'),frame,disparity); drawDepth($('depthCanvas'),frame,depth);
+  if(frame.metadata.products.length){
+    $('benchmarkGallery').hidden=true;
+    $('viewerSampleNotice').hidden=true;
+    $('viewerLiveGrid').hidden=false;
+    $('viewerTelemetry').hidden=false;
+  }
+  for(const [id,descriptor] of [['leftCanvas',firstImage],['rightCanvas',right],['disparityCanvas',disparity],['depthCanvas',depth]])drawVisibleProduct($(id),frame,descriptor);
   for(const grid of [$('outputPreviewGrid'),$('selectedProductGrid')]){
+    if(!canvasVisible(grid))continue;
     for(const descriptor of frame.metadata.products){
       if(grid.id==='selectedProductGrid'&&[firstImage?.kind,'right_rectified','depth','disparity'].includes(descriptor.kind))continue;
       let canvas=grid.querySelector(`[data-output-product="${descriptor.kind}"]`);
       if(!canvas){const figure=document.createElement('figure'),caption=document.createElement('figcaption');canvas=document.createElement('canvas');canvas.dataset.outputProduct=descriptor.kind;caption.textContent=OUTPUT_PRODUCTS.find(p=>p[0]===descriptor.kind)?.[1]||descriptor.kind;figure.append(caption,canvas);grid.append(figure)}
-      if(descriptor.kind==='depth')drawDepth(canvas,frame,descriptor);
-      else if(descriptor.kind==='disparity')drawDisparity(canvas,frame,descriptor);
-      else drawGray(canvas,frame,descriptor);
+      drawVisibleProduct(canvas,frame,descriptor);
     }
   }
   document.querySelectorAll('.page.active [data-tuning-product]').forEach(canvas=>{
@@ -708,7 +711,7 @@ function renderFrame(frame) {
     const placeholder=canvas.closest('.sample-canvas').querySelector('.sample-overlay span');
     if(placeholder&&!descriptor)placeholder.textContent=isLeft?'No image output selected':'Depth not selected';
     if(isLeft&&descriptor)canvas.closest('figure').querySelector('figcaption').firstChild.textContent=OUTPUT_PRODUCTS.find(p=>p[0]===descriptor.kind)?.[1]||descriptor.kind;
-    if(descriptor){const source=isLeft?$('leftCanvas'):$('depthCanvas');canvas.width=source.width;canvas.height=source.height;canvas.getContext('2d').drawImage(source,0,0);}
+    drawVisibleProduct(canvas,frame,descriptor);
   });
   document.querySelectorAll('.page.active [data-preview-state]').forEach(label=>{label.textContent='Selected products live';label.className='chip chip-green';});
   if(frame.metadata.products.length){
@@ -752,10 +755,11 @@ function ensureDecoder(codec,width,height,generation) {
   return decoder;
 }
 function drawEncodedSource(source,width,height){
-  const canvases=[$('encodedCanvas')];
+  const canvases=[];
+  if(selectedPage==='streaming')canvases.push($('encodedCanvas'));
   if(selectedPage==='network')canvases.push($('outputEncodedCanvas'));
   if($('calibration').classList.contains('active'))canvases.push($('calibrationCanvas'));
-  for(const canvas of canvases){canvas.width=width;canvas.height=height;canvas.style.aspectRatio=`${width} / ${height}`;canvas.getContext('2d').drawImage(source,0,0)}
+  for(const canvas of canvases){if(canvasVisible(canvas))window.NuvoFrameCodec.prepareCanvas(canvas,width,height).context.drawImage(source,0,0)}
   setSampleCanvasLive('encodedCanvas',true);
 }
 async function renderEncoded(frame,generation,arrival) {
@@ -1016,12 +1020,15 @@ async function restoreSession() {
 
 // Performance sample model. Retain observations, never synthesize frame history.
 function timingValue(value){return typeof value==='number'&&Number.isFinite(value)&&value>=0?value:null;}
+function depthPublicationCount(health){return timingValue(health.matched_frames)??timingValue(health.published_frames);}
 function recordPerformanceSample(model,health,now){
-  const published=timingValue(health.published_frames),run=health.run_uuid||'';
+  const published=depthPublicationCount(health),run=health.run_uuid||'';
   if(model.run!==run||(published!==null&&model.published!==null&&published<model.published)||model.samples.at(-1)?.time>now){model.samples=[];model.published=null;model.sampledPublished=null;model.run=run;}
-  model.stale=false;model.latest=health;
+  const measured=health.matcher_statistics&&timingValue(health.matched_frames)!==null
+    ?(published>0?{...health,...health.matcher_statistics}:{...health,processing_ms:null}):health;
+  model.stale=false;model.latest=measured;
   model.samples=model.samples.filter(sample=>sample.time>=now-60000);
-  const value=timingValue(health.processing_ms);
+  const value=timingValue(measured.processing_ms);
   if(published!==null&&published>0&&published!==model.sampledPublished&&value!==null){model.samples.push({time:now,value});model.samples=model.samples.slice(-120);model.sampledPublished=published;}
   model.published=published;
 }
@@ -1205,6 +1212,7 @@ updateAlgorithmFields();
 updateExposureFields();
 updateEncodingFields();
 restoreSession();
-setInterval(refreshHealth,2000);setInterval(refreshTransport,5000);setInterval(refreshEncoding,5000);setInterval(refreshStereo,5000);setInterval(refreshExposure,5000);
-setInterval(refreshCapabilities,5000);
+setInterval(()=>{if(!document.hidden)refreshHealth();},2000);
+setInterval(()=>{if(!document.hidden){refreshTransport();refreshEncoding();refreshStereo();refreshExposure();refreshCapabilities();}},5000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshHealth();refreshTransport();refreshEncoding();refreshStereo();refreshExposure();refreshCapabilities();}});
 setInterval(()=>{if(lastFrameAt){const age=(Date.now()-lastFrameAt)/1000;$('age').textContent=age<1?'Updated now':`${age.toFixed(1)} s old`;$('age').classList.toggle('error',age>2);if(age>2)document.querySelectorAll('.page.active [data-preview-state]').forEach(label=>{label.textContent=`Preview stale · ${age.toFixed(1)} s`;label.className='chip chip-amber';});}if(encodedFrameAt){const age=(Date.now()-encodedFrameAt)/1000;$('encodedAge').textContent=age<1?'Updated now':`${age.toFixed(1)} s old`;$('encodedAge').classList.toggle('error',age>2)}},250);

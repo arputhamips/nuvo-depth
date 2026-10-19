@@ -279,6 +279,39 @@ void test_overlap_latest_and_finite_shutdown() {
 }
 
 
+void test_mixed_raw_matcher_pending_is_not_starved() {
+  const auto mono = depthd::ipc_v2::product_bit(depthd::ipc_v2::ProductKind::kLeftMono);
+  const auto depth = depthd::ipc_v2::product_bit(depthd::ipc_v2::ProductKind::kDepth);
+  auto gate = std::make_shared<Gate>();
+  FakeCapture capture;
+  depthd::BoundedNativeScheduler scheduler({1U, 2U}, pipeline(gate));
+  const ReleaseGate release_on_failure{gate};
+  const auto request = [&](std::uint64_t sequence, depthd::ipc_v2::ProductMask products) {
+    capture.offer(sequence);
+    auto pair = capture.wait_for_pair(50ms);
+    auto result = prepare(std::move(*pair)); result.products = products; return result;
+  };
+  require(scheduler.try_submit(request(1U,depth)) == depthd::SubmitResult::kAccepted, "initial depth request rejected");
+  eventually([&] { std::lock_guard lock(gate->mutex); return gate->entered; }, "slow raw matcher did not enter");
+  require(scheduler.try_submit(request(2U,depth|mono)) == depthd::SubmitResult::kAccepted,
+          "associated raw group did not enter pending slot");
+  for (unsigned sequence = 3U; sequence < 20U; ++sequence)
+    require(scheduler.try_submit(request(sequence,mono)) == depthd::SubmitResult::kQueueFull,
+            "fast mono evicted pending slow depth group");
+  auto numeric_preview = request(20U,depth); numeric_preview.preserve_for_preview = true;
+  require(scheduler.try_submit(std::move(numeric_preview)) == depthd::SubmitResult::kQueueFull,
+          "preview with an incomplete associated mask evicted raw matcher group");
+  {
+    std::lock_guard lock(gate->mutex); gate->released = true; gate->condition.notify_all();
+  }
+  const auto first = scheduler.wait_next(2s), second = scheduler.wait_next(2s);
+  require(first && second && first->metadata.frame.capture_sequence == 1U &&
+          second->metadata.frame.capture_sequence == 2U && second->available_products == (mono|depth),
+          "slow raw group lost associated product identity under overload");
+  scheduler.stop();
+  require(capture.outstanding_leases() == 0U, "mixed raw scheduler retained camera leases");
+}
+
 #if defined(DEPTHD_WITH_IMAGE_ENCODER)
 void test_numeric_preview_with_independent_raw_cadence() {
   using depthd::ipc_v2::ProductKind;
@@ -640,6 +673,7 @@ void test_failures_and_stop_lease_order() {
 int main() {
   try {
     test_overlap_latest_and_finite_shutdown();
+    test_mixed_raw_matcher_pending_is_not_starved();
     test_pinned_storage_is_a_drop();
 #if defined(DEPTHD_WITH_IMAGE_ENCODER)
     test_numeric_preview_with_independent_raw_cadence();

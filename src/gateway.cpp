@@ -284,6 +284,11 @@ OfferResult SessionQueue::offer(std::shared_ptr<const wire::Message> message) {
 
 OfferResult SessionQueue::offer_serialized(
     std::shared_ptr<const std::vector<std::byte>> bytes) {
+  if (!bytes) throw std::invalid_argument("gateway cannot offer null serialized data");
+  return offer_buffered(std::make_shared<const SerializedBytes>(std::move(bytes)));
+}
+
+OfferResult SessionQueue::offer_buffered(std::shared_ptr<const SerializedBytes> bytes) {
   if (!bytes || bytes->empty()) {
     throw std::invalid_argument("gateway cannot offer empty serialized data");
   }
@@ -315,6 +320,24 @@ std::shared_ptr<const wire::Message> SessionQueue::begin_transmission() {
 
 std::shared_ptr<const std::vector<std::byte>>
 SessionQueue::begin_serialized_transmission() {
+  std::lock_guard lock(mutex_);
+  if (!open_ || in_flight_ || in_flight_bytes_ || !pending_bytes_) return {};
+  auto result = pending_bytes_->vector_owner();
+  if (!result || pending_bytes_->parts().size() != 1U) {
+    auto copied = std::make_shared<std::vector<std::byte>>();
+    copied->reserve(pending_bytes_->size());
+    for (auto part : pending_bytes_->parts()) copied->insert(copied->end(), part.begin(), part.end());
+    result = std::move(copied);
+  }
+  in_flight_bytes_ = std::move(pending_bytes_);
+  in_flight_bytes_sent_ = 0U;
+  stats_.pending_messages = 0U;
+  stats_.in_flight = true;
+  stats_.in_flight_bytes_sent = 0U;
+  return result;
+}
+
+std::shared_ptr<const SerializedBytes> SessionQueue::begin_buffered_transmission() {
   std::lock_guard lock(mutex_);
   if (!open_ || in_flight_ || in_flight_bytes_ || !pending_bytes_) return {};
   in_flight_bytes_ = std::move(pending_bytes_);

@@ -28,7 +28,54 @@ for(const [format,expected] of [['rgb8',[11,22,33,255,44,55,66,255]],['bgr8',[33
   assert.deepEqual(Array.from(drawn),expected);
 }
 assert.throws(()=>context.parseFrame(frame('rgb8',[11,22])),/Invalid product/,'short RGB payload must reject instead of showing partial pixels');
+let allocations=0,resizes=0,writes=0;
+function trackedCanvas(){
+  let width=0,height=0;
+  return {style:{},get width(){return width},set width(value){width=value;resizes++},
+    get height(){return height},set height(value){height=value;resizes++},
+    getContext:()=>({createImageData:(w,h)=>{allocations++;return {data:new Uint8Array(w*h*4)}},
+      putImageData:image=>{drawn=Array.from(image.data);writes++}})};
+}
+const codec=context.window.NuvoFrameCodec,firstCanvas=trackedCanvas(),secondCanvas=trackedCanvas();
+function depthFrame(values){const bytes=Buffer.alloc(values.length*4);values.forEach((z,i)=>bytes.writeFloatLE(z,i*4));return context.parseFrame(frame('float32_le',bytes,'depth'));}
+const numeric=depthFrame([1,NaN]);
+assert.equal(codec.drawDepth(firstCanvas,numeric,numeric.metadata.products[0]),50);
+const numericPixels=drawn;
+codec.drawDepth(secondCanvas,numeric,numeric.metadata.products[0]);
+assert.equal(allocations,1,'two visible destinations share one colour map and ImageData');
+assert.deepEqual(drawn,numericPixels);
+codec.drawDepth(firstCanvas,numeric,numeric.metadata.products[0]);
+assert.equal(writes,3,'canvas pixels are restored even if a caller reset its backing store');
+const invalid=depthFrame([NaN,-1]);codec.drawDepth(firstCanvas,invalid,invalid.metadata.products[0]);
+assert.equal(allocations,1,'same-size frames reuse image storage');
+assert.equal(resizes,4,'steady frame dimensions do not reset canvas backing stores');
+assert.deepEqual(drawn,[0,0,0,255,0,0,0,255],'invalid depth clears pixels from the prior frame');
+const disparity=context.parseFrame(frame('float32_le',Buffer.from(new Float32Array([32,64]).buffer),'disparity'));
+codec.drawDisparity(firstCanvas,disparity,disparity.metadata.products[0],128);const wide=drawn;
+codec.drawDisparity(secondCanvas,disparity,disparity.metadata.products[0],64);assert.notDeepEqual(drawn,wide);
+codec.drawDisparity(trackedCanvas(),disparity,disparity.metadata.products[0],128);assert.deepEqual(drawn,wide,'alternate disparity scales cannot poison cached colour maps');
+const visibleContext={document:{hidden:false},window:{NuvoFrameCodec:{drawGray:()=>writes++}},stereo:null,$:()=>({})};
+vm.createContext(visibleContext);
+vm.runInContext(source.slice(source.indexOf('function drawGray('),source.indexOf('function renderFrame(')),visibleContext);
+const visible={closest:selector=>selector==='.page.active'?{}:null};
+const hidden={closest:selector=>selector==='[hidden]'?{}:selector==='.page.active'?{}:null};
+const beforeVisible=writes;
+visibleContext.drawVisibleProduct(hidden,numeric,{kind:'left_mono'});
+visibleContext.document.hidden=true;visibleContext.drawVisibleProduct(visible,numeric,{kind:'left_mono'});
+assert.equal(writes,beforeVisible,'hidden destinations and hidden tabs do no pixel work');
+visibleContext.document.hidden=false;visibleContext.drawVisibleProduct(visible,numeric,{kind:'left_mono'});
+assert.equal(writes,beforeVisible+1,'newly visible destination renders the current frame');
 assert(source.includes("document.addEventListener('visibilitychange',restartStreams)"),'hidden tabs must release stream demand');
+const consoleTimers=[],consoleListeners={},consoleCalls={health:0,settings:0};
+const consolePolling={setInterval:fn=>consoleTimers.push(fn),document:{hidden:false,addEventListener:(name,fn)=>consoleListeners[name]=fn},
+  refreshHealth:()=>consoleCalls.health++,refreshTransport:()=>consoleCalls.settings++,refreshEncoding:()=>consoleCalls.settings++,
+  refreshStereo:()=>consoleCalls.settings++,refreshExposure:()=>consoleCalls.settings++,refreshCapabilities:()=>consoleCalls.settings++};
+const consoleStart=source.indexOf('setInterval(()=>{if(!document.hidden)refreshHealth();}');
+vm.runInNewContext(source.slice(consoleStart,source.indexOf('\nsetInterval(()=>{if(lastFrameAt)',consoleStart)),consolePolling);
+consoleTimers.forEach(fn=>fn());assert.deepEqual(consoleCalls,{health:1,settings:5});
+consolePolling.document.hidden=true;consoleTimers.forEach(fn=>fn());consoleListeners.visibilitychange();
+assert.deepEqual(consoleCalls,{health:1,settings:5},'hidden console must stop all routine endpoint polling');
+consolePolling.document.hidden=false;consoleListeners.visibilitychange();assert.deepEqual(consoleCalls,{health:2,settings:10});
 assert(!source.includes("socketUrl('/api/v1/stream')"),'browser must not request implicit legacy-all depth products');
 const pipelineHost = fs.readFileSync(require('node:path').join(__dirname, '../web/pipeline-host.js'), 'utf8');
 const pollingStart = pipelineHost.indexOf('  setInterval(()=>{if(!document.hidden)refreshHealth();}');

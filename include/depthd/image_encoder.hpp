@@ -173,6 +173,10 @@ class AsyncFrameEncoder final {
       std::function<std::unique_ptr<FrameEncoder>(const Configuration&)>;
   using PreviewRectifierFactory =
       std::function<std::unique_ptr<RectificationBackend>()>;
+  // A generation-checked immutable publication; empty bytes invalidate it.
+  // An empty output_file disables diagnostic file snapshots.
+  using OutputPublisher = std::function<void(
+      const FrameSetIdentity&, std::uint64_t, std::span<const std::byte>)>;
   // Copies tightly packed mono or ISP I420 into already allocated pool memory.
   // Called synchronously only after demand, cadence, and pool admission.
   using CaptureImageReader = std::function<void(
@@ -182,7 +186,8 @@ class AsyncFrameEncoder final {
                     Configuration fallback = Configuration{},
                     std::filesystem::path trace_directory = {},
                     EncoderFactory encoder_factory = {},
-                    PreviewRectifierFactory preview_rectifier_factory = {});
+                    PreviewRectifierFactory preview_rectifier_factory = {},
+                    OutputPublisher output_publisher = {});
   ~AsyncFrameEncoder() noexcept;
 
   AsyncFrameEncoder(const AsyncFrameEncoder&) = delete;

@@ -1,6 +1,7 @@
 import hashlib
 import importlib.util
 import http.cookiejar
+import http.client
 import array
 import fcntl
 import json
@@ -22,6 +23,8 @@ import urllib.request
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "sdk/python"))
 from nuvo_depth import NuvoClient
+from nuvo_depth.client import _FrameStream
+from nuvo_depth.encoded import decode_encoded_frame
 
 
 def ethernet_address():
@@ -77,6 +80,23 @@ def raw_frame(sequence, run=2, configuration_epoch=1, width=1, height=1, mask=63
     return struct.pack(">4sHHHHIQQ", b"NUV1", 1, 0, 5, 0, len(metadata), len(payload), sequence) + metadata + payload
 
 
+def encoded_frame(sequence=1, capture_time_ns=None, **changes):
+    metadata = dict(schema_version=1, device_uuid="01" + "00" * 15,
+        run_uuid="02" + "00" * 15, capture_epoch=1, capture_sequence=sequence,
+        configuration_epoch=1, capture_clock=1,
+        capture_time_ns=time.clock_gettime_ns(time.CLOCK_BOOTTIME) if capture_time_ns is None else capture_time_ns,
+        calibration_sha256="01" + "00" * 31, calibration_authority=1,
+        encoding_configuration_generation=1, encoding_applied_revision="ab" * 32,
+        source="left_rectified", codec="jpeg", mime_type="image/jpeg", codec_string="jpeg",
+        width=1, height=1, keyframe=True, encode_ms=.1)
+    metadata.update(changes)
+    document = json.dumps(metadata).encode()
+    # Codec decoding is tested with real encoders separately; this fixture
+    # exercises a valid NVE1 envelope with a nonempty JPEG-marked payload.
+    payload = bytes((255, 216, 255, 217))
+    return struct.pack(">4sHHIQQI", b"NVE1", 1, 1, len(document), len(payload), sequence, 0) + document + payload
+
+
 class LocalFrames:
     """Persistent demand/SCM_RIGHTS fixture; idle clients never fetch frames."""
     def __init__(self, path):
@@ -91,6 +111,12 @@ class LocalFrames:
         self.handlers = []
         self.encoded_path = Path(path).parent / "encoded.nve"
         self.auto_encode = True
+        self.encoded_bytes = None
+        self.encoded_cursor = bytes(32)
+        self.encoded_sequence = 0
+        self.encoded_waits = []
+        self.encoded_deliveries = 0
+        self.encoded_delivery_peers = []
         self.serve_frames = True
         self.stale_frames = False
         self.stale_deliveries = 0
@@ -113,10 +139,23 @@ class LocalFrames:
             self.condition.notify_all()
 
     def encode(self):
+        previous = None
         while not self.stopping:
             if self.auto_encode and self.demand()[2]:
                 temporary = self.encoded_path.with_suffix(".tmp")
-                temporary.write_bytes(b"NVE1" + bytes(60)); temporary.replace(self.encoded_path)
+                temporary.write_bytes(encoded_frame(self.encoded_sequence + 1)); temporary.replace(self.encoded_path)
+            try:
+                modified = self.encoded_path.stat().st_mtime_ns
+                value = self.encoded_path.read_bytes()
+            except FileNotFoundError:
+                modified, value = None, None
+            if modified != previous:
+                with self.condition:
+                    self.encoded_sequence += 1
+                    self.encoded_cursor = bytes((2,)) + bytes(15) + struct.pack(">QQ", 1, self.encoded_sequence)
+                    self.encoded_bytes = value
+                    self.condition.notify_all()
+                previous = modified
             time.sleep(.05)
 
     def serve(self):
@@ -143,17 +182,36 @@ class LocalFrames:
                             self.subscription_updates.append(self.subscriptions[connection])
                             self.condition.notify_all()
                         connection.send(b"NVA2"); continue
-                    if len(request) != 48 or request[:4] != b"NVW2": break
-                    mask = struct.unpack_from(">I", request, 4)[0]
-                    with self.condition:
-                        self.requests += 1
-                        self.condition.wait_for(lambda: self.stopping or request[16:] != self.cursor,
-                                                timeout=struct.unpack_from(">I", request, 8)[0] / 1000)
-                        parameters, cursor = self.parameters, self.cursor
-                    if request[16:] == cursor or self.stopping or not self.serve_frames:
+                    if len(request) != 48 or request[:4] not in (b"NVW2", b"NVY2"): break
+                    encoded = request[:4] == b"NVY2"
+                    if encoded:
+                        with self.condition:
+                            self.encoded_waits.append((connection, request[16:]))
+                            self.condition.notify_all()
+                            self.condition.wait_for(lambda: self.stopping or
+                                (self.encoded_bytes is not None and request[16:] != self.encoded_cursor) or
+                                (self.encoded_bytes is None and request[16:] != bytes(32)),
+                                timeout=struct.unpack_from(">I", request, 8)[0] / 1000)
+                            value, cursor = self.encoded_bytes, self.encoded_cursor
+                        if value is None:
+                            connection.send(b"NVI2"); continue
+                    else:
+                        mask = struct.unpack_from(">I", request, 4)[0]
+                        with self.condition:
+                            self.requests += 1
+                            self.condition.wait_for(lambda: self.stopping or request[16:] != self.cursor,
+                                                    timeout=struct.unpack_from(">I", request, 8)[0] / 1000)
+                            parameters, cursor = self.parameters, self.cursor
+                            captured = time.clock_gettime_ns(time.CLOCK_BOOTTIME)
+                        value = raw_frame(*parameters, mask=mask, capture_time_ns=1 if self.stale_frames else captured)
+                    if request[16:] == cursor or self.stopping or (not encoded and not self.serve_frames):
                         connection.send(b"NVN2"); continue
-                    value = raw_frame(*parameters, mask=mask, capture_time_ns=1 if self.stale_frames else None)
-                    if self.stale_frames:
+                    if encoded:
+                        with self.condition:
+                            self.encoded_deliveries += 1
+                            self.encoded_delivery_peers.append((connection, cursor))
+                            self.condition.notify_all()
+                    if not encoded and self.stale_frames:
                         with self.condition:
                             self.stale_deliveries += 1
                             self.condition.notify_all()
@@ -230,6 +288,49 @@ class ConfigurationAgent:
 
 
 class GatewayIntegrationTest(unittest.TestCase):
+    def test_http_keepalive_is_bounded_and_authentication_is_per_request(self):
+        address = urllib.parse.urlsplit(self.origin)
+        connection = http.client.HTTPSConnection(address.hostname, address.port,
+            context=ssl.create_default_context(cafile=str(self.certificate)), timeout=5)
+        try:
+            headers = {"Authorization": f"Bearer {self.token}"}
+            for index in range(32):
+                connection.request("GET", "/api/v1/encoding", headers=headers if index != 1 else {})
+                response = connection.getresponse()
+                self.assertEqual(response.status, 401 if index == 1 else 200)
+                response.read()
+                if index == 0:
+                    identity = connection.sock
+                if index < 31:
+                    self.assertIs(connection.sock, identity)
+                    self.assertEqual(response.getheader("Connection"), None)
+                else:
+                    self.assertEqual(response.getheader("Connection"), "close")
+        finally:
+            connection.close()
+
+    def test_idle_http_keepalive_leaves_capacity_for_streams(self):
+        address = urllib.parse.urlsplit(self.origin)
+        connections = []
+        try:
+            for index in range(5):
+                connection = http.client.HTTPSConnection(address.hostname, address.port,
+                    context=ssl.create_default_context(cafile=str(self.certificate)), timeout=5)
+                connections.append(connection)
+                connection.request("GET", "/api/v1/encoding", headers={"Authorization": f"Bearer {self.token}"})
+                response = connection.getresponse(); response.read()
+                self.assertEqual(response.status, 200)
+                if index == 4:
+                    self.assertEqual(response.getheader("Connection"), "close")
+            client = NuvoClient(self.origin, ca_file=self.certificate)
+            client._cookies = self.cookies
+            client._csrf = "existing-test-session"
+            with client.frames(cadence_hz=1, products=["left_mono"]) as stream:
+                self.assertIn("left_mono", next(stream).products)
+        finally:
+            for connection in connections:
+                connection.close()
+
     def test_setup_code_password_handoff_and_csrf(self):
         setup=self.agent.setup
         setup.save(self.agent.root,setup.AUTH,{"schema_version":1,"claimed":False})
@@ -280,7 +381,7 @@ class GatewayIntegrationTest(unittest.TestCase):
         (cls.config_root/"stereo.json").write_text(json.dumps(cls.stereo)+"\n")
         cls.exposure=json.loads((Path(__file__).parents[1]/"config/exposure.json").read_text())
         (cls.config_root/"exposure.json").write_text(json.dumps(cls.exposure)+"\n")
-        (root/"encoded.nve").write_bytes(b"NVE1"+bytes(60))
+        (root/"encoded.nve").write_bytes(encoded_frame())
         cls.ethernet = ethernet_address()
         certificate_addresses = "IP:127.0.0.1"
         if cls.ethernet:
@@ -384,6 +485,142 @@ class GatewayIntegrationTest(unittest.TestCase):
                 return
             time.sleep(.02)
         self.assertEqual(self.local.demand(), expected)
+
+    def write_encoded_fixture(self, value):
+        temporary = self.local.encoded_path.with_suffix(".fixture")
+        temporary.write_bytes(value); temporary.replace(self.local.encoded_path)
+        with self.local.condition:
+            self.assertTrue(self.local.condition.wait_for(lambda: self.local.encoded_bytes == value, timeout=1))
+            return self.local.encoded_cursor
+
+    def wait_encoded_cursor(self, cursor, connection=None):
+        with self.local.condition:
+            self.assertTrue(self.local.condition.wait_for(lambda: any(
+                after == cursor and (connection is None or peer is connection)
+                for peer, after in self.local.encoded_waits), timeout=1))
+            return next(peer for peer, after in reversed(self.local.encoded_waits)
+                        if after == cursor and (connection is None or peer is connection))
+
+    def fetch_encoded_fixture(self, websocket, result):
+        try:
+            if not websocket:
+                with self.open("/api/v1/encoded/latest?cadence_hz=5",
+                               headers={"Authorization": f"Bearer {self.token}"}) as response:
+                    result.append(decode_encoded_frame(response.read()))
+            else:
+                client = NuvoClient(self.origin, ca_file=self.certificate)
+                client._cookies, client._csrf = self.cookies, "existing-test-session"
+                with _FrameStream(client, "/api/v1/encoded/stream?cadence_hz=5") as stream:
+                    first, second = stream._read_exact(2)
+                    self.assertEqual(first, 0x82)
+                    length = second & 127
+                    if length == 126: length = struct.unpack(">H", stream._read_exact(2))[0]
+                    elif length == 127: length = struct.unpack(">Q", stream._read_exact(8))[0]
+                    result.append(decode_encoded_frame(stream._read_exact(length)))
+        except Exception as error:
+            result.append(error)
+
+    def test_encoded_stale_cache_cannot_satisfy_initial_http_or_websocket_wait(self):
+        self.wait_demand((0, 0, 0))
+        self.local.auto_encode = False
+        time.sleep(.1)
+        try:
+            self.write_encoded_fixture(encoded_frame(capture_time_ns=time.clock_gettime_ns(time.CLOCK_BOOTTIME)-10_000_000_000))
+            for websocket in (False, True):
+                with self.subTest(websocket=websocket):
+                    result = []
+                    self.fetch_encoded_fixture(websocket, result)
+                    self.assertEqual(len(result), 1)
+                    if websocket:
+                        self.assertIsInstance(result[0], ConnectionError)
+                        self.assertIn("503", str(result[0]))
+                    else:
+                        self.assertIsInstance(result[0], urllib.error.HTTPError)
+                        self.assertEqual(result[0].code, 503)
+                    self.wait_demand((0, 0, 0))
+        finally:
+            self.local.auto_encode = True
+
+    def test_encoded_stale_cache_recovers_on_same_demand_and_advanced_cursor(self):
+        self.wait_demand((0, 0, 0))
+        self.local.auto_encode = False
+        time.sleep(.1)
+        consumer = None
+        try:
+            for websocket in (False, True):
+                with self.subTest(websocket=websocket):
+                    stale_cursor = self.write_encoded_fixture(encoded_frame(capture_time_ns=time.clock_gettime_ns(time.CLOCK_BOOTTIME)-10_000_000_000))
+                    updates = len(self.local.subscription_updates)
+                    result = []
+                    consumer = threading.Thread(target=self.fetch_encoded_fixture, args=(websocket, result))
+                    consumer.start()
+                    connection = self.wait_encoded_cursor(stale_cursor)
+                    time.sleep(.25)
+                    self.assertTrue(consumer.is_alive(), "old encoded capture satisfied the first-frame wait")
+                    self.assertEqual(len(self.local.subscription_updates)-updates, 1, "stale preview reconnected instead of preserving demand")
+                    self.wait_demand((0, 0, 5))
+                    fresh = encoded_frame(202 if websocket else 201)
+                    fresh_cursor = self.write_encoded_fixture(fresh)
+                    consumer.join(timeout=2)
+                    self.assertFalse(consumer.is_alive())
+                    self.assertEqual(len(result), 1)
+                    if isinstance(result[0], Exception): raise result[0]
+                    self.assertEqual(result[0].capture_sequence, 202 if websocket else 201)
+                    self.assertEqual(bytes(result[0].data), bytes(decode_encoded_frame(fresh).data))
+                    self.assertNotEqual(fresh_cursor, stale_cursor)
+                    # The same registered local connection delivered the fresh
+                    # packet after waiting with the rejected packet's cursor.
+                    self.assertIn((connection, fresh_cursor), self.local.encoded_delivery_peers)
+                    self.assertEqual(len(self.local.subscription_updates)-updates, 1)
+                    self.wait_demand((0, 0, 0))
+        finally:
+            self.local.auto_encode = True
+            if consumer: consumer.join(timeout=5)
+
+    def test_encoded_malformed_envelopes_and_metadata_are_not_published(self):
+        def header(offset, fmt, value):
+            result = bytearray(encoded_frame()); struct.pack_into(fmt, result, offset, value); return bytes(result)
+        malformed = [
+            ("version", lambda: header(4, ">H", 2)),
+            ("flags", lambda: header(6, ">H", 2)),
+            ("metadata bound", lambda: header(8, ">I", 65537)),
+            ("payload bound", lambda: header(12, ">Q", 0)),
+            ("stream identity", lambda: header(20, ">Q", 0)),
+            ("reserved", lambda: header(28, ">I", 1)),
+            ("schema type", lambda: encoded_frame(schema_version="1")),
+            ("capture identity", lambda: encoded_frame(run_uuid="00"*16)),
+            ("clock", lambda: encoded_frame(capture_clock=0)),
+            ("future capture", lambda: encoded_frame(capture_time_ns=time.clock_gettime_ns(time.CLOCK_BOOTTIME)+10_000_000_000)),
+            ("dimensions", lambda: encoded_frame(width=0)),
+            ("codec", lambda: encoded_frame(codec="unknown")),
+            ("mime", lambda: encoded_frame(mime_type="text/plain")),
+            ("keyframe type", lambda: encoded_frame(keyframe="true")),
+            ("keyframe agreement", lambda: encoded_frame(keyframe=False)),
+        ]
+        self.wait_demand((0, 0, 0))
+        self.local.auto_encode = False
+        time.sleep(.1)
+        consumer = None
+        try:
+            cursor = self.write_encoded_fixture(encoded_frame(capture_time_ns=1))
+            result = []
+            consumer = threading.Thread(target=self.fetch_encoded_fixture, args=(False, result)); consumer.start()
+            connection = self.wait_encoded_cursor(cursor)
+            for name, make_packet in malformed:
+                with self.subTest(field=name):
+                    cursor = self.write_encoded_fixture(make_packet())
+                    self.wait_encoded_cursor(cursor, connection)
+                    self.assertTrue(consumer.is_alive(), f"invalid {name} satisfied the first-frame wait")
+            self.write_encoded_fixture(encoded_frame(301))
+            consumer.join(timeout=2)
+            self.assertFalse(consumer.is_alive())
+            self.assertEqual(len(result), 1)
+            if isinstance(result[0], Exception): raise result[0]
+            self.assertEqual(result[0].capture_sequence, 301)
+        finally:
+            self.local.auto_encode = True
+            if consumer: consumer.join(timeout=5)
+        self.wait_demand((0, 0, 0))
 
     def test_a_idle_gateway_does_not_fetch_raw_or_request_encoding(self):
         self.wait_demand((0, 0, 0))
@@ -773,6 +1010,43 @@ class GatewayIntegrationTest(unittest.TestCase):
             self.assertEqual(process.returncode, 0, process.stderr.read()); process.stderr.close()
             self.local.publish(10, run=3); self.wait_demand((0, 0, 0))
 
+    def test_mixed_image_and_matcher_subscriptions_keep_separate_cadences(self):
+        client = NuvoClient(self.origin, ca_file=self.certificate)
+        client._cookies = self.cookies
+        client._csrf = "existing-test-session"
+        with client.frames(cadence_hz=1, products=["depth", "left_mono"]) as depth, \
+             client.frames(cadence_hz=10, products=["left_mono"]) as mono:
+            first = next(depth)
+            next(mono)
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline:
+                with self.local.condition:
+                    demands = list(self.local.subscriptions.values())
+                if ((1 << 3) | (1 << 6), 1.0, 0.0) in demands and (1 << 6, 10.0, 0.0) in demands:
+                    break
+                time.sleep(.01)
+            else:
+                self.fail(f"mixed demand collapsed into one cadence: {demands}")
+            for sequence in range(8, 19):
+                self.local.publish(sequence)
+                time.sleep(.1)
+            fast = next(mono)
+            slow = next(depth)
+            self.assertEqual(set(fast.products), {"left_mono"})
+            self.assertEqual(set(slow.products), {"depth", "left_mono"})
+            self.assertGreater(slow.capture_sequence, first.capture_sequence)
+            self.assertEqual(slow.run_uuid, fast.run_uuid)
+            self.local.publish(19, run=3)
+            # Already transmitted frames can remain in the network buffer.
+            for stream in (mono, depth):
+                for _ in range(20):
+                    if next(stream).run_uuid.startswith("03"):
+                        break
+                else:
+                    self.fail("mixed subscriber did not observe daemon restart")
+        self.wait_demand((0, 0, 0))
+        self.local.publish(7)
+
     def test_stream_products_and_cadence_are_explicit_engineering_limits(self):
         client = NuvoClient(self.origin, ca_file=self.certificate)
         client.claim(self.token)
@@ -791,6 +1065,35 @@ class GatewayIntegrationTest(unittest.TestCase):
             self.assertEqual(second.capture_sequence, 19)
             self.assertEqual(second.run_uuid, first.run_uuid)
             self.assertEqual(set(second.products), set(first.products))
+
+    def test_subset_views_reserve_the_complete_backing_union(self):
+        arguments = list(self.process.args)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as reservation:
+            reservation.bind(("127.0.0.1", 0)); port = reservation.getsockname()[1]
+        arguments[arguments.index("--port") + 1] = str(port)
+        arguments.extend(["--engineering-byte-budget", str(1024 ** 3)])
+        process = subprocess.Popen(arguments, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        try:
+            self.wait_demand((0, 0, 0)); self.local.publish(50, run=3, width=720, height=540)
+            client = NuvoClient(f"https://127.0.0.1:{port}", ca_file=self.certificate)
+            for _ in range(30):
+                try: client.claim(self.token); break
+                except (ConnectionError, urllib.error.URLError):
+                    if process.poll() is not None: self.fail(process.stderr.read())
+                    time.sleep(.1)
+            # The first consumer's union owns about 15 MiB. Each selected
+            # view can retain two such owners despite sending very few bytes.
+            with client.frames(cadence_hz=1, products=[p[0] for p in PRODUCTS], delivery="best_effort") as complete:
+                with client.frames(cadence_hz=1, products=["depth"], delivery="best_effort") as depth:
+                    self.assertEqual(set(next(depth).products), {"depth"})
+                    with self.assertRaisesRegex(ConnectionError, "409"):
+                        with client.frames(cadence_hz=1, products=["confidence"], delivery="best_effort"):
+                            self.fail("small view bypassed retained-source memory admission")
+        finally:
+            process.terminate(); process.wait(timeout=3)
+            self.assertEqual(process.returncode, 0, process.stderr.read()); process.stderr.close()
+            self.local.publish(51, run=3)
+            self.wait_demand((0, 0, 0))
 
     def test_stream_ping_and_close_are_processed_while_source_idle(self):
         client = NuvoClient(self.origin, ca_file=self.certificate)
@@ -813,7 +1116,7 @@ class GatewayIntegrationTest(unittest.TestCase):
         configuration = self.config_root / "encoding.json"
         previous = configuration.read_bytes()
         try:
-            encoded.write_bytes(b"NVE1" + bytes(60))
+            encoded.write_bytes(encoded_frame())
             time.sleep(.2)
             with self.open("/api/v1/encoded/latest", headers={"Authorization": f"Bearer {self.token}"}) as response:
                 self.assertTrue(response.read().startswith(b"NVE1"))
@@ -839,7 +1142,7 @@ class GatewayIntegrationTest(unittest.TestCase):
         finally:
             self.local.auto_encode = True
             configuration.write_bytes(previous)
-            encoded.write_bytes(b"NVE1" + bytes(60))
+            encoded.write_bytes(encoded_frame())
             self.local.publish(25, run=3)
             time.sleep(.4)
 

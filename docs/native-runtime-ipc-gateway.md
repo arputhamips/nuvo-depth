@@ -211,6 +211,45 @@ an undocumented compatibility claim.
 
 ## Current acceptance evidence
 
+Raw demand has two bounded processing groups: requests containing any matcher
+product retain their entire associated product mask at that group's maximum
+cadence; image-only requests aggregate separately. Thus 1 Hz depth plus 10 Hz
+mono requires matching at 1 Hz. This is group scheduling, not independent
+per-product scheduling. Each group retains its latest coherent frame; newer
+mono publications cannot erase a pending depth result.
+
+Encoded previews use event-driven waits and immutable sealed memfds on the
+existing `data.sock` (`NVY2`, with `NVI2` invalidation). Only the latest preview
+is retained, bounded to 4 MiB. Normal native delivery no longer writes or polls
+`snapshots/latest.nve`. `--diagnostic-raw-snapshots` also enables this encoded
+diagnostic file; gateway `--diagnostic-snapshot-fallback` can still read files
+from older producers. External HTTP/WebSocket endpoints and NVE1 bytes are
+unchanged. The resource profiler observes preview IPC directly.
+The gateway validates each NVE1 header, bounded scalar metadata, capture
+identity, codec/MIME pairing, and keyframe agreement before caching it. Only
+verifiable `CLOCK_BOOTTIME` captures at most one second old are eligible;
+future, stale, or invalid cached packets do not become fresh on reconnect.
+Skipping them preserves the advanced local cursor and registered demand so a
+later fresh capture can satisfy the original HTTP/WebSocket first-frame wait.
+
+The gateway maps validated, size-sealed local messages read-only. Product
+selection rewrites only header/metadata and sends owning payload views over
+WebSocket; explicit vector APIs and HTTP snapshots still copy their complete
+response. Session admission reserves the full retained source owner for both
+pending and in-flight frames, including when a small subset pins a much larger
+product union. This conservative bound can admit fewer heterogeneous slow
+clients than compact copied subsets; the 64 MiB session budget is unchanged.
+Routine HTTP responses can reuse a TLS connection for at most 32 requests and
+30 seconds, with the existing five-second socket deadline. At most four idle
+HTTP connections (and at most one quarter of the connection limit) retain a
+keep-alive slot, leaving capacity for streaming. Hidden consoles skip routine
+status/settings polling and refresh when visible again.
+
+Status retains total `published_frames` and adds `matched_frames` plus the
+latest `matcher_statistics`. Depth rates and stereo timing history use these
+dedicated measurements, so faster image-only publications cannot inflate the
+reported matcher cadence or replace its timing samples.
+
 Portable tests cover pipeline identity and lease release, real OpenCV
 rectification/SGBM integration, bounded scheduler behavior, selective IPC
 products, pinned readers and disconnect, pool limits, run generations, strict

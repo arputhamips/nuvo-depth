@@ -129,6 +129,47 @@ struct SessionQueueStats {
   bool open{};
 };
 
+// Immutable serialized bytes may be one mapped message or a small rewritten
+// header/metadata followed by views into its owning original payload.
+class SerializedBytes final {
+ public:
+  SerializedBytes(std::vector<std::byte> bytes)
+      : SerializedBytes(std::make_shared<const std::vector<std::byte>>(std::move(bytes))) {}
+  explicit SerializedBytes(std::shared_ptr<const std::vector<std::byte>> bytes)
+      : owner_(bytes), vector_(std::move(bytes)) {
+    parts_.emplace_back(*vector_); size_ = vector_->size(); retained_size_ = size_;
+  }
+  SerializedBytes(std::shared_ptr<const void> owner, std::span<const std::byte> bytes)
+      : owner_(std::move(owner)), parts_{bytes}, size_(bytes.size()), retained_size_(size_) {}
+  SerializedBytes(std::vector<std::byte> prefix, std::shared_ptr<const SerializedBytes> source,
+                  std::vector<std::span<const std::byte>> payload)
+      : owner_(source), vector_(std::make_shared<const std::vector<std::byte>>(std::move(prefix))) {
+    parts_.emplace_back(*vector_);
+    parts_.insert(parts_.end(), payload.begin(), payload.end());
+    for (auto part : parts_) size_ += part.size();
+    retained_size_ = source->retained_size() + vector_->size();
+  }
+  [[nodiscard]] std::size_t size() const noexcept { return size_; }
+  [[nodiscard]] std::size_t retained_size() const noexcept { return retained_size_; }
+  [[nodiscard]] bool empty() const noexcept { return size_ == 0U; }
+  [[nodiscard]] const std::byte* data() const noexcept { return parts_.front().data(); }
+  [[nodiscard]] std::span<const std::byte> prefix() const noexcept { return parts_.front(); }
+  [[nodiscard]] const auto& parts() const noexcept { return parts_; }
+  [[nodiscard]] const auto& vector_owner() const noexcept { return vector_; }
+  [[nodiscard]] std::vector<unsigned char> copy() const {
+    std::vector<unsigned char> result; result.reserve(size_);
+    for (auto part : parts_) result.insert(result.end(),
+        reinterpret_cast<const unsigned char*>(part.data()),
+        reinterpret_cast<const unsigned char*>(part.data() + part.size()));
+    return result;
+  }
+ private:
+  std::shared_ptr<const void> owner_;
+  std::shared_ptr<const std::vector<std::byte>> vector_;
+  std::vector<std::span<const std::byte>> parts_;
+  std::size_t size_{}, retained_size_{};
+};
+
 // A network client owns at most one unsent complete frame plus one in-flight
 // message. Once any byte is sent, the message must finish or the session must
 // close; framing is never resumed after abandoning a partial message.
@@ -139,6 +180,8 @@ class SessionQueue final {
   [[nodiscard]] OfferResult offer(std::shared_ptr<const wire::Message> message);
   [[nodiscard]] OfferResult offer_serialized(
       std::shared_ptr<const std::vector<std::byte>> bytes);
+  [[nodiscard]] OfferResult offer_buffered(std::shared_ptr<const SerializedBytes> bytes);
+  [[nodiscard]] std::shared_ptr<const SerializedBytes> begin_buffered_transmission();
   [[nodiscard]] std::shared_ptr<const wire::Message> begin_transmission();
   [[nodiscard]] std::shared_ptr<const std::vector<std::byte>>
       begin_serialized_transmission();
@@ -152,8 +195,8 @@ class SessionQueue final {
   mutable std::mutex mutex_;
   std::shared_ptr<const wire::Message> pending_;
   std::shared_ptr<const wire::Message> in_flight_;
-  std::shared_ptr<const std::vector<std::byte>> pending_bytes_;
-  std::shared_ptr<const std::vector<std::byte>> in_flight_bytes_;
+  std::shared_ptr<const SerializedBytes> pending_bytes_;
+  std::shared_ptr<const SerializedBytes> in_flight_bytes_;
   std::size_t in_flight_bytes_sent_{};
   SessionQueueStats stats_{};
   bool open_{true};

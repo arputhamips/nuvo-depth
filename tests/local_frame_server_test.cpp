@@ -1,4 +1,5 @@
 #include "depthd/local_frame_server.hpp"
+#include "depthd/native_capture_runner.hpp"
 
 #include <chrono>
 #include <filesystem>
@@ -10,6 +11,8 @@
 
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
+#include <fcntl.h>
 
 namespace {
 
@@ -66,6 +69,9 @@ int main() {
         socket, depthd::ipc_v2::kAllProducts);
     if (!first || first->cursor.capture_sequence != 7U ||
         depthd::wire::deserialize(first->bytes).payload.size() != 24U) return 3;
+    depthd::ipc_v2::LocalFrameClient mapped_client(socket);
+    const auto mapped = mapped_client.next_mapped();
+    if (!mapped || !mapped->owner || std::vector(mapped->bytes.begin(), mapped->bytes.end()) != first->bytes) return 31;
     const auto exported = [&] {
       auto connection = depthd::ipc_v2::connect_seqpacket(socket);
       const std::array request{std::byte{'N'}, std::byte{'V'}, std::byte{'Q'},
@@ -113,6 +119,7 @@ int main() {
     server.stop();
     if (stopped_waiter.get() || std::chrono::steady_clock::now() - stopped_at >
             std::chrono::milliseconds(300)) return 7;
+    if (std::vector(mapped->bytes.begin(), mapped->bytes.end()) != first->bytes) return 32;
   }
   {
     using namespace depthd::ipc_v2;
@@ -166,9 +173,100 @@ int main() {
     // sockets do not make server shutdown wait for their receive timeout.
     LocalFrameClient preview(socket, 0U, 0.0, 10.0);
     if (server.demand().products != 0U || server.demand().preview_cadence_hz != 10.0) return 20;
+    const std::vector<std::byte> encoded(64U, std::byte{7});
+    const LocalFrameCursor preview_cursor{{9U}, 1U, 2U};
+    auto preview_waiter = std::async(std::launch::async, [&] {
+      return preview.next_encoded({}, std::chrono::milliseconds(500));
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    server.publish_encoded(preview_cursor, encoded);
+    const auto received = preview_waiter.get();
+    if (!received || received->cursor != preview_cursor || received->bytes != encoded) return 28;
+    if (preview.next_encoded(preview_cursor, std::chrono::milliseconds(10))) return 29;
+    server.publish_encoded({}, {});
+    const auto invalidated = preview.next_encoded(preview_cursor, std::chrono::milliseconds(10));
+    if (!invalidated || !invalidated->bytes.empty() || received->bytes != encoded) return 30;
     const auto stopped = std::chrono::steady_clock::now();
     server.stop();
     if (std::chrono::steady_clock::now() - stopped > std::chrono::milliseconds(300)) return 21;
+  }
+  {
+    using namespace depthd::ipc_v2;
+    LocalFrameServer server(socket, 0600U);
+    const auto mono = product_bit(ProductKind::kLeftMono);
+    const auto depth = product_bit(ProductKind::kDepth);
+    LocalFrameClient images(socket, mono, 10.0);
+    LocalFrameClient matched(socket, depth | mono, 1.0);
+    const auto demand = server.demand();
+    if (demand.image_products != mono || demand.image_cadence_hz != 10.0 ||
+        demand.matcher_products != (depth | mono) || demand.matcher_cadence_hz != 1.0) return 22;
+    depthd::NativeCaptureCadence image_cadence, matcher_cadence;
+    LocalFrameCursor image_cursor{}, matcher_cursor{};
+    unsigned matches{};
+    for (std::uint64_t sequence = 1; sequence <= 21; ++sequence) {
+      auto value = frame();
+      value->metadata.frame.capture_sequence = sequence;
+      value->metadata.frame.capture_time_ns = static_cast<std::int64_t>(sequence * 100'000'000U);
+      auto products = image_cadence.admit(value->metadata.frame, demand.image_products, demand.image_cadence_hz)
+          ? demand.image_products : 0U;
+      const bool matcher_due = matcher_cadence.admit(value->metadata.frame,
+          demand.matcher_products, demand.matcher_cadence_hz);
+      if (matcher_due) { products |= demand.matcher_products; ++matches; }
+      value->available_products = products;
+      value->left_rectified.clear(); value->right_rectified.clear(); value->disparity.clear();
+      value->confidence.clear(); value->validity.clear();
+      value->left_mono = {1U, 2U};
+      if (!matcher_due) value->depth_m.clear();
+      server.publish(value);
+      const auto image = images.next(image_cursor, std::chrono::milliseconds(0));
+      if (!image || image->cursor.capture_sequence != sequence) return 23;
+      image_cursor = image->cursor;
+      if (matcher_due) {
+        // Let several newer mono publications replace latest_ before reading
+        // the associated slow depth frame below.
+        matcher_cursor = {value->metadata.frame.run_uuid, 1U, sequence};
+      } else {
+        const auto retained = matched.next({}, std::chrono::milliseconds(0));
+        if (!retained || retained->cursor != matcher_cursor ||
+            depthd::wire::deserialize(retained->bytes).payload.size() != 10U) return 24;
+      }
+    }
+    if (matches != 3U) return 25;
+    auto changed = frame();
+    changed->metadata.frame.configuration_epoch = 2U;
+    changed->available_products = mono;
+    changed->left_rectified.clear(); changed->right_rectified.clear(); changed->disparity.clear();
+    changed->confidence.clear(); changed->validity.clear(); changed->depth_m.clear();
+    changed->left_mono = {1U, 2U};
+    server.publish(changed);
+    if (matched.next({}, std::chrono::milliseconds(0))) return 26;
+    if (!matcher_cadence.admit(changed->metadata.frame, demand.matcher_products, demand.matcher_cadence_hz)) return 27;
+  }
+  {
+    // A malformed peer cannot turn a short/shrinkable memfd into a SIGBUS.
+    using namespace depthd::ipc_v2;
+    for (bool truncated : {false, true}) {
+      SeqpacketListener listener(socket, 0600U);
+      auto peer = std::async(std::launch::async, [&] {
+        auto connection = listener.accept(std::chrono::seconds(1));
+        (void)connection.receive_packet(20U, 0U, std::chrono::seconds(1));
+        const std::array ack{std::byte{'N'},std::byte{'V'},std::byte{'A'},std::byte{'2'}};
+        connection.send_packet(ack);
+        (void)connection.receive_packet(48U, 0U, std::chrono::seconds(1));
+        OwnedFd unsealed(::memfd_create("malformed-frame", MFD_ALLOW_SEALING));
+        if (::ftruncate(unsealed.get(), 32) != 0) throw std::runtime_error("test memfd truncate failed");
+        if (truncated) (void)::fcntl(unsealed.get(), F_ADD_SEALS, F_SEAL_WRITE | F_SEAL_GROW | F_SEAL_SHRINK);
+        std::array<std::byte,48> response{};
+        response[0]=std::byte{'N'};response[1]=std::byte{'V'};response[2]=std::byte{'R'};response[3]=std::byte{'2'};
+        response[15]=truncated?std::byte{64}:std::byte{32};
+        const std::array handle{unsealed.get()}; connection.send_packet(response,handle);
+      });
+      bool rejected{};
+      try { LocalFrameClient client(socket); (void)client.next_mapped(); }
+      catch (const std::runtime_error&) { rejected = true; }
+      peer.get();
+      if (!rejected) return 33;
+    }
   }
   {
     const auto started = std::chrono::steady_clock::now();

@@ -2,6 +2,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <charconv>
 #include <condition_variable>
 #include <cmath>
 #include <cstring>
@@ -604,9 +605,11 @@ struct Subscription {
   throw std::runtime_error("accepted socket has no receiving interface");
 }
 
-[[nodiscard]] Json frame_metadata(const std::vector<std::byte>& bytes) {
+using FrameBytes = depthd::gateway::SerializedBytes;
+
+[[nodiscard]] Json frame_metadata(const FrameBytes& bytes) {
   if (bytes.size() < depthd::wire::kHeaderBytes) throw std::invalid_argument("short frame");
-  const auto header = depthd::wire::decode_header(std::span(bytes).first(depthd::wire::kHeaderBytes));
+  const auto header = depthd::wire::decode_header(bytes.prefix().first(depthd::wire::kHeaderBytes));
   if (header.kind != depthd::wire::MessageKind::kFrameSet ||
       bytes.size() != depthd::wire::kHeaderBytes + header.metadata_bytes + header.payload_bytes) {
     throw std::invalid_argument("invalid frame-set length");
@@ -615,15 +618,110 @@ struct Subscription {
       depthd::wire::kHeaderBytes), header.metadata_bytes));
 }
 
+// Validate the NVE1 envelope before reading bounded metadata. Arrival over a
+// new IPC connection does not make a cached encoded capture fresh.
+[[nodiscard]] std::uint64_t encoded_capture_time(const FrameBytes& bytes) {
+  constexpr std::size_t header_bytes = 32U;
+  const auto prefix = bytes.prefix();
+  if (prefix.size() < header_bytes || bytes.size() > 4U * 1024U * 1024U ||
+      std::memcmp(prefix.data(), "NVE1", 4U) != 0)
+    throw std::invalid_argument("invalid encoded frame envelope");
+  const auto read = [&](std::size_t offset, std::size_t count) {
+    std::uint64_t value{};
+    for (std::size_t index = offset; index < offset + count; ++index)
+      value = (value << 8U) | std::to_integer<std::uint8_t>(prefix[index]);
+    return value;
+  };
+  const auto flags = read(6U, 2U), metadata_bytes = read(8U, 4U), payload_bytes = read(12U, 8U);
+  if (read(4U, 2U) != 1U || (flags & ~1U) != 0U || read(28U, 4U) != 0U ||
+      read(20U, 8U) == 0U || metadata_bytes == 0U || metadata_bytes > 65536U ||
+      payload_bytes == 0U || payload_bytes > 32U * 1024U * 1024U ||
+      header_bytes + metadata_bytes + payload_bytes != bytes.size() ||
+      header_bytes + metadata_bytes > prefix.size())
+    throw std::invalid_argument("invalid encoded frame bounds or header");
+  const std::string_view document(reinterpret_cast<const char*>(prefix.data() + header_bytes), metadata_bytes);
+  const auto metadata = parse_json(document);
+  std::unordered_set<std::string> fields, quoted_fields;
+  // property_tree stores JSON scalar types as strings. Preserve the literal
+  // type here so e.g. schema_version="1" cannot pass and then fail SDK decode.
+  const auto skip_space = [&](std::size_t position) { return document.find_first_not_of(" \t\r\n", position); };
+  const auto skip_string = [&](std::size_t position) {
+    if (position >= document.size() || document[position++] != '"')
+      throw std::invalid_argument("invalid encoded metadata object");
+    while (position < document.size()) {
+      const auto character = document[position++];
+      if (character == '\\') ++position;
+      else if (character == '"') return position;
+    }
+    throw std::invalid_argument("invalid encoded metadata string");
+  };
+  auto position = skip_space(0U);
+  if (position >= document.size() || document[position++] != '{')
+    throw std::invalid_argument("encoded metadata is not an object");
+  for (const auto& [key, value] : metadata) {
+    if (key.empty() || !value.empty() || !fields.insert(key).second)
+      throw std::invalid_argument("encoded metadata must contain unique scalar fields");
+    position = skip_space(skip_string(skip_space(position)));
+    if (position >= document.size() || document[position++] != ':')
+      throw std::invalid_argument("invalid encoded metadata member");
+    position = skip_space(position);
+    if (position >= document.size() || document[position] == '{' || document[position] == '[')
+      throw std::invalid_argument("encoded metadata member is not scalar");
+    if (document[position] == '"') { quoted_fields.insert(key); position = skip_string(position); }
+    else position = document.find_first_of(",}", position);
+    position = skip_space(position);
+    if (position < document.size() && document[position] == ',') ++position;
+  }
+  const auto positive = [&](const char* field) {
+    const auto value = metadata.get<std::string>(field);
+    std::uint64_t parsed{};
+    const auto result = std::from_chars(value.data(), value.data() + value.size(), parsed);
+    if (quoted_fields.contains(field) || result.ec != std::errc{} || result.ptr != value.data() + value.size() || parsed == 0U)
+      throw std::invalid_argument("invalid encoded metadata integer");
+    return parsed;
+  };
+  const auto valid_uuid = [&](const char* field) {
+    const auto value = metadata.get<std::string>(field);
+    return quoted_fields.contains(field) && value.size() == 32U && value.find_first_not_of('0') != std::string::npos &&
+        value.find_first_not_of("0123456789abcdefABCDEF") == std::string::npos;
+  };
+  const auto keyframe = metadata.get<std::string>("keyframe");
+  const auto source = metadata.get<std::string>("source");
+  constexpr std::array sources{"left_rectified", "right_rectified", "left_color", "right_color",
+      "left_mono", "right_mono", "left_rgb", "right_rgb", "left_rectified_rgb", "right_rectified_rgb",
+      "rectified_stereo", "rectified_stereo_rgb", "disparity", "depth"};
+  const auto codec = metadata.get<std::string>("codec"), mime = metadata.get<std::string>("mime_type");
+  for (const auto* field : {"capture_epoch", "capture_sequence", "configuration_epoch"}) (void)positive(field);
+  if (positive("schema_version") != 1U || positive("capture_clock") != 1U ||
+      !valid_uuid("device_uuid") || !valid_uuid("run_uuid") ||
+      positive("width") > 32768U || positive("height") > 32768U ||
+      !quoted_fields.contains("source") || !quoted_fields.contains("codec") || !quoted_fields.contains("mime_type") ||
+      std::find(sources.begin(), sources.end(), source) == sources.end() ||
+      !((codec == "jpeg" && mime == "image/jpeg") || (codec == "h264" && mime == "video/h264")) ||
+      quoted_fields.contains("keyframe") || (keyframe != "true" && keyframe != "false") ||
+      (keyframe == "true") != ((flags & 1U) != 0U))
+    throw std::invalid_argument("invalid encoded frame metadata");
+  return positive("capture_time_ns");
+}
+
+[[nodiscard]] bool fresh_capture(const std::uint64_t captured) {
+  timespec current{};
+  if (::clock_gettime(CLOCK_BOOTTIME, &current) != 0)
+    throw std::runtime_error("capture freshness clock unavailable");
+  const auto now = static_cast<std::uint64_t>(current.tv_sec) * 1'000'000'000U +
+      static_cast<std::uint64_t>(current.tv_nsec);
+  return captured != 0U && captured <= now && now - captured <= 1'000'000'000U;
+}
+
 // A subset is serialized once per source publication and mask. Identity and
 // non-product provenance remains byte-for-byte identical to the source. The
 // selected mask changes with its descriptors; the available union is retained.
-[[nodiscard]] std::shared_ptr<const std::vector<std::byte>> select_products(
-    const std::shared_ptr<const std::vector<std::byte>>& bytes,
+[[nodiscard]] std::shared_ptr<const FrameBytes> select_products(
+    const std::shared_ptr<const FrameBytes>& bytes,
     const depthd::ipc_v2::ProductMask mask) {
-  auto header = depthd::wire::decode_header(std::span(*bytes).first(depthd::wire::kHeaderBytes));
+  auto header = depthd::wire::decode_header(bytes->prefix().first(depthd::wire::kHeaderBytes));
   const auto metadata = frame_metadata(*bytes);
-  const auto payload = std::span(*bytes).subspan(depthd::wire::kHeaderBytes + header.metadata_bytes);
+  const auto payload = bytes->prefix().subspan(depthd::wire::kHeaderBytes + header.metadata_bytes);
   std::string document(reinterpret_cast<const char*>(bytes->data() + depthd::wire::kHeaderBytes),
                        header.metadata_bytes);
   const auto field = document.find("\"products\"");
@@ -683,25 +781,25 @@ struct Subscription {
   header.metadata_bytes = static_cast<std::uint32_t>(document.size());
   header.payload_bytes = total;
   const auto encoded = depthd::wire::encode_header(header);
-  auto result = std::make_shared<std::vector<std::byte>>();
-  result->reserve(depthd::wire::kHeaderBytes + document.size() + total);
-  result->insert(result->end(), encoded.begin(), encoded.end());
+  std::vector<std::byte> prefix;
+  prefix.reserve(depthd::wire::kHeaderBytes + document.size());
+  prefix.insert(prefix.end(), encoded.begin(), encoded.end());
   const auto* start = reinterpret_cast<const std::byte*>(document.data());
-  result->insert(result->end(), start, start + document.size());
-  for (const auto slice : slices) result->insert(result->end(), slice.begin(), slice.end());
-  return result;
+  prefix.insert(prefix.end(), start, start + document.size());
+  return std::make_shared<const FrameBytes>(std::move(prefix), bytes, std::move(slices));
 }
 
 // One local reader and one encoded-file watcher feed immutable latest values.
 // Clients wait for publications rather than each polling and reading files.
 class FrameSource final {
  public:
-  using Bytes = std::vector<std::byte>;
+  using Bytes = FrameBytes;
   struct Snapshot {
     std::uint64_t generation{};
     std::shared_ptr<const Bytes> bytes;
     depthd::ipc_v2::ProductMask products{};
     std::chrono::steady_clock::time_point published_at{};
+    std::uint64_t capture_time_ns{};
   };
   class DemandLease final {
    public:
@@ -724,14 +822,17 @@ class FrameSource final {
   };
   explicit FrameSource(const Arguments& options) : options_(options) {
     refresh_policy();
-    raw_worker_ = std::thread([this] { read_raw(); });
-    try { encoded_worker_ = std::thread([this] { read_encoded(); }); }
+    raw_worker_ = std::thread([this] { read_raw(false); });
+    try {
+      matcher_worker_ = std::thread([this] { read_raw(true); });
+      encoded_worker_ = std::thread([this] { read_encoded(); }); }
     catch (...) { stop(); throw; }
   }
   ~FrameSource() { stop(); }
   void stop() noexcept {
     stopped_.store(true); changed_.notify_all();
     if (raw_worker_.joinable()) raw_worker_.join();
+    if (matcher_worker_.joinable()) matcher_worker_.join();
     if (encoded_worker_.joinable()) encoded_worker_.join();
   }
   [[nodiscard]] DemandLease acquire(bool encoded, depthd::ipc_v2::ProductMask products,
@@ -755,19 +856,19 @@ class FrameSource final {
                                     std::chrono::milliseconds timeout = std::chrono::seconds(3)) {
     std::unique_lock lock(mutex_);
     const auto ready = [&] {
-      const auto& value = encoded ? encoded_ : raw_;
+      const auto value = latest_locked(encoded, products);
       return value.bytes && (encoded || (value.products & products) == products) &&
           std::chrono::steady_clock::now() - value.published_at <= std::chrono::milliseconds(500);
     };
     changed_.wait_for(lock, timeout, [&] { return stopped_.load() || stopping.load() || ready(); });
-    return ready() ? (encoded ? encoded_ : raw_) : Snapshot{};
+    return ready() ? latest_locked(encoded, products) : Snapshot{};
   }
   [[nodiscard]] bool enabled(bool encoded) const {
     std::lock_guard lock(mutex_);
     return transport_ != "off" && (encoded ? encoded_enabled_ : raw_enabled_);
   }
-  [[nodiscard]] Snapshot latest(bool encoded) const {
-    std::lock_guard lock(mutex_); return encoded ? encoded_ : raw_;
+  [[nodiscard]] Snapshot latest(bool encoded, depthd::ipc_v2::ProductMask products = 0U) const {
+    std::lock_guard lock(mutex_); return latest_locked(encoded, products);
   }
   [[nodiscard]] std::uint64_t subscribe(std::function<void()> callback) {
     std::lock_guard lock(mutex_); const auto id = ++subscriber_id_;
@@ -784,22 +885,23 @@ class FrameSource final {
       return {frame.generation, select_products(frame.bytes, mask), mask, frame.published_at};
     }
     if (subset_generation_ != frame.generation) {
-      subsets_.clear(); subset_bytes_ = 0; subset_generation_ = frame.generation;
+      subsets_.clear(); subset_bytes_ = frame.bytes->retained_size(); subset_generation_ = frame.generation;
     }
     if (const auto found = subsets_.find(mask); found != subsets_.end()) {
       return {frame.generation, found->second, mask, frame.published_at};
     }
     auto bytes = select_products(frame.bytes, mask);
-    constexpr std::size_t maximum = 16U * 1024U * 1024U;
+    constexpr std::size_t maximum = 16U * 1024U * 1024U +
+        4U * (depthd::wire::kHardMaximumMetadataBytes + depthd::wire::kHeaderBytes);
     for (auto item = subsets_.begin(); item != subsets_.end() &&
-         (subsets_.size() >= 4 || subset_bytes_ + bytes->size() > maximum);) {
-      if (item->second.use_count() == 1) { subset_bytes_ -= item->second->size(); item = subsets_.erase(item); }
+         (subsets_.size() >= 4 || subset_bytes_ + bytes->prefix().size() > maximum);) {
+      if (item->second.use_count() == 1) { subset_bytes_ -= item->second->prefix().size(); item = subsets_.erase(item); }
       else ++item;
     }
-    if (bytes->size() > maximum || subsets_.size() >= 4 || subset_bytes_ + bytes->size() > maximum) {
+    if (bytes->retained_size() > maximum || subsets_.size() >= 4 || subset_bytes_ + bytes->prefix().size() > maximum) {
       throw std::length_error("active product selection cache is full");
     }
-    subset_bytes_ += bytes->size(); subsets_.emplace(mask, bytes);
+    subset_bytes_ += bytes->prefix().size(); subsets_.emplace(mask, bytes);
     return {frame.generation, std::move(bytes), mask, frame.published_at};
   }
   [[nodiscard]] std::pair<std::size_t, std::size_t> consumers() const {
@@ -810,10 +912,20 @@ class FrameSource final {
  private:
   struct Demand { bool encoded; depthd::ipc_v2::ProductMask products; double cadence; };
   struct Aggregate { depthd::ipc_v2::ProductMask products{}; double cadence{}; };
-  [[nodiscard]] Aggregate aggregate(bool encoded) const {
+  [[nodiscard]] Snapshot latest_locked(bool encoded, depthd::ipc_v2::ProductMask products) const {
+    if (encoded) return encoded_;
+    Snapshot result;
+    for (const auto* candidate : {&raw_, &raw_matcher_})
+      if (candidate->bytes && (candidate->products & products) == products &&
+          (!result.bytes || candidate->capture_time_ns > result.capture_time_ns ||
+           (candidate->capture_time_ns == result.capture_time_ns && candidate->generation > result.generation))) result = *candidate;
+    return result;
+  }
+  [[nodiscard]] Aggregate aggregate(bool encoded, bool matcher = false) const {
     std::lock_guard lock(mutex_); Aggregate result;
     for (const auto& entry : demands_) {
       if (entry.second.encoded != encoded) continue;
+      if (!encoded && ((entry.second.products & depthd::ipc_v2::kMatcherProducts) != 0U) != matcher) continue;
       result.products |= entry.second.products;
       result.cadence = std::max(result.cadence, entry.second.cadence);
     }
@@ -832,7 +944,7 @@ class FrameSource final {
     return error ? std::nullopt : std::optional(value);
   }
   static Bytes byte_buffer(const std::vector<unsigned char>& bytes) {
-    return {reinterpret_cast<const std::byte*>(bytes.data()), reinterpret_cast<const std::byte*>(bytes.data() + bytes.size())};
+    return std::vector<std::byte>(reinterpret_cast<const std::byte*>(bytes.data()), reinterpret_cast<const std::byte*>(bytes.data() + bytes.size()));
   }
   void notify_locked() {
     changed_.notify_all();
@@ -842,6 +954,7 @@ class FrameSource final {
     if (!encoded) {
       std::lock_guard variants(subsets_mutex_);
       subsets_.clear(); subset_bytes_ = 0;
+      raw_matcher_ = {};
     }
     auto& destination = encoded ? encoded_ : raw_;
     if (!destination.bytes) return;
@@ -849,6 +962,15 @@ class FrameSource final {
     notify_locked();
   }
   void clear(bool encoded) { std::lock_guard lock(mutex_); clear_locked(encoded); }
+  void clear_raw_group(bool matcher) {
+    std::lock_guard lock(mutex_);
+    auto& value = matcher ? raw_matcher_ : raw_;
+    if (value.bytes) {
+      std::lock_guard variants(subsets_mutex_);
+      if (subset_generation_ == value.generation) { subsets_.clear(); subset_bytes_ = 0U; }
+      value = {}; notify_locked();
+    }
+  }
   void refresh_policy() noexcept {
     std::lock_guard policy(policy_mutex_);
     try {
@@ -875,43 +997,63 @@ class FrameSource final {
       clear_locked(false); clear_locked(true); notify_locked();
     }
   }
-  void publish(bool encoded, Bytes bytes) {
+  void publish(bool encoded, Bytes bytes, bool matcher = false) {
     depthd::ipc_v2::ProductMask products{};
-    if (!encoded) {
+    std::uint64_t capture_time{}; std::string scope;
+    if (encoded) {
+      try { capture_time = encoded_capture_time(bytes); }
+      catch (const std::exception&) { return; }
+      // read_encoded has already advanced its cursor. Skipping a stale or
+      // malformed cached packet must preserve demand until a fresh one arrives.
+      if (!fresh_capture(capture_time)) return;
+    } else {
       const auto metadata = frame_metadata(bytes);
+      capture_time = metadata.get<std::uint64_t>("capture_time_ns", 0U);
+      scope = metadata.get<std::string>("run_uuid", "") + ":" +
+          metadata.get<std::string>("capture_epoch", "") + ":" + metadata.get<std::string>("configuration_epoch", "");
       // A freshly retrieved cached memfd may still describe an old capture.
       // Native timestamps use CLOCK_BOOTTIME, so reject stale publications
       // before they can satisfy a new consumer's first-frame wait.
       if (metadata.get<std::string>("capture_clock", "") == "boottime") {
-        timespec current{};
-        if (::clock_gettime(CLOCK_BOOTTIME, &current) != 0) throw std::runtime_error("capture freshness clock unavailable");
-        const auto now = static_cast<std::uint64_t>(current.tv_sec) * 1'000'000'000U + static_cast<std::uint64_t>(current.tv_nsec);
-        const auto captured = metadata.get<std::uint64_t>("capture_time_ns", 0U);
         // Keep the subscription and its advanced cursor while dropping old
         // captures. Reconnecting would fetch the same cached frame again and
         // withdraw demand before an idle producer can capture a fresh pair.
-        if (captured == 0U || captured > now || now - captured > 1'000'000'000U) return;
+        if (!fresh_capture(capture_time)) return;
       }
       for (const auto& item : metadata.get_child("products")) {
         products |= product_mask(item.second.get<std::string>("kind"));
       }
     }
     auto value = std::make_shared<const Bytes>(std::move(bytes));
-    std::lock_guard lock(mutex_); auto& destination = encoded ? encoded_ : raw_;
-    ++destination.generation; destination.bytes = std::move(value); destination.products = products;
-    destination.published_at = std::chrono::steady_clock::now(); notify_locked();
+    std::lock_guard lock(mutex_);
+    if (!encoded) {
+      if (raw_scope_ != scope) {
+        // Both readers share CLOCK_BOOTTIME, including across daemon runs.
+        // An in-flight response from the old scope cannot roll the cache back.
+        if (capture_time < raw_scope_time_) return;
+        raw_ = {}; raw_matcher_ = {}; raw_scope_ = scope;
+      }
+      raw_scope_time_ = std::max(raw_scope_time_, capture_time);
+    }
+    auto& destination = encoded ? encoded_ : matcher ? raw_matcher_ : raw_;
+    if (!encoded && destination.bytes && capture_time < destination.capture_time_ns) return;
+    destination.generation = ++publication_generation_; destination.bytes = std::move(value); destination.products = products;
+    destination.published_at = std::chrono::steady_clock::now();
+    destination.capture_time_ns = capture_time;
+    notify_locked();
   }
   void pause(std::chrono::milliseconds duration) {
     std::unique_lock lock(mutex_); changed_.wait_for(lock, duration);
   }
-  void read_raw() noexcept {
+  void read_raw(bool matcher) noexcept {
     std::unique_ptr<depthd::ipc_v2::LocalFrameClient> client;
     depthd::ipc_v2::LocalFrameCursor cursor{}; Aggregate active;
     std::optional<std::filesystem::file_time_type> previous;
     while (!stopped_.load() && !stopping.load()) {
-      refresh_policy(); const auto requested = aggregate(false);
+      refresh_policy(); const auto requested = aggregate(false, matcher);
       if (!enabled(false) || requested.products == 0) {
-        client.reset(); cursor = {}; active = {}; previous.reset(); clear(false);
+        client.reset(); cursor = {}; active = {}; previous.reset();
+        clear_raw_group(matcher);
         pause(std::chrono::milliseconds(200)); continue;
       }
       try {
@@ -921,56 +1063,70 @@ class FrameSource final {
         } else if (active.products != requested.products || active.cadence != requested.cadence) {
           client->set_demand(requested.products, requested.cadence); active = requested; cursor = {};
         }
-        auto next = client->next(cursor, std::chrono::milliseconds(200), 16U * 1024U * 1024U);
-        if (next) { cursor = next->cursor; publish(false, std::move(next->bytes)); }
+        auto next = client->next_mapped(cursor, std::chrono::milliseconds(200), 16U * 1024U * 1024U);
+        if (next) { cursor = next->cursor; publish(false, Bytes(std::move(next->owner), next->bytes), matcher); }
       } catch (...) {
         client.reset(); cursor = {};
+        clear_raw_group(matcher);
         if (options_.diagnostic_snapshot_fallback) {
           try {
             const auto timestamp = modified(options_.snapshot_file);
             if (timestamp && timestamp != previous) {
-              publish(false, byte_buffer(read_file(options_.snapshot_file, 16U * 1024U * 1024U))); previous = timestamp;
+              publish(false, byte_buffer(read_file(options_.snapshot_file, 16U * 1024U * 1024U)), matcher); previous = timestamp;
             }
-          } catch (...) { clear(false); }
-        } else clear(false);
+          } catch (...) { }
+        }
         pause(std::chrono::milliseconds(200));
       }
     }
   }
   void read_encoded() noexcept {
     std::unique_ptr<depthd::ipc_v2::LocalFrameClient> client;
+    depthd::ipc_v2::LocalFrameCursor cursor{};
     double active{}; std::optional<std::filesystem::file_time_type> previous;
     std::chrono::steady_clock::time_point refreshed{};
     while (!stopped_.load() && !stopping.load()) {
       const auto requested = aggregate(true);
       if (!enabled(true) || requested.cadence == 0) {
-        client.reset(); active = 0; clear(true); previous = modified(options_.encoded_file);
+        client.reset(); cursor = {}; active = 0; clear(true); previous.reset();
         pause(std::chrono::milliseconds(200)); continue;
       }
       try {
         if (!client) {
-          previous = modified(options_.encoded_file);
           client = std::make_unique<depthd::ipc_v2::LocalFrameClient>(options_.data_socket, 0, 0, requested.cadence);
-          active = requested.cadence; refreshed = std::chrono::steady_clock::now();
+          active = requested.cadence; cursor = {}; refreshed = std::chrono::steady_clock::now();
         } else if (active != requested.cadence || std::chrono::steady_clock::now() - refreshed >= std::chrono::seconds(2)) {
           client->set_demand(0, 0, requested.cadence); active = requested.cadence; refreshed = std::chrono::steady_clock::now();
         }
-        const auto timestamp = modified(options_.encoded_file);
-        if (!timestamp) clear(true);
-        else if (timestamp != previous) {
-          publish(true, byte_buffer(read_file(options_.encoded_file, 4U * 1024U * 1024U))); previous = timestamp;
+        auto next = client->next_encoded_mapped(cursor, std::chrono::milliseconds(200));
+        if (next) {
+          cursor = next->cursor;
+          if (next->bytes.empty()) clear(true);
+          else publish(true, Bytes(std::move(next->owner), next->bytes));
         }
-      } catch (...) { client.reset(); active = 0; clear(true); }
-      pause(std::chrono::milliseconds(20));
+      } catch (...) {
+        client.reset(); cursor = {}; active = 0; clear(true);
+        if (options_.diagnostic_snapshot_fallback) {
+          try {
+            const auto timestamp = modified(options_.encoded_file);
+            if (timestamp && timestamp != previous) {
+              publish(true, byte_buffer(read_file(options_.encoded_file, 4U * 1024U * 1024U))); previous = timestamp;
+            }
+          } catch (...) { }
+        }
+        pause(std::chrono::milliseconds(200));
+      }
     }
   }
   const Arguments& options_;
   std::mutex policy_mutex_;
   mutable std::mutex mutex_; std::condition_variable changed_;
-  Snapshot raw_, encoded_; std::string transport_;
+  Snapshot raw_, raw_matcher_, encoded_; std::string transport_, raw_scope_;
+  std::uint64_t publication_generation_{};
+  std::uint64_t raw_scope_time_{};
   bool raw_enabled_{true}, encoded_enabled_{}, policy_initialized_{};
   std::optional<std::filesystem::file_time_type> transport_modified_, encoding_modified_;
-  std::atomic_bool stopped_{}; std::thread raw_worker_, encoded_worker_;
+  std::atomic_bool stopped_{}; std::thread raw_worker_, matcher_worker_, encoded_worker_;
   std::uint64_t subscriber_id_{}, demand_id_{};
   std::unordered_map<std::uint64_t, std::function<void()>> subscribers_;
   std::unordered_map<std::uint64_t, Demand> demands_;
@@ -1026,7 +1182,7 @@ class StreamAdmission final {
     depthd::wire::Header header;
     if (!encoded) {
       metadata = frame_metadata(*bytes);
-      header = depthd::wire::decode_header(std::span(*bytes).first(depthd::wire::kHeaderBytes));
+      header = depthd::wire::decode_header(bytes->prefix().first(depthd::wire::kHeaderBytes));
       result.identity = identity(metadata, requested.products);
       result.maximum_wire_bytes = depthd::wire::kHeaderBytes +
           depthd::wire::kHardMaximumMetadataBytes + static_cast<std::size_t>(header.payload_bytes);
@@ -1068,7 +1224,7 @@ class StreamAdmission final {
         });
     {
       std::lock_guard lock(memory_mutex_);
-      const auto reservation = result.maximum_wire_bytes * 2U;
+      const auto reservation = std::max(result.maximum_wire_bytes, bytes->retained_size()) * 2U;
       constexpr std::size_t maximum = 64U * 1024U * 1024U;
       if (reservation > maximum - memory_bytes_) throw std::runtime_error("bounded session frame memory exhausted");
       memory_bytes_ += reservation;
@@ -1115,10 +1271,23 @@ class StreamAdmission final {
   }
   [[nodiscard]] bool current(const Contract& contract,
                              const FrameSource::Snapshot& frame,
-                             const bool encoded) const {
+                             const bool encoded) {
     const auto preference = transport_preference(options_);
     if (preference == "off" || preference != contract.preference || !frame.bytes) return false;
     if (encoded) return true;
+    // A new subscriber can enlarge the group's backing message without
+    // changing this client's selected products. Reserve the full retained
+    // owner, including possible rewritten metadata, before queueing views.
+    const auto required = std::max(contract.maximum_wire_bytes, frame.bytes->retained_size() +
+        depthd::wire::kHardMaximumMetadataBytes + depthd::wire::kHeaderBytes) * 2U;
+    {
+      std::lock_guard lock(memory_mutex_);
+      if (required > *contract.memory) {
+        const auto extra = required - *contract.memory;
+        if (extra > 64U * 1024U * 1024U - memory_bytes_) return false;
+        memory_bytes_ += extra; *contract.memory = required;
+      }
+    }
     const auto metadata = frame_metadata(*frame.bytes);
     return identity(metadata, contract.products) == contract.identity &&
         (!contract.qualified || (matches(metadata) && qualification_current()));
@@ -1330,14 +1499,16 @@ class StreamSession final {
   }
   void send() {
     if (finished_) return;
-    auto bytes = queue_.begin_serialized_transmission();
+    auto bytes = queue_.begin_buffered_transmission();
     if (!bytes) return;
     write_deadline_.expires_after(std::chrono::seconds(5));
     write_deadline_.async_wait([this](const beast::error_code& error) {
       if (!error) finish();
     });
-    socket_.async_write(net::buffer(*bytes),
-        [this, bytes](const beast::error_code& error, const std::size_t count) {
+    auto buffers = std::make_shared<std::vector<net::const_buffer>>();
+    for (const auto part : bytes->parts()) buffers->emplace_back(part.data(), part.size());
+    socket_.async_write(*buffers,
+        [this, bytes, buffers](const beast::error_code& error, const std::size_t count) {
           beast::error_code ignored;
           write_deadline_.cancel(ignored);
           if (finished_) return;
@@ -1352,7 +1523,15 @@ class StreamSession final {
     try {
       if (stopping.load() || !source_.enabled(encoded_)) { finish(); return; }
       const auto now = std::chrono::steady_clock::now();
-      auto frame = source_.latest(encoded_);
+      auto frame = source_.latest(encoded_, requested_.products);
+      if (!frame.bytes) {
+        if (unavailable_since_ == std::chrono::steady_clock::time_point{}) unavailable_since_ = now;
+        if (now - unavailable_since_ >= std::chrono::seconds(3)) { finish(); return; }
+        tick_.expires_after(std::chrono::milliseconds(100));
+        tick_.async_wait([this](const beast::error_code& error) { if (!error) update(); });
+        return;
+      }
+      unavailable_since_ = {};
       if (!admission_.current(contract_, frame, encoded_)) { finish(); return; }
       if (frame.generation != previous_ && now >= next_send_) {
         previous_ = frame.generation;
@@ -1360,7 +1539,7 @@ class StreamSession final {
         if (!admission_.charge(contract_, frame.bytes->size())) {
           if (contract_.qualified) { finish(); return; }
         } else {
-        if (queue_.offer_serialized(frame.bytes) == depthd::gateway::OfferResult::kOversize) {
+        if (queue_.offer_buffered(frame.bytes) == depthd::gateway::OfferResult::kOversize) {
           finish(); return;
         }
         send();
@@ -1384,6 +1563,7 @@ class StreamSession final {
   Subscription requested_;
   bool encoded_{};
   FrameSource::DemandLease demand_;
+  std::chrono::steady_clock::time_point unavailable_since_{};
   depthd::gateway::SessionQueue queue_;
   net::steady_timer tick_, write_deadline_;
   beast::flat_buffer input_;
@@ -1770,9 +1950,7 @@ void await_clients(const std::atomic_size_t& active) noexcept {
       }
       const auto& frame = *admitted_snapshot;
       return response(http::status::ok, "application/vnd.nuvo.frame-set",
-                      std::vector<unsigned char>(
-                          reinterpret_cast<const unsigned char*>(frame.bytes->data()),
-                          reinterpret_cast<const unsigned char*>(frame.bytes->data() + frame.bytes->size())),
+                      frame.bytes->copy(),
                       request.version());
     } catch (const std::exception&) {
       return text_response(http::status::service_unavailable, "application/json",
@@ -1796,9 +1974,7 @@ void await_clients(const std::atomic_size_t& active) noexcept {
       const auto& frame = *admitted_snapshot;
       return response(http::status::ok,
                       "application/vnd.nuvo.encoded-image",
-                      std::vector<unsigned char>(
-                          reinterpret_cast<const unsigned char*>(frame.bytes->data()),
-                          reinterpret_cast<const unsigned char*>(frame.bytes->data() + frame.bytes->size())),
+                      frame.bytes->copy(),
                       request.version());
     } catch (const std::exception&) {
       return text_response(http::status::service_unavailable,
@@ -1855,8 +2031,21 @@ void await_clients(const std::atomic_size_t& active) noexcept {
 void serve(tcp::socket socket, ssl::context& context, const Arguments& options,
            const std::string& claim, Sessions& sessions,
            std::atomic_size_t& active, FrameSource& source,
-           ConnectionRegistry& connections, StreamAdmission& admission) noexcept {
+           ConnectionRegistry& connections, StreamAdmission& admission,
+           std::atomic_size_t& idle_http) noexcept {
   struct Done { std::atomic_size_t& value; ~Done() { --value; } } done{active};
+  struct IdleLease {
+    std::atomic_size_t& count; bool held{};
+    void release() { if (held) { --count; held = false; } }
+    ~IdleLease() { release(); }
+    bool acquire(std::size_t limit) {
+      auto current = count.load();
+      while (current < limit) {
+        if (count.compare_exchange_weak(current, current + 1U)) { held = true; return true; }
+      }
+      return false;
+    }
+  } idle{idle_http};
   try {
     ConnectionRegistry::Registration registration(connections, socket.native_handle());
     const auto interface = receiving_interface(socket);
@@ -1874,9 +2063,12 @@ void serve(tcp::socket socket, ssl::context& context, const Arguments& options,
     beast::get_lowest_layer(stream).expires_after(std::chrono::seconds(10));
     stream.handshake(ssl::stream_base::server);
     beast::flat_buffer buffer;
+    const auto connected_at = std::chrono::steady_clock::now();
+    for (std::size_t request_count = 0; request_count < 32U && !stopping.load(); ++request_count) {
     http::request_parser<http::string_body> parser;
     parser.body_limit(64U * 1024U);
     http::read(stream, buffer, parser);
+    idle.release();
     const auto websocket_target = std::string_view(parser.get().target());
     const auto websocket_path = websocket_target.substr(0U, websocket_target.find('?'));
     if (websocket::is_upgrade(parser.get()) &&
@@ -1970,7 +2162,19 @@ void serve(tcp::socket socket, ssl::context& context, const Arguments& options,
         }
     }
     auto result = route(parser.get(), options, claim, sessions, source, nullptr, admission.connection_json(interface));
+    const bool reuse = parser.get().keep_alive() && request_count + 1U < 32U &&
+        std::chrono::steady_clock::now() - connected_at < std::chrono::seconds(30) &&
+        idle.acquire(std::min<std::size_t>(4U, options.maximum_sessions / 4U));
+    result.keep_alive(reuse);
+    if (reuse) result.set(http::field::keep_alive, "timeout=5, max=" + std::to_string(31U - request_count));
     http::write(stream, result);
+    if (!reuse) break;
+    const timeval idle_timeout{5, 0};
+    if (::setsockopt(beast::get_lowest_layer(stream).socket().native_handle(), SOL_SOCKET,
+                     SO_RCVTIMEO, &idle_timeout, sizeof(idle_timeout)) != 0)
+      throw std::runtime_error("cannot set keepalive idle deadline");
+    }
+    idle.release();
     beast::error_code ignored;
     stream.shutdown(ignored);
   } catch (const std::exception&) {
@@ -2000,6 +2204,7 @@ int main(int argc, char** argv) {
     acceptor.non_blocking(true);
     Sessions sessions(options.maximum_sessions);
     std::atomic_size_t active{};
+    std::atomic_size_t idle_http{};
     stopping.store(false);
     std::signal(SIGINT, stop);
     std::signal(SIGTERM, stop);
@@ -2037,7 +2242,7 @@ int main(int argc, char** argv) {
         std::thread(serve, std::move(socket), std::ref(context),
                   std::cref(options), std::cref(claim), std::ref(sessions),
                   std::ref(active), std::ref(source), std::ref(connections),
-                  std::ref(admission)).detach();
+                  std::ref(admission), std::ref(idle_http)).detach();
       } catch (...) {
         --active;
         throw;
