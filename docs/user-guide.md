@@ -1,18 +1,25 @@
 # Nuvo Depth Pi 5 user guide
 
+For first-time installation, use the [main user wiki](https://docs.nuvohardware.com/vision-one/):
+[bundled units](https://docs.nuvohardware.com/vision-one/install/bundled-pi),
+[your own Pi or SD card](https://docs.nuvohardware.com/vision-one/install/byo-pi),
+and [browser connection and login](https://docs.nuvohardware.com/vision-one/guide/getting-started).
+This is the versioned console and runtime reference.
+
 ## First connection
 
 1. Power the Pi 5 camera appliance and connect WiFi or Ethernet. Select a product
    set and rate within the connection's displayed bandwidth budget; use Ethernet
    for larger raw streams.
-2. Open `https://nuvo-depth.local:17443/`. If mDNS is unavailable, use the Pi's
-   IP address with port `17443`.
-3. Enter the device claim code when prompted. The browser exchanges it for a
-   secure session; it does not store the code. On an engineering image only,
-   an administrator can read the provisioned code from
-   `/var/lib/nuvo-depth/identity/claim.token`.
-4. Check **Overview**. Camera must show **Streaming**, dimensions must be
-   728 × 544, and no red health message should be present.
+2. Open the printed `https://HOSTNAME.local:7443/` console URL. If mDNS is
+   unavailable, use the Pi's IP address with port `7443`. Verify the device's
+   certificate against the trusted setup material before entering credentials.
+3. Enter the owner password chosen during installation, or the short one-time
+   setup code. First claim asks you to choose a permanent owner password if one
+   was not set in the terminal. The setup code is consumed on successful use.
+4. Check **Overview**. With capture enabled, confirm **Streaming**, the installed
+   profile's dimensions, and no red health message. Pending calibration can
+   intentionally leave capture disabled while the console is available.
 5. Open **Live view** and select the products you need under **Outputs**. The
    browser initially requests only the left mono image at 5 Hz. Selected products
    share the same capture identity.
@@ -153,8 +160,8 @@ set rather than unrelated image requests. The Python SDK decodes this envelope:
 ```python
 from nuvo_depth import NuvoClient
 
-camera = NuvoClient("https://nuvo-depth.local:17443", ca_file="device-ca.pem")
-camera.claim("DEVICE-CLAIM-CODE")
+camera = NuvoClient("https://HOSTNAME.local:7443", ca_file="device-ca.pem")
+camera.claim("DEVICE-ADMIN-TOKEN")
 with camera.frames(products=("depth", "validity"), cadence_hz=10,
                    delivery="auto") as frames:
     frame = next(frames)

@@ -1,6 +1,7 @@
 # CMake builds, install/package staging, and generated metadata
 /build/
 /build-*/
+/obj-*/
 /install/
 /log/
 /out/
@@ -18,6 +19,10 @@
 /debian/files
 /debian/*.substvars
 /debian/*.debhelper.log
+/debian/debhelper-build-stamp
+/debian/nuvo-depth*/
+/debian/libnuvo-depth*/
+/debian/python3-nuvo-depth/
 *.deb
 *.dsc
 *.buildinfo
@@ -28,6 +33,10 @@
 /tmp/
 /web/pipeline-ui/node_modules/
 /web/pipeline-ui/dist/
+/web/pipeline-canvas.js
+/web/pipeline-canvas.css
+/web/pipeline-licenses.txt
+node_modules/
 /deliverables/
 /oracle-bundles/
 /replay-output/

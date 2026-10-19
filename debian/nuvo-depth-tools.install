@@ -13,5 +13,6 @@ usr/lib/systemd/system/nuvo-transport-rollback.timer
 usr/lib/nuvo-depth/run_qualification.py
 usr/lib/nuvo-depth/analyze_depth_accuracy.py
 usr/lib/nuvo-depth/generate_spdx.py
+usr/lib/nuvo-depth/nuvo_source_files.py
 usr/lib/nuvo-depth/stage_apt_repository.py
 usr/share/nuvo-depth/qualification/

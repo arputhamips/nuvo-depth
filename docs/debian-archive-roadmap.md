@@ -13,9 +13,8 @@ The repository is not ready for an official Debian upload:
 
 - Nuvo-authored software is now GPL-3.0-or-later; the recorded third-party
   notices still need a complete binary/source distribution audit;
-- `debian/control` uses a placeholder `.example` maintainer address;
-- versioned upstream releases and their matching source artifacts still need
-  to be published from the public GitHub repository;
+- signed GitHub beta releases and matching source are published, but a stable
+  Debian-ready upstream release and full archive qualification remain pending;
 - a complete third-party license/source audit and Debian Free Software
   Guidelines classification have not been recorded;
 - the source package has not yet passed clean `sbuild`, `lintian`, `autopkgtest`,
@@ -33,8 +32,8 @@ still requires the complete packaging and third-party review listed above.
    Put the complete machine-readable result in `debian/copyright`. Decide with
    a Debian reviewer whether the package belongs in `main`, another archive
    component, or cannot be accepted.
-2. Publish a stable upstream source tarball and replace the placeholder
-   maintainer identity with a monitored address. Add normal upstream metadata,
+2. Publish a stable upstream source tarball and confirm the maintainer contact
+   is monitored. Add normal upstream metadata,
    a watch file, and Debian Salsa packaging repository.
 3. Check the WNPP list and file an `ITP: nuvo-depth -- ...` bug against the
    `wnpp` pseudo-package. Reference that bug from the first Debian changelog

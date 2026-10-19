@@ -1,17 +1,23 @@
 # Nuvo Depth documentation
 
-This is the user and operator documentation index for the Raspberry Pi 5
-appliance. Start with the user guide; use the engineering references only when
-changing the image pipeline or qualifying hardware.
+The [Nuvo Hardware website](https://nuvohardware.com/) introduces Vision One.
+The [user wiki](https://docs.nuvohardware.com/vision-one/) is the main guide for
+setup and operation. This directory holds versioned technical references,
+specifications, and qualification evidence.
 
 ## Use the camera
 
+- [Set up a bundled unit](https://docs.nuvohardware.com/vision-one/install/bundled-pi).
+- [Install on your own Pi or SD card](https://docs.nuvohardware.com/vision-one/install/byo-pi).
+- [First browser connection and login](https://docs.nuvohardware.com/vision-one/guide/getting-started).
 - [User guide](user-guide.md) — first connection, normal workflow, exposure,
   stereo matching, streaming, and product delivery.
 - [Operations and troubleshooting](operations-troubleshooting.md) — service
   checks, recovery, flicker diagnosis, and safe rollback.
-- [Pi 5 release-readiness report](pi5-release-readiness-20260914.md) — current
-  verified behavior, performance, and the remaining release gates.
+- [Signed release and setup qualification](release-qualification-20261019.md) —
+  current installation, network, ownership, and bounded runtime evidence.
+- [Pi 5 release-readiness report](pi5-release-readiness-20260914.md) — earlier
+  performance evidence and remaining physical release gates.
 - [Python SDK](../sdk/python/README.md) — authenticated raw and monitoring
   clients.
 
@@ -64,6 +70,11 @@ qualification status are recorded in each document.
 
 ## Package and distribute
 
+- [Release operations](releases.md) — signed GitHub bundles and matching source.
+- [Repository audit](repository-audit-20261019.md) — retained file groups,
+  generated-file exclusions, and package/export checks.
+- [Historical architecture review](history/multi-platform-review.md) — an
+  archived review of an earlier system, not current setup instructions.
 - [Debian archive and APT publication roadmap](debian-archive-roadmap.md) —
   current blockers, the official Debian sponsorship path, and the immediate
   signed vendor-repository route.

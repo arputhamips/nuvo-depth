@@ -1,4 +1,11 @@
-# Executive verdict
+# Historical multi-platform architecture review
+
+This retained review describes an earlier system. It is engineering history,
+not the current implementation or an installation procedure. Start with the
+[current pipeline map](../image-pipeline-map.md) and
+[release qualification](../release-qualification-20261019.md) for current evidence.
+
+## Executive verdict
 
 **This should be evolved through a bounded architectural refactor, not rewritten.** The project already has a strong portable processing core, unusually good DMA-BUF lifecycle thinking, useful deterministic IPC, and clean separation between depth products, semantic perception, and ROS-facing publication. The weak point is the outer system: capture, accelerator memory, asynchronous execution, calibration identity, timing, safety semantics, packaging, and product transport remain fixed to the current Pi rig.
 

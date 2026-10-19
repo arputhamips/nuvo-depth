@@ -5,6 +5,9 @@
 by Git, and safe to recreate. Keep new CMake builds under `build/`; do not
 create a new top-level `build-step*` directory for each experiment.
 
+For device installation, use the [Pi installation guide](https://docs.nuvohardware.com/vision-one/install/byo-pi).
+The commands below are for source development and package maintenance.
+
 ## Everyday development
 
 Use a Linux or WSL environment with CMake 3.20+, Ninja, and a C++20 compiler.

@@ -3,6 +3,7 @@
 The main user documentation is the [Nuvo Hardware wiki](https://docs.nuvohardware.com/vision-one/),
 including [first-use setup](https://docs.nuvohardware.com/vision-one/guide/getting-started)
 and [terminal installation](https://docs.nuvohardware.com/vision-one/install/byo-pi).
+For a preinstalled unit, follow [bundled Pi setup](https://docs.nuvohardware.com/vision-one/install/bundled-pi).
 This file is the versioned installer and provisioning reference.
 
 The terminal installer and manufacturing preset use one provisioning backend.

@@ -40,8 +40,8 @@ License: OFL-1.1
 Files: web/pipeline-canvas.js web/pipeline-canvas.css web/pipeline-licenses.txt
 Copyright: See web/pipeline-licenses.txt for individual upstream authors
 License: GPL-3+ and Expat and BSD-3-clause and ISC
-Comment: This generated prototype and its dependency notices are excluded from
- product binary packages. Preserve the complete upstream notices in
+Comment: These locally generated prototype files are not tracked in Git and
+ are excluded from product binary packages. Preserve the upstream notices in
  web/pipeline-licenses.txt when redistributing the prototype.
 
 License: Expat

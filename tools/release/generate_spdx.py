@@ -6,26 +6,22 @@ import hashlib
 import json
 from pathlib import Path
 import uuid
-
-EXCLUDED_PARTS={".git",".pytest_cache","__pycache__","deliverables","oracle-bundles","third_party","models"}
-
-
-def included(path: Path) -> bool:
-    if any(part in EXCLUDED_PARTS or part.startswith("build") for part in path.parts):
-        return False
-    return path.suffix.lower() not in {".zip",".deb",".hef",".onnx",".pyc"}
+from nuvo_source_files import source_files
 
 
 def main() -> None:
     parser=argparse.ArgumentParser(description="Generate a file-level SPDX 2.3 build artifact")
     parser.add_argument("root"); parser.add_argument("output"); parser.add_argument("--version",required=True)
     parser.add_argument("--created",default="2026-09-08T17:00:00Z")
+    parser.add_argument("--staged-tree",action="store_true",
+                        help="inventory an explicitly prepared package tree instead of tracked Git source")
     args=parser.parse_args(); root=Path(args.root).resolve(); output=Path(args.output).resolve()
     files=[]
-    for path in sorted(root.rglob("*")):
-        relative_path=path.relative_to(root)
-        if included(relative_path) and path.is_file() and path.resolve()!=output:
-            relative="./"+relative_path.as_posix(); checksum=hashlib.sha256(path.read_bytes()).hexdigest()
+    for name,data,_ in source_files(root,staged_tree=args.staged_tree):
+        if root/name == output and not args.staged_tree:
+            raise ValueError('output must not replace a tracked source file')
+        if root/name != output:
+            relative="./"+name; checksum=hashlib.sha256(data).hexdigest()
             files.append({"SPDXID":"SPDXRef-File-"+hashlib.sha256(relative.encode()).hexdigest()[:16],
                           "fileName":relative,"checksums":[{"algorithm":"SHA256","checksumValue":checksum}],
                           "licenseConcluded":"NOASSERTION","copyrightText":"NOASSERTION"})

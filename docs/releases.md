@@ -89,6 +89,17 @@ The optional research submodule is excluded from the production build and is
 not needed to rebuild the attached source archive. Third-party build/runtime
 dependencies come from Debian/Raspberry Pi APT and are recorded in `.buildinfo`.
 
+For an editable working-tree handoff, `tools/release/create_source_bundle.py`
+exports tracked Git source with its current contents and index file modes.
+Stage new source files first. Ignored/untracked files and submodule checkouts
+are excluded, and a tracked file replaced by a symlink is rejected. This helper
+does not replace the release workflow's exact tagged `git archive` source.
+
+`tools/release/generate_spdx.py` uses the same tracked-source boundary by
+default. To inventory a deliberately prepared package tree without Git, pass
+`--staged-tree`. That explicit mode inventories the supplied distribution tree;
+prepare it separately from development outputs and credentials.
+
 ## Publish
 
 The **Signed install release** workflow runs from main and takes an existing

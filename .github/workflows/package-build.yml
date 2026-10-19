@@ -72,6 +72,8 @@ jobs:
           PY
           depthd --check-config /etc/nuvo-depth/daemon.yaml
           nuvo-setup --help
+          python3 /usr/lib/nuvo-depth/generate_spdx.py --help > /dev/null
+          python3 -c 'from nuvo_depth import NuvoClient, decode_frame'
           test -z "$(dpkg --audit)"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

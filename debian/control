@@ -2,7 +2,7 @@ Source: nuvo-depth
 Section: video
 Priority: optional
 Maintainer: Nirmal <nml@meridian.cv>
-Homepage: https://github.com/arputhamips/nuvo-depth
+Homepage: https://nuvohardware.com/
 Vcs-Git: https://github.com/arputhamips/nuvo-depth.git
 Vcs-Browser: https://github.com/arputhamips/nuvo-depth
 Build-Depends: debhelper-compat (= 13), cmake (>= 3.20), ninja-build,

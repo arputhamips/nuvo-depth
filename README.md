@@ -4,6 +4,11 @@ Nuvo Depth is the software that powers **Nuvo Vision One**, NuvoHardware's
 stereo vision camera. It captures synchronized images from two cameras,
 computes depth, and provides a web console and APIs for robotic applications.
 
+[Website](https://nuvohardware.com/) ·
+[User wiki](https://docs.nuvohardware.com/vision-one/) ·
+[Pi installation](https://docs.nuvohardware.com/vision-one/install/byo-pi) ·
+[Downloads](https://github.com/arputhamips/nuvo-depth/releases)
+
 The current supported platform is a **Raspberry Pi 5 with the Nuvo dual-IMX296
 camera head**. This repository contains the device software, SDKs, installer,
 and release tooling.
@@ -23,7 +28,7 @@ and release tooling.
 ## Get started
 
 **Have a preinstalled Vision One?** Follow the
-[Vision One setup guide](https://docs.nuvohardware.com/vision-one/guide/getting-started)
+[bundled Pi setup guide](https://docs.nuvohardware.com/vision-one/install/bundled-pi)
 to connect the device, complete network setup, and create your owner login.
 
 **Using your own Pi or SD card?** Prepare the supported Raspberry Pi OS Lite
@@ -70,6 +75,7 @@ and test evidence.
 | Understand the runtime and repository | [Image pipeline and repository map](docs/image-pipeline-map.md) |
 | Build or publish packages | [Build and test](docs/build-and-test.md) and [Release operations](docs/releases.md) |
 | Find engineering records | [Repository documentation index](docs/README.md) |
+| Understand what belongs in this repository | [Repository audit](docs/repository-audit-20261019.md) |
 
 ## Develop from source
 

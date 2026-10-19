@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import shutil
 import socket
 import ssl
 import subprocess
@@ -259,8 +260,13 @@ class GatewayIntegrationTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.binary=Path(sys.argv[1]).resolve(); cls.web=Path(sys.argv[2]).resolve()
+        cls.binary=Path(sys.argv[1]).resolve(); web_source=Path(sys.argv[2]).resolve()
         cls.temporary=tempfile.TemporaryDirectory(); root=Path(cls.temporary.name)
+        cls.web=root/'web'
+        shutil.copytree(web_source, cls.web, ignore=shutil.ignore_patterns('pipeline-ui','node_modules','dist','__pycache__'))
+        for name in ('pipeline.html','pipeline-model.js','pipeline.js','pipeline-host.js',
+                     'pipeline-canvas.js','pipeline.css','pipeline-canvas.css','pipeline-licenses.txt'):
+            (cls.web/name).write_text('stale prototype fixture')
         cls.local = LocalFrames(root / "data.sock")
         cls.agent=ConfigurationAgent(root/"agent.sock",root)
         cls.config_root=root/"etc/nuvo-depth"; cls.config_root.mkdir(parents=True)

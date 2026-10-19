@@ -1,11 +1,14 @@
 # Pi 5 operations and troubleshooting
 
+For first-use setup and network/login recovery, start with the
+[Vision One setup guide](https://docs.nuvohardware.com/vision-one/guide/getting-started).
+
 ## Fast health check
 
 ```bash
 systemctl is-active nuvo-depthd-native.service nuvo-gateway.service \
   nuvo-system-agent.socket
-curl --cacert device-ca.pem https://nuvo-depth.local:17443/api/v1/health
+curl --cacert device-ca.pem https://YOUR-PI-HOSTNAME.local:7443/api/v1/health
 ```
 
 The native production candidate is `nuvo-depthd-native.service`. The similarly

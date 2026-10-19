@@ -1,5 +1,9 @@
 # Nuvo Depth Python SDK
 
+[NuvoHardware](https://nuvohardware.com/) ·
+[SDK user guide](https://docs.nuvohardware.com/vision-one/sdk/python) ·
+[Install on your Pi](https://docs.nuvohardware.com/vision-one/install/byo-pi)
+
 The dependency-light SDK reads associated NUV1 raw frame sets, optional NVE1
 encoded monitoring frames, and device configuration through the authenticated
 TLS gateway shared by Ethernet and approved USB Ethernet.
@@ -11,8 +15,8 @@ python -m pip install ./sdk/python
 ```python
 from nuvo_depth import NuvoClient
 
-camera = NuvoClient("https://nuvo-depth.local:17443", ca_file="device-ca.pem")
-camera.claim("DEVICE-CLAIM-CODE")
+camera = NuvoClient("https://YOUR-PI-HOSTNAME.local:7443", ca_file="device-ca.pem")
+camera.claim("DEVICE-ADMIN-TOKEN")
 
 print(camera.health())
 frame = camera.latest()
@@ -36,6 +40,14 @@ camera.configure_encoding(encoding)
 Configuration writes require a claimed session and automatically include its
 CSRF token. Server validation is authoritative: submit the complete document
 returned by the matching getter, changing only intended fields.
+
+Use the device's actual hostname and verified certificate. `NuvoClient.claim()`
+and `nuvo-record --claim-token` currently use the long administrative token,
+which a trusted Pi administrator can obtain from
+`/var/lib/nuvo-depth/identity/claim.token`. The short first-use setup code and
+owner-password browser flow are documented in the
+[setup guide](https://docs.nuvohardware.com/vision-one/guide/getting-started);
+they are separate from this SDK method.
 
 `camera.latest()` returns one raw frame snapshot. `camera.latest_encoded()`
 returns an optional monitoring snapshot and reports an error when the encoder
@@ -80,7 +92,7 @@ The recorder consumes the persistent stream, applies cadence on the gateway,
 and skips consecutive duplicate capture identities:
 
 ```bash
-nuvo-record https://nuvo-depth.local:17443 capture.nvr \
+nuvo-record https://YOUR-PI-HOSTNAME.local:7443 capture.nvr \
   --claim-token DEVICE-CLAIM-CODE --ca-file device-ca.pem \
   --frames 100 --cadence 10 --timeout 5 \
   --products depth,confidence,validity

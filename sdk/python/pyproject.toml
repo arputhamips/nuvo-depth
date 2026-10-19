@@ -9,6 +9,12 @@ description = "Bounded Nuvo Depth camera client and recorder"
 requires-python = ">=3.11"
 license = {text = "GPL-3.0-or-later"}
 
+[project.urls]
+Homepage = "https://nuvohardware.com/"
+Documentation = "https://docs.nuvohardware.com/vision-one/sdk/python"
+Source = "https://github.com/arputhamips/nuvo-depth"
+Issues = "https://github.com/arputhamips/nuvo-depth/issues"
+
 [tool.setuptools]
 license-files = ["LICENSE"]
 

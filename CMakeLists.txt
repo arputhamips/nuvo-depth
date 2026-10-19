@@ -745,9 +745,16 @@ install(FILES include/nuvo/depth.h include/nuvo/stream_decoder.hpp
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/nuvo-depth.pc"
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
 )
-install(DIRECTORY sdk/python/nuvo_depth
-  DESTINATION "lib/python3/dist-packages"
-  FILES_MATCHING PATTERN "*.py"
+install(FILES
+  sdk/python/nuvo_depth/__init__.py
+  sdk/python/nuvo_depth/client.py
+  sdk/python/nuvo_depth/encoded.py
+  sdk/python/nuvo_depth/frame.py
+  sdk/python/nuvo_depth/recorder.py
+  sdk/python/nuvo_depth/recording.py
+  sdk/python/nuvo_depth/replay.py
+  DESTINATION "lib/python3/dist-packages/nuvo_depth"
+  COMPONENT python-sdk
 )
 install(PROGRAMS tools/nuvoctl.py
   DESTINATION "${CMAKE_INSTALL_BINDIR}" RENAME nuvoctl
@@ -768,14 +775,30 @@ install(PROGRAMS tools/nuvo_system_agent.py
 install(PROGRAMS tools/calibration/nuvo_calibration.py
   DESTINATION "lib/nuvo-depth" RENAME nuvo-calibration
 )
-install(DIRECTORY web/
+install(FILES
+  web/index.html web/app.js web/styles.css
+  web/device-settings.js web/frame-codec.js web/depth-profiles.json
   DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/web"
   COMPONENT device-web
-  # The image-pipeline prototype is parked; ship only the conventional console.
-  PATTERN "pipeline*" EXCLUDE
 )
-install(DIRECTORY presets/
+install(FILES
+  web/assets/fonts/hanken-grotesk-400.ttf
+  web/assets/fonts/hanken-grotesk-500.ttf
+  web/assets/fonts/hanken-grotesk-600.ttf web/assets/fonts/OFL.txt
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/web/assets/fonts"
+  COMPONENT device-web
+)
+install(FILES
+  web/assets/benchmark/diode-indoor-photo.jpg web/assets/benchmark/diode-indoor-depth.jpg
+  web/assets/benchmark/diode-outdoor-photo.jpg web/assets/benchmark/diode-outdoor-depth.jpg
+  web/assets/benchmark/LICENSE web/assets/benchmark/README.md
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/web/assets/benchmark"
+  COMPONENT device-web
+)
+install(FILES
+  presets/balanced-728x544-10.yaml presets/fast-728x544-15.yaml presets/quality-1456x1088-5.yaml
   DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/presets"
+  COMPONENT device-data
 )
 install(FILES config/calibration/pi5-profile-matrix.example.json
   DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/calibration"
@@ -788,8 +811,9 @@ install(FILES config/nuvo_pi5_depth_100mm.yaml config/appliance.yaml
 install(FILES config/pi/depthd-imx296-trigger.conf
   DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/platform/pi5"
 )
-install(DIRECTORY qualification/
+install(FILES qualification/pi5-beta.yaml
   DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/qualification"
+  COMPONENT device-data
 )
 install(PROGRAMS
   tools/qualification/run_qualification.py
@@ -801,6 +825,7 @@ install(PROGRAMS
   tools/release/stage_apt_repository.py
   DESTINATION "lib/nuvo-depth"
 )
+install(FILES tools/release/nuvo_source_files.py DESTINATION "lib/nuvo-depth")
 install(FILES
   deployment/systemd/nuvo-depth.target
   deployment/systemd/nuvo-trigger-prepare.service
@@ -840,8 +865,6 @@ install(FILES
   docs/pi5-depth-100mm-profile.md
   docs/performance-profiles.md
   docs/pi5-hil-qualification-20260909.md
-  docs/hardware-qualification-handoff-prompt.md
-  docs/nuvo-depth-production-oracle-prompt.md
   deployment/README.md
   DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/nuvo-depth"
 )
@@ -938,6 +961,8 @@ if(BUILD_TESTING)
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/install_provisioning_test.py)
     add_test(NAME depthd_install_release_test COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/install_release_test.py)
+    add_test(NAME depthd_repository_hygiene_test COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/repository_hygiene_test.py)
     add_test(NAME depthd_web_ui_static_test
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/web_ui_static_test.py
@@ -1250,6 +1275,14 @@ if(BUILD_TESTING)
         ERROR_QUIET
       )
       if(DEPTHD_PYTHON_OPENCV_RESULT EQUAL 0)
+        add_test(NAME depthd_capture_stream_profile_test
+          COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/capture_stream_profile_test.py
+        )
+        add_test(NAME depthd_stereo_auto_exposure_test
+          COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/stereo_auto_exposure_test.py
+        )
         add_test(NAME depthd_stereo_validation_diagnostics_test
           COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/stereo_validation_diagnostics_test.py
@@ -1375,6 +1408,7 @@ endif()
 
 set(CPACK_GENERATOR "DEB")
 set(CPACK_PACKAGE_NAME "nuvo-depthd")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://nuvohardware.com/")
 set(CPACK_PACKAGE_CONTACT "NuvoHardware")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "NuvoHardware")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)

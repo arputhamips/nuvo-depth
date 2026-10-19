@@ -1,5 +1,12 @@
 # Raspberry Pi depth-camera tools
 
+For device installation and first use, follow the
+[Pi installation guide](https://docs.nuvohardware.com/vision-one/install/byo-pi)
+and [setup guide](https://docs.nuvohardware.com/vision-one/guide/getting-started).
+The native `depthd` daemon is the current camera owner. The Python pipeline
+below is retained for comparison, diagnostics, and reproducibility of older rig
+evidence; do not start it alongside the native capture service.
+
 These tools validate and profile the Nuvo 100 mm dual-IMX296 depth camera on
 Raspberry Pi 5. The product pipeline is depth-only: synchronized capture,
 rectification, stereo matching, preview, and native depth outputs. It has no
@@ -29,7 +36,7 @@ The other rig tools are:
    overlays, detected cameras, and GPIO 17 state.
 4. `profile_cpu_pipeline.py` measures the live OpenCV SGBM path, including
    cold-start, capture, per-stage, sensor-age, output-latency, and CPU data.
-5. `profile_async_zero_copy_pipeline.py` is the product runtime entrypoint. It
+5. `profile_async_zero_copy_pipeline.py` is the legacy comparison entrypoint. It
    combines leased Picamera2 completions, bounded latest-pair matching, GPU or
    CPU rectification, CPU SGBM, scheduled JPEG preview, and native outputs.
 6. `benchmark_preprocess_variants.py`, `benchmark_stereo_bm.py`, and related

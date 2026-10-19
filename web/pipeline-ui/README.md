@@ -11,12 +11,13 @@ Flow integration lives in `src/canvas.jsx`; editing it does not require editing
 the main console's HTML or application script.
 
 Build from this directory with `npm ci` followed by `npm run build`. Commit the
-lockfile and the generated `../pipeline-canvas.js` and `../pipeline-canvas.css`.
+source and lockfile. The generated `../pipeline-canvas.js`, `../pipeline-canvas.css`,
+and `../pipeline-licenses.txt` are ignored local build outputs.
 These self-hosted assets run in the browser. The Pi needs no Node installation,
 bundler, React server, or external CDN. Production dependencies and notices are
 listed in `../pipeline-licenses.txt`.
-The CMake installation excludes both this authoring directory and every pipeline
-asset in `web/`. Re-enabling the experiment requires an explicit integration change.
+The CMake installation explicitly lists the conventional console's files and
+does not install this prototype. Re-enabling it requires an explicit integration change.
 
 `../device-settings.js` owns the shared settings field definitions, numeric JSON
 types, bounds, configuration ETags, CSRF requests, and session draft storage.
@@ -135,5 +136,5 @@ with no server rendering or Node runtime on the Pi. Selection of an already
 subscribed raw output adds no stream or Pi processing. Preview drawing is capped
 at 5 updates/s; the device still performs requested capture, processing, encoding,
 and delivery. The full performance monitor remains on Overview and Diagnostics.
-For frontend source and build instructions, see [pipeline workspace](../web/pipeline-ui/README.md).
+For frontend source and build instructions, see [pipeline workspace](./README.md).
 

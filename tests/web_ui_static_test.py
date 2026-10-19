@@ -58,7 +58,6 @@ def main() -> None:
     assert len(pipeline_parser.ids)==len(set(pipeline_parser.ids)), "duplicate pipeline IDs"
     assert 'id="pipeline"' not in html and '/pipeline' not in html
     assert 'NuvoPipeline' not in script and '/pipeline.html' not in script, "production console must not depend on the parked pipeline"
-    assert 'PATTERN "pipeline*" EXCLUDE' in (ROOT/'CMakeLists.txt').read_text(encoding='utf-8')
     assert '/app.js' not in pipeline_html and '/pipeline.js' not in html
     assert set(re.findall(r"\$\('([^']+)'\)",pipeline))-set(pipeline_parser.ids)=={'streamSource','outputForm'}, "unexpected missing pipeline controls"
     for identifier in ("performanceMonitor", "performanceStages", "performanceChart",
@@ -125,8 +124,12 @@ def main() -> None:
         subprocess.run([node,str(ROOT/"tests/web_pipeline_model_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_shared_settings_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_calibration_status_test.js")],check=True)
-        for asset in ("app.js","pipeline.js","pipeline-host.js","pipeline-canvas.js","device-settings.js","frame-codec.js"):
+        for asset in ("app.js","pipeline.js","pipeline-host.js","device-settings.js","frame-codec.js"):
             subprocess.run([node,"--check",str(ROOT/"web"/asset)],check=True)
+        # The parked editor's generated bundle is optional local build output.
+        canvas = ROOT / "web/pipeline-canvas.js"
+        if canvas.is_file():
+            subprocess.run([node,"--check",str(canvas)],check=True)
     print(f"UI contract OK: {len(parser.pages)} pages, {len(parser.ids)} unique IDs")
 
 

@@ -18,7 +18,9 @@ Third-party software and assets retain their own copyright and license notices:
 - web/assets/fonts: SIL Open Font License 1.1; see OFL.txt in that directory.
 - web/assets/benchmark: DIODE sample images under MIT; see LICENSE and README.md
   in that directory and https://diode-dataset.org/.
-- web/pipeline-licenses.txt: dependency notices for the parked browser prototype.
+- web/pipeline-ui: the parked prototype's local build generates
+  web/pipeline-licenses.txt with its dependency notices; include those notices
+  when redistributing a built prototype.
 - External build/runtime dependencies retain their upstream terms. Their source
   and notices must be accounted for when redistributing a binary or OS image.
 
