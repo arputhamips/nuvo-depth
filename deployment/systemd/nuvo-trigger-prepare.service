@@ -1,7 +1,8 @@
 [Unit]
 Description=Provision Nuvo RP1 PIO hardware trigger
 After=local-fs.target systemd-udev-settle.service
-Before=nuvo-depthd-native.service
+# The native daemon starts this unit synchronously from ExecStartPre. Ordering
+# this unit before the daemon would make that nested start wait on its caller.
 ConditionPathExists=/etc/nuvo-depth/daemon.yaml
 
 [Service]

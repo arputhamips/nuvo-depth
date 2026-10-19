@@ -1,8 +1,7 @@
 [Unit]
 Description=Nuvo Depth native stereo processing daemon
 Documentation=file:///usr/share/doc/nuvo-depth-core/architecture.md
-After=local-fs.target systemd-udev-settle.service nuvo-trigger-prepare.service
-Requires=nuvo-trigger-prepare.service
+After=local-fs.target systemd-udev-settle.service
 Before=nuvo-gateway.service
 ConditionPathExists=/etc/nuvo-depth/daemon.yaml
 
@@ -19,6 +18,9 @@ StateDirectory=nuvo-depth
 StateDirectoryMode=0750
 CacheDirectory=nuvo-depth
 CacheDirectoryMode=0750
+# Run preparation in its own privileged unit, but count its failure as a daemon
+# startup failure so Restart=on-failure retries it after a cold-boot timeout.
+ExecStartPre=+/usr/bin/systemctl start nuvo-trigger-prepare.service
 # Transactions and their coordination locks are owned by the privileged agent.
 ExecStartPre=+/usr/lib/nuvo-depth/nuvo-calibration recover --state-root /var/lib/nuvo-depth --factory-trust /etc/nuvo-depth/factory-trust.json
 ExecStartPre=/usr/bin/depthd --check-config /etc/nuvo-depth/daemon.yaml
