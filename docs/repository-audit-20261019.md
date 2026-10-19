@@ -107,3 +107,21 @@ ARM64 package workflow and its clean Trixie installation check. The regular
 and [installer checks](https://github.com/arputhamips/nuvo-depth/actions/workflows/installer-checks.yml)
 record the results for the cleanup commit. Local Markdown file links and the
 website/wiki installation URLs are checked as part of the audit.
+
+### Completed checks
+
+The tested implementation is commit
+`f3af6e09733fca23153ede15ec0621d6d50b1a9f`.
+
+| Check | Result |
+| --- | --- |
+| Development host build and CTest | 57/57 passed. |
+| Final native ARM64 package build | [58/58 passed](https://github.com/arputhamips/nuvo-depth/actions/runs/39329398781). |
+| Clean Trixie installation | All eight runtime packages installed; configuration, installed SDK import, setup/SPDX helpers and dpkg audit passed. |
+| Installer checks | [Passed](https://github.com/arputhamips/nuvo-depth/actions/runs/39329399057). |
+| Hygiene regressions | Seven checks passed from the checkout and an unpacked source archive containing an existing CMake build cache; isolated Git ownership was also exercised. |
+| Downloaded package contents | All eight runtime payloads checked: no generated prototype assets, caches, `node_modules`, local environment files or review/handoff prompts. Homepage metadata is `https://nuvohardware.com/`. |
+| Matching source | All 399 source files in the CI archive matched the tested Git tree byte-for-byte. |
+| Parked frontend | Rebuilt successfully from source; its generated files remain ignored. |
+| Documentation links | 141 local Markdown file links resolved; website, wiki, bundled/BYO installation, login and Python SDK URLs returned HTTP 200. |
+| Website documentation | [Cloudflare deployment passed](https://github.com/arputhamips/nuvo-depth-web/actions/runs/39328117974); 28 built pages validated, and the updated SDK guide was verified live. |
