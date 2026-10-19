@@ -7,7 +7,10 @@ name = "nuvo-depth"
 version = "0.1.0"
 description = "Bounded Nuvo Depth camera client and recorder"
 requires-python = ">=3.11"
-license = {text = "Proprietary"}
+license = {text = "GPL-3.0-or-later"}
+
+[tool.setuptools]
+license-files = ["LICENSE"]
 
 [project.scripts]
 nuvo-record = "nuvo_depth.recorder:main"

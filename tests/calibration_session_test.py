@@ -5,6 +5,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 import importlib.util
 import json
+import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -76,6 +77,21 @@ class SessionTest(unittest.TestCase):
         with patch.object(CALIBRATION, "_charuco_board", return_value=None), patch.object(
                 CALIBRATION, "_detect_charuco", return_value=(None, None, None, None)):
             return CALIBRATION.analyze_web_capture(self.root, self.session, capture_id, 0)
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX directory permissions")
+    def test_capture_directory_is_group_writable_under_service_umask(self):
+        previous_umask = os.umask(0o027)
+        try:
+            status = CALIBRATION.create_web_session(self.root, self.config)
+        finally:
+            os.umask(previous_umask)
+        directory = self.root / "calibration-sessions" / status["session_id"]
+        # The root agent creates sessions; the camera daemon publishes images
+        # through their shared service group, without write access to metadata.
+        self.assertEqual((directory / "captures").stat().st_mode & 0o777, 0o770)
+        self.assertEqual(directory.stat().st_mode & 0o777, 0o750)
+        self.assertEqual((directory / "configuration.json").stat().st_mode & 0o777, 0o640)
+        self.assertEqual((directory / ".operation.lock").stat().st_mode & 0o777, 0o600)
 
     def test_partial_png_pair_never_counts_as_complete(self):
         self.fixture("partial")

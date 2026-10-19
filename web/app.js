@@ -48,6 +48,7 @@ let selectedPage = '';
 let lastHealth = null, calibrationSession = null, calibrationOriginalEncoding = null;
 let depthOutputRate = null, rawGeneration = 0;
 const formControllers = new Map();
+const restoredDraftForms = new Set();
 const performanceModel = {run:null, published:null, samples:[], latest:null, stale:false};
 let analysisTarget = 10;
 const OUTPUT_PRODUCTS = [
@@ -64,7 +65,7 @@ let capabilities = null;
 let outputSettings = {enabled:true, products:['left_mono'], cadence_hz:5, delivery:'auto', preview:true, preview_cadence_hz:5};
 try {
   const saved=JSON.parse(localStorage.getItem('nuvo-output-selection')||'null');
-  if(saved&&Array.isArray(saved.products)&&saved.products.length&&saved.products.every(p=>OUTPUT_PRODUCTS.some(x=>x[0]===p))&&
+  if(saved&&Array.isArray(saved.products)&&(saved.products.length||saved.enabled===false)&&saved.products.length<=14&&saved.products.every(p=>OUTPUT_PRODUCTS.some(x=>x[0]===p))&&
     saved.cadence_hz>0&&saved.cadence_hz<=60&&saved.preview_cadence_hz>0&&saved.preview_cadence_hz<=60&&
     ['auto','best_effort','exact'].includes(saved.delivery))outputSettings={...outputSettings,...saved};
 } catch (_) {}
@@ -88,6 +89,21 @@ function updateOutputBudget() {
   $('outputWarning').textContent=exactUnavailable?'This connection has no measured exact qualification. Choose best effort or connect through a qualified wired link.':over?`Selection exceeds this connection’s ${(budget/1048576).toFixed(1)} MiB/s resource budget. Reduce cadence or choose fewer products; JPEG monitoring is available on Streaming.`:products.some(p=>['depth','disparity','confidence','validity'].includes(p))?'Selected matcher products start depth processing while this output is open.':'Image-only selection runs without the depth matcher.';
   $('outputWarning').classList.toggle('error',!!(over||exactUnavailable));
 }
+function outputLimits(){return {width:lastHealth?.image_width||lastHealth?.depth_width||728,height:lastHealth?.image_height||lastHealth?.depth_height||544,
+  supportedProducts:capabilities?.products,qualified:!!capabilities?.connection?.qualified_link,bytesPerSecond:capabilities?.connection?.resource_budget_bytes_per_second,
+  maxFrameBytes:capabilities?.stream_admission?.raw_maximum_wire_bytes,rawEnabled:encoding?.mode!=='encoded'};}
+function commitOutputSelection(candidate){
+  if(candidate.enabled&&!candidate.products.length)throw new Error('Select at least one raw product.');
+  const checked=window.NuvoDeviceSettings.validateOutputSelection(candidate,outputLimits(),OUTPUT_PRODUCTS);
+  const next={...candidate,enabled:checked.enabled,products:checked.products};
+  let persisted=true;try{localStorage.setItem('nuvo-output-selection',JSON.stringify(next));}catch(_){persisted=false;}
+  outputSettings=next;
+  document.querySelectorAll('[name="outputProduct"]').forEach(input=>input.checked=next.products.includes(input.value));
+  $('outputEnabled').checked=next.enabled;$('outputCadence').value=next.cadence_hz;$('outputDelivery').value=next.delivery;
+  $('outputPreviewEnabled').checked=next.preview;$('outputPreviewCadence').value=next.preview_cadence_hz;
+  $('outputSaveState').textContent=persisted?'Applied to this browser':'Applied for this session';restartStreams();updateOutputBudget();
+  return persisted;
+}
 function initializeOutputControls() {
   for(const [name,label] of OUTPUT_PRODUCTS){
     const item=document.createElement('label'),input=document.createElement('input');
@@ -102,11 +118,10 @@ function initializeOutputControls() {
     event.preventDefault();
     const products=[...document.querySelectorAll('[name="outputProduct"]:checked')].map(x=>x.value);
     if(!products.length&&$('outputEnabled').checked){$('outputWarning').textContent='Select at least one raw product';return;}
-    outputSettings={enabled:$('outputEnabled').checked,products:products.length?products:outputSettings.products,
+    const candidate={enabled:$('outputEnabled').checked,products,
       cadence_hz:Number($('outputCadence').value),delivery:$('outputDelivery').value,
       preview:$('outputPreviewEnabled').checked,preview_cadence_hz:Number($('outputPreviewCadence').value)};
-    try{localStorage.setItem('nuvo-output-selection',JSON.stringify(outputSettings))}catch(_){}
-    $('outputSaveState').textContent='Applied to this browser';restartStreams();updateOutputBudget();
+    try{commitOutputSelection(candidate);}catch(error){$('outputWarning').textContent=error.message;$('outputWarning').classList.add('error');}
   });
   updateOutputBudget();
 }
@@ -176,42 +191,44 @@ openPage(location.hash.slice(1));
 $('originLabel').textContent = location.origin;
 $('encodedEndpoint').textContent = `${location.origin}/api/v1/encoded/latest · WebSocket /api/v1/encoded/stream`;
 
-async function api(path, options = {}) {
-  const method = options.method || 'GET';
-  const headers = new Headers(options.headers || {});
-  if (!['GET','HEAD'].includes(method) && path !== '/api/v1/session' && csrf) headers.set('X-Nuvo-CSRF',csrf);
-  const configurationPath = ['/api/v1/encoding','/api/v1/stereo','/api/v1/exposure'].includes(path);
-  if(configurationPath && method==='POST'){
-    const revision=configurationRevisions.get(path);
-    if(!revision)throw new Error('Load device settings before saving');
-    headers.set('If-Match',revision);
-  }
-  const response = await fetch(path, {...options, method, headers, credentials:'same-origin', cache:'no-store'});
-  if (response.status === 401) { if (!dialog.open) dialog.showModal(); throw new Error('Authentication required'); }
-  if (!response.ok) {
-    let detail = `${response.status} ${response.statusText}`;
-    try { const value = await response.json(); detail = value.error || detail; } catch (_) {}
-    throw new Error(detail);
-  }
-  if(configurationPath){
-    const revision=response.headers.get('ETag');
-    if(!/^"[a-f0-9]{64}"$/.test(revision||''))throw new Error('Device settings revision is unavailable');
-    latestConfigurationRevisions.set(path,revision);
-    const dirty=path==='/api/v1/encoding'?encodingFormDirty:path==='/api/v1/stereo'?algorithmFormDirty:exposureFormDirty;
-    // Polling must retain the revision from which the unsaved form was edited.
-    if(method==='POST'||!dirty)configurationRevisions.set(path,revision);
-  }
-  return response;
+async function api(path,options={}) {
+  return window.NuvoDeviceSettings.request(path,options,{csrf,configurationRevisions,latestConfigurationRevisions,
+    encodingFormDirty,algorithmFormDirty,exposureFormDirty,safeExposureUs:Number(lastHealth?.exposure_safe_max_us)||8000,
+    onUnauthorized(){if(!dialog.open)dialog.showModal();}});
+}
+
+async function refreshSetupStatus(){
+  try {
+    const payload=await(await api('/api/v1/setup/status')).json(),state=payload.result;
+    if(!state?.schema_version)return;
+    const note=$('setupState');note.hidden=false;
+    note.textContent=`${state.display_name||'Nuvo'} · ${state.phase||'Setup pending'}`+
+      (state.reboot_required?' · Camera changes require a reboot':'')+
+      (state.calibration_state==='pending'?' · Calibration required':'')+
+      (state.capture_error?` · ${state.capture_error}`:'')+
+      (state.error?` · ${state.error}`:'');
+  }catch(_){}
 }
 
 $('claimForm').addEventListener('submit', async event => {
   event.preventDefault(); $('claimError').textContent = '';
   const token = $('claimToken').value;
   try {
-    const session = await (await api('/api/v1/session', {method:'POST', headers:{Authorization:`Bearer ${token}`}})).json();
+    const session = await (await api('/api/v1/session', {method:'POST', headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:token})})).json();
     csrf = session.csrf; $('claimToken').value = ''; dialog.close();
+    if(session.needs_owner_password)$('ownerDialog').showModal();
+    await refreshSetupStatus();
     await Promise.all([refreshHealth(),refreshTransport(),refreshEncoding(),refreshStereo(),refreshExposure(),refreshCapabilities()]); restartStreams();
   } catch (error) { $('claimError').textContent = error.message; }
+});
+
+$('ownerForm').addEventListener('submit', async event => {
+  event.preventDefault();$('ownerError').textContent='';
+  if($('ownerPassword').value!==$('ownerRepeat').value){$('ownerError').textContent='Passwords must match.';return;}
+  try {
+    await api('/api/v1/setup/owner',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('ownerPassword').value})});
+    $('ownerPassword').value='';$('ownerRepeat').value='';$('ownerDialog').close();
+  } catch(error){$('ownerError').textContent=error.message;}
 });
 
 async function refreshTransport() {
@@ -558,6 +575,7 @@ async function refreshHealth() {
   try {
     const health = await (await api('/api/v1/health')).json();
     lastHealth = health;
+    $('calibrationPresetId').value=health.profile_id||'';
     const now=performance.now();
     let depthActivity='Waiting for sample';
     if (health.run_uuid===lastHealthRun && lastHealthPublished!==null && health.published_frames>=lastHealthPublished && now>lastHealthAt) {
@@ -566,7 +584,8 @@ async function refreshHealth() {
       setMeasurement('frameRate',fps.toFixed(1),'fps');
       depthActivity=fps>0?'Active':'No new frames';
     } else { $('frameRate').textContent='—'; depthOutputRate=null; }
-    if(health.matcher_active===false){depthOutputRate=0;setMeasurement('frameRate','0.0','fps');depthActivity='Idle · no matcher demand';}
+    // matcher_active is an instantaneous sample and can be false between frames.
+    if(health.matcher_active===false&&!(depthOutputRate>0)){depthOutputRate=0;setMeasurement('frameRate','0.0','fps');depthActivity='Idle · no new depth frames';}
     lastHealthRun=health.run_uuid||'';lastHealthPublished=health.published_frames;lastHealthAt=now;
     $('connection').textContent = 'Connected'; $('connection').className = 'pill online';
     document.querySelector('.status-strip').classList.remove('stale');
@@ -633,23 +652,7 @@ async function refreshHealth() {
   } catch (_) { $('connection').textContent = 'Not connected'; $('connection').className = 'pill offline'; $('frameRate').textContent='—'; depthOutputRate=null; lastHealthPublished=null; performanceModel.stale=true; performanceModel.latest=null; renderPerformanceMonitor(); updateLiveMetrics(null); document.querySelector('.status-strip').classList.add('stale'); $('overviewCaptureState').textContent='Disconnected'; $('overviewDepthState').textContent='Unknown'; $('deviceResolution').textContent='Last known device state'; setFlowState('flowConnectionState','Waiting'); setFlowState('flowCaptureState','Waiting'); }
 }
 
-function parseFrame(buffer) {
-  const view = new DataView(buffer);
-  if (buffer.byteLength < 32 || String.fromCharCode(...new Uint8Array(buffer,0,4)) !== 'NUV1') throw new Error('Invalid Nuvo frame');
-  const metadataLength = view.getUint32(12,false), payloadLength = Number(view.getBigUint64(16,false));
-  const sequence = Number(view.getBigUint64(24,false));
-  if (32 + metadataLength + payloadLength !== buffer.byteLength || metadataLength > 65536 || payloadLength > 67108864) throw new Error('Frame bounds rejected');
-  const metadata = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer,32,metadataLength)));
-  if(!Array.isArray(metadata.products))throw new Error('Missing products');
-  const names=new Set();
-  for(const p of metadata.products){
-    const channels=['rgb8','bgr8'].includes(p.format)?3:['gray8','uint8'].includes(p.format)?1:p.format==='float32_le'?4:0;
-    if(!channels||names.has(p.kind)||![p.width,p.height,p.offset,p.length].every(Number.isSafeInteger)||
-      p.width<=0||p.height<=0||p.offset<0||p.length!==p.width*p.height*channels||p.offset+p.length>payloadLength)throw new Error('Invalid product bounds or format');
-    names.add(p.kind);
-  }
-  return {metadata, sequence, payloadOffset:32+metadataLength, buffer};
-}
+function parseFrame(buffer) { return window.NuvoFrameCodec.parseFrame(buffer); }
 function product(frame, name) { return frame.metadata.products.find(x => x.kind === name); }
 function setSampleCanvasLive(id, live) {
   $(id).closest('.sample-canvas')?.classList.toggle('live', live);
@@ -660,19 +663,7 @@ document.querySelectorAll('[data-benchmark-scene]').forEach(button => button.add
   });
   document.querySelectorAll('[data-benchmark-scene]').forEach(item => item.setAttribute('aria-pressed',String(item===button)));
 }));
-function drawGray(canvas, frame, descriptor) {
-  if (!descriptor) return; canvas.width=descriptor.width; canvas.height=descriptor.height;
-  canvas.style.aspectRatio=`${descriptor.width} / ${descriptor.height}`;
-  const source = new Uint8Array(frame.buffer,frame.payloadOffset+descriptor.offset,descriptor.length);
-  const image = canvas.getContext('2d').createImageData(descriptor.width,descriptor.height);
-  const color=descriptor.format==='rgb8'||descriptor.format==='bgr8',bgr=descriptor.format==='bgr8';
-  for(let pixel=0;pixel<descriptor.width*descriptor.height;pixel++){
-    const i=pixel*(color?3:1),j=pixel*4;
-    image.data[j]=source[i+(color&&bgr?2:0)];image.data[j+1]=source[i+(color?1:0)];
-    image.data[j+2]=source[i+(color?(bgr?0:2):0)];image.data[j+3]=255;
-  }
-  canvas.getContext('2d').putImageData(image,0,0);
-}
+function drawGray(canvas,frame,descriptor) { return window.NuvoFrameCodec.drawGray(canvas,frame,descriptor); }
 function drawDepth(canvas, frame, descriptor) {
   if (!descriptor) return; canvas.width=descriptor.width; canvas.height=descriptor.height;
   canvas.style.aspectRatio=`${descriptor.width} / ${descriptor.height}`;
@@ -734,7 +725,7 @@ function rawPreviewPage(){return !document.hidden&&outputSettings.enabled&&['ove
 async function pollFrame(generation) {
   if (!rawPolling||generation!==rawGeneration||!rawPreviewPage()) return;
   try { const buffer=await (await api(outputSubscriptionPath('/api/v1/frame/latest'))).arrayBuffer();if(generation!==rawGeneration||!rawPolling)return;renderFrame(parseFrame(buffer)); }
-  catch (error) { $('frameError').textContent=error.message; }
+  catch (error) { if(generation!==rawGeneration)return;$('frameError').textContent=error.message; }
   if(generation===rawGeneration&&rawPolling)setTimeout(()=>pollFrame(generation),1000/outputSettings.cadence_hz);
 }
 function socketUrl(path) { return `${location.protocol==='https:'?'wss':'ws'}://${location.host}${path}`; }
@@ -745,15 +736,7 @@ function startRawViewer(){
   socket.onclose=()=>{if(generation!==rawGeneration||socket!==rawSocket)return;rawSocket=null;if(rawPreviewPage()&&encoding&&encoding.mode!=='encoded'&&!rawPolling){rawPolling=true;pollFrame(generation)}};
 }
 
-function parseEncoded(buffer) {
-  const view=new DataView(buffer);
-  if(buffer.byteLength<32||String.fromCharCode(...new Uint8Array(buffer,0,4))!=='NVE1'||view.getUint16(4,false)!==1)throw new Error('Invalid encoded frame');
-  const metadataLength=view.getUint32(8,false),payloadLength=Number(view.getBigUint64(12,false));
-  const streamSequence=Number(view.getBigUint64(20,false));
-  if(metadataLength>65536||payloadLength>33554432||32+metadataLength+payloadLength!==buffer.byteLength)throw new Error('Encoded frame bounds rejected');
-  const metadata=JSON.parse(new TextDecoder().decode(new Uint8Array(buffer,32,metadataLength)));
-  return {metadata,streamSequence,payload:new Uint8Array(buffer,32+metadataLength,payloadLength)};
-}
+function parseEncoded(buffer) { return window.NuvoFrameCodec.parseEncoded(buffer); }
 function resetEncodedDecoder() {
   if(decoder){try{decoder.close()}catch(_){}}
   decoder=null;decoderCodec='';encodedLastSequence=0;encodedWaitingForKeyframe=true;
@@ -805,7 +788,7 @@ async function renderEncoded(frame,generation,arrival) {
 async function pollEncoded(generation) {
   if(!encodedPolling||generation!==encodedGeneration||!encodedPreviewPage())return;
   try{await renderEncoded(parseEncoded(await (await api(`/api/v1/encoded/latest?cadence_hz=${outputSettings.preview_cadence_hz}`)).arrayBuffer()),generation,++encodedArrival);}
-  catch(error){$('encodingError').textContent=error.message;}
+  catch(error){if(generation===encodedGeneration){$('encodingError').textContent=error.message;}}
   if(generation===encodedGeneration&&encodedPolling)setTimeout(()=>pollEncoded(generation),1000/outputSettings.preview_cadence_hz);
 }
 function encodedPreviewPage(){return !document.hidden&&(selectedPage==='calibration'||outputSettings.preview&&['streaming','network'].includes(selectedPage));}
@@ -848,6 +831,12 @@ async function calibrationOperation(path,body={}){
   return envelope.result;
 }
 
+function calibrationProfileId(health){
+  if(typeof health?.profile_id!=='string'||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(health.profile_id))
+    throw new Error('The active capture profile is not available yet; wait for a live frame');
+  return health.profile_id;
+}
+
 function calibrationConfiguration(){
   if(!lastHealth?.device_uuid||!lastHealth?.left_camera_id||!lastHealth?.right_camera_id)
     throw new Error('Camera identities are not available yet; wait for a live frame');
@@ -861,7 +850,7 @@ function calibrationConfiguration(){
     throw new Error(`This board has at most ${maximumCorners} ChArUco corners`);
   return {schema_version:1,
     identity:{unit_id:lastHealth.device_uuid,left_camera_id:lastHealth.left_camera_id,right_camera_id:lastHealth.right_camera_id},
-    profile:{preset_id:$('calibrationPresetId').value.trim(),sensor_mode:$('calibrationSensorMode').value.trim(),
+    profile:{preset_id:calibrationProfileId(lastHealth),sensor_mode:$('calibrationSensorMode').value.trim(),
       image_width:Number($('calibrationWidth').value),image_height:Number($('calibrationHeight').value),
       frame_rates_hz:rates,baseline_m:Number($('calibrationBaseline').value)/1000},
     target:{type:'charuco',squares_x:Number($('charucoSquaresX').value),squares_y:Number($('charucoSquaresY').value),
@@ -877,6 +866,18 @@ function calibrationStep(state){
   return 'setup';
 }
 
+function calibrationCoverageCells(status){
+  if(Array.isArray(status.coverage?.occupied_cell_indices)){
+    return new Set(status.coverage.occupied_cell_indices.filter(cell=>Number.isInteger(cell)&&cell>=0&&cell<9));
+  }
+  const occupied=new Set();
+  for(const item of status.captures||[]){
+    const metric=item.accepted&&item.quality?.left;
+    if(metric)occupied.add(Math.min(2,Math.floor(metric.center_y*3))*3+Math.min(2,Math.floor(metric.center_x*3)));
+  }
+  return occupied;
+}
+
 function renderCalibration(status){
   calibrationSession=status;
   $('calibrationWorkspace').hidden=false;
@@ -885,11 +886,7 @@ function renderCalibration(status){
   $('calibrationCoverage').textContent=`${Math.round(100*(status.coverage?.score||0))}%`;
   $('calibrationGuidance').textContent=status.message||'Continue collecting varied target poses.';
   $('calibrationCaptureState').textContent=status.captures?.length?`Last pair: ${status.captures.at(-1).accepted?'accepted':'retake'} · ${status.captures.at(-1).common_corners} shared corners`:'';
-  const occupied=new Set();
-  for(const item of status.captures||[]){
-    const metric=item.accepted&&item.quality?.left;
-    if(metric)occupied.add(Math.min(2,Math.floor(metric.center_y*3))*3+Math.min(2,Math.floor(metric.center_x*3)));
-  }
+  const occupied=calibrationCoverageCells(status);
   [...$('calibrationCoverageGrid').children].forEach((cell,index)=>cell.classList.toggle('covered',occupied.has(index)));
   const activeStep=calibrationStep(status.state);
   document.querySelectorAll('[data-calibration-step]').forEach(step=>step.classList.toggle('active',step.dataset.calibrationStep===activeStep));
@@ -1005,6 +1002,8 @@ $('copyDiagnostics').addEventListener('click',async()=>{
 async function restoreSession() {
   try {
     const session = await (await api('/api/v1/session')).json(); csrf = session.csrf;
+    await refreshSetupStatus();
+    if(session.needs_owner_password)$('ownerDialog').showModal();
     await Promise.all([refreshHealth(),refreshTransport(),refreshEncoding(),refreshStereo(),refreshExposure(),refreshCapabilities()]);
     if(lastHealth){
       if(!$('calibrationWidth').value)$('calibrationWidth').value=lastHealth.image_width||728;
@@ -1097,6 +1096,14 @@ function setFormBaseline(id){
   const c=formControllers.get(id);if(!c)return;
   c.baseline=new Map(c.controls.map(input=>[input.id,fieldValue(input)]));c.loaded=true;c.attempted=false;c.errors=new Map();
   if(!c.busy){c.controls.forEach(input=>input.disabled=false);c.updateMode();}
+  if(restoredDraftForms.has(id))window.NuvoDeviceSettings.clearDraft(window.NuvoDeviceSettings.DEFINITIONS[{algorithmForm:'algorithm',encodingForm:'encoding',exposureForm:'exposure'}[id]].path);
+  if(!restoredDraftForms.has(id)){
+    restoredDraftForms.add(id);const kind={algorithmForm:'algorithm',encodingForm:'encoding',exposureForm:'exposure'}[id],saved=window.NuvoDeviceSettings.loadDraft(kind);
+    if(saved){for(const input of c.controls)if(Object.hasOwn(saved.fields,input.id)){if(input.type==='checkbox')input.checked=saved.fields[input.id];else input.value=saved.fields[input.id];}
+      configurationRevisions.set(window.NuvoDeviceSettings.DEFINITIONS[kind].path,saved.revision);
+      c.form.dispatchEvent(new Event('input',{bubbles:true}));c.updateMode();
+    }
+  }
   updateFormUi(c);
 }
 function setFormBusy(id,busy){
@@ -1174,7 +1181,7 @@ function initializeSettingsUi(){
   const definitions=[['algorithmForm','algorithmSaveState','algorithmReset',updateAlgorithmFields],['exposureForm','exposureSaveState','exposureReset',updateExposureFields],['encodingForm','encodingSaveState','encodingReset',updateEncodingFields]];
   definitions.forEach(([id,status,reset,updateMode])=>{
     const form=$(id),c={form,status,reset,updateMode,controls:[...form.querySelectorAll('input:not([type="hidden"]),select')],baseline:new Map(),errors:new Map(),attempted:false,loaded:false,busy:false};formControllers.set(id,c);form.noValidate=true;
-    const edit=()=>{if(!c.loaded)return;if(id==='algorithmForm')algorithmFormDirty=changedControls(c).length>0;if(id==='exposureForm')exposureFormDirty=changedControls(c).length>0;if(id==='encodingForm')encodingFormDirty=changedControls(c).length>0;updateMode();updateFormUi(c,true);};
+    const edit=()=>{if(!c.loaded)return;if(id==='algorithmForm')algorithmFormDirty=changedControls(c).length>0;if(id==='exposureForm')exposureFormDirty=changedControls(c).length>0;if(id==='encodingForm')encodingFormDirty=changedControls(c).length>0;const kind={algorithmForm:'algorithm',encodingForm:'encoding',exposureForm:'exposure'}[id],path=window.NuvoDeviceSettings.DEFINITIONS[kind].path;if(changedControls(c).length)window.NuvoDeviceSettings.saveDraft(path,Object.fromEntries(c.controls.map(input=>[input.id,fieldValue(input)])),configurationRevisions.get(path));else window.NuvoDeviceSettings.clearDraft(path);updateMode();updateFormUi(c,true);};
     form.addEventListener('input',edit);form.addEventListener('change',edit);
     form.addEventListener('submit',event=>{c.attempted=true;if(c.busy||!c.loaded||!validateSettings(c)){event.preventDefault();event.stopImmediatePropagation();updateFormUi(c);c.controls.filter(i=>c.errors.has(i.id)).forEach(input=>{let parent=input.parentElement;while(parent&&parent!==form){if(parent.tagName==='DETAILS')parent.open=true;parent=parent.parentElement;}});c.controls.find(i=>c.errors.has(i.id))?.focus();}},true);
     form.querySelectorAll('.group-reset').forEach(button=>button.addEventListener('click',()=>{button.closest('.advanced-group').querySelectorAll('input,select').forEach(input=>{const value=c.baseline.get(input.id);if(value!==undefined){if(input.type==='checkbox')input.checked=value;else input.value=value;}});edit();}));
@@ -1187,8 +1194,12 @@ function initializeSettingsUi(){
   if('ResizeObserver' in window)new ResizeObserver(drawPerformanceChart).observe($('performanceChart').parentElement);
 }
 initializeSettingsUi();
+let requestedGroup=null;
+try{requestedGroup=sessionStorage.getItem('nuvo-open-settings-group');sessionStorage.removeItem('nuvo-open-settings-group');}catch(_){}
+if(requestedGroup){const group=[...document.querySelectorAll('[data-group]')].find(element=>element.dataset.group===requestedGroup);if(group){group.open=true;const parent=group.closest('.advanced-card');if(parent)parent.open=true;}}
 initializeOutputControls();
 document.addEventListener('visibilitychange',restartStreams);
+window.addEventListener('pageshow',event=>{if(event.persisted)restoreSession();});
 window.addEventListener('pagehide',()=>{rawSocket?.close();encodedSocket?.close();});
 updateAlgorithmFields();
 updateExposureFields();

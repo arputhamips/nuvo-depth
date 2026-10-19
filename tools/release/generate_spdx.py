@@ -37,7 +37,7 @@ def main() -> None:
               "documentDescribes":["SPDXRef-Package"],
               "packages":[{"name":"nuvo-depth","SPDXID":"SPDXRef-Package","versionInfo":args.version,
                            "downloadLocation":"NOASSERTION","filesAnalyzed":True,
-                           "licenseConcluded":"NOASSERTION","licenseDeclared":"NOASSERTION",
+                           "licenseConcluded":"NOASSERTION","licenseDeclared":"GPL-3.0-or-later",
                            "copyrightText":"NOASSERTION"}],"files":files,
               "relationships":[{"spdxElementId":"SPDXRef-Package","relationshipType":"CONTAINS","relatedSpdxElement":item["SPDXID"]} for item in files]}
     output.parent.mkdir(parents=True,exist_ok=True)

@@ -6,6 +6,8 @@ project(depth_daemon VERSION 0.1.0 LANGUAGES CXX)
 
 include(CTest)
 include(GNUInstallDirs)
+install(FILES LICENSE NOTICE
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/nuvo-depth")
 option(DEPTHD_WITH_OPENCV "Build the OpenCV CPU processing backends" ON)
 option(DEPTHD_WITH_CONFIG
   "Build the native yaml-cpp configuration preflight" OFF)
@@ -750,6 +752,10 @@ install(DIRECTORY sdk/python/nuvo_depth
 install(PROGRAMS tools/nuvoctl.py
   DESTINATION "${CMAKE_INSTALL_BINDIR}" RENAME nuvoctl
 )
+install(PROGRAMS tools/nuvo_setup.py
+  DESTINATION "${CMAKE_INSTALL_BINDIR}" RENAME nuvo-setup)
+install(FILES tools/nuvoctl.py tools/nuvo_release.py
+  DESTINATION "lib/nuvo-depth")
 install(PROGRAMS tools/nuvo_record.py
   DESTINATION "${CMAKE_INSTALL_BINDIR}" RENAME nuvo-record
 )
@@ -764,6 +770,9 @@ install(PROGRAMS tools/calibration/nuvo_calibration.py
 )
 install(DIRECTORY web/
   DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/web"
+  COMPONENT device-web
+  # The image-pipeline prototype is parked; ship only the conventional console.
+  PATTERN "pipeline*" EXCLUDE
 )
 install(DIRECTORY presets/
   DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/presets"
@@ -800,6 +809,7 @@ install(FILES
   deployment/systemd/nuvo-calibration@.service
   deployment/systemd/nuvo-usb-gadget.service
   deployment/systemd/nuvo-system-agent.socket
+  deployment/systemd/nuvo-setup.service
   deployment/systemd/nuvo-system-agent@.service
   deployment/systemd/nuvo-transport-rollback.service
   deployment/systemd/nuvo-transport-rollback.timer
@@ -924,6 +934,10 @@ if(BUILD_TESTING)
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/system_agent_test.py
     )
+    add_test(NAME depthd_install_provisioning_test COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/install_provisioning_test.py)
+    add_test(NAME depthd_install_release_test COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/install_release_test.py)
     add_test(NAME depthd_web_ui_static_test
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/web_ui_static_test.py

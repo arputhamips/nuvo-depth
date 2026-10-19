@@ -139,16 +139,24 @@ def platform_prepare(root: Path, apply: bool) -> dict:
     config = boot_config(root)
     original = config.read_text(encoding="utf-8")
     begin, end = "# BEGIN NUVO DEPTH (managed)\n", "# END NUVO DEPTH (managed)\n"
-    block = begin + "camera_auto_detect=0\ndtoverlay=imx296,always-on,cam0\ndtoverlay=imx296,always-on,cam1\n" + end
+    block = begin + "[all]\ncamera_auto_detect=0\ndtoverlay=imx296,always-on,cam0\ndtoverlay=imx296,always-on,cam1\n" + end
+    if original.count(begin) != original.count(end) or original.count(begin) > 1:
+        raise RuntimeError("repair malformed Nuvo boot configuration markers before proceeding")
+    outside = original
     if begin in original:
         start = original.index(begin); finish = original.index(end, start) + len(end)
+        outside = original[:start] + original[finish:]
         updated = original[:start] + block + original[finish:]
     else:
         updated = original + ("" if original.endswith("\n") else "\n") + "\n" + block
+    for line in outside.splitlines():
+        active = line.split("#", 1)[0].strip()
+        if re.match(r"include\s", active) or re.match(r"dtoverlay\s*=\s*(imx\d|ov\d|arducam)", active, re.I):
+            raise RuntimeError("resolve existing camera overlays/includes before Nuvo platform preparation")
     modprobe = root / "etc/modprobe.d/nuvo-depth-imx296.conf"
     changes = {"boot_config":str(config), "boot_config_changed":updated != original,
                "modprobe_config":str(modprobe), "modprobe_changed":not modprobe.exists() or modprobe.read_text() != "options imx296 trigger_mode=1\n",
-               "reboot_required":updated != original or not modprobe.exists()}
+               "reboot_required":updated != original or not modprobe.exists() or modprobe.read_text() != "options imx296 trigger_mode=1\n"}
     if apply:
         backup = config.with_name(config.name + ".nuvo-backup")
         if not backup.exists(): atomic_write(backup, original, 0o600)

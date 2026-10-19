@@ -86,6 +86,17 @@ epoch and sequence, dimensions, and hashes of both PNGs and their metadata.
 Partially written pairs are discarded and cannot enter the solver.
 The browser can reconnect without losing accepted observations.
 
+Control-API responses include only the latest observation in `captures`, with
+`capture_history_total`, `capture_history_included`, and
+`capture_history_truncated` describing the returned history. This keeps live
+status and capture replies within the 64 KiB control-transport limit as a session
+grows. `coverage.occupied_cell_indices` supplies the complete 3×3 coverage grid
+independently of the returned observation list. Full observations, camera
+metadata, and quality measurements remain in
+the session's `status.json` and capture files on the device; the
+`nuvo-calibration web-status --state-root /var/lib/nuvo-depth --session SESSION`
+command returns the complete history.
+
 Calibration evidence is bounded: at most 400 capture attempts and 512 MiB per
 session, 16 retained sessions, and 2 GiB across the session store. Admission
 reserves space before asking the daemon to capture, including in-flight writes.
@@ -179,13 +190,33 @@ bundle ID, then inspect rectified imagery and disparity before qualification.
 
 - **Intrinsic RMS** measures average target-corner reprojection fit for one
   camera. It does not test the opposite camera or real-world depth scale.
-- **Stereo RMS** measures the joint stereo fit after the intrinsics are fixed.
+- **Stereo RMS** measures the joint fit of both lens models and the stereo pose.
 - **Holdout epipolar p95** is the 95th-percentile vertical mismatch after
   rectification on observations excluded from fitting. It is the most useful
   browser metric for catching geometry that only fit the training poses.
 - **Worst epipolar error** exposes a bad tail that a mean can hide.
 - **Baseline error** checks physical scale but is only as accurate as the board
   dimensions and manual baseline measurement.
+
+The browser solver refines image corners and jointly fits the stereo geometry.
+It compares the five-coefficient Brown model with an eight-coefficient rational
+model using training data only and penalizes the extra coefficients. A model
+must invert across the complete sensor field, have no radial fold or denominator
+pole in that domain, and have finite, orientation-preserving sampled rectification
+maps before it can be selected. Held-out observations remain excluded from fitting
+and selection. Validation uses a converged inverse rather than OpenCV's default
+five iterations. All existing accuracy gates still apply.
+
+The capture profile ID comes from the running device and is read-only in the
+form. Activation binds the result to that profile and the stable camera identities.
+Re-solving after adding views preserves the existing holdout IDs; an earlier
+training fit may initialize the optimizer, but holdout points never initialize
+or select its lens model. A folded compact model cannot reject edge observations
+as outliers; those views remain available to the wider model.
+
+Rational bundles identify their model as `rational_polynomial` and contain exactly
+eight coefficients. The runtime computes rectification maps when loading a bundle;
+the coefficient count does not add a lens-model evaluation to each captured frame.
 
 For comparison, Stereolabs describes reprojection error below 0.5 px as good,
 0.5–1 px as acceptable, and above 1 px as poor. Nuvo therefore uses 0.5 px as

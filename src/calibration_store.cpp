@@ -98,10 +98,12 @@ template <std::size_t Count>
   result.image_width = root["image_width"].as<std::uint32_t>();
   result.image_height = root["image_height"].as<std::uint32_t>();
   result.baseline_m = root["baseline_m"].as<double>();
+  const auto distortion_model = root["distortion_model"].as<std::string>();
   if (result.camera_name.empty() || result.image_width == 0U ||
       result.image_height == 0U || !std::isfinite(result.baseline_m) ||
       result.baseline_m <= 0.0 ||
-      root["distortion_model"].as<std::string>() != "plumb_bob") {
+      (distortion_model != "plumb_bob" &&
+       distortion_model != "rational_polynomial")) {
     throw std::invalid_argument(path.string() +
                                 ": invalid camera identity, geometry, or model");
   }
@@ -131,8 +133,13 @@ template <std::size_t Count>
   if (!distortion.IsMap() || !distortion["rows"] || !distortion["cols"] ||
       !distortion["data"] || distortion.size() != 3U ||
       distortion["rows"].as<std::uint32_t>() != 1U ||
-      distortion["cols"].as<std::uint32_t>() < 4U ||
-      distortion["cols"].as<std::uint32_t>() > 14U ||
+      (distortion["cols"].as<std::uint32_t>() != 4U &&
+       distortion["cols"].as<std::uint32_t>() != 5U &&
+       distortion["cols"].as<std::uint32_t>() != 8U &&
+       distortion["cols"].as<std::uint32_t>() != 12U &&
+       distortion["cols"].as<std::uint32_t>() != 14U) ||
+      (distortion_model == "rational_polynomial" &&
+       distortion["cols"].as<std::uint32_t>() != 8U) ||
       !distortion["data"].IsSequence() ||
       distortion["data"].size() != distortion["cols"].as<std::size_t>()) {
     throw std::invalid_argument(path.string() +

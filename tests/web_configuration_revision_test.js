@@ -8,12 +8,16 @@ const start = script.indexOf('async function api(');
 const end = script.indexOf("$('claimForm')", start);
 assert(start >= 0 && end > start);
 const calls = [], responses = [];
+const deviceSettings=require('../web/device-settings.js');
+const validStereoBody=fs.readFileSync(path.join(__dirname,'../config/stereo.json'),'utf8');
 const context = {
+  lastHealth:null,
   Headers, csrf: 'csrf', dialog: {open:false, showModal(){this.open=true}},
   configurationRevisions: new Map(), latestConfigurationRevisions: new Map(),
   encodingFormDirty:false, algorithmFormDirty:false, exposureFormDirty:false,
   fetch: async (url, options) => {calls.push({url, options}); return responses.shift()},
 };
+context.window={NuvoDeviceSettings:{request:(route,options,state)=>deviceSettings.request(route,options,{...state,fetch:context.fetch})}};
 vm.createContext(context);
 vm.runInContext(script.slice(start, end), context);
 const old = '"' + 'a'.repeat(64) + '"', newer = '"' + 'b'.repeat(64) + '"';
@@ -28,13 +32,13 @@ const response = (etag, status=200) => ({
   assert.equal(context.configurationRevisions.get('/api/v1/stereo'), old);
   assert.equal(context.latestConfigurationRevisions.get('/api/v1/stereo'), newer);
   responses.push(response(null,412));
-  await assert.rejects(context.api('/api/v1/stereo',{method:'POST',body:'{}'}),/reload before saving/);
+  await assert.rejects(context.api('/api/v1/stereo',{method:'POST',body:validStereoBody}),/reload before saving/);
   assert.equal(calls.at(-1).options.headers.get('If-Match'),old);
   assert.equal(context.configurationRevisions.get('/api/v1/stereo'),old);
   assert.equal(calls.at(-1).options.headers.get('X-Nuvo-CSRF'),'csrf');
   context.algorithmFormDirty=false;
   responses.push(response(newer)); await context.api('/api/v1/stereo');
-  responses.push(response(newer,202)); await context.api('/api/v1/stereo',{method:'POST',body:'{}'});
+  responses.push(response(newer,202)); await context.api('/api/v1/stereo',{method:'POST',body:validStereoBody});
   assert.equal(calls.at(-1).options.headers.get('If-Match'),newer);
   await assert.rejects(context.api('/api/v1/exposure',{method:'POST',body:'{}'}),/Load device settings/);
   responses.push(response(null));

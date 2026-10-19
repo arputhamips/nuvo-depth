@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const source = fs.readFileSync(require('node:path').join(__dirname, '../web/app.js'),'utf8');
 const context = {TextDecoder, Uint8Array, DataView, Number, Set};
+context.window={NuvoFrameCodec:require('../web/frame-codec.js')};
 vm.createContext(context);
 vm.runInContext(source.slice(source.indexOf('const OUTPUT_PRODUCTS'),source.indexOf('let capabilities')),context);
 vm.runInContext(source.slice(source.indexOf('function outputSubscriptionPath'),source.indexOf('function updateOutputBudget')),context);
@@ -29,4 +30,32 @@ for(const [format,expected] of [['rgb8',[11,22,33,255,44,55,66,255]],['bgr8',[33
 assert.throws(()=>context.parseFrame(frame('rgb8',[11,22])),/Invalid product/,'short RGB payload must reject instead of showing partial pixels');
 assert(source.includes("document.addEventListener('visibilitychange',restartStreams)"),'hidden tabs must release stream demand');
 assert(!source.includes("socketUrl('/api/v1/stream')"),'browser must not request implicit legacy-all depth products');
+const pipelineHost = fs.readFileSync(require('node:path').join(__dirname, '../web/pipeline-host.js'), 'utf8');
+const pollingStart = pipelineHost.indexOf('  setInterval(()=>{if(!document.hidden)refreshHealth();}');
+assert(pollingStart > 0);
+const timers=[],listeners={},calls={health:0,capabilities:0,configuration:0,restart:0,refresh:0};
+const pollingContext={
+  setInterval:fn=>timers.push(fn),document:{hidden:false,addEventListener:(name,fn)=>listeners[name]=fn},
+  window:{addEventListener:()=>{}},names:{exposure:[],algorithm:[],encoding:[]},
+  refreshHealth:()=>calls.health++,refreshCapabilities:()=>calls.capabilities++,refreshConfiguration:()=>calls.configuration++,
+  restartStreams:()=>calls.restart++,refresh:()=>calls.refresh++,
+};
+vm.runInNewContext(pipelineHost.slice(pollingStart,pipelineHost.lastIndexOf('\n})();')),pollingContext);
+timers.forEach(fn=>fn());
+assert.deepEqual(calls,{health:1,capabilities:1,configuration:3,restart:0,refresh:0});
+pollingContext.document.hidden=true;listeners.visibilitychange();timers.forEach(fn=>fn());
+assert.deepEqual(calls,{health:1,capabilities:1,configuration:3,restart:1,refresh:0},'hidden pipeline must release subscriptions and skip all polling');
+pollingContext.document.hidden=false;listeners.visibilitychange();
+assert.equal(calls.refresh,1,'returning to the pipeline must refresh settings before restarting streams');
+const pipelineController=fs.readFileSync(require('node:path').join(__dirname,'../web/pipeline.js'),'utf8');
+const encodedDemand=pipelineController.match(/wantsEncoded:\(\)=>([^,\n]+)/);
+assert(encodedDemand,'pipeline must declare its preview demand');
+const previewBody={hidden:false};
+const demandContext={$:()=>previewBody,selected:'monitor',applied:{preview:true}};
+vm.createContext(demandContext);
+assert.equal(vm.runInContext(encodedDemand[1],demandContext),true);
+previewBody.hidden=true;
+assert.equal(vm.runInContext(encodedDemand[1],demandContext),false,'a minimized viewer must release encoded processing demand');
+previewBody.hidden=false;demandContext.selected='out-1';
+assert.equal(vm.runInContext(encodedDemand[1],demandContext),false,'a raw output must not silently keep the encoder active');
 console.log('Web output selection, bandwidth, RGB/BGR, and demand lifecycle tests passed');

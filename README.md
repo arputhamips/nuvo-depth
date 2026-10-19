@@ -1,5 +1,7 @@
 # Depth Daemon
 
+Public source and release repository: [arputhamips/nuvo-depth](https://github.com/arputhamips/nuvo-depth).
+
 Native stereo-depth runtime for the Nuvo Raspberry Pi 5 and dual
 hardware-triggered IMX296 cameras. Stereo processing is selected through a
 ROS-free backend interface; the production backend is OpenCV CPU SGBM. Capture,
@@ -8,6 +10,22 @@ DDS. A small boundary adapter publishes only finished products.
 
 The product build is depth-only. Semantic perception and accelerator experiments
 are not built, installed, provisioned, or required by the Debian package.
+
+## License
+
+Nuvo-authored software, including the SDKs and installer, is licensed under
+**GNU GPL version 3 or any later version** (`GPL-3.0-or-later`). Copyright
+2026 Meridian Robotics. See [LICENSE](LICENSE) for the full terms and
+[NOTICE](NOTICE) for scope and third-party exceptions. The software is provided
+without warranty as described in the license. Third-party software and assets
+retain their existing licenses and copyright notices.
+
+When publishing binary releases, provide matching Corresponding Source and
+build/install instructions alongside the packages. Use immutable source tags
+for the exact released version. Device owners must have a documented way to
+build and install modified software; release-signature verification must not
+require them to possess the vendor's private signing key. Local builds may use
+their own release key and the installer's `--public-key` / `--bundle` options.
 
 ## Appliance status
 
@@ -33,6 +51,8 @@ Useful entry points:
 
 For setup and normal operation, start with the
 [documentation index](docs/README.md) and [Pi 5 user guide](docs/user-guide.md).
+The [terminal/factory installer guide](docs/install.md) covers the shared setup
+script and the GitHub release inputs that still need configuration.
 The current live-device evidence, performance, and release blockers are in the
 [September 14 release-readiness report](docs/pi5-release-readiness-20260914.md).
 Calibration profile production is a separate advanced process documented in

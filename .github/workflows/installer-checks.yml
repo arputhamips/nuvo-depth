@@ -1,0 +1,18 @@
+name: Installer checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  installer:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate shell and provisioning contracts
+        run: |
+          bash -n install-nuvo-depth.sh
+          python3 tests/install_provisioning_test.py
+          python3 tests/install_release_test.py
+          python3 tests/nuvoctl_test.py
+          python3 tests/system_agent_test.py

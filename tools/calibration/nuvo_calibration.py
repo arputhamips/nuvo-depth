@@ -209,6 +209,26 @@ def validate_bundle(bundle: Path, *, require_factory_signature: bool = False,
     return manifest
 
 
+def provisioning_status(state_root: Path, factory_trust: Path) -> dict:
+    """Validate the selected per-unit bundle before installer enables capture.
+
+    Hardware identities/geometry are checked again by the daemon when it opens
+    the cameras. This reports bundle acceptance, never manufacturing readiness.
+    """
+    for namespace in ("factory", "user"):
+        active = state_root / "calibrations" / namespace / "active"
+        if not active.exists():
+            continue
+        manifest = validate_bundle(active, require_factory_signature=namespace == "factory", trusted_keys=factory_trust)
+        unit_id = (state_root / "identity/device.uuid").read_text().strip()
+        if manifest["unit_id"] != unit_id:
+            raise ValueError("selected calibration belongs to another device")
+        if (namespace == "factory") != (manifest["authority"] == "factory_validated"):
+            raise ValueError("selected calibration authority and namespace disagree")
+        return {"accepted": True, "authority": manifest["authority"]}
+    return {"accepted": False, "authority": "provisional"}
+
+
 class CalibrationStore:
     def __init__(self, root: Path, factory_trust: Path | None = None):
         self.root = root
@@ -881,6 +901,9 @@ def create_web_session(state_root: Path, configuration: object) -> dict:
         try:
             os.chmod(staging, 0o750)
             (staging / "captures").mkdir(mode=0o770)
+            # mkdir applies the agent's 0027 umask. Restore group write so the
+            # unprivileged camera daemon can publish the reserved raw pair.
+            os.chmod(staging / "captures", 0o770)
             (staging / ".operation.lock").touch(mode=0o600)
             atomic_json(staging / "configuration.json", configuration)
             _save_session(staging, status)
@@ -1333,9 +1356,8 @@ def _calibrate_camera(objects, points, image_size):
     import cv2
     result = cv2.calibrateCameraExtended(
         objects, points, image_size, None, None,
-        # The runtime publishes the five-coefficient plumb-bob model. Enabling
-        # unconstrained rational terms here makes planar data ill-conditioned
-        # and can fit each camera while destroying the stereo solution.
+        # Initialize each camera with a compact model. The joint fit below
+        # selects additional lens terms only with a physical sensor-domain audit.
         flags=0,
         criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 200, 1e-9))
     return result[0], result[1], result[2], result[3], result[4], result[5], result[7].reshape(-1)
@@ -1347,12 +1369,155 @@ def _rectified_vertical_errors(left_points, right_points, kl, dl, kr, dr, rl, rr
     values = []
     per_view = []
     for left, right in zip(left_points, right_points):
-        l = cv2.undistortPoints(left, kl, dl, R=rl, P=pl)
-        r = cv2.undistortPoints(right, kr, dr, R=rr, P=pr)
+        # OpenCV's default five inverse iterations are insufficient for some
+        # wide lenses. Evaluate the same geometry with a converged inverse.
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 300, 1e-12)
+        l = cv2.undistortPointsIter(left.astype(np.float64), kl, dl, rl, pl, criteria)
+        r = cv2.undistortPointsIter(right.astype(np.float64), kr, dr, rr, pr, criteria)
         error = np.abs(l[:, 0, 1] - r[:, 0, 1])
+        if not np.isfinite(error).all():
+            raise ValueError("rectification produced non-finite validation coordinates")
         values.extend(error.tolist())
         per_view.append(float(np.sqrt(np.mean(np.square(error)))))
     return np.asarray(values, dtype=np.float64), per_view
+
+
+def _lens_domain_audit(k, d, rectification, projection, image_size):
+    """Reject a folded lens fit even when its central training RMS is small."""
+    import cv2
+    import numpy as np
+    from numpy.polynomial import Polynomial as Polynomial
+    width, height = image_size
+    xx, yy = np.meshgrid(np.linspace(0, width - 1, 37), np.linspace(0, height - 1, 29))
+    sensor = np.column_stack([xx.ravel(), yy.ravel()]).reshape(-1, 1, 2)
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 300, 1e-12)
+    ideal = cv2.undistortPointsIter(sensor, k, d, None, None, criteria).reshape(-1, 2)
+    forward = cv2.projectPoints(np.column_stack([ideal, np.ones(len(ideal))]),
+                               np.zeros(3), np.zeros(3), k, d)[0].reshape(-1, 2)
+    closure = np.linalg.norm(forward - sensor.reshape(-1, 2), axis=1)
+    coefficients = np.zeros(8)
+    values = np.asarray(d).ravel()
+    coefficients[:len(values)] = values
+    k1, k2, _, _, k3, k4, k5, k6 = coefficients
+    numerator = Polynomial([1, k1, k2, k3])
+    denominator = Polynomial([1, k4, k5, k6])
+    squared_radius = Polynomial([0, 1])
+    derivative = ((numerator + 2 * squared_radius * numerator.deriv()) * denominator
+                  - 2 * squared_radius * numerator * denominator.deriv())
+    limit = float(np.max(np.linalg.norm(ideal, axis=1)))
+    def roots_in_domain(polynomial):
+        return [float(np.sqrt(root.real)) for root in polynomial.roots()
+                if abs(root.imag) < 1e-7 and 0 < root.real <= limit * limit]
+    poles, folds = roots_in_domain(denominator), roots_in_domain(derivative)
+    radii = np.linspace(0, limit * limit, 2001)
+    radial_derivative = derivative(radii) / denominator(radii) ** 2
+    # Sample the full output field without allocating full-resolution gradient
+    # arrays for large sensor modes. The radial root check above is analytic.
+    grid_size = (min(width, 129), min(height, 97))
+    sampled_projection = np.asarray(projection).copy()
+    sampled_projection[0] *= (grid_size[0] - 1) / (width - 1)
+    sampled_projection[1] *= (grid_size[1] - 1) / (height - 1)
+    mx, my = cv2.initUndistortRectifyMap(k, d, rectification, sampled_projection[:, :3],
+                                      grid_size, cv2.CV_32FC1)
+    dx_y, dx_x = np.gradient(mx.astype(np.float64))
+    dy_y, dy_x = np.gradient(my.astype(np.float64))
+    determinant = dx_x * dy_y - dx_y * dy_x
+    finite = all(np.isfinite(value).all() for value in
+                 (ideal, forward, closure, radial_derivative, mx, my, determinant))
+    maximum = float(closure.max()) if finite else None
+    minimum = float(radial_derivative.min()) if finite else None
+    map_minimum = float(determinant.min()) if finite else None
+    return {"passed": bool(finite and maximum <= .05 and not poles and not folds
+                           and minimum > 0 and map_minimum > 0),
+            "sensor_roundtrip_error_max_px": maximum, "radial_denominator_poles": poles,
+            "radial_derivative_zeros": folds, "minimum_radial_derivative": minimum,
+            "sampled_map_minimum_jacobian_determinant": map_minimum}
+
+
+def _joint_stereo_fit(objects, left, right, kl, dl, kr, dr, image_size, previous_seed=None):
+    """Select a physical model using training data only; holdouts never enter."""
+    import cv2
+    import numpy as np
+    candidates, rejected = [], []
+    count = sum(len(points) for points in objects)
+    attempts = [("plumb_bob", False, "monocular", (kl, dl, kr, dr)),
+                ("rational_polynomial", True, "monocular", (kl, dl, kr, dr))]
+    if previous_seed is not None:
+        attempts.append(("rational_polynomial", True, "previous training fit", previous_seed))
+    for model, rational, initialization, seed in attempts:
+        seed_kl, seed_dl, seed_kr, seed_dr = seed
+        flags = cv2.CALIB_USE_INTRINSIC_GUESS | (cv2.CALIB_RATIONAL_MODEL if rational else 0)
+        fit = cv2.stereoCalibrateExtended(
+            objects, left, right, seed_kl.copy(), seed_dl.copy(), seed_kr.copy(), seed_dr.copy(), image_size,
+            None, None, flags=flags,
+            criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 300, 1e-9))
+        rms, fit_kl, fit_dl, fit_kr, fit_dr, rotation, translation = fit[:7]
+        size = 8 if rational else 5
+        fit_dl, fit_dr = fit_dl.reshape(1, -1)[:, :size], fit_dr.reshape(1, -1)[:, :size]
+        rl, rr, pl, pr, *_ = cv2.stereoRectify(
+            fit_kl, fit_dl, fit_kr, fit_dr, image_size, rotation, translation,
+            flags=cv2.CALIB_ZERO_DISPARITY, alpha=0)
+        audit = {"left": _lens_domain_audit(fit_kl, fit_dl, rl, pl, image_size),
+                 "right": _lens_domain_audit(fit_kr, fit_dr, rr, pr, image_size)}
+        if not all(value["passed"] for value in audit.values()):
+            rejected.append({"model": model, "initialization": initialization,
+                             "reason": "noninvertible lens domain", "audit": audit})
+            continue
+        # Common board-pose parameters cancel in this comparison. Penalize the
+        # rational model's six extra stereo lens coefficients (BIC).
+        bic = 4 * count * np.log(max(rms * rms / 2, 1e-24)) + (8 + 2 * size + 6) * np.log(4 * count)
+        per_view = np.asarray(fit[-1]).reshape(-1, 2)
+        weights = np.asarray([len(points) for points in objects])
+        camera_rms = np.sqrt(np.average(per_view ** 2, axis=0, weights=weights))
+        candidates.append({"model": model, "rms": rms, "kl": fit_kl, "dl": fit_dl,
+                           "kr": fit_kr, "dr": fit_dr, "rotation": rotation,
+                           "translation": translation, "left_rms": float(camera_rms[0]),
+                           "right_rms": float(camera_rms[1]), "audit": audit, "bic": float(bic),
+                           "initialization": initialization})
+    if not candidates:
+        raise ValueError("both lens models fold or fail inversion across the sensor; add edge poses")
+    selected = min(candidates, key=lambda item: item["bic"])
+    selected["selection"] = {"criterion": "training BIC among invertible sensor models",
+                             "candidates": [{"model": item["model"], "initialization": item["initialization"], "bic": item["bic"],
+                                             "stereo_rms_px": item["rms"]} for item in candidates],
+                             "rejected": rejected}
+    return selected
+
+
+def _holdout_indices(capture_ids, previous_validation):
+    previous = previous_validation or {}
+    # Re-solving after adding edge views must not move historical validation
+    # images into training, or silently add new holdouts to the old split.
+    frozen = previous.get("holdout_capture_ids")
+    if frozen is None:
+        limit = min(len(capture_ids), previous.get("accepted_pairs", len(capture_ids)))
+        frozen = [capture_ids[index] for index in range(limit) if index % 5 == 4]
+    return [index for index, identifier in enumerate(capture_ids) if identifier in frozen]
+
+
+def _previous_training_seed(directory, configuration):
+    """An earlier training fit is an initialization, never a held-out fit."""
+    import numpy as np
+    import yaml
+    bundle = directory / "bundle"
+    if not (bundle / "manifest.json").is_file():
+        return None
+    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+    if any(manifest.get(key) != value for key, value in configuration["identity"].items()):
+        raise ValueError("previous calibration seed has different camera identities")
+    for asset in REQUIRED_ASSETS:
+        if manifest.get("assets", {}).get(asset) != sha256(bundle / asset):
+            raise ValueError("previous calibration seed asset hash mismatch")
+    seed = []
+    for name in ("front_left.yaml", "front_right.yaml"):
+        document = yaml.safe_load((bundle / name).read_text(encoding="utf-8"))
+        if (document["image_width"], document["image_height"]) != (
+                configuration["profile"]["image_width"], configuration["profile"]["image_height"]):
+            raise ValueError("previous calibration seed has different image dimensions")
+        for key in ("camera_matrix", "distortion_coefficients"):
+            value = document[key]
+            seed.append(np.asarray(value["data"], dtype=np.float64).reshape(value["rows"], value["cols"]))
+    return tuple(seed)
 
 
 def solve_web_session(state_root: Path, session_id: str) -> dict:
@@ -1402,16 +1567,21 @@ def _solve_web_session(state_root: Path, session_id: str) -> dict:
         lc, li, _, _ = _detect_charuco(left, board)
         rc, ri, _, _ = _detect_charuco(right, board)
         common = _common_charuco(lc, li, rc, ri, board)
-        if common is None:
-            continue
+        if common is None or len(common[0]) < configuration["thresholds"]["minimum_shared_corners"]:
+            raise RuntimeError(f"accepted target detection changed before solve: {capture_id}")
         obj, lp, rp, _ = common
+        # Refine the actual image corners without model-dependent reprojection
+        # or discarding high-error correspondence IDs.
+        refinement = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 1e-4)
+        lp = cv2.cornerSubPix(left, lp.copy(), (3, 3), (-1, -1), refinement)
+        rp = cv2.cornerSubPix(right, rp.copy(), (3, 3), (-1, -1), refinement)
         objects.append(obj); left_points.append(lp); right_points.append(rp)
         capture_ids.append(capture_id)
         image_size = (left.shape[1], left.shape[0])
     minimum = configuration["thresholds"]["minimum_pairs"]
     if len(objects) < minimum:
         raise RuntimeError("accepted target detections changed before solve")
-    holdout_indices = [index for index in range(len(objects)) if index % 5 == 4]
+    holdout_indices = _holdout_indices(capture_ids, status.get("validation"))
     train_indices = [index for index in range(len(objects)) if index not in holdout_indices]
     if len(train_indices) < 10 or len(holdout_indices) < 2:
         train_indices = list(range(len(objects)))
@@ -1432,6 +1602,12 @@ def _solve_web_session(state_root: Path, session_id: str) -> dict:
     keep_local = [index for index, error in enumerate(combined) if error <= cutoff]
     rejected_ids = [capture_ids[train_indices[index]] for index, error in enumerate(combined)
                     if error > cutoff]
+    if not all(_lens_domain_audit(k, d, np.eye(3), k, image_size)["passed"]
+               for k, d in ((kl, dl), (kr, dr))):
+        # A model that folds at the edge cannot identify image outliers there.
+        # Keep those views so the wider joint model can explain them.
+        keep_local = list(range(len(train_objects)))
+        rejected_ids = []
     if len(keep_local) >= 10 and len(keep_local) < len(train_objects):
         train_objects = select(train_objects, keep_local)
         train_left = select(train_left, keep_local)
@@ -1440,10 +1616,11 @@ def _solve_web_session(state_root: Path, session_id: str) -> dict:
             train_objects, train_left, image_size)
         right_rms, kr, dr, _, _, std_kr, right_view_error = _calibrate_camera(
             train_objects, train_right, image_size)
-    stereo_rms, kl, dl, kr, dr, rotation, translation, _, _ = cv2.stereoCalibrate(
-        train_objects, train_left, train_right, kl, dl, kr, dr, image_size,
-        flags=cv2.CALIB_FIX_INTRINSIC,
-        criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 300, 1e-9))
+    geometry = _joint_stereo_fit(train_objects, train_left, train_right, kl, dl, kr, dr, image_size,
+                                _previous_training_seed(directory, configuration))
+    stereo_rms, left_rms, right_rms = geometry["rms"], geometry["left_rms"], geometry["right_rms"]
+    kl, dl, kr, dr = (geometry[key] for key in ("kl", "dl", "kr", "dr"))
+    rotation, translation = geometry["rotation"], geometry["translation"]
     rl, rr, pl, pr, q, roi_l, roi_r = cv2.stereoRectify(
         kl, dl, kr, dr, image_size, rotation, translation,
         flags=cv2.CALIB_ZERO_DISPARITY, alpha=0)
@@ -1471,7 +1648,7 @@ def _solve_web_session(state_root: Path, session_id: str) -> dict:
     common_document = {
         "calibration_status": authority, "baseline_m": baseline,
         "image_width": image_size[0], "image_height": image_size[1],
-        "distortion_model": "plumb_bob",
+        "distortion_model": geometry["model"],
     }
     for name, camera_name, k, d, r, p in (
             ("front_left.yaml", "front_left", kl, dl, rl, pl),
@@ -1487,8 +1664,12 @@ def _solve_web_session(state_root: Path, session_id: str) -> dict:
         "schema_version": SCHEMA, "status": "pass" if passed else "fail",
         "accepted_pairs": len(objects), "training_pairs": len(train_objects),
         "holdout_pairs": len(holdout_indices), "outlier_capture_ids": rejected_ids,
+        "holdout_capture_ids": select(capture_ids, holdout_indices),
         "left_rms_px": float(left_rms), "right_rms_px": float(right_rms),
         "stereo_rms_px": float(stereo_rms),
+        "distortion_model": geometry["model"],
+        "lens_domain_audit": geometry["audit"],
+        "model_selection": geometry["selection"],
         "rectified_vertical_error_p50_px": p50,
         "rectified_vertical_error_p95_px": p95,
         "rectified_vertical_error_max_px": maximum,
@@ -1499,6 +1680,7 @@ def _solve_web_session(state_root: Path, session_id: str) -> dict:
             "left": [float(value) for value in std_kl.reshape(-1)[:18]],
             "right": [float(value) for value in std_kr.reshape(-1)[:18]],
         },
+        "intrinsic_standard_deviation_scope": "monocular initialization before joint optimization",
         "per_view": {"training_epipolar_rms_px": train_per_view,
                      "holdout_epipolar_rms_px": holdout_per_view},
         "thresholds": thresholds,
@@ -1517,7 +1699,10 @@ def _solve_web_session(state_root: Path, session_id: str) -> dict:
         "profile": {"sensor_mode": profile["sensor_mode"],
                     "image_width": image_size[0], "image_height": image_size[1],
                     "frame_rates_hz": sorted(float(rate) for rate in profile["frame_rates_hz"])},
-        "provenance": {"solver": "opencv-charuco-robust-holdout",
+        "provenance": {"solver": "opencv-charuco-joint-domain-checked-holdout",
+                       "distortion_model": geometry["model"],
+                       "corner_refinement": {"window_half_size_px": 3, "maximum_iterations": 100,
+                                             "epsilon_px": 1e-4, "model_dependent": False},
                        "opencv_version": cv2.__version__, "created_unix_ns": time.time_ns(),
                        "target": {**configuration["target"], "layout_version": CHARUCO_LAYOUT}},
     }
@@ -1645,6 +1830,9 @@ def parser() -> argparse.ArgumentParser:
     make.add_argument("--output", required=True)
     matrix = commands.add_parser("matrix", help="solve every geometry in a reproducible JSON profile plan")
     matrix.add_argument("plan"); matrix.add_argument("--output-root", required=True)
+    provisioning = commands.add_parser("provisioning-status")
+    provisioning.add_argument("--state-root", default="/var/lib/nuvo-depth")
+    provisioning.add_argument("--factory-trust", default="/etc/nuvo-depth/factory-trust.json")
     check = commands.add_parser("validate"); check.add_argument("bundle"); check.add_argument("--factory-trust")
     activate = commands.add_parser("activate"); activate.add_argument("bundle"); activate.add_argument("--state-root",default="/var/lib/nuvo-depth"); activate.add_argument("--namespace",choices=["user","factory"],default="user"); activate.add_argument("--factory-trust",default="/etc/nuvo-depth/factory-trust.json")
     rollback = commands.add_parser("rollback"); rollback.add_argument("--state-root",default="/var/lib/nuvo-depth"); rollback.add_argument("--namespace",choices=["user","factory"],default="user"); rollback.add_argument("--factory-trust",default="/etc/nuvo-depth/factory-trust.json")
@@ -1683,6 +1871,7 @@ def main() -> None:
     if args.command == "solve": print(solve(args))
     elif args.command == "matrix": print(solve_matrix(args))
     elif args.command == "validate": print(validate_bundle(Path(args.bundle), trusted_keys=Path(args.factory_trust) if args.factory_trust else None)["bundle_id"])
+    elif args.command == "provisioning-status": print(json.dumps(provisioning_status(Path(args.state_root), Path(args.factory_trust))))
     elif args.command == "activate": print(CalibrationStore(Path(args.state_root), Path(args.factory_trust)).activate(Path(args.bundle), args.namespace))
     elif args.command == "rollback": print(CalibrationStore(Path(args.state_root), Path(args.factory_trust)).rollback(args.namespace))
     elif args.command == "recover": print(json.dumps({"recovered": CalibrationStore(

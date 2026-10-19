@@ -11,11 +11,11 @@ to the machine. There are two different publication targets:
 
 The repository is not ready for an official Debian upload:
 
-- `debian/copyright` deliberately records `LicenseRef-Proprietary-Unresolved`
-  and says redistribution permission is unresolved;
+- Nuvo-authored software is now GPL-3.0-or-later; the recorded third-party
+  notices still need a complete binary/source distribution audit;
 - `debian/control` uses a placeholder `.example` maintainer address;
-- the copyright file describes the source as an internal working tree instead
-  of a public upstream release;
+- versioned upstream releases and their matching source artifacts still need
+  to be published from the public GitHub repository;
 - a complete third-party license/source audit and Debian Free Software
   Guidelines classification have not been recorded;
 - the source package has not yet passed clean `sbuild`, `lintian`, `autopkgtest`,
@@ -24,8 +24,8 @@ The repository is not ready for an official Debian upload:
 - no WNPP Intent To Package (ITP), Debian packaging repository, or sponsor has
   been established.
 
-Do not upload the present source package to a public service until the licensing
-blocker is resolved.
+The project license permits public source publication. An official Debian upload
+still requires the complete packaging and third-party review listed above.
 
 ## Route into the official Debian archive
 

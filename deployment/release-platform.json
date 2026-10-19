@@ -1,0 +1,7 @@
+{
+  "architecture": "arm64",
+  "codename": "trixie",
+  "kernels": [],
+  "base_image": {"url": "", "sha256": ""},
+  "_instructions": "TODO(PI_QUALIFICATION): fill exact tested uname -r values and the upstream Raspberry Pi OS Lite 64-bit .img.xz URL/SHA-256. Release packaging intentionally refuses this empty template."
+}

@@ -7,6 +7,7 @@ from collections import Counter
 from html.parser import HTMLParser
 from pathlib import Path
 import re
+import json
 import shutil
 import subprocess
 
@@ -21,11 +22,14 @@ class InterfaceParser(HTMLParser):
         self.pages: set[str] = set()
         self.navigation: set[str] = set()
         self.navigation_order: list[str] = []
+        self.controls: dict[str, dict] = {}
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = dict(attrs)
         if identifier := attributes.get("id"):
             self.ids.append(identifier)
+            if tag in ("input","select"):
+                self.controls[identifier]={**attributes,**({"type":"select"} if tag=="select" else {})}
             if tag == "section" and "page" in (attributes.get("class") or "").split():
                 self.pages.add(identifier)
         if page := attributes.get("data-page"):
@@ -45,9 +49,18 @@ def main() -> None:
         "overview", "viewer", "exposure", "presets", "algorithm", "streaming",
         "network", "calibration", "diagnostics", "recovery",
     ], f"unexpected operator navigation order: {parser.navigation_order}"
+    pipeline = (ROOT / "web" / "pipeline.js").read_text(encoding="utf-8")
     literal_refs = set(re.findall(r"\$\('([^']+)'\)", script))
     missing = literal_refs - set(parser.ids)
     assert not missing, f"JavaScript refers to missing IDs: {sorted(missing)}"
+    pipeline_html=(ROOT/"web/pipeline.html").read_text(encoding="utf-8")
+    pipeline_parser=InterfaceParser();pipeline_parser.feed(pipeline_html)
+    assert len(pipeline_parser.ids)==len(set(pipeline_parser.ids)), "duplicate pipeline IDs"
+    assert 'id="pipeline"' not in html and '/pipeline' not in html
+    assert 'NuvoPipeline' not in script and '/pipeline.html' not in script, "production console must not depend on the parked pipeline"
+    assert 'PATTERN "pipeline*" EXCLUDE' in (ROOT/'CMakeLists.txt').read_text(encoding='utf-8')
+    assert '/app.js' not in pipeline_html and '/pipeline.js' not in html
+    assert set(re.findall(r"\$\('([^']+)'\)",pipeline))-set(pipeline_parser.ids)=={'streamSource','outputForm'}, "unexpected missing pipeline controls"
     for identifier in ("performanceMonitor", "performanceStages", "performanceChart",
                        "overviewPerformanceSlot", "diagnosticsPerformanceSlot"):
         assert identifier in parser.ids
@@ -100,9 +113,20 @@ def main() -> None:
     for weight in (400, 500, 600):
         assert (ROOT / "web/assets/fonts" / f"hanken-grotesk-{weight}.ttf").is_file()
     if node := shutil.which("node"):
+        definitions=json.loads(subprocess.check_output([node,"-e","process.stdout.write(JSON.stringify(require('./web/device-settings.js').DEFINITIONS))"],cwd=ROOT,text=True))
+        for definition in definitions.values():
+            for identifier,field in definition["fields"].items():
+                native=parser.controls[identifier]
+                for attribute in ("type","min","max","step"):
+                    assert field.get(attribute)==native.get(attribute), f"shared field mismatch: {identifier} {attribute}"
         subprocess.run([node,str(ROOT/"tests/web_configuration_revision_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_performance_model_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_output_selection_test.js")],check=True)
+        subprocess.run([node,str(ROOT/"tests/web_pipeline_model_test.js")],check=True)
+        subprocess.run([node,str(ROOT/"tests/web_shared_settings_test.js")],check=True)
+        subprocess.run([node,str(ROOT/"tests/web_calibration_status_test.js")],check=True)
+        for asset in ("app.js","pipeline.js","pipeline-host.js","pipeline-canvas.js","device-settings.js","frame-codec.js"):
+            subprocess.run([node,"--check",str(ROOT/"web"/asset)],check=True)
     print(f"UI contract OK: {len(parser.pages)} pages, {len(parser.ids)} unique IDs")
 
 

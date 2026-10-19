@@ -13,7 +13,7 @@
    `/var/lib/nuvo-depth/identity/claim.token`.
 4. Check **Overview**. Camera must show **Streaming**, dimensions must be
    728 × 544, and no red health message should be present.
-5. Open **Live view** and select the products you need under **Streaming**. The
+5. Open **Live view** and select the products you need under **Outputs**. The
    browser initially requests only the left mono image at 5 Hz. Selected products
    share the same capture identity.
 
@@ -35,6 +35,13 @@ and **Discard changes** to reload the latest device settings. Each Advanced
 controls card can collapse as a whole; its individual groups can also collapse.
 Closing either preserves edits and shows pending changes or validation errors
 in the header. Apply and Discard remain outside the card in a sticky action bar.
+
+## Image pipeline status
+
+The experimental node editor is paused and excluded from production builds.
+Use **Capture**, **Matcher**, **Streaming**, **Outputs**, and **Live view** to
+configure and check the camera. Its source is retained in the
+[pipeline workspace](../web/pipeline-ui/README.md) for future development.
 
 ## Recommended daily workflow
 

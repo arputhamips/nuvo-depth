@@ -51,6 +51,21 @@ def factory_bundle(root: Path, name: str) -> tuple[Path, Path]:
 
 
 class ActivationTest(unittest.TestCase):
+    def test_provisioning_status_requires_valid_unit_bound_selection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            self.assertFalse(module.provisioning_status(root,root/"trust.json")["accepted"])
+            source=bundle(root,"bundle")
+            store=module.CalibrationStore(root)
+            store.activate(source)
+            (root/"identity").mkdir()
+            (root/"identity/device.uuid").write_text("other-unit")
+            with self.assertRaises(ValueError): module.provisioning_status(root,root/"trust.json")
+            (root/"identity/device.uuid").write_text("unit-1")
+            self.assertTrue(module.provisioning_status(root,root/"trust.json")["accepted"])
+            active=root/"calibrations/user/active"
+            (active/"validation.json").write_text('{"status":"fail"}')
+            with self.assertRaises(ValueError): module.provisioning_status(root,root/"trust.json")
     def test_browser_charuco_session_contract_and_state(self):
         configuration = {
             "schema_version": 1,

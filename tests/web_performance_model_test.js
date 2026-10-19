@@ -39,4 +39,23 @@ context.recordPerformanceSample(model, {...health,run_uuid:'run-b',published_fra
 assert.equal(model.samples.length, 0, 'invalid compute values are not observations');
 context.recordPerformanceSample(model, {...health,run_uuid:'run-b',published_frames:4,processing_ms:315}, 68000);
 assert.equal(model.samples.length, 1, 'a previously unavailable timing can be sampled once it becomes valid');
+
+// The daemon reports stage activity at the instant of its status snapshot.
+// A cadence-limited matcher is often idle between two successfully published frames.
+const rateStart = source.indexOf('const now=performance.now();', source.indexOf('async function refreshHealth()'));
+const rateEnd = source.indexOf('lastHealthRun=health.run_uuid', rateStart);
+assert(rateStart > 0 && rateEnd > rateStart);
+const hostSource = fs.readFileSync(path.join(__dirname, '../web/pipeline-host.js'), 'utf8');
+const hostRateStart = hostSource.indexOf('depthOutputRate=lastRun===');
+const hostRateEnd = hostSource.indexOf('lastPublished=health.published_frames;', hostRateStart);
+assert(hostRateStart > 0 && hostRateEnd > hostRateStart);
+for (const [published, expected] of [[44, 4], [40, 0]]) {
+  const healthSample = {run_uuid:'run-a',published_frames:published,matcher_active:false};
+  const pageContext = {health:healthSample,performance:{now:()=>2000},lastHealthRun:'run-a',lastHealthPublished:40,lastHealthAt:1000,depthOutputRate:null,setMeasurement:()=>{},$:()=>({})};
+  vm.runInNewContext(source.slice(rateStart, rateEnd), pageContext);
+  assert.equal(pageContext.depthOutputRate, expected, 'main page must report observed publications even between matcher work');
+  const hostContext = {health:healthSample,now:2000,lastRun:'run-a',lastPublished:40,lastHealthAt:1000,depthOutputRate:null};
+  vm.runInNewContext(hostSource.slice(hostRateStart, hostRateEnd), hostContext);
+  assert.equal(hostContext.depthOutputRate, expected, 'pipeline must report observed publications even between matcher work');
+}
 console.log('Web performance sampling and timing-accounting tests passed');

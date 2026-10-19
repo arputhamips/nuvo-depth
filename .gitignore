@@ -26,6 +26,8 @@
 # Local data, generated handoffs, recordings, and model binaries
 /output/
 /tmp/
+/web/pipeline-ui/node_modules/
+/web/pipeline-ui/dist/
 /deliverables/
 /oracle-bundles/
 /replay-output/
@@ -88,3 +90,6 @@ htmlcov/
 /output/pdf/nuvo-stereo-sdk-study-20261009.html
 /output/pdf/nuvo-stereo-sdk-study-20261009-source.json
 /tmp/pdfs/nuvo_sdk_study/
+# Local agent scratch files and generated install/release output.
+/.codex-tmp/
+/install-release/

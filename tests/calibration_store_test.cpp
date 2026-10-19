@@ -68,6 +68,32 @@ int main() {
   std::filesystem::create_directories(bundle);
   auto left = read(root / "front_left.yaml");
   auto right = read(root / "front_right.yaml");
+  const auto rational = [](std::string document) {
+    const auto model = document.find("plumb_bob");
+    document.replace(model, std::string("plumb_bob").size(), "rational_polynomial");
+    const auto distortion = document.find("distortion_coefficients:");
+    document.replace(document.find("cols: 5", distortion), 7U, "cols: 8");
+    document.insert(document.find(']', distortion), ", 0, 0, 0");
+    return document;
+  };
+  write(temporary / "rational-left.yaml", rational(left));
+  write(temporary / "rational-right.yaml", rational(right));
+  const auto rational_prepared = depthd::load_and_prepare_stereo_calibration(
+      temporary / "rational-left.yaml", temporary / "rational-right.yaml", 364U, 272U);
+  assert(rational_prepared.left.distortion_coefficients.size() == 8U);
+  assert(rational_prepared.maps.left.source_x == prepared.maps.left.source_x);
+  assert(rational_prepared.maps.right.source_y == prepared.maps.right.source_y);
+  auto wrong_shape = left;
+  wrong_shape.replace(wrong_shape.find("plumb_bob"), 9U, "rational_polynomial");
+  write(temporary / "rational-wrong-shape.yaml", wrong_shape);
+  rejected = false;
+  try {
+    (void)depthd::load_and_prepare_stereo_calibration(
+        temporary / "rational-wrong-shape.yaml", temporary / "rational-right.yaml", 364U, 272U);
+  } catch (const std::invalid_argument&) {
+    rejected = true;
+  }
+  if (!rejected) throw std::runtime_error("rational model accepted a five-coefficient document");
   const std::string provisional = "provisional_recalibration_required";
   left.replace(left.find(provisional), provisional.size(), "user_validated");
   right.replace(right.find(provisional), provisional.size(), "user_validated");

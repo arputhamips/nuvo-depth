@@ -17,6 +17,8 @@ changing the image pipeline or qualifying hardware.
 
 ## Configure and deploy
 
+- [Terminal/factory installer](install.md) — prompted setup, current-network or
+  protected-hotspot access, manufacturing defaults and signed GitHub assets.
 - [Production deployment](../deployment/README.md)
 - [Verified Pi 5 full-stack deployment record](pi5-full-stack-deployment-20260915.md) —
   exact clean-board install steps, package hashes, trigger/API/reboot acceptance,
@@ -31,6 +33,18 @@ changing the image pipeline or qualifying hardware.
 - [Native runtime, IPC, and gateway](native-runtime-ipc-gateway.md)
 - [Pi 5 product geometry](pi5-depth-100mm-profile.md)
 - [Build and test](build-and-test.md)
+
+## Product flow specifications
+
+These specifications describe proposed setup behavior; implementation and
+qualification status are recorded in each document.
+
+- [Shared setup contract](specs/shared-setup-contract.md) — one provisioning backend,
+  prompted/factory inputs, explicit access policy, shared ownership, and cross-flow recovery rules.
+- [User flow — Use case 1: assembled Nuvo device](specs/user-flow-use-case-1.md) —
+  first connection, protected setup hotspot, pairing, network handoff, and recovery.
+- [User flow — Use case 2: user-owned Pi or SD card](specs/user-flow-use-case-2.md) —
+  supported base OS image, terminal selections and automated installation, factory defaults, and reboot/handoff.
 
 ## Calibrate and qualify
 

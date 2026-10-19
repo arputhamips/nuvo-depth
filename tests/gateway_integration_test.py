@@ -187,6 +187,9 @@ class ConfigurationAgent:
         source=Path(__file__).parents[1]/"tools/nuvoctl.py"
         spec=importlib.util.spec_from_file_location("nuvoctl_gateway_fixture",source)
         self.module=importlib.util.module_from_spec(spec); spec.loader.exec_module(self.module)
+        sys.path.insert(0,str(source.parent))
+        import nuvo_setup
+        self.setup=nuvo_setup
         self.root=root
         self.stopping=False
         self.before_write=None
@@ -205,8 +208,15 @@ class ConfigurationAgent:
                         callback,self.before_write=self.before_write,None
                         callback()
                     kind=request["operation"].split(".")[0]
-                    result=getattr(self.module,"set_"+kind)(
-                        self.root,request["configuration"],request["expected_revision"])
+                    if request["operation"]=="setup.authenticate":
+                        result=self.setup.authenticate(self.root,request["secret"])
+                    elif request["operation"]=="setup.owner":
+                        result=self.setup.set_owner_password(self.root,request["password"])
+                    elif request["operation"]=="setup.status":
+                        result=self.setup.status(self.root)
+                    else:
+                        result=getattr(self.module,"set_"+kind)(
+                            self.root,request["configuration"],request["expected_revision"])
                     response={"status":"ok","result":result}
                 except self.module.ConfigurationConflict as error:
                     response={"status":"error","error_code":"precondition_failed","error":str(error)}
@@ -219,6 +229,34 @@ class ConfigurationAgent:
 
 
 class GatewayIntegrationTest(unittest.TestCase):
+    def test_setup_code_password_handoff_and_csrf(self):
+        setup=self.agent.setup
+        setup.save(self.agent.root,setup.AUTH,{"schema_version":1,"claimed":False})
+        code=setup.issue_pairing(self.agent.root)
+        headers={"Content-Type":"application/json"}
+        # Use an independent browser to ensure existing fixture cookies cannot
+        # authenticate a deliberately bad/reused pairing code.
+        jar=http.cookiejar.CookieJar()
+        browser=urllib.request.build_opener(urllib.request.HTTPSHandler(context=ssl._create_unverified_context()),urllib.request.HTTPCookieProcessor(jar))
+        def post(path,value,extra=None):
+            return browser.open(urllib.request.Request(self.origin+path,data=json.dumps(value).encode(),headers=headers|dict(extra or {}),method="POST"),timeout=5)
+        with post("/api/v1/session",{"secret":code}) as response:
+            session=json.load(response)
+        self.assertTrue(session["needs_owner_password"])
+        with self.assertRaises(urllib.error.HTTPError) as error:
+            post("/api/v1/setup/owner",{"password":"my new owner password"})
+        self.assertEqual(error.exception.code,403)
+        with post("/api/v1/setup/owner",{"password":"my new owner password"},{"X-Nuvo-CSRF":session["csrf"]}) as response:
+            self.assertTrue(json.load(response)["owner_configured"])
+        jar.clear()
+        with self.assertRaises(urllib.error.HTTPError) as error:
+            post("/api/v1/session",{"secret":code})
+        self.assertEqual(error.exception.code,401)
+        with post("/api/v1/session",{"secret":"my new owner password"}) as response:
+            self.assertFalse(json.load(response)["needs_owner_password"])
+        # Restore independent auth fixture state for subsequent legacy tests.
+        (self.agent.root/setup.AUTH).unlink()
+
     @classmethod
     def setUpClass(cls):
         cls.binary=Path(sys.argv[1]).resolve(); cls.web=Path(sys.argv[2]).resolve()
@@ -300,6 +338,22 @@ class GatewayIntegrationTest(unittest.TestCase):
         return cls.client.open(request,timeout=5)
 
     def test_local_ui_assets(self):
+        for asset in ("app.js", "device-settings.js", "frame-codec.js"):
+            with self.open("/" + asset) as response:
+                self.assertEqual(response.headers.get_content_type(), "text/javascript")
+                self.assertEqual(response.read(), (self.web / asset).read_bytes())
+        for asset in ("styles.css",):
+            with self.open("/" + asset) as response:
+                self.assertEqual(response.headers.get_content_type(), "text/css")
+                self.assertEqual(response.read(), (self.web / asset).read_bytes())
+        with self.open("/index.html") as response:
+            self.assertEqual(response.read(), (self.web / "index.html").read_bytes())
+        # Stale prototype files in an upgraded web root must stay inaccessible.
+        for asset in ("pipeline.html", "pipeline-model.js", "pipeline.js", "pipeline-host.js",
+                      "pipeline-canvas.js", "pipeline.css", "pipeline-canvas.css", "pipeline-licenses.txt"):
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                self.open("/" + asset)
+            self.assertEqual(error.exception.code, 404, asset)
         # Device typography must work offline under the existing self-only CSP.
         for weight in (400,500,600):
             asset=f"assets/fonts/hanken-grotesk-{weight}.ttf"

@@ -1,4 +1,8 @@
 usr/bin/nuvoctl
+usr/bin/nuvo-setup
+usr/lib/nuvo-depth/nuvoctl.py
+usr/lib/nuvo-depth/nuvo_release.py
+usr/lib/systemd/system/nuvo-setup.service
 usr/bin/nuvo-record
 usr/bin/nuvo-replay
 usr/lib/nuvo-depth/nuvo-system-agent

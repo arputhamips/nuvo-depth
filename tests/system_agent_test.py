@@ -18,6 +18,68 @@ calibration_spec.loader.exec_module(calibration)
 
 
 class SystemAgentTest(unittest.TestCase):
+    @mock.patch.object(module.subprocess,"run")
+    def test_setup_secret_uses_stdin_and_strict_allowlist(self,run):
+        run.return_value=mock.Mock(returncode=0,stdout='{"authenticated":true}',stderr="")
+        secret="private owner password"
+        result=module.execute({"operation":"setup.authenticate","secret":secret})
+        self.assertTrue(result["result"]["authenticated"])
+        arguments,options=run.call_args
+        self.assertEqual(arguments[0],["/usr/bin/nuvo-setup","auth"])
+        self.assertNotIn(secret,str(arguments))
+        self.assertEqual(json.loads(options["input"])["secret"],secret)
+        with self.assertRaises(ValueError): module.execute({"operation":"setup.authenticate","secret":secret,"command":"sh"})
+        with self.assertRaises(ValueError): module.execute({"operation":"setup.owner","password":123})
+
+    @mock.patch.object(module.subprocess,"run")
+    def test_large_calibration_history_retains_latest_details_within_transport_bound(self,run):
+        captures=[{"capture_id":f"{index:016x}","accepted":index%3!=0,"common_corners":96,
+                   "camera":{"left_camera_id":"left-camera","right_camera_id":"right-camera",
+                             "left":{"exposure_us":7999,"analogue_gain":3.0},
+                             "right":{"exposure_us":7999,"analogue_gain":3.0},
+                             "frame":{"capture_sequence":index,"device_uuid":"a"*36,"run_uuid":"b"*36}},
+                   "quality":{"left":{"sharpness":1234.5,"mean_luma":100.,"clipped_fraction":0.,
+                                      "center_x":(index%3+.5)/3,"center_y":(index%9//3+.5)/3},
+                              "right":{"sharpness":1234.5,"mean_luma":100.,"clipped_fraction":0.}},
+                   "reasons":[]} for index in range(400)]
+        status={"session_id":"a"*32,"state":"failed","accepted_pairs":266,"rejected_pairs":134,
+                "captures":captures,"attempted_capture_ids":[item["capture_id"] for item in captures],
+                "validation":{"status":"fail","per_view":{"training_epipolar_rms_px":[.123456789]*320,
+                                                                  "holdout_epipolar_rms_px":[.234567891]*80}}}
+        with tempfile.TemporaryDirectory() as directory:
+            saved=Path(directory)/"status.json"
+            saved.write_text(json.dumps(status))
+            original=saved.read_bytes()
+            self.assertGreater(len(original),64*1024)
+            run.return_value=mock.Mock(returncode=0,stdout=saved.read_text(),stderr="")
+            response=module.execute({"operation":"calibration.status","session_id":"a"*32})
+            result=response["result"]
+            self.assertEqual(result["captures"],[captures[-1]])
+            self.assertEqual(result["capture_history_total"],400)
+            self.assertEqual(result["capture_history_included"],1)
+            self.assertTrue(result["capture_history_truncated"])
+            self.assertEqual(result["coverage"]["occupied_cell_indices"],[1,2,4,5,7,8])
+            self.assertEqual(result["accepted_pairs"],266)
+            self.assertEqual(result["validation"],status["validation"])
+            self.assertLess(len(json.dumps(response).encode()),64*1024)
+            self.assertEqual(saved.read_bytes(),original)
+
+    @mock.patch.object(module.subprocess,"run")
+    def test_empty_and_single_capture_history_remain_explicit(self,run):
+        for captures in ([],[{"capture_id":"first","accepted":True}]):
+            run.return_value=mock.Mock(returncode=0,stdout=json.dumps({"captures":captures}),stderr="")
+            result=module.execute({"operation":"calibration.capture","session_id":"a"*32})["result"]
+            self.assertEqual(result["captures"],captures)
+            self.assertEqual(result["capture_history_total"],len(captures))
+            self.assertFalse(result["capture_history_truncated"])
+
+    def test_oversized_response_is_a_bounded_structured_error(self):
+        payload=module.encode_response({"status":"ok","result":"\u20ac"*(64*1024)})
+        self.assertLess(len(payload),64*1024)
+        response=json.loads(payload)
+        self.assertEqual(response["status"],"error")
+        self.assertEqual(response["error_code"],"response_too_large")
+
     def test_control_socket_survives_native_daemon_restart(self):
         root=Path(__file__).parents[1]
         socket_path="/run/nuvo-system-agent.sock"

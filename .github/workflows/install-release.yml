@@ -1,0 +1,57 @@
+name: Build draft install release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing reviewed release tag
+        required: true
+        type: string
+permissions:
+  contents: write
+jobs:
+  release:
+    # TODO(GITHUB): configure this protected environment, a dedicated qualified
+    # Trixie arm64 builder, and NUVO_RELEASE_ED25519_PEM. Never use it for PRs.
+    if: vars.NUVO_INSTALL_RELEASE_ENABLED == 'true'
+    environment: nuvo-install-release
+    runs-on: [self-hosted, Linux, ARM64, nuvo-trixie]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          persist-credentials: false
+      - name: Check builder and build exact Debian cohort
+        env:
+          NUVO_TAG: ${{ inputs.tag }}
+        run: |
+          git check-ref-format "refs/tags/$NUVO_TAG"
+          git show-ref --verify --quiet "refs/tags/$NUVO_TAG"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$NUVO_TAG^{}")"
+          test "$(dpkg --print-architecture)" = arm64
+          . /etc/os-release
+          test "$VERSION_CODENAME" = trixie
+          dpkg-checkbuilddeps
+          dpkg-buildpackage -b -us -uc
+      - name: Sign installer assets
+        env:
+          NUVO_SIGNING_KEY: ${{ secrets.NUVO_RELEASE_ED25519_PEM }}
+          NUVO_REPOSITORY: ${{ github.repository }}
+          NUVO_TAG: ${{ inputs.tag }}
+        run: |
+          umask 077
+          key_file="$(mktemp)"
+          trap 'rm -f -- "$key_file"' EXIT
+          printf '%s\n' "$NUVO_SIGNING_KEY" > "$key_file"
+          python3 tools/build_install_release.py --packages .. --output output/install-release \
+            --repository "$NUVO_REPOSITORY" --tag "$NUVO_TAG" \
+            --version "$(dpkg-parsechangelog -S Version)" \
+            --platform deployment/release-platform.json --private-key "$key_file"
+      - name: Create draft for review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUVO_REPOSITORY: ${{ github.repository }}
+          NUVO_TAG: ${{ inputs.tag }}
+        run: |
+          gh release create "$NUVO_TAG" output/install-release/* --repo "$NUVO_REPOSITORY" \
+            --verify-tag --draft --title "$NUVO_TAG" \
+            --notes "Signed Nuvo installer and qualified arm64 package cohort. GPL-3.0-or-later. Matching source and build/install instructions: https://github.com/$NUVO_REPOSITORY/tree/$NUVO_TAG . Review platform manifest and manufacturing acceptance before publication."

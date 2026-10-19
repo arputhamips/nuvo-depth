@@ -8,6 +8,8 @@ gateway over Ethernet, USB Ethernet, or explicitly bounded best-effort WiFi.
 
 ## Canonical paths
 
+- Terminal/factory installation: [installer guide](../docs/install.md)
+- Root-only setup, ownership and install receipts: `/var/lib/nuvo-depth-setup/`
 - Native executables: `/usr/bin/depthd`, `/usr/lib/nuvo-depth/nuvo-gateway`
 - Appliance configuration: `/etc/nuvo-depth/`
 - Identity and calibration state: `/var/lib/nuvo-depth/`

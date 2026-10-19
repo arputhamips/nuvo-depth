@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import math
+from pathlib import Path
 import re
 import socket
 import struct
@@ -10,6 +12,7 @@ import subprocess
 import uuid
 
 MAXIMUM_REQUEST=8192
+MAXIMUM_RESPONSE=64*1024  # Matches the gateway's seqpacket receive bound.
 SESSION_ID=re.compile(r"^[a-f0-9]{32}$")
 CALIBRATION_TOOL=["/usr/lib/nuvo-depth/nuvo-calibration"]
 
@@ -24,7 +27,20 @@ def calibration_session(request: dict) -> str:
 def execute(request: dict) -> dict:
     operation=request.get("operation")
     timeout=30
-    if operation=="transport.stage":
+    input_value=None
+    # APT/provisioning owns configuration while installing. Read-only status and
+    # authentication remain available; no competing web mutation may run.
+    state=Path("/var/lib/nuvo-depth-setup/state.json")
+    if state.is_file() and json.loads(state.read_text()).get("phase") in {"installing","configuring"} and operation not in {"setup.authenticate","setup.status","calibration.status"}:
+        raise ValueError("installation in progress; wait before changing configuration")
+    if operation in {"setup.authenticate","setup.owner","setup.status"}:
+        field="secret" if operation=="setup.authenticate" else "password"
+        expected={"operation"} if operation=="setup.status" else {"operation",field}
+        if set(request)!=expected or operation!="setup.status" and (not isinstance(request[field],str) or not 1<=len(request[field])<=256):
+            raise ValueError("invalid setup authentication request")
+        command=["/usr/bin/nuvo-setup","auth"]
+        input_value=json.dumps(request,separators=(",",":"))
+    elif operation=="transport.stage":
         mode=request.get("preference")
         if not isinstance(mode,str) or mode not in {"auto","wifi","ethernet","usb","both","off"}: raise ValueError("invalid transport preference")
         command=["/usr/bin/nuvoctl","transport","stage",mode]
@@ -110,13 +126,40 @@ def execute(request: dict) -> dict:
         if not isinstance(expected,str) or not re.fullmatch(r'"[a-f0-9]{64}"',expected):
             raise ValueError("configuration update requires a strong expected revision")
         command.extend(["--if-match",expected])
-    completed=subprocess.run(command,capture_output=True,text=True,timeout=timeout,check=False)
+    options={"input":input_value} if input_value is not None else {}
+    completed=subprocess.run(command,capture_output=True,text=True,timeout=timeout,check=False,**options)
     if completed.returncode==3 and operation in {"encoding.update","stereo.update","exposure.update"}:
         return {"status":"error","error_code":"precondition_failed",
                 "error":"configuration changed; reload before saving"}
     if completed.returncode!=0: raise RuntimeError(completed.stderr.strip() or "control command failed")
     result=json.loads(completed.stdout)
+    if operation.startswith("calibration.") and isinstance(result,dict) and isinstance(result.get("captures"),list):
+        # The device store retains the full session. The live console needs the
+        # newest detection, not hundreds of repeated camera telemetry records.
+        # Keep response size independent of the number of captured images.
+        history=result["captures"]
+        cells=set()
+        for item in history:
+            metric=item.get("quality",{}).get("left") if item.get("accepted") else None
+            if not isinstance(metric,dict): continue
+            x,y=metric.get("center_x"),metric.get("center_y")
+            if (not isinstance(x,(int,float)) or not isinstance(y,(int,float)) or
+                    not math.isfinite(x) or not math.isfinite(y)): continue
+            cells.add(max(0,min(2,math.floor(y*3)))*3+max(0,min(2,math.floor(x*3))))
+        coverage={**result.get("coverage",{}),"occupied_cell_indices":sorted(cells)}
+        result={**result,"captures":history[-1:],"capture_history_total":len(history),
+                "capture_history_included":min(len(history),1),
+                "capture_history_truncated":len(history)>1,"coverage":coverage}
     return {"status":"ok","result":result}
+
+
+def encode_response(response: dict) -> bytes:
+    payload=json.dumps(response,sort_keys=True,separators=(",",":")).encode()
+    if len(payload)>MAXIMUM_RESPONSE:
+        payload=json.dumps({"status":"error","error_code":"response_too_large",
+                            "error":"Control response exceeds the transport limit; inspect device state before retrying."},
+                           separators=(",",":")).encode()
+    return payload
 
 
 def main() -> None:
@@ -130,7 +173,7 @@ def main() -> None:
         response=execute(request); response["peer"]={"pid":pid,"uid":uid,"gid":gid}
     except Exception as error:
         response={"status":"error","error":str(error)}
-    connection.send(json.dumps(response,sort_keys=True,separators=(",",":")).encode())
+    connection.send(encode_response(response))
 
 
 if __name__=="__main__": main()

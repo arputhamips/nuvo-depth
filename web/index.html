@@ -38,6 +38,7 @@
     </nav>
     <main id="consoleMain" tabindex="-1">
       <section id="overview" class="page active">
+        <p id="setupState" class="notice" role="status" hidden></p>
         <div class="page-header">
           <h1>Overview</h1>
           <span class="page-meta" id="deviceResolution">Waiting for device</span>
@@ -855,7 +856,7 @@
 
         <form id="calibrationSetupForm" class="settings-form calibration-setup">
           <h2 class="form-title"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-focus"/></svg>Profile identity</h2>
-          <label>Preset name <small>Include resolution and readout mode</small><input id="calibrationPresetId" value="imx296-728x544" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,127}" required></label>
+          <label>Capture profile ID <small>Uses the active device capture profile</small><input id="calibrationPresetId" value="" readonly required></label>
           <label>Sensor mode<input id="calibrationSensorMode" value="imx296-728x544" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,127}" required></label>
           <label>Image width<input id="calibrationWidth" type="number" min="64" max="8192" value="728" required data-unit="px"></label>
           <label>Image height<input id="calibrationHeight" type="number" min="64" max="8192" value="544" required data-unit="px"></label>
@@ -944,13 +945,26 @@
   <dialog id="claimDialog">
     <form method="dialog" id="claimForm">
       <h2>Connect to device</h2>
-      <p>Enter the one-time code supplied with the device. It is exchanged for a secure browser session and is not stored by this page.</p>
-      <label>Device claim code<input id="claimToken" type="password" minlength="32" autocomplete="one-time-code" required></label>
+      <p>Enter your Nuvo owner password or the short setup code supplied with the device. This page does not store it.</p>
+      <label>Device password or setup code<input id="claimToken" type="password" minlength="8" maxlength="256" autocomplete="current-password" required></label>
       <p id="claimError" class="error"></p>
       <button class="primary" type="submit">Connect securely</button>
     </form>
   </dialog>
+  <dialog id="ownerDialog">
+    <form id="ownerForm">
+      <h2>Set your Nuvo password</h2>
+      <p>Your setup code has been used. Choose a password to connect again from this or another browser.</p>
+      <label>New owner password<input id="ownerPassword" type="password" minlength="12" maxlength="256" autocomplete="new-password" required></label>
+      <label>Repeat password<input id="ownerRepeat" type="password" minlength="12" maxlength="256" autocomplete="new-password" required></label>
+      <p id="ownerError" class="error"></p>
+      <button class="primary" type="submit">Save password</button>
+    </form>
+  </dialog>
   <template id="tuningPreviewTemplate"><div class="card-heading"><h2><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-scan"></use></svg>Camera &amp; depth</h2><span class="chip chip-neutral" data-preview-state>Waiting for live frames</span></div><div class="tuning-preview-grid"><figure><figcaption>Left rectified <span class="chip chip-cyan">Image</span></figcaption><div class="sample-canvas"><canvas data-tuning-product="left_rectified" width="728" height="544" aria-label="Live left rectified camera image"></canvas><div class="sample-overlay preview-empty"><span>Waiting for camera image</span></div></div></figure><figure><figcaption>Depth <span class="chip chip-violet">Metric depth</span></figcaption><div class="sample-canvas"><canvas data-tuning-product="depth" width="728" height="544" aria-label="Live optical-axis depth in metres"></canvas><div class="sample-overlay preview-empty"><span>Waiting for depth output</span></div></div></figure></div><div class="preview-metrics"><span data-live-metric="capture">Capture target · —</span><span data-live-metric="depth">Depth output · —</span><span data-live-metric="compute">Compute · —</span></div><div class="preview-metrics"><span data-live-resolution>Depth grid · —</span><span>Black pixels: invalid depth</span></div><p class="preview-validity" data-live-calibration>Waiting for calibration status</p><p class="preview-unavailable" hidden>Raw products are disabled. Enable raw delivery on Streaming to preview camera and depth.</p></template>
+  <script src="/frame-codec.js" defer></script>
+  <script src="/device-settings.js" defer></script>
   <script src="/app.js" defer></script>
+
 </body>
 </html>

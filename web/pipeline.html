@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#171a1f">
+  <title>Image pipeline · Nuvo Depth</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/pipeline-canvas.css">
+  <link rel="stylesheet" href="/pipeline.css">
+</head>
+<body class="pipeline-document">
+  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><symbol id="icon-overview" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="4" rx="1"/><rect x="14" y="11" width="7" height="10" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></symbol><symbol id="icon-scan" viewBox="0 0 24 24"><path d="M4 9V5a1 1 0 0 1 1-1h4m6 0h4a1 1 0 0 1 1 1v4m0 6v4a1 1 0 0 1-1 1h-4m-6 0H5a1 1 0 0 1-1-1v-4"/></symbol><symbol id="icon-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-3Z"/><circle cx="12" cy="13" r="3"/></symbol><symbol id="icon-layers" viewBox="0 0 24 24"><path d="m12 3 10 5-10 5L2 8Zm-10 9 10 5 10-5M2 16l10 5 10-5"/></symbol><symbol id="icon-sliders" viewBox="0 0 24 24"><path d="M4 4v7m0 4v5M12 4v2m0 4v10M20 4v10m0 4v2M1 11h6m2-5h6m2 8h6"/></symbol><symbol id="icon-stream" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></symbol><symbol id="icon-cable" viewBox="0 0 24 24"><path d="M7 3v3m4-3v3M5 6h8v4a4 4 0 0 1-8 0Zm4 8v2a4 4 0 0 0 8 0v-2m-2-4h4v4h-4Zm2-3v3"/></symbol><symbol id="icon-focus" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m13-5h3a2 2 0 0 1 2 2v3m0 8v3a2 2 0 0 1-2 2h-3m-8 0H5a2 2 0 0 1-2-2v-3"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".5"/></symbol><symbol id="icon-activity" viewBox="0 0 24 24"><path d="M2 12h4l3-9 6 18 3-9h4"/></symbol><symbol id="icon-update" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M3 15v5a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-5"/></symbol><symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol><symbol id="icon-alert" viewBox="0 0 24 24"><path d="m10.5 3.5-9 16A1 1 0 0 0 2.4 21h19.2a1 1 0 0 0 .9-1.5l-9-16a1.7 1.7 0 0 0-3 0Z"/><path d="M12 8v5m0 4h.01"/></symbol><symbol id="icon-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6Z"/><path d="m9 12 2 2 4-4"/></symbol><symbol id="icon-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10m-7 6h4"/></symbol><symbol id="icon-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 3v3m6-3v3M9 18v3m6-3v3M3 9h3m-3 6h3m12-6h3m-3 6h3"/></symbol><symbol id="icon-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1-3.7 1.5 1.5 0 0 1 1-2.8h2a4 4 0 0 0 4-4A8.5 8.5 0 0 0 12 3Z"/><circle cx="8" cy="8" r=".6"/><circle cx="13" cy="7" r=".6"/><circle cx="17" cy="10" r=".6"/><circle cx="6.5" cy="13" r=".6"/></symbol></defs></svg>
+  <a class="skip-link" href="#consoleMain">Skip to device console</a>
+  <header>
+    <div class="brand" aria-label="Nuvo Vision One"><span class="mark" aria-hidden="true"></span><span class="brand-name">NUVO</span><span class="brand-product">Vision One</span></div>
+    <div class="header-actions">
+      <button id="themeToggle" class="theme-toggle" type="button" aria-label="Use light theme" aria-pressed="false" title="Use light theme">
+        <svg class="theme-icon theme-icon-sun" aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v2M12 19.5v2M21.5 12h-2M4.5 12h-2M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4M18.7 18.7l-1.4-1.4M6.7 6.7 5.3 5.3"/></svg>
+        <svg class="theme-icon theme-icon-moon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4a8.5 8.5 0 1 0 11.2 11.2Z"/></svg>
+      </button>
+      <div id="connection" class="pill offline" aria-live="polite">Not connected</div>
+    </div>
+  </header>
+  <div class="shell">
+    <nav aria-label="Device pages">
+      <a href="/index.html#overview"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-overview"/></svg><span>Overview</span></a>
+      <a href="/index.html#viewer"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-scan"/></svg><span>Live view</span></a>
+      <a href="/pipeline.html" class="active" aria-current="page"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-layers"/></svg><span>Image pipeline</span></a>
+      <p class="nav-label">Settings</p>
+      <a href="/index.html#exposure"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-camera"/></svg><span>Capture</span></a>
+      <a href="/index.html#presets"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-layers"/></svg><span>Depth profiles</span></a>
+      <a href="/index.html#algorithm"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-sliders"/></svg><span>Matcher</span></a>
+      <a href="/index.html#streaming"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-stream"/></svg><span>Streaming</span></a>
+      <a href="/index.html#network"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-cable"/></svg><span>Outputs</span></a>
+      <p class="nav-label">Device</p>
+      <a href="/index.html#calibration"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-focus"/></svg><span>Calibration</span></a>
+      <a href="/index.html#diagnostics"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-activity"/></svg><span>Diagnostics</span></a>
+      <a href="/index.html#recovery"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-update"/></svg><span>Software update</span></a>
+    </nav>
+    <main id="consoleMain" tabindex="-1">
+      <section id="pipeline" class="page active">
+        <div class="page-header"><h1>Image pipeline</h1><span class="chip chip-neutral">Device controls + outputs</span></div>
+        <p class="lede">Configure camera stages and connect their products to browser outputs. Required stages stay protected.</p>
+        <div class="pipeline-toolbar">
+          <button id="pipelineAdd" type="button" class="primary">+ Add output node</button>
+          <button id="pipelineAddMonitor" type="button" class="secondary">+ Monitoring output</button>
+          <button id="pipelineUndo" type="button" class="secondary" disabled>Undo</button>
+          <button id="pipelineRedo" type="button" class="secondary" disabled>Redo</button>
+          <button id="pipelineExample" type="button" class="secondary">Rectified + depth</button>
+          <button id="pipelineView" type="button" class="secondary">View output</button>
+          <button id="pipelineCollapse" type="button" class="secondary">Collapse all</button>
+          <button id="pipelineArrange" type="button" class="secondary">Arrange</button>
+          <button id="pipelineZoomOut" type="button" class="secondary" aria-label="Zoom out">−</button>
+          <button id="pipelineZoomIn" type="button" class="secondary" aria-label="Zoom in">+</button>
+          <button id="pipelineFit" type="button" class="secondary">Fit</button>
+          <span id="pipelineZoom" class="support-text">100%</span>
+          <span id="pipelineNodeCount" class="support-text"></span>
+        </div>
+        <details id="pipelineToolsDisclosure" class="pipeline-tools-disclosure" open><summary>Node and wire controls</summary>
+        <div id="pipelineNodeTools" class="pipeline-interaction-tools" aria-label="Pipeline interaction controls">
+          <label>Node<select id="pipelineNodeSelect" aria-label="Selected node"></select></label>
+          <button id="pipelineNodeFocus" type="button" class="secondary">Focus node</button>
+          <button id="pipelineNodeSettings" type="button" class="secondary">Settings</button>
+          <button id="pipelineNodeMove" type="button" class="secondary" aria-expanded="false" aria-controls="pipelineMoveBar">Move node</button>
+          <label>Wire<select id="pipelineWireSelect" aria-label="Selected wire"><option value="">Choose a connection</option></select></label>
+          <button id="pipelineWireEdit" type="button" class="secondary" disabled>Edit wire</button>
+          <button id="pipelineWireNew" type="button" class="secondary">Connect ports</button>
+        </div>
+        </details>
+        <div class="pipeline-move" id="pipelineMoveBar" hidden role="region" aria-label="Move selected node without dragging">
+          <span id="pipelineMoveLabel">Move node</span>
+          <div class="pipeline-direction-controls" aria-label="Move by 20 canvas units">
+            <button id="pipelineMoveLeft" type="button" class="secondary" aria-label="Move selected node left">← Left</button>
+            <button id="pipelineMoveUp" type="button" class="secondary" aria-label="Move selected node up">↑ Up</button>
+            <button id="pipelineMoveDown" type="button" class="secondary" aria-label="Move selected node down">↓ Down</button>
+            <button id="pipelineMoveRight" type="button" class="secondary" aria-label="Move selected node right">Right →</button>
+          </div>
+          <label>X<input id="pipelinePositionX" type="number" required min="-8000" max="8000" step="1"></label>
+          <label>Y<input id="pipelinePositionY" type="number" required min="-4000" max="4000" step="1"></label>
+          <button id="pipelinePositionApply" type="button" class="secondary">Set position</button>
+          <button id="pipelineMoveDone" type="button" class="secondary">Done moving</button>
+        </div>
+        <div class="pipeline-connect" id="pipelineConnectBar" hidden role="region" aria-label="Connection editor">
+          <span id="pipelineConnectLabel" role="status"></span>
+          <label>Source product<select id="pipelineConnectSource" aria-label="Source product"></select></label>
+          <label>Destination<select id="pipelineConnectTarget" aria-label="Connection destination"></select></label>
+          <button id="pipelineConnectConfirm" type="button" class="primary">Connect</button>
+          <button id="pipelineDisconnect" type="button" class="secondary" hidden>Disconnect wire</button>
+          <button id="pipelineConnectCancel" type="button" class="secondary">Cancel</button>
+          <p id="pipelineConnectHint" class="pipeline-hint"></p>
+        </div>
+        <p id="pipelineAnnouncement" class="pipeline-announcement" role="status" aria-live="polite"></p>
+        <dialog id="pipelineNodeDialog" class="pipeline-node-sheet" aria-labelledby="pipelineNodeDialogTitle">
+          <div class="pipeline-sheet-header"><h2 id="pipelineNodeDialogTitle">Node settings</h2><button id="pipelineNodeDialogClose" type="button" class="secondary">Close settings</button></div>
+          <div id="pipelineNodeDialogContent" class="pipeline-sheet-content"></div>
+          <div id="pipelineNodeDialogActions" class="pipeline-sheet-footer"></div>
+        </dialog>
+        <div class="panel pipeline-applybar"><button class="primary" id="pipelineApply" type="submit" form="pipelineOutputForm" disabled>Apply outputs</button><button id="pipelineDiscard" class="secondary" type="button" disabled>Discard routes</button><span id="pipelineSaveState" role="status">No pending routes</span></div>
+        <div class="pipeline-workspace" id="pipelineWorkspace">
+          <div id="pipelineCanvas" class="pipeline-canvas" aria-label="Movable image pipeline. Drag the background to pan. Scroll to zoom."></div>
+          <div id="pipelineNodeSource" hidden>
+          <article class="panel pipeline-node pipeline-exposure" id="pipelineExposureNode" data-core-node="exposure">
+            <div class="pipeline-node-head"><h2><svg class="icon" aria-hidden="true"><use href="#icon-sliders"/></svg>Exposure</h2><span class="chip chip-amber">Control</span></div>
+            <form id="pipelineExposureForm" novalidate>
+              <label>Mode<select id="pipelineExposureMode"><option value="manual">Manual</option><option value="auto">Auto · stereo locked</option></select></label>
+              <div class="pipeline-exposure-values">
+                <label><span id="pipelineTimeLabel">Exposure time</span><span class="control-with-unit"><input id="pipelineExposureTime" aria-labelledby="pipelineTimeLabel" type="number" min="250" max="8000" step="50" required><span class="control-unit">µs</span></span></label>
+                <label><span id="pipelineGainLabel">Analogue gain</span><span class="control-with-unit"><input id="pipelineExposureGain" aria-labelledby="pipelineGainLabel" type="number" min="1" max="3" step="0.05" required><span class="control-unit">×</span></span></label>
+              </div>
+              <p class="pipeline-hint">Shared with Capture settings. Applies to both cameras.</p>
+              <div class="button-row"><button class="primary" id="pipelineExposureApply" type="submit" disabled>Apply capture changes</button><button id="pipelineExposureDiscard" class="secondary" type="button" disabled>Discard</button></div>
+              <p id="pipelineExposureState" role="status" class="support-text">Waiting for capture settings</p>
+              <p id="pipelineExposureError" role="alert" class="field-error" hidden></p>
+              <button type="button" class="pipeline-settings-link" data-pipeline-settings="exposure">All capture settings <span aria-hidden="true">›</span></button>
+            </form>
+          </article>
+          <article class="panel pipeline-node pipeline-cameras" id="pipelineCamerasNode" data-core-node="cameras">
+            <div class="pipeline-node-head"><h2><svg class="icon" aria-hidden="true"><use href="#icon-camera"/></svg>Stereo cameras</h2><span class="chip chip-neutral">Protected</span></div>
+            <p class="pipeline-hint">Left + right · synchronized pair</p><p id="pipelineCameraState" class="pipeline-node-detail">Waiting for device</p>
+            <div data-pipeline-port="cameras"></div>
+            <button type="button" class="pipeline-settings-link" data-pipeline-settings="diagnostics">Device diagnostics <span aria-hidden="true">›</span></button>
+          </article>
+          <article class="panel pipeline-node pipeline-rectification" id="pipelineRectificationNode" data-core-node="rectification">
+            <div class="pipeline-node-head"><h2><svg class="icon" aria-hidden="true"><use href="#icon-focus"/></svg>Rectification</h2><span class="chip chip-neutral">Protected</span></div>
+            <p class="pipeline-hint">Calibration-aligned images</p><span data-pipeline-demand="rectification" class="chip chip-neutral">Not requested here</span>
+            <p id="pipelineCalibrationState" class="pipeline-node-detail">Waiting for calibration state</p>
+            <div data-pipeline-port="rectification"></div>
+            <button type="button" class="pipeline-settings-link" data-pipeline-settings="calibration">Calibration settings <span aria-hidden="true">›</span></button>
+          </article>
+          <article class="panel pipeline-node pipeline-matcher" id="pipelineMatcherNode" data-core-node="matcher">
+            <div class="pipeline-node-head"><h2><svg class="icon" aria-hidden="true"><use href="#icon-layers"/></svg>Stereo matcher</h2><span class="chip chip-neutral">Protected</span></div>
+            <p id="pipelineMatcherState" class="pipeline-node-detail">Waiting for matcher settings</p><span data-pipeline-demand="matcher" class="chip chip-neutral">Not requested here</span>
+            <p class="pipeline-hint">Rectified pair → internal disparity → filters</p>
+            <button type="button" class="pipeline-settings-link" data-pipeline-settings="algorithm">Matcher settings <span aria-hidden="true">›</span></button>
+            <button type="button" class="pipeline-settings-link" data-pipeline-settings="presets">Depth profiles <span aria-hidden="true">›</span></button>
+          </article>
+          <article class="panel pipeline-node pipeline-filter" id="pipelineFilterNode" data-core-node="filter">
+            <div class="pipeline-node-head"><h2><svg class="icon" aria-hidden="true"><use href="#icon-filter"/></svg>Disparity filters</h2><span class="chip chip-neutral">Protected</span></div>
+            <p class="pipeline-hint">Validity rejection &amp; smoothing</p><span data-pipeline-demand="filter" class="chip chip-neutral">Not requested here</span>
+            <div data-pipeline-port="filter"></div>
+            <button type="button" class="pipeline-settings-link" data-pipeline-settings="algorithm" data-pipeline-group="matcher-filter">Filter settings <span aria-hidden="true">›</span></button>
+          </article>
+          <article class="panel pipeline-node pipeline-depth" id="pipelineDepthNode" data-core-node="depth">
+            <div class="pipeline-node-head"><h2><svg class="icon" aria-hidden="true"><use href="#icon-layers"/></svg>Depth conversion</h2><span class="chip chip-neutral">Protected</span></div>
+            <p class="pipeline-hint">Calibrated disparity → optical-axis metres</p><span data-pipeline-demand="depth" class="chip chip-neutral">Not requested here</span>
+            <div data-pipeline-port="depth"></div>
+          </article>
+          <div id="pipelineOutputs" class="pipeline-output-column" aria-label="Output nodes"></div>
+          <article class="panel pipeline-node pipeline-encoder" id="pipelineEncoderNode" data-core-node="encoder">
+            <div class="pipeline-node-head"><h2><svg class="icon" aria-hidden="true"><use href="#icon-stream"/></svg>Monitoring encoder</h2><span class="chip chip-neutral">Optional stage</span></div>
+            <p id="pipelineEncoderState" class="pipeline-node-detail">Waiting for stream settings</p>
+            <p class="pipeline-hint">Compresses one image source for browser monitoring.</p>
+            <button type="button" class="pipeline-settings-link" data-pipeline-settings="streaming">All Streaming settings <span aria-hidden="true">›</span></button>
+          </article>
+          </div>
+          <aside class="panel pipeline-preview" id="pipelinePreview">
+            <div class="pipeline-preview-head"><h2><svg class="icon" aria-hidden="true"><use href="#icon-scan"/></svg>Output preview</h2><span id="pipelinePreviewState" class="chip chip-neutral">Waiting</span><button id="pipelinePreviewToggle" type="button" class="secondary" aria-expanded="true" aria-controls="pipelinePreviewBody" aria-label="Minimize output viewer">−</button></div>
+            <div id="pipelinePreviewBody">
+            <label>Preview output<select id="pipelinePreviewSelect"></select></label>
+            <figure><canvas id="pipelinePreviewCanvas" width="320" height="240" role="img" aria-label="Selected pipeline output preview" hidden></canvas><div id="pipelinePreviewEmpty" class="pipeline-preview-empty">Connect and apply an output to preview it.</div><figcaption id="pipelinePreviewCaption">Preview follows applied outputs</figcaption></figure>
+            <p id="pipelinePreviewMeta" class="pipeline-hint"></p><p id="pipelinePreviewCalibration" class="pipeline-hint"></p>
+            <p id="pipelineRates" class="pipeline-hint"></p>
+            <p class="pipeline-hint">One preview · up to 5 updates/s. Float depth is colour-mapped for viewing.</p>
+            </div>
+          </aside>
+        </div>
+        <div class="pipeline-legend"><span><i class="pipeline-control-key" aria-hidden="true"></i>Fixed exposure control</span><span><i class="pipeline-data-key" aria-hidden="true"></i>Image / depth flow</span><span>Drag heading: move · Arrow: settings · Right port → left port: connect · Select wire: edit</span></div>
+        <details class="pipeline-interaction-help"><summary>Canvas controls and keyboard help</summary><p>Drag a node's heading bar to move it. The arrow button opens or closes settings independently. Use the fixed Node controls above the canvas when zoomed out; Focus node returns to readable zoom. Move node also provides direction buttons and exact coordinates, so dragging is optional. On small screens, node settings open in a sheet with visible Apply and Discard controls. Close settings or Escape returns to the node.</p><p>Tap the output socket on a node's right edge, choose a product, then tap an input socket on the destination's left edge or choose a destination and Connect. You can also drag between these ports. The small socket dots have larger invisible hit areas; the pointer becomes a crosshair over a wire target. Select an editable wire to change its source or destination, or disconnect it. Dragging an existing wire end is also available with a mouse. Occupied destinations are protected from accidental replacement. Dropping outside a valid port keeps the existing wire.</p><p>Tab reaches all controls. Enter or Space activates a control; a selected node can also move with arrow keys. Escape cancels the connection gesture or closes movement controls. Required stage wiring stays locked. Route edits stay pending until Apply outputs; Undo restores a previous route.</p></details>
+        <details class="pipeline-delivery"><summary>Output delivery</summary>
+        <form id="pipelineOutputForm" class="panel pipeline-output-settings">
+          <label>Shared output cadence <span class="control-with-unit"><input id="pipelineCadence" aria-label="Shared output cadence" type="number" min="0.1" max="60" step="0.1" required><span class="control-unit">Hz max</span></span></label>
+          <label>Delivery<select id="pipelineDelivery"><option value="auto">Auto</option><option value="best_effort">Best effort</option><option value="exact">Exact · qualified link</option></select></label>
+          <label>Monitoring cadence <span class="control-with-unit"><input id="pipelineMonitorCadence" aria-label="Monitoring cadence" type="number" min="0.1" max="60" step="0.1" required><span class="control-unit">Hz max</span></span></label>
+          <div class="pipeline-budget"><span id="pipelineBudget" class="support-text"></span><span id="pipelineScope" class="pipeline-hint">Output routes apply to this browser. Other clients keep their own subscriptions.</span></div>
+          <p id="pipelineError" role="alert" class="field-error" hidden></p>
+        </form>
+        </details>
+
+      </section>
+
+    </main>
+  </div>
+  <dialog id="claimDialog">
+    <form method="dialog" id="claimForm">
+      <h2>Connect to device</h2>
+      <p>Enter the one-time code supplied with the device. It is exchanged for a secure browser session and is not stored by this page.</p>
+      <label>Device claim code<input id="claimToken" type="password" minlength="32" autocomplete="one-time-code" required></label>
+      <p id="claimError" class="error"></p>
+      <button class="primary" type="submit">Connect securely</button>
+    </form>
+  </dialog>
+  <div id="pipelineSharedControls" hidden></div>
+  <script src="/frame-codec.js" defer></script>
+  <script src="/device-settings.js" defer></script>
+  <script src="/pipeline-model.js" defer></script>
+  <script src="/pipeline-host.js" defer></script>
+  <script src="/pipeline-canvas.js" defer></script>
+  <script src="/pipeline.js" defer></script>
+</body>
+</html>

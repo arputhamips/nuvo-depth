@@ -225,6 +225,10 @@ class Sessions {
     prune_locked();
     return values_.contains(std::string(value));
   }
+  void remove(const std::string& session) {
+    std::lock_guard lock(mutex_);
+    values_.erase(session);
+  }
   [[nodiscard]] std::optional<std::string> csrf_for(
       const std::string_view session) const {
     std::lock_guard lock(mutex_);
@@ -389,13 +393,14 @@ using Response = http::response<http::vector_body<unsigned char>>;
 }
 
 [[nodiscard]] std::vector<unsigned char> system_agent(
-    const Arguments& options, const std::string_view request) {
+    const Arguments& options, const std::string_view request,
+    const int timeout_seconds = 310) {
   auto connection = depthd::ipc_v2::connect_seqpacket(
       options.system_agent_socket);
   const auto bytes = std::span(
       reinterpret_cast<const std::byte*>(request.data()), request.size());
   connection.send_packet(bytes);
-  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(310);
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeout_seconds);
   while (true) {
     if (stopping.load()) throw std::runtime_error("gateway is stopping");
     if (std::chrono::steady_clock::now() >= deadline) {
@@ -480,6 +485,26 @@ using Json = boost::property_tree::ptree;
   Json result;
   boost::property_tree::read_json(input, result);
   return result;
+}
+
+[[nodiscard]] Json setup_agent(const Arguments& options, const std::string& operation,
+                               const std::string& field = {}, const std::string& secret = {}) {
+  Json request;
+  request.put("operation", operation);
+  if (!field.empty()) request.put(field, secret);
+  std::ostringstream encoded;
+  boost::property_tree::write_json(encoded, request, false);
+  const auto reply = system_agent(options, encoded.str(), 10);
+  const auto result = parse_json(std::string(reply.begin(), reply.end()));
+  if (result.get<std::string>("status", "") != "ok") {
+    throw std::runtime_error("setup operation unavailable");
+  }
+  return result.get_child("result");
+}
+
+[[nodiscard]] bool needs_owner_password(const Arguments& options) {
+  try { return setup_agent(options, "setup.status").get<bool>("needs_owner_password", false); }
+  catch (const std::exception&) { return false; } // Legacy installations have no setup state.
 }
 
 [[nodiscard]] depthd::ipc_v2::ProductMask product_mask(const std::string_view name) {
@@ -1394,19 +1419,48 @@ void await_clients(const std::atomic_size_t& active) noexcept {
                          "{\"error\":\"origin rejected\"}\n", request.version());
   }
   if (request.method() == http::verb::post && target == "/api/v1/session") {
-    if (!authenticated(request, claim, sessions)) {
-      return text_response(http::status::unauthorized, "application/json",
-                           "{\"error\":\"invalid claim token\"}\n",
-                           request.version());
-    }
+    // Reserve capacity before consuming a single-use setup code.
     auto session = sessions.create();
     if (!session) {
       return text_response(http::status::service_unavailable, "application/json",
-                           "{\"error\":\"session capacity reached\"}\n",
+                           "{\"error\":\"session capacity reached\"}\n", request.version());
+    }
+    bool accepted = authenticated(request, claim, sessions);
+    bool needs_password = false;
+    if (!accepted) {
+      try {
+        std::string secret;
+        if (!request.body().empty() && request.body().size() <= 2048U) {
+          const auto body = parse_json(request.body());
+          if (body.size() == 1U && body.front().first == "secret" && body.front().second.empty()) {
+            secret = body.get<std::string>("secret");
+          }
+        } else {
+          const std::string authorization(request[http::field::authorization]);
+          if (authorization.starts_with("Bearer ")) secret = authorization.substr(7);
+        }
+        if (!secret.empty() && secret.size() <= 1024U) {
+          if (equal_secret(secret, claim)) {
+            accepted = true;
+            needs_password = needs_owner_password(options);
+          } else {
+            const auto result = setup_agent(options, "setup.authenticate", "secret", secret);
+            accepted = result.get<bool>("authenticated", false);
+            needs_password = result.get<bool>("needs_owner_password", false);
+          }
+        }
+      } catch (const std::exception&) { accepted = false; }
+    } else {
+      needs_password = needs_owner_password(options);
+    }
+    if (!accepted) {
+      sessions.remove(session->session);
+      return text_response(http::status::unauthorized, "application/json",
+                           "{\"error\":\"invalid device password or setup code\"}\n",
                            request.version());
     }
     const auto body = "{\"role\":\"admin\",\"csrf\":\"" +
-                      session->csrf + "\"}\n";
+                      session->csrf + "\",\"needs_owner_password\":" + (needs_password ? "true" : "false") + "}\n";
     auto result = text_response(http::status::ok, "application/json", body,
                                 request.version());
     result.set(http::field::set_cookie,
@@ -1430,14 +1484,37 @@ void await_clients(const std::atomic_size_t& active) noexcept {
     }
     return text_response(http::status::ok, "application/json",
                          "{\"role\":\"admin\",\"csrf\":\"" + *csrf +
-                             "\"}\n",
+                             "\",\"needs_owner_password\":" + (needs_owner_password(options) ? "true" : "false") + "}\n",
                          request.version());
+  }
+  if (request.method() == http::verb::get && target == "/api/v1/setup/status") {
+    try {
+      return response(http::status::ok, "application/json",
+                      system_agent(options, "{\"operation\":\"setup.status\"}", 10), request.version());
+    } catch (const std::exception&) {
+      return text_response(http::status::service_unavailable, "application/json",
+                           "{\"error\":\"setup status unavailable\"}\n", request.version());
+    }
   }
   if (request.method() != http::verb::get &&
       request.method() != http::verb::head && !valid_csrf(request, sessions)) {
     return text_response(http::status::forbidden, "application/json",
                          "{\"error\":\"CSRF token rejected\"}\n",
                          request.version());
+  }
+  if (request.method() == http::verb::post && target == "/api/v1/setup/owner") {
+    try {
+      const auto body = parse_json(request.body());
+      if (body.size() != 1U || body.front().first != "password" || !body.front().second.empty()) {
+        throw std::invalid_argument("invalid owner password request");
+      }
+      const auto password = body.get<std::string>("password");
+      if (password.size() < 12U || password.size() > 1024U) throw std::invalid_argument("invalid password length");
+      (void)setup_agent(options, "setup.owner", "password", password);
+      return text_response(http::status::ok, "application/json", "{\"owner_configured\":true}\n", request.version());
+    } catch (const std::exception&) {
+      return text_response(http::status::bad_request, "application/json", "{\"error\":\"could not set password; use 12 through 256 characters\"}\n", request.version());
+    }
   }
   if (request.method() == http::verb::get && target == "/api/v1/transport") {
     return text_response(http::status::ok, "application/json",
@@ -1741,11 +1818,12 @@ void await_clients(const std::atomic_size_t& active) noexcept {
   if (target == "/" || target == "/index.html") {
     file = options.web_root / "index.html";
     type = "text/html; charset=utf-8";
-  } else if (target == "/app.js") {
-    file = options.web_root / "app.js";
+  } else if (target == "/app.js" || target == "/device-settings.js" ||
+             target == "/frame-codec.js") {
+    file = options.web_root / std::string(target.substr(1));
     type = "text/javascript; charset=utf-8";
   } else if (target == "/styles.css") {
-    file = options.web_root / "styles.css";
+    file = options.web_root / std::string(target.substr(1));
     type = "text/css; charset=utf-8";
   } else if (target == "/assets/fonts/hanken-grotesk-400.ttf" ||
              target == "/assets/fonts/hanken-grotesk-500.ttf" ||

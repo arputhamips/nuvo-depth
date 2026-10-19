@@ -28,6 +28,13 @@ SPEC.loader.exec_module(CALIBRATION)
 
 
 class CharucoCompatibilityTest(unittest.TestCase):
+    def test_added_views_preserve_the_original_holdout_split(self) -> None:
+        identifiers = [f"capture{index}" for index in range(44)]
+        original = CALIBRATION._holdout_indices(identifiers[:38], None)
+        self.assertEqual(CALIBRATION._holdout_indices(identifiers, {"accepted_pairs": 38}), original)
+        frozen = {"accepted_pairs": 44, "holdout_capture_ids": [identifiers[i] for i in original]}
+        self.assertEqual(CALIBRATION._holdout_indices(identifiers + ["new-edge"], frozen), original)
+
     def test_missing_aruco_is_an_actionable_error(self) -> None:
         with patch.dict("sys.modules", {"cv2": SimpleNamespace(__version__="4.10.0")}):
             with self.assertRaisesRegex(RuntimeError, r"requires OpenCV >= 4\.6 with aruco support"):
@@ -69,6 +76,31 @@ class CharucoCompatibilityTest(unittest.TestCase):
 
 @unittest.skipIf(cv2 is None, "Python OpenCV is unavailable")
 class SyntheticCharucoTest(unittest.TestCase):
+    def test_lens_domain_rejects_a_radial_fold_away_from_the_centre(self) -> None:
+        k = np.asarray([[400., 0., 364.], [0., 400., 272.], [0., 0., 1.]])
+        identity = np.eye(3)
+        physical = CALIBRATION._lens_domain_audit(k, np.zeros((1, 5)), identity, k, (728, 544))
+        self.assertTrue(physical["passed"], physical)
+        folded = CALIBRATION._lens_domain_audit(
+            k, np.asarray([[-.5, 0., 0., 0., 0.]]), identity, k, (728, 544))
+        self.assertFalse(folded["passed"], folded)
+        self.assertTrue(folded["radial_derivative_zeros"] or
+                        folded["sensor_roundtrip_error_max_px"] > .05, folded)
+
+    def test_wide_lens_validation_uses_a_converged_inverse(self) -> None:
+        k = np.asarray([[400., 0., 364.], [0., 400., 272.], [0., 0., 1.]])
+        d = np.asarray([[-.2, .03, 0., 0., .01]])
+        x, y = np.meshgrid(np.linspace(-.8, .8, 8), np.linspace(-.55, .55, 7))
+        rays = np.column_stack([x.ravel(), y.ravel(), np.ones(x.size)])
+        left = cv2.projectPoints(rays, np.zeros(3), np.zeros(3), k, d)[0]
+        right = cv2.projectPoints(rays, np.zeros(3), np.asarray([-.1, 0., 0.]), k, d)[0]
+        default_error = np.abs(cv2.undistortPoints(left, k, d, P=k)[:, 0, 1] -
+                               cv2.undistortPoints(right, k, d, P=k)[:, 0, 1])
+        self.assertGreater(float(default_error.max()), .001)
+        converged, _ = CALIBRATION._rectified_vertical_errors(
+            [left], [right], k, d, k, d, np.eye(3), np.eye(3), k, k)
+        self.assertLess(float(converged.max()), 1e-8)
+
     def test_odd_and_even_rows_keep_the_canonical_target_layout(self) -> None:
         for rows in (4, 5):
             target = {"type": "charuco", "squares_x": 7, "squares_y": rows,

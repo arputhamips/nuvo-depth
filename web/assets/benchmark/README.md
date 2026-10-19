@@ -4,6 +4,8 @@ The four JPEGs here are photographic examples from the [DIODE depth benchmark](h
 which publishes its dataset and code under the MIT license. They were downloaded
 from the official benchmark site and renamed for use in the console:
 
+The upstream MIT copyright and permission notice is preserved in [LICENSE](LICENSE).
+
 | Local asset | Official source |
 | --- | --- |
 | `diode-indoor-photo.jpg` | `images/full/00019_00183_indoors_300_010.jpg` |

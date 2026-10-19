@@ -1,0 +1,26 @@
+[Unit]
+Description=Nuvo protected first-use network setup
+After=NetworkManager.service
+Requires=NetworkManager.service
+ConditionPathExists=/etc/nuvo-depth/setup-ap-enabled
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/nuvo-setup serve
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/nuvo-depth /var/lib/nuvo-depth-setup /etc/NetworkManager/system-connections
+ReadWritePaths=/etc/default -/var/lib/systemd/rfkill
+RestrictAddressFamilies=AF_INET AF_UNIX AF_NETLINK
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_ADMIN CAP_NET_RAW CAP_DAC_OVERRIDE
+MemoryMax=128M
+TasksMax=32
+TimeoutStopSec=10
+
+[Install]
+WantedBy=nuvo-depth.target

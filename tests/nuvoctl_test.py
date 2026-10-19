@@ -51,6 +51,20 @@ class NuvoctlTest(unittest.TestCase):
             self.assertEqual(config.read_text().count("BEGIN NUVO DEPTH"),1)
             self.assertTrue(config.with_name("config.txt.nuvo-backup").exists())
 
+    def test_prepare_conditional_scope_conflicts_and_modprobe_reboot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            module.atomic_write(root/"proc/device-tree/model","Raspberry Pi 5 Model B",0o644)
+            config=root/"boot/firmware/config.txt"
+            module.atomic_write(config,"[pi4]\narm_64bit=1\n",0o644)
+            module.platform_prepare(root,True)
+            self.assertIn("# BEGIN NUVO DEPTH (managed)\n[all]\n",config.read_text())
+            module.atomic_write(root/"etc/modprobe.d/nuvo-depth-imx296.conf","options imx296 trigger_mode=0\n",0o644)
+            self.assertTrue(module.platform_prepare(root,False)["reboot_required"])
+            config.write_text("dtoverlay=imx219\n")
+            with self.assertRaises(RuntimeError): module.platform_prepare(root,True)
+            self.assertEqual(config.read_text(),"dtoverlay=imx219\n")
+
     def test_transport_confirmation_and_rollback(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory); module.stage_transport(root,"usb",False)

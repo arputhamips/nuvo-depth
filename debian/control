@@ -7,7 +7,7 @@ Build-Depends: debhelper-compat (= 13), cmake (>= 3.20), ninja-build,
  libavcodec-dev, libavutil-dev, libswscale-dev,
  libboost-system-dev, libssl-dev (>= 3.0), libsystemd-dev,
  libegl-dev, libgles-dev, libcamera-dev [arm64],
- python3, python3-numpy, python3-opencv (>= 4.6), python3-yaml
+ python3, python3-numpy, python3-opencv (>= 4.6), python3-yaml, python3-cryptography
 Standards-Version: 4.7.2
 Rules-Requires-Root: no
 
@@ -37,7 +37,7 @@ Description: Nuvo Depth native capture and processing core
 
 Package: nuvo-depth-platform-pi5
 Architecture: arm64
-Depends: nuvo-depth-core (= ${binary:Version}), ${misc:Depends}
+Depends: nuvo-depth-core (= ${binary:Version}), raspi-config, iw, rfkill, ${misc:Depends}
 Description: Raspberry Pi 5 platform integration for Nuvo Depth
  Contains the libcamera/GPIO capture backend and opt-in platform preparation
  assets. Installation alone never modifies Raspberry Pi boot configuration.
@@ -83,7 +83,8 @@ Description: Nuvo Depth stereo calibration workflow
 
 Package: nuvo-depth-tools
 Architecture: all
-Depends: python3, python3-yaml, openssl,
+Depends: python3 (>= 3.11), python3-yaml, openssl (>= 3.0), network-manager,
+ dnsmasq-base, iptables, iproute2, avahi-daemon,
  python3-nuvo-depth (= ${source:Version}),
  nuvo-depth-calibration (= ${source:Version}), ${misc:Depends}
 Description: Nuvo Depth administration and diagnostic tools

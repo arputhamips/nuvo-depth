@@ -1,0 +1,27 @@
+Nuvo Depth
+Copyright (C) 2026 Meridian Robotics
+
+Nuvo-authored software in this repository, including the runtime, gateway,
+installer, tools, SDKs and web console, is free software: you may redistribute
+it and/or modify it under the terms of the GNU General Public License as
+published by the Free Software Foundation, either version 3 of the License,
+or (at your option) any later version (SPDX: GPL-3.0-or-later).
+
+This software is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See LICENSE for the complete terms.
+
+Third-party software and assets retain their own copyright and license notices:
+
+- third_party/LiteAnyStereo: MIT; see its upstream LICENSE. This research
+  submodule is excluded from the product binaries.
+- web/assets/fonts: SIL Open Font License 1.1; see OFL.txt in that directory.
+- web/assets/benchmark: DIODE sample images under MIT; see LICENSE and README.md
+  in that directory and https://diode-dataset.org/.
+- web/pipeline-licenses.txt: dependency notices for the parked browser prototype.
+- External build/runtime dependencies retain their upstream terms. Their source
+  and notices must be accounted for when redistributing a binary or OS image.
+
+The project GPL declaration does not replace any third-party license or grant
+rights to separately obtained model weights, datasets, hardware designs or
+trademarks. Such material is covered only by its own applicable terms.
