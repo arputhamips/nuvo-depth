@@ -45,7 +45,6 @@ when installation finishes.
 
 Read the [Pi installation guide](https://docs.nuvohardware.com/vision-one/install/byo-pi)
 first for the exact supported OS/kernel, hardware requirements, and setup steps.
-No GitHub account, SSH deploy key, or individual package selection is required.
 
 ## Current status
 
