@@ -236,11 +236,11 @@ def install_worker(root, job, run=setup.command):
                     raise ValueError("refusing an implicit downgrade of an installed Nuvo package")
             run(["apt-get", "update"], timeout=600)
             package_args = [str(path) for path in packages]
-            run(["apt-get", "--simulate", "--no-remove", "install", *package_args], timeout=120)
+            run(["apt-get", "--simulate", "--no-remove", "--reinstall", "install", *package_args], timeout=120)
             # Install dependencies using the supported OS sources; Nuvo's exact
             # packages are the hash-verified local files from GitHub Releases.
             os.environ["DEBIAN_FRONTEND"] = "noninteractive"
-            run(["apt-get", "--yes", "--no-remove", "-o", "Dpkg::Options::=--force-confdef",
+            run(["apt-get", "--yes", "--no-remove", "--reinstall", "-o", "Dpkg::Options::=--force-confdef",
                  "-o", "Dpkg::Options::=--force-confold", "install", *package_args], timeout=1800)
             result = setup.apply_configuration(root, plan, run)
             setup.save(root, RESULT, {"status": "complete", "result": result, "tag": manifest["tag"]})

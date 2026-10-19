@@ -24,6 +24,8 @@ openssl pkey -pubin -in deployment/release-signing.pub -outform DER | sha256sum
 The private key is stored as the environment secret `NUVO_RELEASE_ED25519_PEM`
 in `nuvo-install-release`. That environment permits deployment from `main`
 only. Package/PR builds have read-only repository access and no signing secret.
+The repository's active `v*` tag rules prevent tag updates and deletion, with
+no bypass actors; creating a new version tag remains allowed.
 Signing runs on a separate fresh runner after the package build succeeds. It
 checks the private key against the committed public key and the tagged source,
 checks the build's source commit, signs the manifest, then verifies the signature.
@@ -61,6 +63,10 @@ Before tagging an install release:
    codename, exact tested `uname -r` values, and the upstream base image URL and
    SHA-256. Record updates applied after flashing; a base image does not freeze
    later APT dependencies. Keep hardware acceptance separate from build tests.
+   The Pi platform package pins its libcamera/IPA and rpicam cohort exactly;
+   update those pins and the ARM64 build dependency together only after testing.
+   Raspberry Pi changed from its own Span to std::span in October 2026 without
+   changing the libcamera 0.7 SONAME, so the upstream version alone is insufficient.
 4. Commit matching instructions and qualification evidence, wait for successful
    checks, then create a new tag on main. Never move or reuse a published tag.
 

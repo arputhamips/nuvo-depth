@@ -22,7 +22,9 @@ image is unnecessary. A compatible existing installation needs no reflash.
 
 The installer checks model, OS, arm64 userspace, release kernel, boot config,
 dpkg health, NetworkManager, AP capability and subnet overlap when applicable.
-It does not upgrade the OS/kernel or repair unrelated broken packages. Use a
+It installs the exact camera-library/IPA/rpicam cohort required by the Pi platform
+package; that may upgrade those userspace packages. It does not perform a full
+OS/kernel upgrade or repair unrelated broken packages. Use a
 unique OS hostname, configured Wi-Fi regulatory country, working internet/APT,
 and administrator access before starting. Keep a local terminal or Ethernet
 available when deliberately switching a Wi-Fi SSH connection to a hotspot.
@@ -82,7 +84,8 @@ access and temporarily downloads the release. `--wifi-interface wlan0` and
 
 Package work runs in `nuvo-install.service`, independently of the SSH session.
 All Nuvo packages must belong to the same signed version/architecture cohort;
-APT resolves OS dependencies and refuses removals. Implicit Nuvo downgrades
+APT resolves OS dependencies, reinstalls the explicitly selected Nuvo cohort
+on retries, and refuses removals. Implicit Nuvo downgrades
 are rejected. Capture preparation uses a backed-up managed boot-config block
 and refuses conflicting camera overlays/includes for manual resolution.
 

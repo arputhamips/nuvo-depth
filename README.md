@@ -52,7 +52,9 @@ Useful entry points:
 For setup and normal operation, start with the
 [documentation index](docs/README.md) and [Pi 5 user guide](docs/user-guide.md).
 The [terminal/factory installer guide](docs/install.md) covers the shared setup
-script and the GitHub release inputs that still need configuration.
+script and direct installation from signed GitHub releases. The
+[release operations guide](docs/releases.md) covers ARM64 package builds,
+Ed25519 signing, source archives and publication.
 The current live-device evidence, performance, and release blockers are in the
 [September 14 release-readiness report](docs/pi5-release-readiness-20260914.md).
 Calibration profile production is a separate advanced process documented in

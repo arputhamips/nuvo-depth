@@ -1,7 +1,17 @@
 {
   "architecture": "arm64",
   "codename": "trixie",
-  "kernels": [],
-  "base_image": {"url": "", "sha256": ""},
-  "_instructions": "TODO(PI_QUALIFICATION): fill exact tested uname -r values and the upstream Raspberry Pi OS Lite 64-bit .img.xz URL/SHA-256. Release packaging intentionally refuses this empty template."
+  "kernels": [
+    "6.12.75+rpt-rpi-2712"
+  ],
+  "base_image": {
+    "url": "https://downloads.raspberrypi.com/raspios_lite_arm64/images/raspios_lite_arm64-2026-04-21/2026-04-21-raspios-trixie-arm64-lite.img.xz",
+    "sha256": "4cd31df026fd82243805a326dc0cafd7383f7e3d30c9413e7044d507aae281e2"
+  },
+  "notes": "Raspberry Pi OS Lite image origin matches the qualification Pi /etc/rpi-issue (pi-gen 4ad56cc850fa60adcc7f07dc15879bc95cc1d281). Userspace has received Trixie/Raspberry Pi updates since flashing. Exact dependency versions and package acceptance scope are recorded in docs/release-qualification-20261019.md; no kernel upgrade is performed by the installer.",
+  "camera_packages": {
+    "libcamera0.7": "0.7.2+rpt20261009-1",
+    "libcamera-ipa": "0.7.2+rpt20261009-1",
+    "rpicam-apps-core": "1.14.0-1"
+  }
 }
