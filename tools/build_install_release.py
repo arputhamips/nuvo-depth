@@ -59,6 +59,9 @@ def build(source, packages, output, repository, tag, version, platform, private_
             archive.write(source / name, name)
     shell = (source / "install-nuvo-depth.sh").read_text(encoding="utf-8")
     shell = re.sub(r'^DEFAULT_REPOSITORY="[^"]*"$', lambda _: f'DEFAULT_REPOSITORY="{repository}"', shell, count=1, flags=re.M)
+    public_der = subprocess.check_output(["openssl", "pkey", "-pubin", "-outform", "DER"], input=public_key.encode("ascii"))
+    fingerprint = hashlib.sha256(public_der).hexdigest()
+    shell = re.sub(r'^# SHA-256 of DER public key: .*$', lambda _: "# SHA-256 of DER public key: " + fingerprint, shell, count=1, flags=re.M)
     shell, replacements = re.subn(r"^RELEASE_PUBLIC_KEY_PEM='[^']*'", lambda _: "RELEASE_PUBLIC_KEY_PEM='" + public_key.strip() + "'", shell, count=1, flags=re.M)
     if replacements != 1:
         raise ValueError("bootstrap public-key assignment not found")

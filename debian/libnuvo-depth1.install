@@ -1,2 +1,1 @@
-usr/lib/*/libnuvo-depth.so.1
-usr/lib/*/libnuvo-depth.so.0.1.0
+usr/lib/*/libnuvo-depth.so.*
