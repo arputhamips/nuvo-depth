@@ -9,6 +9,12 @@ or a short single-use setup code.
 Customer install releases require the platform qualification recorded in their
 signed manifest. Use only an explicitly published release. The public source and
 release repository is [arputhamips/nuvo-depth](https://github.com/arputhamips/nuvo-depth).
+
+The current prerelease tested for setup is
+[v0.1.1-beta.3](https://github.com/arputhamips/nuvo-depth/releases/tag/v0.1.1-beta.3).
+Use that exact tag in the commands below. The
+[qualification record](release-qualification-20261019.md#uf-01-and-uf-02-physical-setup-acceptance)
+distinguishes physical first-use tests from fresh-SD and manufacturing acceptance.
 Physical Pi acceptance, USB power/data qualification and shipping approval
 remain separate gates.
 

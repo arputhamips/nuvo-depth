@@ -1,7 +1,7 @@
 # Shared setup contract for UF-01 and UF-02
 
-**Specification:** SETUP-01 · **Version:** 0.2 · **Updated:** 19 October 2026  
-**Status:** Initial shared installer, ownership and protected-hotspot backend implemented; GitHub publication and Pi qualification pending. See [implementation and limits](../install.md).
+**Specification:** SETUP-01 · **Version:** 0.3 · **Updated:** 19 October 2026  
+**Status:** Shared installer, ownership and protected-hotspot backend implemented and published as a signed GitHub beta. Both entry flows have physical Pi setup evidence; see [qualification scope](../release-qualification-20261019.md#uf-01-and-uf-02-physical-setup-acceptance) and [implementation limits](../install.md). Manufacturing acceptance remains separate.
 
 ## One installer, one product, two input modes
 

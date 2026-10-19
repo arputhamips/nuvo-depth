@@ -1,7 +1,7 @@
 # User flow — Use case 2: install Nuvo on a user-owned Pi or SD card
 
-**Specification:** UF-02 · **Version:** 0.4 · **Updated:** 19 October 2026  
-**Status:** Initial prompted terminal installer and factory preset implemented. Image/package qualification and release publication remain pending. See [commands and current limits](../install.md).
+**Specification:** UF-02 · **Version:** 0.5 · **Updated:** 19 October 2026  
+**Status:** Prompted terminal installer and factory preset published as a signed GitHub beta. Both network choices, terminal ownership and reboot recovery have [physical Pi setup evidence](../release-qualification-20261019.md#uf-01-and-uf-02-physical-setup-acceptance). See [commands and current limits](../install.md).
 
 ## User and outcome
 

@@ -119,9 +119,113 @@ The backup contains installed Nuvo files, unit overrides, boot policy and device
 state; it is deliberately not a public release artifact. Network credentials,
 SSH credentials, owner secrets and factory keys are not part of public evidence.
 
-The beta does not establish fresh-SD hotspot onboarding, Wi-Fi handoff rollback,
-power-cut recovery, USB power/data compatibility, electrical/trigger-scope
+The initial install/capture checks did not exercise hotspot onboarding; the
+setup acceptance below adds that coverage. Freshly flashed SD acceptance,
+physical power-cut recovery, USB power/data compatibility, electrical/trigger-scope
 approval, sustained thermal endurance or metric calibration for other units.
 Those remain separate hardware/manufacturing gates. The installer still requires
 accepted per-unit calibration or explicit provisional engineering preview before
 starting the supported capture head. Custom/incomplete heads can install the console.
+
+## UF-01 and UF-02 physical setup acceptance
+
+Later on 19 October, the same Pi was used for explicit first-use tests. A separate
+root-only backup at `/var/backups/nuvo-depth-uf12-20261019/before.tar.gz`
+(49,318,373 bytes) preserved the working unit before temporarily replacing Nuvo's
+identity, ownership and provisioning state. These are fresh **Nuvo state** tests
+on the existing qualified OS, not a newly flashed SD image. No Ethernet cable was
+connected to the Pi. The client used its Wi-Fi adapter for the setup AP and its
+existing wired LAN for the destination-network confirmation.
+
+The public beta 2 bootstrap installed `--factory --wifi-country US` without any
+questions. The unit remained unclaimed, capture stayed gated with calibration
+pending, and the protected AP was armed until reboot. After reboot the client
+joined the unique WPA2/CCMP AP, obtained DHCP, and opened the actual setup page.
+An intentionally nonexistent SSID caused the same AP/password to return after
+the three-minute confirmation deadline. A valid retry joined the destination
+network and was confirmed through the browser's `.local` link.
+
+That test exposed a case-sensitive Host check: the OS hostname contained capitals
+but browsers lowercase DNS names. The correction accepts case-insensitive DNS
+names and optional port 80 while continuing to reject foreign origins/ports.
+The recovered setup page now shows its rollback explanation and clears that
+error on the next attempt. A second correction moves persistent Wi-Fi country
+preparation into the installer, verifies the boot command line, and keeps the
+sandboxed AP service limited to runtime regulatory/radio operations. Current
+raspi-config writes `/boot/firmware/cmdline.txt`; it could silently fail that write
+inside the earlier read-only service sandbox. Missing boot command lines are now
+rejected during preflight. These fixes are tagged `v0.1.1-beta.3` at `46a58d1`.
+
+The user manually verified the temporary device certificate, entered the short
+setup code, chose a temporary owner password and reported that the console
+opened. The real root ownership store confirmed a saved password verifier and
+consumed pairing proof. Reusing that code through the HTTPS gateway returned
+401. A normal terminal reinstall preserved that owner's store and device
+identity byte-for-byte, retained the current network, and did not ask to set an
+owner again. `--factory --dry-run` then rejected the owned unit before package
+or network work.
+
+A second fresh Nuvo-state fixture exercised UF-02's current-network selection.
+The installer collected a masked owner password in the SSH terminal, completed
+the signed public GitHub install, retained the existing connection, and recorded
+terminal origin. Two certificate-verified password logins succeeded with
+`needs_owner_password=false` and Secure/HttpOnly session cookies. The raw terminal
+transcript was checked to ensure the owner password was never echoed.
+
+The terminal-created owner and identity also survived a reboot on the confirmed
+current network, with no AP reopening and no failed units. The signed beta 3
+draft passed all 55 CTest entries, clean container installation and signing in
+[release run 39322028865](https://github.com/arputhamips/nuvo-depth/actions/runs/39322028865).
+The downloaded bundle passed signature and hash checks for 18 signed files,
+all eight runtime package metadata checks, and comparison of all 399 source
+files against commit `46a58d1dd3309d44ab5b8657bba36eafe3c91e4c`.
+
+UF-02 then upgraded to those beta 3 packages while selecting the protected
+hotspot option. It preserved the terminal origin, owner store and identity,
+saved `cfg80211.ieee80211_regdom=US`, and kept SSH connected with the AP armed.
+After reboot the new sandboxed service activated the AP successfully, served
+the real browser setup page and reported no error or failed units. Ownership
+remained claimed with the same password verifier.
+
+During another browser-submitted handoff, a controlled reboot interrupted the
+unconfirmed transaction. On the next boot, the same protected AP/password
+returned, the stale confirmation capability was removed, and the owner store
+was unchanged. The browser displayed the rollback explanation and allowed a
+fresh attempt.
+
+The valid retry confirmed through the actual beta 3 browser page. Password login
+still worked without another owner questionnaire. A further reboot with the
+original `setup_ap` policy retained its confirmed destination network, preserved
+the owner/identity, and did not reopen the AP; no units failed.
+
+A third fresh Nuvo-state fixture installed the final beta 3 factory preset
+without selections, rebooted into its unique protected AP and remained
+unclaimed. The real certificate-verified HTTPS gateway and installed root agent
+accepted its short code, required a permanent password, saved that password
+through the CSRF-protected owner endpoint, rejected the consumed code and
+accepted a subsequent password login. This final ownership check used API
+requests; the earlier certificate/code/password UI interaction was completed
+manually by the user. Calibration correctly remained pending and shipping
+readiness remained false on the temporary factory identity.
+
+The [beta 3 prerelease](https://github.com/arputhamips/nuvo-depth/releases/tag/v0.1.1-beta.3)
+was published after those checks. Anonymous downloads of all 20 release assets
+matched the signed draft byte-for-byte. The original unit was then restored:
+all 18 saved configuration/identity/calibration hashes and the saved boot command
+line matched, its accepted calibration and existing network policy returned,
+gateway/native capture/NetworkManager were active, no units failed, and
+throttling was `0x0`. Temporary recovery timers and setup AP policy were removed.
+
+The standalone beta 3 shell installer then completed an actual anonymous online
+reinstall from the public GitHub URLs through its detached worker. All original
+18 hashes still matched afterward. Certificate-verified console, health,
+capabilities, setup IPC and existing administrative access passed. A fresh
+396,880-byte NuvoStream response decoded as `left_mono`, 728 x 544, with accepted
+calibration authority 1. The temporary raw-delivery setting was restored to the
+original encoded-only configuration byte-for-byte.
+
+This covers software provisioning and the exercised network/ownership paths.
+It does not qualify a newly flashed card, physical power loss during dpkg/SD
+writes, captive-portal discovery, enterprise Wi-Fi, USB power/data arrangements,
+or manufacturing electrical/calibration/shipping acceptance. Device HTTPS still
+requires the documented per-unit certificate verification by the user.

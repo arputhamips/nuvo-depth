@@ -1,7 +1,7 @@
 # User flow — Use case 1: first setup of an assembled Nuvo device
 
-**Specification:** UF-01 · **Version:** 0.3 · **Updated:** 19 October 2026  
-**Status:** Product design baseline with initial factory provisioning, protected hotspot and short-code ownership implemented. Hardware qualification and broader discovery/recovery features remain pending; see [implementation and limits](../install.md).
+**Specification:** UF-01 · **Version:** 0.4 · **Updated:** 19 October 2026  
+**Status:** Factory provisioning, protected hotspot and short-code ownership implemented, with [physical first-boot/browser setup evidence](../release-qualification-20261019.md#uf-01-and-uf-02-physical-setup-acceptance). Fresh-image/manufacturing acceptance and broader discovery/recovery features remain separate; see [implementation and limits](../install.md).
 
 ## User and outcome
 
