@@ -49,6 +49,25 @@ jobs:
                     "hardware_tests": "not run: hosted ARM64 builder has no Pi cameras"}
           pathlib.Path("output/package-build/build-record.json").write_text(json.dumps(record, indent=2)+"\n")
           PY
+      - name: Smoke test runtime package installation in the disposable container
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          python3 - <<'PY'
+          import pathlib, subprocess, sys
+          sys.path.insert(0, 'tools')
+          import nuvo_release
+          packages = []
+          for path in pathlib.Path('output/package-build').glob('*.deb'):
+              name = subprocess.check_output(['dpkg-deb', '-f', str(path), 'Package'], text=True).strip()
+              if name in nuvo_release.RUNTIME_PACKAGES:
+                  packages.append(str(path.resolve()))
+          assert len(packages) == 8
+          subprocess.run(['apt-get', '-y', '--no-remove', 'install', *packages], check=True)
+          PY
+          depthd --check-config /etc/nuvo-depth/daemon.yaml
+          nuvo-setup --help
+          dpkg --audit
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nuvo-debian-arm64

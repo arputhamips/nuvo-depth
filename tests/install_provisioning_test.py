@@ -145,7 +145,7 @@ class ProvisioningTest(unittest.TestCase):
         plan=self.factory_plan()
         plan["engineering"]=True
         def runner(args,**kwargs):
-            if args==["systemctl","start","nuvo-depthd-native.service"]:
+            if args==["systemctl","restart","nuvo-depthd-native.service"]:
                 return subprocess.CompletedProcess(args,1,"","")
             return self.run_command(args,**kwargs)
         with mock.patch.object(setup.admin,"provision_identity",return_value={"device_uuid":"123456"}),mock.patch.object(setup.admin,"platform_prepare",return_value={"reboot_required":False}):
@@ -153,7 +153,7 @@ class ProvisioningTest(unittest.TestCase):
         self.assertEqual(state["phase"],"installed")
         self.assertEqual(state["access_stage"],"armed")
         self.assertIn("Capture did not start",state["capture_error"])
-        self.assertTrue(any("nuvo-gateway.service" in call and "start" in call for call in self.calls))
+        self.assertTrue(any("nuvo-gateway.service" in call and "restart" in call for call in self.calls))
 
     def test_hotspot_only_after_deliberate_activation_or_new_boot(self):
         self.apply(self.factory_plan())

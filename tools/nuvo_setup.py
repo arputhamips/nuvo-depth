@@ -307,9 +307,12 @@ def apply_configuration(root, plan, run=command):
         state = read(root, STATE)
         state.update(phase="installed", calibration_state="accepted" if calibration["accepted"] else "pending")
         save(root, STATE, state)
-    run(["systemctl", "start", *[s for s in services if s != "nuvo-depthd-native.service"]])
+    run(["systemctl", "start", "nuvo-system-agent.socket"])
+    # An upgrade must replace running binaries and apply the new unit overrides.
+    # `start` alone leaves an already-active daemon/gateway on the old code.
+    run(["systemctl", "restart", *[s for s in services if s not in {"nuvo-depthd-native.service", "nuvo-system-agent.socket"}]])
     if capture and not state["reboot_required"]:
-        started = run(["systemctl", "start", "nuvo-depthd-native.service"], check=False)
+        started = run(["systemctl", "restart", "nuvo-depthd-native.service"], check=False)
         if started.returncode:
             with setup_lock(root):
                 state = read(root, STATE)
