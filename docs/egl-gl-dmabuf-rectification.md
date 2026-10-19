@@ -159,6 +159,10 @@ Pacing-loop samples slightly above 100 ms are retained separately as
 `cycle_over_period_samples`; they are not frame loss when the following camera
 wait contracts and sensor timestamps remain consecutive.
 
+The mixed-workload experiments below used the now-removed semantic/accelerator
+research branch. They remain historical evidence for GPU rectification under
+additional load; the current depth-only build does not provide those workers.
+
 The full 600-pair GPU + native cloud + 2 Hz JPEG + asynchronous Hailo semantic
 run is stored at:
 

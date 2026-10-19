@@ -12,8 +12,7 @@
         "DEPTHD_WITH_OPENCV": "OFF",
         "DEPTHD_WITH_PI5_CAPTURE": "OFF",
         "DEPTHD_WITH_GATEWAY": "OFF",
-        "DEPTHD_WITH_FFMPEG_ENCODER": "OFF",
-        "DEPTHD_WITH_SEMANTICS": "OFF"
+        "DEPTHD_WITH_FFMPEG_ENCODER": "OFF"
       }
     },
     {
@@ -27,8 +26,7 @@
         "DEPTHD_WITH_PI5_CAPTURE": "OFF",
         "DEPTHD_WITH_GATEWAY": "ON",
         "DEPTHD_WITH_FFMPEG_ENCODER": "ON",
-        "DEPTHD_WITH_SYSTEMD": "OFF",
-        "DEPTHD_WITH_SEMANTICS": "OFF"
+        "DEPTHD_WITH_SYSTEMD": "OFF"
       }
     },
     {
@@ -45,8 +43,6 @@
         "DEPTHD_WITH_GATEWAY": "ON",
         "DEPTHD_WITH_FFMPEG_ENCODER": "ON",
         "DEPTHD_WITH_SYSTEMD": "ON",
-        "DEPTHD_WITH_SEMANTICS": "OFF",
-        "DEPTHD_WITH_HAILORT_SEMANTICS": "OFF",
         "CMAKE_INSTALL_PREFIX": "/usr"
       }
     }

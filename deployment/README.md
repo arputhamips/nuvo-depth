@@ -89,7 +89,7 @@ For publication, build in a clean reproducible environment, generate and review
 the SPDX artifact, sign the `.changes`/repository with the release identity,
 and install from the staged repository on a clean Pi. Production configuration
 fails closed if the Pi capture, GPU rectifier, gateway, systemd integration, or
-depth semantics are missing. Semantic/Hailo targets are forbidden.
+depth semantics are missing.
 
 ## First installation
 

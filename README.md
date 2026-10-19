@@ -94,6 +94,14 @@ cameras. Normal device installation uses the signed installer above.
 
 ### Repository layout
 
+The main areas are the native engine (`apps/`, `src/`, `include/`, `platform/`),
+device console (`web/`), client SDK (`sdk/`), installation (`tools/`, `deployment/`,
+`debian/`), and engineering references (`docs/`, `tests/`). Normal installation
+does not require browsing or building these folders.
+
+<details>
+<summary>Complete folder map (17 top-level directories)</summary>
+
 | Path | Contents |
 | --- | --- |
 | `.github/` | GitHub Actions for builds, tests, release signing, and publication |
@@ -104,16 +112,17 @@ cameras. Normal device installation uses the signed installer above.
 | `deployment/` | Systemd services, network discovery, asset provisioning, and release platform/signing configuration |
 | `docs/` | Engineering references, setup specifications, research, and qualification evidence; user guides live in the [website wiki](https://docs.nuvohardware.com/vision-one/) |
 | `include/` | C/C++ headers for runtime interfaces, data contracts, and the native SDK |
-| `models/` | Optional semantic-model manifest and notes; model binaries are not included |
 | `platform/` | Raspberry Pi camera/trigger support and Linux IPC integration |
 | `presets/` | Candidate balanced, fast, and quality processing profiles |
 | `protocol/` | Reference stream-metadata schema; the shipping gateway uses JSON metadata |
 | `qualification/` | Raspberry Pi beta acceptance plan |
 | `sdk/` | Python client, frame decoders, recording/replay, and package metadata |
-| `src/` | Native processing, runtime, calibration, transport, gateway, and optional semantic implementations |
+| `src/` | Native processing, runtime, calibration, transport, and gateway implementations |
 | `tests/` | Unit, integration, installer, SDK, web, package-hygiene, and hardware checks |
 | `tools/` | Installation, provisioning, calibration, diagnostics, benchmarks, qualification, and release tools |
 | `web/` | Device console, shared browser modules, offline assets, and parked editor prototype source |
+
+</details>
 
 ## License
 

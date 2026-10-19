@@ -1,6 +1,12 @@
 # Architecture decision: deployment boundary
 
-Status: **Proposed — owner decision required**
+Status: **Historical deployment discussion**
+
+This records early robot-integration options, including accelerator assumptions
+that are no longer part of this repository. The current depth-only appliance
+uses native CPU stereo matching and a secure gateway; see the
+[current runtime architecture](native-runtime-ipc-gateway.md). The optional
+semantic/accelerator experiment has been removed.
 
 The processing design is the same in every option: a C++20, ROS-free core owns
 capture, trigger/sync validation, rectification, HailoRT, post-processing, and

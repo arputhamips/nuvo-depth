@@ -33,7 +33,7 @@ For a focused test, run `ctest --test-dir build/development-full -R PATTERN
 Use the `pi5-release` preset on the intended 64-bit Pi/Linux build environment,
 with the native libcamera, EGL/GLES, libsystemd, OpenCV, yaml-cpp, FFmpeg,
 Boost.System, and OpenSSL development dependencies installed. The production
-option deliberately rejects incomplete or semantic/Hailo configurations.
+option requires every backend used by the depth-only appliance.
 
 ```bash
 cmake --preset pi5-release

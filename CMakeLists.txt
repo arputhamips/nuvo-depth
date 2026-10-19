@@ -13,10 +13,6 @@ option(DEPTHD_WITH_CONFIG
   "Build the native yaml-cpp configuration preflight" OFF)
 option(DEPTHD_WITH_PI5_CAPTURE
   "Build the native Raspberry Pi 5 libcamera/GPIO capture smoke path" OFF)
-option(DEPTHD_WITH_SEMANTICS
-  "Build optional research semantic-perception components" OFF)
-option(DEPTHD_WITH_HAILORT_SEMANTICS
-  "Build the optional research HailoRT semantic inference backend" OFF)
 option(DEPTHD_WITH_EGL_GL_DMABUF_RECTIFICATION
   "Build the Pi EGL/OpenGL ES DMABUF rectification backend" OFF)
 option(DEPTHD_WITH_GATEWAY
@@ -26,11 +22,6 @@ option(DEPTHD_WITH_FFMPEG_ENCODER
 option(DEPTHD_PRODUCTION_BUILD
   "Require every backend needed by the Pi 5 shipping appliance" OFF)
 option(DEPTHD_WITH_SYSTEMD "Build systemd readiness/watchdog integration" OFF)
-
-if(DEPTHD_WITH_HAILORT_SEMANTICS AND NOT DEPTHD_WITH_SEMANTICS)
-  message(FATAL_ERROR
-    "DEPTHD_WITH_HAILORT_SEMANTICS requires DEPTHD_WITH_SEMANTICS=ON")
-endif()
 
 if(DEPTHD_PRODUCTION_BUILD)
   if(NOT DEPTHD_WITH_CONFIG OR NOT DEPTHD_WITH_OPENCV OR
@@ -42,10 +33,6 @@ if(DEPTHD_PRODUCTION_BUILD)
       "DEPTHD_PRODUCTION_BUILD requires config, OpenCV, Pi 5 capture, "
       "EGL/GLES DMABUF rectification, FFmpeg encoding, HTTPS gateway, "
       "and systemd support")
-  endif()
-  if(DEPTHD_WITH_SEMANTICS OR DEPTHD_WITH_HAILORT_SEMANTICS)
-    message(FATAL_ERROR
-      "Nuvo Depth v1 production builds exclude semantic/Hailo components")
   endif()
 endif()
 
@@ -331,20 +318,6 @@ if(DEPTHD_WITH_SYSTEMD)
   target_compile_definitions(depthd PRIVATE DEPTHD_WITH_SYSTEMD=1)
 endif()
 
-if(DEPTHD_WITH_SEMANTICS)
-  add_library(depthd_semantic_core STATIC
-    src/semantic_types.cpp
-    src/semantic_fusion.cpp
-    src/semantic_perception.cpp
-  )
-  add_library(depthd::semantic_core ALIAS depthd_semantic_core)
-
-  add_library(depthd_semantic_ring STATIC
-    src/semantic_ring.cpp
-  )
-  add_library(depthd::semantic_ring ALIAS depthd_semantic_ring)
-endif()
-
 add_library(depthd_native_output_core STATIC
   src/native_output.cpp
 )
@@ -353,16 +326,6 @@ add_library(depthd::native_output_core ALIAS depthd_native_output_core)
 add_library(depthd_native_output SHARED
   src/native_output_c.cpp
 )
-
-if(DEPTHD_WITH_SEMANTICS)
-  add_library(depthd_semantic_output SHARED
-    src/semantic_output_c.cpp
-  )
-
-  add_library(depthd_native_semantic SHARED
-    src/native_semantic_runtime.cpp
-  )
-endif()
 
 target_include_directories(depthd_contract
   PUBLIC
@@ -414,34 +377,6 @@ set_target_properties(depthd_result_ring PROPERTIES
 )
 depthd_enable_warnings(depthd_result_ring)
 
-if(DEPTHD_WITH_SEMANTICS)
-  target_include_directories(depthd_semantic_core
-    PUBLIC
-      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-      $<INSTALL_INTERFACE:include>
-  )
-  target_compile_features(depthd_semantic_core PUBLIC cxx_std_20)
-  target_link_libraries(depthd_semantic_core PUBLIC
-    depthd::obstacle_cloud Threads::Threads
-  )
-  set_target_properties(depthd_semantic_core PROPERTIES
-    POSITION_INDEPENDENT_CODE ON
-  )
-  depthd_enable_warnings(depthd_semantic_core)
-
-  target_include_directories(depthd_semantic_ring
-    PUBLIC
-      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-      $<INSTALL_INTERFACE:include>
-  )
-  target_compile_features(depthd_semantic_ring PUBLIC cxx_std_20)
-  target_link_libraries(depthd_semantic_ring PUBLIC depthd::semantic_core)
-  set_target_properties(depthd_semantic_ring PROPERTIES
-    POSITION_INDEPENDENT_CODE ON
-  )
-  depthd_enable_warnings(depthd_semantic_ring)
-endif()
-
 target_include_directories(depthd_native_output_core
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -467,36 +402,6 @@ target_compile_definitions(depthd_native_output PRIVATE
 )
 target_link_libraries(depthd_native_output PRIVATE depthd::native_output_core)
 depthd_enable_warnings(depthd_native_output)
-
-if(DEPTHD_WITH_SEMANTICS)
-  target_include_directories(depthd_semantic_output
-    PUBLIC
-      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-      $<INSTALL_INTERFACE:include>
-  )
-  target_compile_features(depthd_semantic_output PUBLIC cxx_std_20)
-  target_compile_definitions(depthd_semantic_output PRIVATE
-    DEPTHD_SEMANTIC_OUTPUT_BUILD
-  )
-  target_link_libraries(depthd_semantic_output PRIVATE
-    depthd::semantic_core depthd::semantic_ring depthd::native_output_core
-  )
-  depthd_enable_warnings(depthd_semantic_output)
-
-  target_include_directories(depthd_native_semantic
-    PUBLIC
-      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-      $<INSTALL_INTERFACE:include>
-  )
-  target_compile_features(depthd_native_semantic PUBLIC cxx_std_20)
-  target_compile_definitions(depthd_native_semantic PRIVATE
-    DEPTHD_NATIVE_SEMANTIC_BUILD
-  )
-  target_link_libraries(depthd_native_semantic PRIVATE
-    depthd::semantic_core depthd::semantic_ring depthd::native_output_core
-  )
-  depthd_enable_warnings(depthd_native_semantic)
-endif()
 
 add_executable(depthd_obstacle_cloud_benchmark
   tools/obstacle_cloud_benchmark.cpp
@@ -683,34 +588,6 @@ if(DEPTHD_WITH_EGL_GL_DMABUF_RECTIFICATION)
     OUTPUT_NAME depthd_egl_gl_dmabuf_rectification
   )
   depthd_enable_warnings(depthd_egl_gl_dmabuf_rectification_c)
-endif()
-
-if(DEPTHD_WITH_HAILORT_SEMANTICS)
-  if(NOT OpenCV_FOUND)
-    message(FATAL_ERROR
-      "DEPTHD_WITH_HAILORT_SEMANTICS requires OpenCV core/imgproc/imgcodecs")
-  endif()
-  find_path(DEPTHD_HAILORT_INCLUDE_DIR hailo/hailort.hpp)
-  find_library(DEPTHD_HAILORT_LIBRARY NAMES hailort
-    PATHS /lib /usr/lib /usr/lib/aarch64-linux-gnu)
-  if(NOT DEPTHD_HAILORT_INCLUDE_DIR OR NOT DEPTHD_HAILORT_LIBRARY)
-    message(FATAL_ERROR
-      "HailoRT headers/library not found; install the matching HailoRT dev package")
-  endif()
-  target_sources(depthd_native_semantic PRIVATE
-    src/hailort_semantic_backend.cpp
-  )
-  target_compile_definitions(depthd_native_semantic PRIVATE
-    DEPTHD_WITH_HAILORT_SEMANTICS=1
-  )
-  target_include_directories(depthd_native_semantic SYSTEM PRIVATE
-    ${OpenCV_INCLUDE_DIRS} ${DEPTHD_HAILORT_INCLUDE_DIR}
-  )
-  target_link_libraries(depthd_native_semantic PRIVATE
-    ${OpenCV_LIBS} ${DEPTHD_HAILORT_LIBRARY}
-  )
-  message(STATUS
-    "Native HailoRT semantics enabled: ${DEPTHD_HAILORT_LIBRARY}")
 endif()
 
 # This is a private runtime directory, not an ABI-dependent public library
@@ -1190,42 +1067,6 @@ if(BUILD_TESTING)
   depthd_enable_warnings(depthd_result_ring_test)
   add_test(NAME depthd_result_ring_test COMMAND depthd_result_ring_test)
 
-  if(DEPTHD_WITH_SEMANTICS)
-    add_executable(depthd_semantic_fusion_test tests/semantic_fusion_test.cpp)
-    target_link_libraries(depthd_semantic_fusion_test PRIVATE
-      depthd::semantic_core
-    )
-    depthd_enable_warnings(depthd_semantic_fusion_test)
-    add_test(NAME depthd_semantic_fusion_test
-      COMMAND depthd_semantic_fusion_test
-    )
-
-    add_executable(depthd_semantic_perception_test
-      tests/semantic_perception_test.cpp
-    )
-    target_link_libraries(depthd_semantic_perception_test PRIVATE
-      depthd::semantic_core
-    )
-    depthd_enable_warnings(depthd_semantic_perception_test)
-    add_test(NAME depthd_semantic_perception_test
-      COMMAND depthd_semantic_perception_test
-    )
-
-    add_executable(depthd_semantic_ring_test tests/semantic_ring_test.cpp)
-    target_link_libraries(depthd_semantic_ring_test PRIVATE
-      depthd::semantic_ring
-    )
-    depthd_enable_warnings(depthd_semantic_ring_test)
-    add_test(NAME depthd_semantic_ring_test COMMAND depthd_semantic_ring_test)
-
-    add_executable(depthd_semantic_output_test tests/semantic_output_test.cpp)
-    target_link_libraries(depthd_semantic_output_test PRIVATE
-      depthd_semantic_output depthd::semantic_ring
-    )
-    depthd_enable_warnings(depthd_semantic_output_test)
-    add_test(NAME depthd_semantic_output_test COMMAND depthd_semantic_output_test)
-  endif()
-
   add_executable(depthd_native_output_test tests/native_output_test.cpp)
   target_link_libraries(depthd_native_output_test PRIVATE
     depthd::native_output_core depthd_native_output
@@ -1290,16 +1131,6 @@ if(BUILD_TESTING)
         add_test(NAME depthd_egl_gl_map_adapter_test
           COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/egl_gl_map_adapter_test.py
-        )
-      endif()
-      if(DEPTHD_WITH_SEMANTICS AND DEPTHD_PYTHON_OPENCV_RESULT EQUAL 0)
-        add_test(NAME depthd_semantic_worker_test
-          COMMAND ${Python3_EXECUTABLE}
-            ${CMAKE_CURRENT_SOURCE_DIR}/tests/semantic_worker_test.py
-        )
-        set_tests_properties(depthd_semantic_worker_test PROPERTIES
-          ENVIRONMENT
-            "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/tools/pi"
         )
       endif()
     endif()

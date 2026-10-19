@@ -44,7 +44,6 @@ is available:
 cmake -S . -B build \
   -DDEPTHD_WITH_CONFIG=ON \
   -DDEPTHD_WITH_OPENCV=OFF \
-  -DDEPTHD_WITH_SEMANTICS=OFF \
   -DBUILD_TESTING=ON
 cmake --build build -j
 ctest --test-dir build --output-on-failure

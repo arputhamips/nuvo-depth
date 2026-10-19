@@ -75,6 +75,8 @@ qualification status are recorded in each document.
   generated-file exclusions, and package/export checks.
 - [Historical architecture review](history/multi-platform-review.md) — an
   archived review of an earlier system, not current setup instructions.
+- [Historical deployment options](architecture-options.md) — early robot and
+  accelerator assumptions, superseded by the current native runtime/gateway.
 - [Debian archive and APT publication roadmap](debian-archive-roadmap.md) —
   current blockers, the official Debian sponsorship path, and the immediate
   signed vendor-repository route.

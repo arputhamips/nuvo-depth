@@ -67,10 +67,10 @@ should instead validate each hardware-trigger pair before processing and expose:
 - original left/right sensor-stamp delta;
 - pair drops and per-camera drops;
 - capture-to-ready latency and output age;
-- rectification/inference/JPEG timing;
-- Hailo temperature/runtime errors;
-- calibration ID and model build ID.
+- rectification/stereo-matching/JPEG timing;
+- runtime errors and Pi temperature;
+- calibration ID and software build ID.
 
 No stale frame may be republished as new. On lost sync, stale input, calibration
-mismatch, or accelerator fault, health changes to degraded/fault and the result
+mismatch, or processing fault, health changes to degraded/fault and the result
 stream stops until a fresh valid pair is available.

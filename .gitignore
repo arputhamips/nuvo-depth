@@ -59,8 +59,6 @@ node_modules/
 *.log
 *.stderr
 *.stdout
-acceleras.log
-hailo_sdk.client.log
 
 # Local credentials and machine-specific settings
 *.key

@@ -1,5 +1,10 @@
 # Performance and acceptance plan
 
+The measurements below include the earlier Python depth path. Use the
+[native runtime reference](native-runtime-ipc-gateway.md) and
+[release qualification record](release-qualification-20261019.md) for the
+current appliance architecture and tested installation cohort.
+
 ## Primary target
 
 - 728 x 544 disparity at a stable 6-10 Hz.
@@ -9,7 +14,7 @@
   normalized four-core SoC CPU so percentages are unambiguous.
 
 No numeric CPU promise is accepted until it is measured on the supplied Pi,
-camera rig, and Hailo-8L under a thermally stable 30-minute run.
+camera rig under a thermally stable 30-minute run.
 
 The first isolated CPU SGBM replay baseline is recorded in
 [cpu-sgbm-baseline.md](cpu-sgbm-baseline.md). It sustains 10 Hz with 9.039%
@@ -48,9 +53,9 @@ process CPU and zero left/right applied-gain difference.
 | --- | ---: |
 | Pair acquisition and validation | 5 ms |
 | Rectification/preprocess | 20 ms |
-| Hailoer infence | 55 ms |
+| CPU stereo matching | 55 ms |
 | Crop/mask/result finalization | 5 ms |
-| ROS/IPC handoff | 5 ms |
+| IPC handoff | 5 ms |
 | Slack | 10 ms |
 
 The stages are pipelined with fixed buffers, but only one newest pending pair is
@@ -60,28 +65,29 @@ retained. The real budgets will be replaced by measured p50/p95/p99 values.
 
 1. Measure capture-only CPU and drops.
 2. Precompute fixed-point rectification maps and remove all per-frame allocation.
-3. Keep RGB layout conversions inside libcamera/Hailo input handling where
-   possible; never clone an image merely to cross an API boundary.
-4. Use asynchronous HailoRT vstreams with a small fixed buffer pool.
-5. Store final disparity as contiguous float32 once; the ROS bridge only wraps or
-   copies the required message payload.
-6. JPEG only the already-rectified left image at 2 Hz, using hardware encoding if
-   the Pi path is stable, otherwise a measured low-rate software encoder.
+3. Use the captured luma planes for matching; keep color conversions on the
+   lower-rate preview path and avoid copies at API boundaries.
+4. Keep CPU stereo matching bounded by the qualified working geometry and
+   disparity range; measure changes against the production profile.
+5. Store final disparity as contiguous float32 once and reuse the published
+   frame for admitted clients.
+6. Encode preview only at the admitted cadence while a consumer needs it.
+   The current Pi 5 path uses software FFmpeg encoding.
 7. Disable debug images and future point cloud work in production by default.
 
 ## Required telemetry
 
-- input, valid-pair, inference, disparity, and JPEG rates;
+- input, valid-pair, stereo-matching, disparity, and JPEG rates;
 - pair delta, capture age, end-to-end p50/p95/p99 latency;
 - per-stage CPU time, process RSS, and buffer high-water marks;
 - drop reason counters;
-- Hailo utilization/errors and temperature;
-- output subscriber count and ROS publish duration.
+- Pi utilization/errors and temperature;
+- output subscriber count and IPC/gateway delivery duration.
 
 ## Test matrix
 
 - daylight, shade transition, dusk/low texture, wet grass, repetitive texture;
 - stationary and moving mower;
-- one camera missing, trigger missing, Hailo reset, ROS bridge restart;
+- one camera missing, trigger missing, depth service restart, client restart;
 - 30-minute thermal soak and 8-hour endurance run;
 - recorded-pair replay with deterministic output hashes/tolerances.

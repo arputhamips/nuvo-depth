@@ -31,7 +31,7 @@ Each 10 Hz snapshot always contains:
   valid window, and cloud diagnostics.
 
 The rectified-left JPEG flag is present only on its 2 Hz schedule. Rectified
-left mono is optional and can be enabled for semantic perception. Metric depth
+left mono is optional and can be enabled for diagnostic consumers. Metric depth
 and dense XYZ are deliberately absent.
 
 The mmap transport adds copies only at the final process boundary. Camera
