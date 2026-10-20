@@ -1,0 +1,882 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-20",
+  "platform": {
+    "kernel": "6.12.75+rpt-rpi-2712",
+    "model": "Raspberry Pi 5 Model B Rev 1.1",
+    "governor": "ondemand",
+    "stereo": {
+      "algorithm": "sgbm",
+      "block_size": 5,
+      "bm_pre_filter_size": 9,
+      "bm_texture_threshold": 10,
+      "disparity_12_max_diff": 1,
+      "max_disparity": 96,
+      "median_filter_size": 5,
+      "min_disparity": 0,
+      "opencv_threads": 2,
+      "pre_filter_cap": 31,
+      "schema_version": 1,
+      "search_range": 96,
+      "sgbm_mode": "hh",
+      "speckle_range": 2,
+      "speckle_window_size": 30,
+      "specular_threshold": 256,
+      "uniqueness_ratio": 0
+    },
+    "wifi_link_snapshot": [
+      "freq: 5200.0",
+      "signal: -40 dBm",
+      "rx bitrate: 433.3 MBit/s",
+      "tx bitrate: 433.3 MBit/s"
+    ]
+  },
+  "builds": {
+    "before": {
+      "commit": "c361700ca5ac30d008d0c753150069917c78c47d",
+      "packages": [
+        {
+          "name": "after-nuvo-depth-core_0.1.1~beta.4_arm64.deb",
+          "sha256": "1697e2d134329b2d09c985b359c531fe90b2fe2cba22da90466bb555cc5caa3c"
+        },
+        {
+          "name": "after-nuvo-depth-gateway_0.1.1~beta.4_arm64.deb",
+          "sha256": "1fa0cb47cd3f49228a8e6908a3fc9bf75b3ff43041a84800f178206f72dc212b"
+        }
+      ]
+    },
+    "after": {
+      "commit": "c5eef0b68b65d0d66d6334ad42fc4c2915a628f1",
+      "record": {
+        "schema_version": 1,
+        "source_commit": "c5eef0b68b65d0d66d6334ad42fc4c2915a628f1",
+        "version": "0.1.1~beta.4",
+        "architecture": "arm64",
+        "codename": "trixie",
+        "workflow_run": "https://github.com/arputhamips/nuvo-depth/actions/runs/39465250004",
+        "hardware_tests": "not run: hosted ARM64 builder has no Pi cameras"
+      },
+      "packages": [
+        {
+          "name": "libnuvo-depth1_0.1.1~beta.4_arm64.deb",
+          "sha256": "578ee8a04cc75426e7d7ea8e0f78de3792a899897c00417de053627672a63e83"
+        },
+        {
+          "name": "nuvo-depth-core_0.1.1~beta.4_arm64.deb",
+          "sha256": "e27e1985d7e9a8f8304888aa73a1669197f2dfc16791c4da89442ea07626fcf1"
+        },
+        {
+          "name": "nuvo-depth-gateway_0.1.1~beta.4_arm64.deb",
+          "sha256": "ede92280d23d441737f3d65845418ae4e933da2287dd83f2eab5f8f805e3ef58"
+        },
+        {
+          "name": "python3-nuvo-depth_0.1.1~beta.4_all.deb",
+          "sha256": "f80d4664ce6f619daf5fcce8f811205f881272fe6d4d0aa916168829c27c5381"
+        }
+      ]
+    }
+  },
+  "pi_results": [
+    {
+      "cohort": "before",
+      "case": "mixed10_1",
+      "repeat": 1,
+      "duration_seconds": 60.01973998200265,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 34.36027547967375,
+        "nuvo-gateway.service": 1.9675660047079673
+      },
+      "observer_cpu_one_core_percent": 3.6335924758320353,
+      "rss_mib": {
+        "nuvo-depthd-native.service": 135.140625,
+        "nuvo-gateway.service": 39.8125
+      },
+      "capture_fps": 9.99671108505159,
+      "published_fps": 8.097335978891788,
+      "matcher_hz": 0.9996711085051591,
+      "matcher_count_method": "counter",
+      "matcher_processing_ms": {
+        "p50": 303.746,
+        "p95": 331.676,
+        "max": 354.482
+      },
+      "streams": [
+        {
+          "products": [
+            "left_mono"
+          ],
+          "requested_hz": 10,
+          "frames": 420,
+          "cadence_target_met": false,
+          "fps": 7.032572370162748,
+          "latency_ms": {
+            "p50": 31.295772,
+            "p95": 329.314224,
+            "max": 385.750937
+          },
+          "shapes": {
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": []
+        },
+        {
+          "products": [
+            "depth",
+            "left_mono"
+          ],
+          "requested_hz": 1,
+          "frames": 60,
+          "cadence_target_met": true,
+          "fps": 0.999140292157457,
+          "latency_ms": {
+            "p50": 399.545667,
+            "p95": 436.871416,
+            "max": 455.987559
+          },
+          "shapes": {
+            "depth": [
+              728,
+              544
+            ],
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": []
+        }
+      ],
+      "temperature_c": {
+        "p50": 49.6,
+        "p95": 50.7,
+        "max": 52.35
+      },
+      "throttled": "throttled=0x0",
+      "associated_image_checks": {
+        "common_captures": 64,
+        "mismatches": 0
+      }
+    },
+    {
+      "cohort": "after",
+      "case": "mono10",
+      "repeat": 1,
+      "duration_seconds": 30.0237931629963,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 3.206010628884637,
+        "nuvo-gateway.service": 2.336367014626727
+      },
+      "observer_cpu_one_core_percent": 4.579758838382488,
+      "rss_mib": {
+        "nuvo-depthd-native.service": 128.015625,
+        "nuvo-gateway.service": 33.546875
+      },
+      "capture_fps": 9.992075230845375,
+      "published_fps": 9.992075230845375,
+      "matcher_hz": 0.0,
+      "matcher_count_method": "counter",
+      "matcher_processing_ms": {
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "streams": [
+        {
+          "products": [
+            "left_mono"
+          ],
+          "requested_hz": 10,
+          "frames": 298,
+          "cadence_target_met": true,
+          "fps": 9.927796069127943,
+          "latency_ms": {
+            "p50": 74.3987865,
+            "p95": 123.528996,
+            "max": 128.902171
+          },
+          "shapes": {
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": []
+        }
+      ],
+      "temperature_c": {
+        "p50": 46.85,
+        "p95": 47.4,
+        "max": 48.5
+      },
+      "throttled": "throttled=0x0"
+    },
+    {
+      "cohort": "after",
+      "case": "mixed10_1",
+      "repeat": 1,
+      "duration_seconds": 60.004318823994254,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 34.80488306393177,
+        "nuvo-gateway.service": 2.5218018130303523
+      },
+      "observer_cpu_one_core_percent": 4.552281966590234,
+      "rss_mib": {
+        "nuvo-depthd-native.service": 142.328125,
+        "nuvo-gateway.service": 37.59375
+      },
+      "capture_fps": 9.999280247809008,
+      "published_fps": 10.99920827258991,
+      "matcher_hz": 0.9999280247809008,
+      "matcher_count_method": "counter",
+      "matcher_processing_ms": {
+        "p50": 305.563,
+        "p95": 331.833,
+        "max": 341.144
+      },
+      "streams": [
+        {
+          "products": [
+            "left_mono"
+          ],
+          "requested_hz": 10,
+          "frames": 596,
+          "cadence_target_met": true,
+          "fps": 9.936619434594384,
+          "latency_ms": {
+            "p50": 73.409432,
+            "p95": 120.651541,
+            "max": 158.273335
+          },
+          "shapes": {
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": []
+        },
+        {
+          "products": [
+            "depth",
+            "left_mono"
+          ],
+          "requested_hz": 1,
+          "frames": 60,
+          "cadence_target_met": true,
+          "fps": 0.9991343499654292,
+          "latency_ms": {
+            "p50": 381.9232145,
+            "p95": 396.21965,
+            "max": 398.949744
+          },
+          "shapes": {
+            "depth": [
+              728,
+              544
+            ],
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": []
+        }
+      ],
+      "temperature_c": {
+        "p50": 49.05,
+        "p95": 50.15,
+        "max": 51.8
+      },
+      "throttled": "throttled=0x0",
+      "associated_image_checks": {
+        "common_captures": 65,
+        "mismatches": 0
+      }
+    },
+    {
+      "cohort": "after",
+      "case": "mixed10_1",
+      "repeat": 2,
+      "duration_seconds": 60.028022869009874,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 34.822151390215836,
+        "nuvo-gateway.service": 2.551573293263896
+      },
+      "observer_cpu_one_core_percent": 4.596793542611499,
+      "rss_mib": {
+        "nuvo-depthd-native.service": 149.65625,
+        "nuvo-gateway.service": 37.640625
+      },
+      "capture_fps": 10.011990588320257,
+      "published_fps": 11.011523758535258,
+      "matcher_hz": 0.9995331702150007,
+      "matcher_count_method": "counter",
+      "matcher_processing_ms": {
+        "p50": 305.157,
+        "p95": 335.012,
+        "max": 355.094
+      },
+      "streams": [
+        {
+          "products": [
+            "left_mono"
+          ],
+          "requested_hz": 10,
+          "frames": 596,
+          "cadence_target_met": true,
+          "fps": 9.936278970774111,
+          "latency_ms": {
+            "p50": 78.896094,
+            "p95": 120.158506,
+            "max": 163.229091
+          },
+          "shapes": {
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": []
+        },
+        {
+          "products": [
+            "depth",
+            "left_mono"
+          ],
+          "requested_hz": 1,
+          "frames": 60,
+          "cadence_target_met": true,
+          "fps": 0.9991222739441957,
+          "latency_ms": {
+            "p50": 394.3043275,
+            "p95": 427.225429,
+            "max": 449.948762
+          },
+          "shapes": {
+            "depth": [
+              728,
+              544
+            ],
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": []
+        }
+      ],
+      "temperature_c": {
+        "p50": 49.05,
+        "p95": 50.7,
+        "max": 51.25
+      },
+      "throttled": "throttled=0x0",
+      "associated_image_checks": {
+        "common_captures": 65,
+        "mismatches": 0
+      }
+    }
+  ],
+  "lan_results": {
+    "cold_starts": [
+      {
+        "source": "left_color",
+        "configured_hz": 10,
+        "trial": 1,
+        "upgrade_and_first_frame_ms": 126.07700005173683,
+        "first_capture_latency_ms_estimated": 56.815393,
+        "frames": 2,
+        "all_keyframes": true,
+        "first_nal_types": [
+          5,
+          6,
+          7,
+          8
+        ],
+        "errors": []
+      },
+      {
+        "source": "left_color",
+        "configured_hz": 10,
+        "trial": 2,
+        "upgrade_and_first_frame_ms": 202.04679993912578,
+        "first_capture_latency_ms_estimated": 53.546293,
+        "frames": 2,
+        "all_keyframes": true,
+        "first_nal_types": [
+          5,
+          6,
+          7,
+          8
+        ],
+        "errors": []
+      },
+      {
+        "source": "left_color",
+        "configured_hz": 10,
+        "trial": 3,
+        "upgrade_and_first_frame_ms": 132.5602000579238,
+        "first_capture_latency_ms_estimated": 57.626593,
+        "frames": 2,
+        "all_keyframes": true,
+        "first_nal_types": [
+          5,
+          6,
+          7,
+          8
+        ],
+        "errors": []
+      },
+      {
+        "source": "disparity",
+        "configured_hz": 1,
+        "trial": 1,
+        "upgrade_and_first_frame_ms": 459.8725000396371,
+        "first_capture_latency_ms_estimated": 348.209293,
+        "frames": 2,
+        "all_keyframes": true,
+        "first_nal_types": [
+          5,
+          6,
+          7,
+          8
+        ],
+        "errors": []
+      },
+      {
+        "source": "disparity",
+        "configured_hz": 1,
+        "trial": 2,
+        "upgrade_and_first_frame_ms": 529.5443000504747,
+        "first_capture_latency_ms_estimated": 378.777293,
+        "frames": 2,
+        "all_keyframes": true,
+        "first_nal_types": [
+          5,
+          6,
+          7,
+          8
+        ],
+        "errors": []
+      },
+      {
+        "source": "disparity",
+        "configured_hz": 1,
+        "trial": 3,
+        "upgrade_and_first_frame_ms": 512.8529999637976,
+        "first_capture_latency_ms_estimated": 353.215193,
+        "frames": 2,
+        "all_keyframes": true,
+        "first_nal_types": [
+          5,
+          6,
+          7,
+          8
+        ],
+        "errors": []
+      }
+    ],
+    "lan": [
+      {
+        "case": "mixed_raw",
+        "duration_seconds": 33.33231159998104,
+        "streams": [
+          {
+            "products": [
+              "left_mono"
+            ],
+            "requested_hz": 10,
+            "frames": 233,
+            "fps": 6.972083848398935,
+            "latency_ms_estimated": {
+              "p50": 940.789993,
+              "p95": 1418.893893,
+              "max": 1763.778393
+            }
+          },
+          {
+            "products": [
+              "depth",
+              "left_mono"
+            ],
+            "requested_hz": 1,
+            "frames": 33,
+            "fps": 0.9949346261411195,
+            "latency_ms_estimated": {
+              "p50": 1861.552993,
+              "p95": 2654.625093,
+              "max": 2708.401693
+            }
+          }
+        ],
+        "health_requests": 80,
+        "health_response_ms": {
+          "p50": 202.79650000156835,
+          "p95": 352.8250000672415,
+          "max": 851.7209000419825
+        },
+        "health_tls_connections": 3
+      },
+      {
+        "case": "mixed_raw_and_encoded",
+        "duration_seconds": 30.0003106999211,
+        "streams": [
+          {
+            "products": [
+              "left_mono"
+            ],
+            "requested_hz": 10,
+            "frames": 168,
+            "fps": 5.600000107306208,
+            "latency_ms_estimated": {
+              "p50": 782.943143,
+              "p95": 1661.862893,
+              "max": 2211.074793
+            }
+          },
+          {
+            "products": [
+              "depth",
+              "left_mono"
+            ],
+            "requested_hz": 1,
+            "frames": 29,
+            "fps": 0.9858238599362726,
+            "latency_ms_estimated": {
+              "p50": 1471.973393,
+              "p95": 2906.447093,
+              "max": 2953.768193
+            }
+          },
+          {
+            "products": [
+              "encoded_left_color"
+            ],
+            "requested_hz": 10,
+            "frames": 298,
+            "fps": 9.932557699121528,
+            "latency_ms_estimated": {
+              "p50": 162.611293,
+              "p95": 232.930493,
+              "max": 420.511693
+            }
+          }
+        ],
+        "health_requests": 80,
+        "health_response_ms": {
+          "p50": 122.48735001776367,
+          "p95": 376.111299963668,
+          "max": 911.4763999823481
+        },
+        "health_tls_connections": 3
+      }
+    ],
+    "clock_error_bound_ms": 0.4472,
+    "restored": {
+      "restored": true,
+      "changed_protected_files": [],
+      "active": {
+        "nuvo-depthd-native.service": true,
+        "nuvo-gateway.service": true
+      },
+      "throttled": "throttled=0x0"
+    }
+  },
+  "cold_start_failure_reproduction": [
+    {
+      "source": "left_color",
+      "frames": 0,
+      "errors": [
+        "Nuvo WebSocket upgrade rejected: HTTP/1.1 503 Service Unavailable"
+      ],
+      "native_encoded_frames": 31,
+      "native_encode_failures": 0
+    },
+    {
+      "source": "disparity",
+      "frames": 0,
+      "errors": [
+        "Nuvo WebSocket upgrade rejected: HTTP/1.1 503 Service Unavailable"
+      ],
+      "native_encoded_frames": 40,
+      "native_encode_failures": 0
+    }
+  ],
+  "verification": {
+    "overrides_removed": true,
+    "service_arguments_restored": true,
+    "installed_packages_unchanged": true,
+    "active_test_units": {
+      "nuvo-lanes-baseline": false,
+      "nuvo-lanes-quick": false,
+      "nuvo-lanes-final": false,
+      "nuvo-lanes-safety.timer": false,
+      "nuvo-lanes-lan-safety.timer": false,
+      "nuvo-lanes-isolation-safety.timer": false,
+      "nuvo-lanes-buffer-safety.timer": false
+    },
+    "protected_state": {
+      "restored": true,
+      "changed_protected_files": [],
+      "active": {
+        "nuvo-depthd-native.service": true,
+        "nuvo-gateway.service": true
+      },
+      "throttled": "throttled=0x0"
+    }
+  },
+  "tests": {
+    "host_before_effective_revision_followup": "57/57 CTest; ASan+UBSan runtime, capture leases, capture runner and local frame server passed",
+    "final_arm64": "58/58 CTest plus package install smoke; see build workflow",
+    "browser": "No new interactive browser measurement. Encoded tests use authenticated TLS WebSocket and verify independently decodable H264 first-packet NAL types."
+  },
+  "limits": [
+    "Bounded measurements, not endurance or metric depth accuracy qualification.",
+    "Original installed packages and service commands restored after testing. No new install release published.",
+    "Wi-Fi estimates use cross-host clock calibration; Pi-local latencies use CLOCK_BOOTTIME directly."
+  ],
+  "numeric_10hz_cold_starts": {
+    "cold_starts": [
+      {
+        "source": "disparity",
+        "configured_hz": 10,
+        "trial": 1,
+        "upgrade_and_first_frame_ms": 435.8531000325456,
+        "first_capture_latency_ms_estimated": 354.953073,
+        "frames": 2,
+        "all_keyframes": true,
+        "first_nal_types": [
+          5,
+          6,
+          7,
+          8
+        ],
+        "errors": []
+      },
+      {
+        "source": "disparity",
+        "configured_hz": 10,
+        "trial": 2,
+        "upgrade_and_first_frame_ms": 489.9252000031993,
+        "first_capture_latency_ms_estimated": 355.251973,
+        "frames": 2,
+        "all_keyframes": true,
+        "first_nal_types": [
+          5,
+          6,
+          7,
+          8
+        ],
+        "errors": []
+      },
+      {
+        "source": "disparity",
+        "configured_hz": 10,
+        "trial": 3,
+        "upgrade_and_first_frame_ms": 452.0843999926001,
+        "first_capture_latency_ms_estimated": 355.866573,
+        "frames": 2,
+        "all_keyframes": true,
+        "first_nal_types": [
+          5,
+          6,
+          7,
+          8
+        ],
+        "errors": []
+      }
+    ],
+    "lan": [],
+    "clock_error_bound_ms": 0.41485,
+    "restored": {
+      "restored": true,
+      "changed_protected_files": [],
+      "active": {
+        "nuvo-depthd-native.service": true,
+        "nuvo-gateway.service": true
+      },
+      "throttled": "throttled=0x0"
+    }
+  },
+  "network_isolation": {
+    "lan": [
+      {
+        "tcp_diagnostics": "cubic wscale:8,7 rto:228 rtt:26.676/7.712 ato:40 mss:1460 pmtu:1500 rcvmss:536 advmss:1460 cwnd:189 ssthresh:22 bytes_sent:95809086 bytes_acked:95572566 bytes_received:1014 segs_out:65909 segs_in:32770 data_segs_out:65906 data_segs_in:6 send 82753036bps lastsnd:8 lastrcv:1452 lastack:4 pacing_rate 99303640bps delivery_rate 46193392bps delivered:65745 busy:22240ms rwnd_limited:5360ms(24.1%) unacked:162 dsack_dups:1 rcv_space:14600 rcv_ssthresh:64076 notsent:50464 minrtt:0.924 snd_wnd:261888 rcv_wnd:64128\n",
+        "case": "final_mono_only",
+        "duration_seconds": 20.000115500064567,
+        "streams": [
+          {
+            "products": [
+              "left_mono"
+            ],
+            "requested_hz": 10,
+            "frames": 198,
+            "fps": 9.88930747547629,
+            "latency_ms_estimated": {
+              "p50": 142.258611,
+              "p95": 336.462961,
+              "max": 626.139461
+            }
+          }
+        ],
+        "health_requests": 50,
+        "health_response_ms": {
+          "p50": 1.94540002848953,
+          "p95": 104.80979993008077,
+          "max": 330.9759999392554
+        },
+        "health_tls_connections": 2
+      },
+      {
+        "tcp_diagnostics": "cubic wscale:8,7 rto:212 rtt:8.974/1.114 ato:40 mss:1460 pmtu:1500 rcvmss:536 advmss:1460 cwnd:60 ssthresh:16 bytes_sent:12274580 bytes_acked:12273148 bytes_received:982 segs_out:8569 segs_in:4363 data_segs_out:8566 data_segs_in:6 send 78092267bps lastsnd:20 lastrcv:1508 lastack:12 pacing_rate 93704192bps delivery_rate 38056536bps delivered:8566 app_limited busy:14032ms unacked:1 rcv_space:14600 rcv_ssthresh:64076 minrtt:0.828 snd_wnd:130816 rcv_wnd:64128\ncubic wscale:8,7 rto:240 rtt:38.197/4.258 ato:40 mss:1460 pmtu:1500 rcvmss:536 advmss:1460 cwnd:106 ssthresh:78 bytes_sent:47855655 bytes_retrans:4380 bytes_acked:47851275 bytes_received:1019 segs_out:32886 segs_in:16424 data_segs_out:32881 data_segs_in:6 send 32413017bps lastsnd:292 lastrcv:1232 lastack:244 pacing_rate 38895232bps delivery_rate 25040320bps delivered:32880 busy:12172ms rwnd_limited:6600ms(54.2%) retrans:0/3 dsack_dups:2 rcv_space:14600 rcv_ssthresh:64076 minrtt:1.117 snd_wnd:261888 rcv_wnd:64128\n",
+        "case": "final_browser_preview_and_depth",
+        "duration_seconds": 20.000382199999876,
+        "streams": [
+          {
+            "products": [
+              "depth",
+              "left_mono"
+            ],
+            "requested_hz": 1,
+            "frames": 20,
+            "fps": 0.9987407351101978,
+            "latency_ms_estimated": {
+              "p50": 812.4416610000001,
+              "p95": 1071.971361,
+              "max": 1116.713961
+            }
+          },
+          {
+            "products": [
+              "encoded_left_color"
+            ],
+            "requested_hz": 10,
+            "frames": 199,
+            "fps": 9.94433967255556,
+            "latency_ms_estimated": {
+              "p50": 98.085161,
+              "p95": 152.219261,
+              "max": 213.244261
+            }
+          }
+        ],
+        "health_requests": 50,
+        "health_response_ms": {
+          "p50": 7.609250023961067,
+          "p95": 47.12819994892925,
+          "max": 212.8102999413386
+        },
+        "health_tls_connections": 2
+      },
+      {
+        "tcp_diagnostics": "cubic wscale:8,7 rto:324 rtt:123.277/2.833 ato:40 mss:1460 pmtu:1500 rcvmss:536 advmss:1460 cwnd:201 ssthresh:67 bytes_sent:48610009 bytes_retrans:1460 bytes_acked:48346661 bytes_received:1014 segs_out:33384 segs_in:16776 data_segs_out:33380 data_segs_in:7 send 19043942bps lastrcv:784 pacing_rate 22852560bps delivery_rate 15814296bps delivered:33200 busy:24036ms rwnd_limited:14664ms(61.0%) unacked:180 retrans:0/1 dsack_dups:2 rcv_space:14600 rcv_ssthresh:64076 notsent:1245312 minrtt:1.28 snd_wnd:261888 rcv_wnd:64128\ncubic wscale:8,7 rto:320 rtt:119.043/3.28 ato:40 mss:1460 pmtu:1500 rcvmss:536 advmss:1460 cwnd:214 ssthresh:186 bytes_sent:44038253 bytes_acked:43776365 bytes_received:1019 segs_out:30284 segs_in:15186 data_segs_out:30281 data_segs_in:6 send 20996783bps lastsnd:4 lastrcv:728 lastack:4 pacing_rate 25196080bps delivery_rate 15913768bps delivered:30102 busy:23088ms rwnd_limited:20044ms(86.8%) unacked:180 dsack_dups:3 rcv_space:14600 rcv_ssthresh:64076 notsent:1536616 minrtt:1.177 snd_wnd:261888 rcv_wnd:64128\n",
+        "case": "baseline_mixed_raw_recheck",
+        "duration_seconds": 20.000493200030178,
+        "streams": [
+          {
+            "products": [
+              "left_mono"
+            ],
+            "requested_hz": 10,
+            "frames": 96,
+            "fps": 4.8447473924579425,
+            "latency_ms_estimated": {
+              "p50": 613.2591110000001,
+              "p95": 1715.159861,
+              "max": 2531.634461
+            }
+          },
+          {
+            "products": [
+              "depth",
+              "left_mono"
+            ],
+            "requested_hz": 1,
+            "frames": 18,
+            "fps": 0.8941222601097367,
+            "latency_ms_estimated": {
+              "p50": 1386.896561,
+              "p95": 3940.010661,
+              "max": 3940.010661
+            }
+          }
+        ],
+        "health_requests": 50,
+        "health_response_ms": {
+          "p50": 72.38524995045736,
+          "p95": 477.79079992324114,
+          "max": 494.7561000008136
+        },
+        "health_tls_connections": 2
+      }
+    ],
+    "clock_error_bound_ms": 0.95285,
+    "restored": {
+      "restored": true,
+      "changed_protected_files": [],
+      "active": {
+        "nuvo-depthd-native.service": true,
+        "nuvo-gateway.service": true
+      },
+      "throttled": "throttled=0x0"
+    }
+  },
+  "receive_buffer_experiment": {
+    "lan": [
+      {
+        "tcp_diagnostics": "cubic wscale:8,7 rto:2872 backoff:1 rtt:1026.7/88.486 ato:40 mss:1460 pmtu:1500 rcvmss:536 advmss:1460 cwnd:1 ssthresh:7 bytes_sent:105169 bytes_retrans:2679 bytes_acked:97704 bytes_received:5154 segs_out:94 segs_in:69 data_segs_out:92 data_segs_in:23 send 11376bps lastsnd:728 lastrcv:3624 lastack:3624 pacing_rate 227520bps delivery_rate 61760bps delivered:87 app_limited busy:28328ms unacked:5 retrans:1/5 lost:5 dsack_dups:3 reord_seen:1 rcv_space:14600 rcv_ssthresh:64076 minrtt:917.823 snd_wnd:4194304 rcv_wnd:64128 rehash:2\ncubic wscale:8,7 rto:1548 rtt:1174.05/0.921 ato:40 mss:1460 pmtu:1500 rcvmss:536 advmss:1460 cwnd:2758 ssthresh:2147 bytes_sent:133580294 bytes_retrans:124 bytes_acked:131586478 bytes_received:1187 segs_out:91544 segs_in:36060 data_segs_out:91522 data_segs_in:27 send 27437877bps lastsnd:120 lastrcv:2424 lastack:120 pacing_rate 32925424bps delivery_rate 23583520bps delivered:90157 app_limited busy:71896ms sndbuf_limited:48ms(0.1%) unacked:1366 retrans:0/1 dsack_dups:2 rcv_space:14600 rcv_ssthresh:64076 minrtt:1.086 snd_wnd:4194304 rcv_wnd:64128\ncubic wscale:8,7 rto:1268 rtt:994.253/3.853 ato:40 mss:1460 pmtu:1500 rcvmss:536 advmss:1460 cwnd:3139 ssthresh:19 bytes_sent:237286426 bytes_acked:234384334 bytes_received:1182 segs_out:162576 segs_in:79142 data_segs_out:162557 data_segs_in:22 send 36875443bps lastrcv:3572 pacing_rate 44250520bps delivery_rate 31892712bps delivered:160570 app_limited busy:72196ms rwnd_limited:8ms(0.0%) sndbuf_limited:15048ms(20.8%) unacked:1988 dsack_dups:9 reord_seen:1 rcv_space:14600 rcv_ssthresh:64076 notsent:361688 minrtt:1.013 snd_wnd:4194304 rcv_wnd:64128\n",
+        "case": "final_mixed_raw_receive_buffer_4MiB",
+        "duration_seconds": 64.87489440001082,
+        "streams": [
+          {
+            "products": [
+              "left_mono"
+            ],
+            "requested_hz": 10,
+            "frames": 532,
+            "fps": 8.194746056619778,
+            "latency_ms_estimated": {
+              "p50": 210.035912,
+              "p95": 483.250562,
+              "max": 660.718762
+            }
+          },
+          {
+            "products": [
+              "depth",
+              "left_mono"
+            ],
+            "requested_hz": 1,
+            "frames": 62,
+            "fps": 0.9511385990521956,
+            "latency_ms_estimated": {
+              "p50": 1241.663662,
+              "p95": 3758.433962,
+              "max": 3990.242162
+            }
+          }
+        ],
+        "health_requests": 50,
+        "health_response_ms": {
+          "p50": 983.0105499713682,
+          "p95": 2543.0806999793276,
+          "max": 4085.278099984862
+        },
+        "health_tls_connections": 2
+      }
+    ],
+    "clock_error_bound_ms": 0.55155,
+    "restored": {
+      "restored": true,
+      "changed_protected_files": [],
+      "active": {
+        "nuvo-depthd-native.service": true,
+        "nuvo-gateway.service": true
+      },
+      "throttled": "throttled=0x0"
+    }
+  }
+}

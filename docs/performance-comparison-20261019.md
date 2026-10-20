@@ -1,5 +1,9 @@
 # Pi 5 mixed-stream performance comparison — 2026-10-19
 
+The [2026-10-20 independent-worker retest](performance-independent-processing-20261020.md)
+supersedes this report's mixed-stream mono limitation and open encoded cold-start
+item. The measurements below remain the historical comparison.
+
 The updated runtime reduces daemon CPU by **67.3%** in the requested mixed
 mono 10 Hz/depth 1 Hz workload. With this unit's existing `hh` matcher, delivered
 mono improves from about **3.26 to 7.03 fps** and depth stays at **1 fps**.

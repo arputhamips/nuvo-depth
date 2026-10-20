@@ -16,6 +16,8 @@ specifications, and qualification evidence.
   checks, recovery, flicker diagnosis, and safe rollback.
 - [Signed release and setup qualification](release-qualification-20261019.md) —
   current installation, network, ownership, and bounded runtime evidence.
+- [Independent image/depth Pi retest](performance-independent-processing-20261020.md) —
+  mono 10 Hz/depth 1 Hz with `hh`, encoded cold starts, and Wi-Fi delivery limits.
 - [Pi 5 performance comparison](performance-comparison-20261019.md) — repeated
   mono 10 Hz/depth 1 Hz measurements, Wi-Fi/API and browser results, and limits.
 - [Pi 5 release-readiness report](pi5-release-readiness-20260914.md) — earlier

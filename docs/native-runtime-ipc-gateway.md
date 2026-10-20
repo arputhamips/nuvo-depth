@@ -1,6 +1,6 @@
 # Native runtime, IPC v2, and shared IP gateway
 
-This document records the implementation boundary after Steps 4â€“6. It is a
+This document records the implementation boundary after Steps 4–6. It is a
 status document, not a claim that hardware or release qualification is done.
 
 ## Implemented skeleton
