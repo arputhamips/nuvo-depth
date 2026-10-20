@@ -1,4 +1,4 @@
-name: Signed install release
+name: Prepare signed release draft
 on:
   workflow_dispatch:
     inputs:
@@ -6,12 +6,12 @@ on:
         description: Existing reviewed tag, matching the Debian changelog (vX.Y.Z)
         required: true
         type: string
-      publication:
-        description: Release visibility after every build, test and signing check passes
+      channel:
+        description: Beta for internal testing, or stable candidate for review
         required: true
-        default: draft
+        default: beta
         type: choice
-        options: [draft, prerelease, publish]
+        options: [beta, stable]
 permissions:
   contents: read
 concurrency:
@@ -32,6 +32,7 @@ jobs:
         id: tag
         env:
           NUVO_TAG: ${{ inputs.tag }}
+          NUVO_CHANNEL: ${{ inputs.channel }}
         run: |
           [[ "$NUVO_TAG" =~ ^v[0-9][A-Za-z0-9.+-]*$ ]]
           git check-ref-format "refs/tags/$NUVO_TAG"
@@ -40,12 +41,8 @@ jobs:
           git checkout --detach "$commit"
           version="$(dpkg-parsechangelog -S Version)"
           test "$NUVO_TAG" = "v${version//\~/-}"
-          python3 - <<'PY'
-          import json, sys
-          sys.path.insert(0, 'tools')
-          import nuvo_release
-          nuvo_release.validate_platform(json.load(open('deployment/release-platform.json')))
-          PY
+          python3 tools/release_notes.py --tag "$NUVO_TAG" --channel "$NUVO_CHANNEL" \
+            --output "$RUNNER_TEMP/release-notes.md"
           echo "source_commit=$commit" >> "$GITHUB_OUTPUT"
   build:
     needs: prepare
@@ -100,46 +97,18 @@ jobs:
             --output output/install-release --publication-output output/downloads --repository "$NUVO_REPOSITORY" --tag "$NUVO_TAG" \
             --version "$(dpkg-parsechangelog -l release-source/debian/changelog -S Version)" \
             --platform release-source/deployment/release-platform.json --private-key "$key_file" "${extras[@]}"
-      - name: Publish selected release visibility
+      - name: Prepare reviewed release notes and draft
         env:
           GH_TOKEN: ${{ github.token }}
           NUVO_REPOSITORY: ${{ github.repository }}
           NUVO_TAG: ${{ inputs.tag }}
-          NUVO_PUBLICATION: ${{ inputs.publication }}
+          NUVO_CHANNEL: ${{ inputs.channel }}
         run: |
-          python3 - <<'PY'
-          import os, pathlib
-          repo, tag = os.environ['NUVO_REPOSITORY'], os.environ['NUVO_TAG']
-          pathlib.Path('output/release-notes.md').write_text(f'''## Install Nuvo Depth
-
-          On a Raspberry Pi 5 running the supported Raspberry Pi OS Lite 64-bit Trixie image, open a terminal and run:
-
-          ```bash
-          curl -fsSL https://github.com/{repo}/releases/download/{tag}/install-nuvo-depth.sh | sudo bash
-          ```
-
-          Answer the terminal questions, then open the console URL printed at the end. The installer selects all packages and verifies their signatures automatically. No GitHub account or SSH key is needed.
-
-          | Download | Purpose |
-          | --- | --- |
-          | `install-nuvo-depth.sh` | The installer used by the command above. |
-          | `nuvo-depth-pi5-arm64.tar.gz` | Complete installer bundle, including packages, matching GPL source, licenses and build records. Useful for caching; OS dependencies still need APT access/cache. |
-          | `nuvo-depth-pi5-arm64.tar.gz.sig` | Signature checked automatically by the installer. |
-
-          GitHub's additional Source code downloads are for developers. You do not need to select individual packages.
-
-          [Vision One setup guide](https://docs.nuvohardware.com/vision-one/guide/getting-started) · [Supported OS and Pi installation](https://docs.nuvohardware.com/vision-one/install/byo-pi) · [Versioned installer reference](https://github.com/{repo}/blob/{tag}/docs/install.md) · [Release signing and building from source](https://github.com/{repo}/blob/{tag}/docs/releases.md)
-
-          Factory provisioning adds `-s -- --factory --wifi-country CC` after `sudo bash`, using the actual operating country and any per-unit calibration inputs. Package tests do not certify per-unit calibration, electrical safety or manufacturing acceptance.
-          ''')
-          PY
-          # No clobber/update: an existing tag's release assets are never overwritten.
+          python3 tools/release_notes.py --source release-source --repository "$NUVO_REPOSITORY" \
+            --tag "$NUVO_TAG" --channel "$NUVO_CHANNEL" --output output/release-notes.md
+          flags=(--draft --latest=false)
+          if [[ "$NUVO_CHANNEL" == beta ]]; then flags+=(--prerelease); fi
+          # Existing tags/assets are never overwritten. Publishing is a separate human decision.
           gh release create "$NUVO_TAG" output/downloads/* --repo "$NUVO_REPOSITORY" \
-            --verify-tag --draft --title "Nuvo Depth $NUVO_TAG" --notes-file output/release-notes.md
-          case "$NUVO_PUBLICATION" in
-            draft) ;;
-            prerelease) gh release edit "$NUVO_TAG" --repo "$NUVO_REPOSITORY" --draft=false --prerelease --latest=false ;;
-            publish) gh release edit "$NUVO_TAG" --repo "$NUVO_REPOSITORY" --draft=false --prerelease=false --latest ;;
-            *) exit 2 ;;
-          esac
-          echo "Release: https://github.com/$NUVO_REPOSITORY/releases/tag/$NUVO_TAG" >> "$GITHUB_STEP_SUMMARY"
+            --verify-tag "${flags[@]}" --title "Nuvo Depth $NUVO_TAG" --notes-file output/release-notes.md
+          echo "Draft ready for review: https://github.com/$NUVO_REPOSITORY/releases" >> "$GITHUB_STEP_SUMMARY"

@@ -1,9 +1,11 @@
 name: ARM64 Debian packages
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Branch, tag or commit to build for testing
+        type: string
+        required: false
   workflow_call:
     inputs:
       source_ref:

@@ -86,7 +86,6 @@ The installer selects and verifies every package; do not install them individual
 For a cached/offline bundle, extract it and run:
   sudo bash ./install-nuvo-depth.sh --bundle "$PWD"
 OS dependencies still require the configured APT sources or a local APT cache.
-Factory provisioning adds --factory and the actual --wifi-country CC.
 
 LICENSE and NOTICE contain the software terms. Matching Corresponding Source
 is nuvo-depth-source.tar.gz when published by the release workflow; build records

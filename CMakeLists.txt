@@ -838,6 +838,8 @@ if(BUILD_TESTING)
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/install_provisioning_test.py)
     add_test(NAME depthd_install_release_test COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/install_release_test.py)
+    add_test(NAME depthd_release_policy_test COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/release_policy_test.py)
     add_test(NAME depthd_repository_hygiene_test COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/repository_hygiene_test.py)
     add_test(NAME depthd_web_ui_static_test

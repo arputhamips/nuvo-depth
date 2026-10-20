@@ -1,7 +1,32 @@
 name: Installer checks
 on:
   push:
+    paths:
+      - 'install-nuvo-depth.sh'
+      - 'tools/**'
+      - 'deployment/**'
+      - 'debian/**'
+      - 'tests/install*'
+      - 'tests/release_policy_test.py'
+      - 'tests/nuvoctl_test.py'
+      - 'tests/system_agent_test.py'
+      - 'CHANGELOG.md'
+      - '.github/workflows/installer-checks.yml'
+      - '.github/workflows/install-release.yml'
   pull_request:
+    paths:
+      - 'install-nuvo-depth.sh'
+      - 'tools/**'
+      - 'deployment/**'
+      - 'debian/**'
+      - 'tests/install*'
+      - 'tests/release_policy_test.py'
+      - 'tests/nuvoctl_test.py'
+      - 'tests/system_agent_test.py'
+      - 'CHANGELOG.md'
+      - '.github/workflows/installer-checks.yml'
+      - '.github/workflows/install-release.yml'
+
 permissions:
   contents: read
 jobs:
@@ -14,5 +39,6 @@ jobs:
           bash -n install-nuvo-depth.sh
           python3 tests/install_provisioning_test.py
           python3 tests/install_release_test.py
+          python3 tests/release_policy_test.py
           python3 tests/nuvoctl_test.py
           python3 tests/system_agent_test.py
