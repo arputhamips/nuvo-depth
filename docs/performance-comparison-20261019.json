@@ -1,0 +1,1156 @@
+{
+  "final_verification": {
+    "temporary_runtime_overrides_removed": true,
+    "original_services_restored": true,
+    "original_encoding_mode_restored": true,
+    "manual_encoder_selection_preserved": {
+      "source": {
+        "before": "disparity",
+        "current": "left_color"
+      }
+    },
+    "service_arguments_restored": true,
+    "active": {
+      "nuvo-depthd-native.service": true,
+      "nuvo-gateway.service": true
+    },
+    "installed_packages_unchanged": true,
+    "strict_snapshot_differences": [
+      "/etc/nuvo-depth/encoding.json",
+      "/var/lib/nuvo-depth-setup/auth.json"
+    ],
+    "authentication_audit_preserved": true,
+    "ownership_unclaimed": true,
+    "owner_password_present": false,
+    "unexpected_protected_changes": [],
+    "manual_browser_confirmation": "User confirmed long-token login and responsive Live view/Overview/Outputs on updated build",
+    "throttled": "throttled=0x0"
+  },
+  "builds": {
+    "before": {
+      "commit": "3b078165d2fbf052a821afd050a18a67dbdf2aa9",
+      "packages": [
+        {
+          "name": "before-nuvo-depth-core_0.1.1~beta.4_arm64.deb",
+          "sha256": "27a52228f442c60f5c025bf51689abc4aea10edd41bab5dc11fc8ae914cea6c2"
+        },
+        {
+          "name": "before-nuvo-depth-gateway_0.1.1~beta.4_arm64.deb",
+          "sha256": "988bfcc05179a69799d100638bdb465a46876e13bab256e6fdc9b8598f4148ad"
+        }
+      ]
+    },
+    "after": {
+      "commit": "c361700ca5ac30d008d0c753150069917c78c47d",
+      "packages": [
+        {
+          "name": "after-nuvo-depth-core_0.1.1~beta.4_arm64.deb",
+          "sha256": "1697e2d134329b2d09c985b359c531fe90b2fe2cba22da90466bb555cc5caa3c"
+        },
+        {
+          "name": "after-nuvo-depth-gateway_0.1.1~beta.4_arm64.deb",
+          "sha256": "1fa0cb47cd3f49228a8e6908a3fc9bf75b3ff43041a84800f178206f72dc212b"
+        }
+      ]
+    }
+  },
+  "progress": {
+    "phase": "complete",
+    "completed": 12
+  },
+  "results": [
+    {
+      "cohort": "before",
+      "case": "idle",
+      "repeat": 1,
+      "duration_seconds": 15.01354415700007,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 2.1285114071550044,
+        "nuvo-gateway.service": 0.08402413093192425
+      },
+      "observer_cpu_one_core_percent": 0.7670160742579116,
+      "rss_mib": {
+        "nuvo-depthd-native.service": 116.109375,
+        "nuvo-gateway.service": 33.03125
+      },
+      "capture_fps": 9.924372183001754,
+      "matcher_hz": null,
+      "matcher_count_method": "unavailable_in_baseline",
+      "streams": [],
+      "temperature_c": {
+        "p50": 47.4,
+        "p95": 48.5,
+        "max": 49.6
+      },
+      "throttled": "throttled=0x0",
+      "observed_latest_product_processing_ms": null
+    },
+    {
+      "cohort": "before",
+      "case": "mono10",
+      "repeat": 1,
+      "duration_seconds": 30.025060481000764,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 3.118947922161809,
+        "nuvo-gateway.service": 2.0648018357608193
+      },
+      "observer_cpu_one_core_percent": 4.167574795700436,
+      "rss_mib": {
+        "nuvo-depthd-native.service": 118.96875,
+        "nuvo-gateway.service": 34.3125
+      },
+      "capture_fps": 9.991653478594449,
+      "matcher_hz": null,
+      "matcher_count_method": "unavailable_in_baseline",
+      "streams": [
+        {
+          "products": [
+            "left_mono"
+          ],
+          "requested_hz": 10,
+          "frames": 298,
+          "fps": 9.92321143281712,
+          "latency_ms": {
+            "p50": 76.820312,
+            "p95": 121.541571,
+            "max": 149.216306
+          },
+          "shapes": {
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": [],
+          "received_at_least_80_percent_of_requested_frames": true
+        }
+      ],
+      "temperature_c": {
+        "p50": 46.85,
+        "p95": 47.4,
+        "max": 48.5
+      },
+      "throttled": "throttled=0x0",
+      "observed_latest_product_processing_ms": null
+    },
+    {
+      "cohort": "before",
+      "case": "depth1",
+      "repeat": 1,
+      "duration_seconds": 30.01799189600024,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 33.56189859369772,
+        "nuvo-gateway.service": 0.7191020663469578
+      },
+      "observer_cpu_one_core_percent": 1.7955971967326023,
+      "rss_mib": {
+        "nuvo-depthd-native.service": 134.515625,
+        "nuvo-gateway.service": 39.203125
+      },
+      "capture_fps": 9.994006295936591,
+      "matcher_hz": null,
+      "matcher_count_method": "unavailable_in_baseline",
+      "streams": [
+        {
+          "products": [
+            "depth",
+            "left_mono"
+          ],
+          "requested_hz": 1,
+          "frames": 30,
+          "fps": 0.9994292402630233,
+          "latency_ms": {
+            "p50": 373.09173250000003,
+            "p95": 379.73324,
+            "max": 379.975965
+          },
+          "shapes": {
+            "depth": [
+              728,
+              544
+            ],
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": [],
+          "received_at_least_80_percent_of_requested_frames": true
+        }
+      ],
+      "temperature_c": {
+        "p50": 47.95,
+        "p95": 49.05,
+        "max": 50.15
+      },
+      "throttled": "throttled=0x0",
+      "observed_latest_product_processing_ms": null
+    },
+    {
+      "cohort": "before",
+      "case": "mixed10_1",
+      "repeat": 1,
+      "duration_seconds": 60.017666612999164,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 105.44166838084548,
+        "nuvo-gateway.service": 1.8242062075816663
+      },
+      "observer_cpu_one_core_percent": 3.2706624528699044,
+      "rss_mib": {
+        "nuvo-depthd-native.service": 265.734375,
+        "nuvo-gateway.service": 39.75
+      },
+      "capture_fps": 9.997056431214983,
+      "published_fps": 3.249043340144869,
+      "matcher_hz": null,
+      "matcher_count_method": "unavailable_in_baseline",
+      "streams": [
+        {
+          "products": [
+            "left_mono"
+          ],
+          "requested_hz": 10,
+          "frames": 195,
+          "fps": 3.2600682413568842,
+          "latency_ms": {
+            "p50": 387.754182,
+            "p95": 431.317895,
+            "max": 474.52904
+          },
+          "shapes": {
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": [],
+          "received_at_least_80_percent_of_requested_frames": false
+        },
+        {
+          "products": [
+            "depth",
+            "left_mono"
+          ],
+          "requested_hz": 1,
+          "frames": 60,
+          "fps": 0.9993702172999259,
+          "latency_ms": {
+            "p50": 558.226746,
+            "p95": 680.639854,
+            "max": 787.729434
+          },
+          "shapes": {
+            "depth": [
+              728,
+              544
+            ],
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": [],
+          "received_at_least_80_percent_of_requested_frames": true
+        }
+      ],
+      "temperature_c": {
+        "p50": 50.7,
+        "p95": 51.8,
+        "max": 52.9
+      },
+      "throttled": "throttled=0x0",
+      "observed_latest_product_processing_ms": {
+        "p50": 304.78499999999997,
+        "p95": 326.102,
+        "max": 357.477
+      }
+    },
+    {
+      "cohort": "before",
+      "case": "mono_depth10",
+      "repeat": 1,
+      "duration_seconds": 30.03717801899984,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 105.39986472755264,
+        "nuvo-gateway.service": 2.5111946252836304
+      },
+      "observer_cpu_one_core_percent": 4.999963505393267,
+      "rss_mib": {
+        "nuvo-depthd-native.service": 193.140625,
+        "nuvo-gateway.service": 39.40625
+      },
+      "capture_fps": 10.02091474137831,
+      "published_fps": 3.262623404169682,
+      "matcher_hz": null,
+      "matcher_count_method": "unavailable_in_baseline",
+      "streams": [
+        {
+          "products": [
+            "left_mono",
+            "depth"
+          ],
+          "requested_hz": 10,
+          "frames": 98,
+          "fps": 3.2581069972730923,
+          "latency_ms": {
+            "p50": 391.632018,
+            "p95": 444.398398,
+            "max": 484.962479
+          },
+          "shapes": {
+            "depth": [
+              728,
+              544
+            ],
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": [],
+          "received_at_least_80_percent_of_requested_frames": false
+        }
+      ],
+      "temperature_c": {
+        "p50": 52.35,
+        "p95": 53.45,
+        "max": 54.0
+      },
+      "throttled": "throttled=0x0",
+      "observed_latest_product_processing_ms": {
+        "p50": 304.774,
+        "p95": 330.6,
+        "max": 352.084
+      }
+    },
+    {
+      "cohort": "after",
+      "case": "idle",
+      "repeat": 1,
+      "duration_seconds": 15.01965376500084,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 2.174098052519134,
+        "nuvo-gateway.service": 0.09326446680576468
+      },
+      "observer_cpu_one_core_percent": 0.8074381799838604,
+      "rss_mib": {
+        "nuvo-depthd-native.service": 115.96875,
+        "nuvo-gateway.service": 32.890625
+      },
+      "capture_fps": 9.986914635111871,
+      "published_fps": 0.0,
+      "matcher_hz": 0.0,
+      "matcher_count_method": "counter",
+      "streams": [],
+      "temperature_c": {
+        "p50": 47.95,
+        "p95": 49.05,
+        "max": 50.15
+      },
+      "throttled": "throttled=0x0",
+      "observed_latest_product_processing_ms": null
+    },
+    {
+      "cohort": "after",
+      "case": "mono10",
+      "repeat": 1,
+      "duration_seconds": 30.00566453099964,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 3.0009666977037317,
+        "nuvo-gateway.service": 2.106079001673578
+      },
+      "observer_cpu_one_core_percent": 3.734132956270415,
+      "rss_mib": {
+        "nuvo-depthd-native.service": 118.828125,
+        "nuvo-gateway.service": 33.859375
+      },
+      "capture_fps": 9.998112179454054,
+      "published_fps": 9.998112179454054,
+      "matcher_hz": 0.0,
+      "matcher_count_method": "counter",
+      "streams": [
+        {
+          "products": [
+            "left_mono"
+          ],
+          "requested_hz": 10,
+          "frames": 298,
+          "fps": 9.925124609312643,
+          "latency_ms": {
+            "p50": 72.49963199999999,
+            "p95": 121.297531,
+            "max": 126.060085
+          },
+          "shapes": {
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": [],
+          "received_at_least_80_percent_of_requested_frames": true
+        }
+      ],
+      "temperature_c": {
+        "p50": 46.85,
+        "p95": 47.95,
+        "max": 49.6
+      },
+      "throttled": "throttled=0x0",
+      "observed_latest_product_processing_ms": null
+    },
+    {
+      "cohort": "after",
+      "case": "depth1",
+      "repeat": 1,
+      "duration_seconds": 30.010475356000825,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 33.61252989277616,
+        "nuvo-gateway.service": 0.7477389056255966
+      },
+      "observer_cpu_one_core_percent": 1.7987616543769924,
+      "rss_mib": {
+        "nuvo-depthd-native.service": 133.71875,
+        "nuvo-gateway.service": 36.890625
+      },
+      "capture_fps": 9.996509433497284,
+      "published_fps": 0.9996509433497284,
+      "matcher_hz": 0.9996509433497284,
+      "matcher_count_method": "counter",
+      "streams": [
+        {
+          "products": [
+            "depth",
+            "left_mono"
+          ],
+          "requested_hz": 1,
+          "frames": 30,
+          "fps": 0.9990504460958409,
+          "latency_ms": {
+            "p50": 386.4118035,
+            "p95": 395.040118,
+            "max": 434.155187
+          },
+          "shapes": {
+            "depth": [
+              728,
+              544
+            ],
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": [],
+          "received_at_least_80_percent_of_requested_frames": true
+        }
+      ],
+      "temperature_c": {
+        "p50": 47.4,
+        "p95": 48.5,
+        "max": 49.6
+      },
+      "throttled": "throttled=0x0",
+      "observed_latest_product_processing_ms": {
+        "p50": 303.135,
+        "p95": 334.545,
+        "max": 351.882
+      }
+    },
+    {
+      "cohort": "after",
+      "case": "mixed10_1",
+      "repeat": 1,
+      "duration_seconds": 60.00894682699982,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 34.39675263674672,
+        "nuvo-gateway.service": 1.9662334741544252
+      },
+      "observer_cpu_one_core_percent": 3.39898559939779,
+      "rss_mib": {
+        "nuvo-depthd-native.service": 136.15625,
+        "nuvo-gateway.service": 37.5
+      },
+      "capture_fps": 9.99850908448275,
+      "published_fps": 8.048799813008614,
+      "matcher_hz": 0.9998509084482751,
+      "matcher_count_method": "counter",
+      "streams": [
+        {
+          "products": [
+            "left_mono"
+          ],
+          "requested_hz": 10,
+          "frames": 420,
+          "fps": 7.025918399481691,
+          "latency_ms": {
+            "p50": 31.170883500000002,
+            "p95": 329.860552,
+            "max": 378.612741
+          },
+          "shapes": {
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": [],
+          "received_at_least_80_percent_of_requested_frames": false
+        },
+        {
+          "products": [
+            "depth",
+            "left_mono"
+          ],
+          "requested_hz": 1,
+          "frames": 60,
+          "fps": 0.9994159362281541,
+          "latency_ms": {
+            "p50": 380.23368000000005,
+            "p95": 393.834888,
+            "max": 431.556375
+          },
+          "shapes": {
+            "depth": [
+              728,
+              544
+            ],
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": [],
+          "received_at_least_80_percent_of_requested_frames": true
+        }
+      ],
+      "temperature_c": {
+        "p50": 47.4,
+        "p95": 48.5,
+        "max": 50.15
+      },
+      "throttled": "throttled=0x0",
+      "observed_latest_product_processing_ms": {
+        "p50": 0.326369,
+        "p95": 0.392387,
+        "max": 0.415701
+      }
+    },
+    {
+      "cohort": "after",
+      "case": "mono_depth10",
+      "repeat": 1,
+      "duration_seconds": 30.005462838000312,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 105.2259989138171,
+        "nuvo-gateway.service": 2.552675171635664
+      },
+      "observer_cpu_one_core_percent": 5.070560404997887,
+      "rss_mib": {
+        "nuvo-depthd-native.service": 265.546875,
+        "nuvo-gateway.service": 37.109375
+      },
+      "capture_fps": 9.99817938552396,
+      "published_fps": 3.266071932604494,
+      "matcher_hz": 3.266071932604494,
+      "matcher_count_method": "counter",
+      "streams": [
+        {
+          "products": [
+            "left_mono",
+            "depth"
+          ],
+          "requested_hz": 10,
+          "frames": 98,
+          "fps": 3.2787183874696795,
+          "latency_ms": {
+            "p50": 394.8982925,
+            "p95": 438.145186,
+            "max": 444.615403
+          },
+          "shapes": {
+            "depth": [
+              728,
+              544
+            ],
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": [],
+          "received_at_least_80_percent_of_requested_frames": false
+        }
+      ],
+      "temperature_c": {
+        "p50": 49.6,
+        "p95": 50.7,
+        "max": 51.8
+      },
+      "throttled": "throttled=0x0",
+      "observed_latest_product_processing_ms": {
+        "p50": 304.599,
+        "p95": 309.816,
+        "max": 316.82
+      }
+    },
+    {
+      "cohort": "before",
+      "case": "mixed10_1",
+      "repeat": 2,
+      "duration_seconds": 60.00839108799846,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 105.26221059213346,
+        "nuvo-gateway.service": 1.808322103501666
+      },
+      "observer_cpu_one_core_percent": 3.261104106474505,
+      "rss_mib": {
+        "nuvo-depthd-native.service": 265.734375,
+        "nuvo-gateway.service": 39.828125
+      },
+      "capture_fps": 9.998601680890568,
+      "published_fps": 3.2495455462894345,
+      "matcher_hz": null,
+      "matcher_count_method": "unavailable_in_baseline",
+      "streams": [
+        {
+          "products": [
+            "left_mono"
+          ],
+          "requested_hz": 10,
+          "frames": 195,
+          "fps": 3.263514065066136,
+          "latency_ms": {
+            "p50": 384.40065,
+            "p95": 431.839553,
+            "max": 469.296876
+          },
+          "shapes": {
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": [],
+          "received_at_least_80_percent_of_requested_frames": false
+        },
+        {
+          "products": [
+            "depth",
+            "left_mono"
+          ],
+          "requested_hz": 1,
+          "frames": 60,
+          "fps": 0.9993272731203304,
+          "latency_ms": {
+            "p50": 553.926305,
+            "p95": 676.746438,
+            "max": 682.98318
+          },
+          "shapes": {
+            "depth": [
+              728,
+              544
+            ],
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": [],
+          "received_at_least_80_percent_of_requested_frames": true
+        }
+      ],
+      "temperature_c": {
+        "p50": 50.7,
+        "p95": 51.8,
+        "max": 52.9
+      },
+      "throttled": "throttled=0x0",
+      "observed_latest_product_processing_ms": {
+        "p50": 305.2375,
+        "p95": 310.556,
+        "max": 350.113
+      }
+    },
+    {
+      "cohort": "after",
+      "case": "mixed10_1",
+      "repeat": 2,
+      "duration_seconds": 60.01698722299989,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 34.49023844380393,
+        "nuvo-gateway.service": 1.968126116712725
+      },
+      "observer_cpu_one_core_percent": 3.421383106703307,
+      "rss_mib": {
+        "nuvo-depthd-native.service": 143.09375,
+        "nuvo-gateway.service": 39.40625
+      },
+      "capture_fps": 10.013831546840509,
+      "published_fps": 8.047721525996614,
+      "matcher_hz": 0.9997169597511323,
+      "matcher_count_method": "counter",
+      "streams": [
+        {
+          "products": [
+            "left_mono"
+          ],
+          "requested_hz": 10,
+          "frames": 420,
+          "fps": 7.029163133825518,
+          "latency_ms": {
+            "p50": 32.5739325,
+            "p95": 330.731955,
+            "max": 363.912025
+          },
+          "shapes": {
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": [],
+          "received_at_least_80_percent_of_requested_frames": false
+        },
+        {
+          "products": [
+            "depth",
+            "left_mono"
+          ],
+          "requested_hz": 1,
+          "frames": 60,
+          "fps": 0.9994549397950108,
+          "latency_ms": {
+            "p50": 379.865102,
+            "p95": 421.708095,
+            "max": 425.372323
+          },
+          "shapes": {
+            "depth": [
+              728,
+              544
+            ],
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "errors": [],
+          "received_at_least_80_percent_of_requested_frames": true
+        }
+      ],
+      "temperature_c": {
+        "p50": 49.05,
+        "p95": 50.15,
+        "max": 51.8
+      },
+      "throttled": "throttled=0x0",
+      "observed_latest_product_processing_ms": {
+        "p50": 0.3260635,
+        "p95": 0.405091,
+        "max": 0.435869
+      }
+    }
+  ],
+  "system": {
+    "model": "Raspberry Pi 5 Model B Rev 1.1",
+    "os_release": "PRETTY_NAME=\"Debian GNU/Linux 13 (trixie)\"\nNAME=\"Debian GNU/Linux\"\nVERSION_ID=\"13\"\nVERSION=\"13 (trixie)\"\nVERSION_CODENAME=trixie\nDEBIAN_VERSION_FULL=13.4\nID=debian\nHOME_URL=\"https://www.debian.org/\"\nSUPPORT_URL=\"https://www.debian.org/support\"\nBUG_REPORT_URL=\"https://bugs.debian.org/\"\n",
+    "kernel": "6.12.75+rpt-rpi-2712",
+    "architecture": "aarch64",
+    "cpu_cores": 4,
+    "cpu_governor": "ondemand"
+  },
+  "installed_packages_unchanged": true,
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "automated_restore_guard": {
+    "restored": false,
+    "changed_protected_files": [
+      "/var/lib/nuvo-depth-setup/auth.json"
+    ],
+    "active": {
+      "nuvo-depthd-native.service": true,
+      "nuvo-gateway.service": true
+    },
+    "throttled": "throttled=0x0"
+  },
+  "workstation_wifi": {
+    "route": "Resolved IPv4 address for device hostname; pinned certificate and hostname verification retained",
+    "clock_calibration_best_rtt_ms": 0.8994,
+    "results": [
+      {
+        "cohort": "before",
+        "connection": {
+          "kind": "wifi",
+          "interface": "wlan0",
+          "qualified_link": false,
+          "resource_budget_bytes_per_second": 25165824,
+          "budget_is_measured_capacity": false
+        },
+        "duration_seconds": 30.00037839997094,
+        "streams": [
+          {
+            "products": [
+              "left_mono"
+            ],
+            "requested_hz": 10,
+            "frames": 98,
+            "fps": 3.2551844971117725,
+            "latency_ms_estimated": {
+              "p50": 420.28788499999996,
+              "p95": 544.562435,
+              "max": 756.148935
+            }
+          },
+          {
+            "products": [
+              "depth",
+              "left_mono"
+            ],
+            "requested_hz": 1,
+            "frames": 29,
+            "fps": 0.9805177977212765,
+            "latency_ms_estimated": {
+              "p50": 701.880335,
+              "p95": 942.519135,
+              "max": 1234.556035
+            }
+          }
+        ],
+        "observed_matcher_processing_ms": {
+          "p50": 304.53549999999996,
+          "p95": 306.98,
+          "max": 308.067
+        },
+        "health_requests": 80,
+        "health_response_ms": {
+          "p50": 43.838299956405535,
+          "p95": 96.3437000173144,
+          "max": 128.88129998464137
+        },
+        "health_tls_connections": 80,
+        "encoded": {
+          "requested_hz": 10,
+          "source": "disparity",
+          "codec": "h264",
+          "frames": 67,
+          "fps": 3.314462774325864,
+          "latency_ms_estimated": {
+            "p50": 393.021335,
+            "p95": 446.670335,
+            "max": 457.462235
+          },
+          "packet_bytes": {
+            "p50": 50036,
+            "p95": 51784,
+            "max": 52774
+          },
+          "cpu_one_core_percent": {
+            "nuvo-depthd-native.service": 108.20752180547117,
+            "nuvo-gateway.service": 0.4795338501525796
+          },
+          "legacy_snapshot_mtime_changed": true
+        }
+      },
+      {
+        "cohort": "after",
+        "connection": {
+          "kind": "wifi",
+          "interface": "wlan0",
+          "qualified_link": false,
+          "resource_budget_bytes_per_second": 25165824,
+          "budget_is_measured_capacity": false
+        },
+        "duration_seconds": 30.000448799983133,
+        "streams": [
+          {
+            "products": [
+              "left_mono"
+            ],
+            "requested_hz": 10,
+            "frames": 210,
+            "fps": 6.9966403438731675,
+            "latency_ms_estimated": {
+              "p50": 59.243685,
+              "p95": 356.771735,
+              "max": 381.871735
+            }
+          },
+          {
+            "products": [
+              "depth",
+              "left_mono"
+            ],
+            "requested_hz": 1,
+            "frames": 30,
+            "fps": 1.000062024537033,
+            "latency_ms_estimated": {
+              "p50": 526.746635,
+              "p95": 556.623935,
+              "max": 593.513135
+            }
+          }
+        ],
+        "observed_matcher_processing_ms": {
+          "p50": 304.7025,
+          "p95": 330.731,
+          "max": 330.731
+        },
+        "health_requests": 80,
+        "health_response_ms": {
+          "p50": 5.340400006389245,
+          "p95": 32.2481999755837,
+          "max": 46.12050001742318
+        },
+        "health_tls_connections": 3
+      }
+    ],
+    "restored": {
+      "restored": true,
+      "changed_protected_files": [],
+      "active": {
+        "nuvo-depthd-native.service": true,
+        "nuvo-gateway.service": true
+      },
+      "throttled": "throttled=0x0"
+    },
+    "capture_latency_alignment_half_rtt_ms": 0.4497,
+    "clock_note": "Cross-host capture latency is estimated using an SSH midpoint offset. Half the lowest calibration RTT is an alignment estimate, not a strict bound; subsequent clock drift was not measured.",
+    "outcome": "Both raw mixed-stream and HTTP comparisons completed. The after-build encoded-stream comparison did not complete: its initial WebSocket upgrade returned HTTP 503 source-not-ready."
+  },
+  "desktop_renderer_replay": {
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+    "results": [
+      {
+        "cohort": "before",
+        "results": [
+          {
+            "mode": "mono10_depth1",
+            "duration_seconds": 20.01330000001192,
+            "mono_fps": 10.043321191401732,
+            "depth_fps": 1.0493022140270467,
+            "render_ms": {
+              "p50": 6.699999988079071,
+              "p95": 9.400000035762787,
+              "max": 10.5
+            },
+            "render_ms_per_second": 67.46513565435127,
+            "render_tasks_over_50ms": 0,
+            "animation_frame_gap_ms": {
+              "p50": 16.699999999999818,
+              "p95": 16.899999999999636,
+              "max": 17.100000000002183
+            },
+            "animation_gaps_over_50ms": 0,
+            "timer_delay_ms": {
+              "p50": 1.600000023841858,
+              "p95": 7.400000035762787,
+              "max": 9
+            },
+            "visible": true
+          },
+          {
+            "mode": "mono_depth10",
+            "duration_seconds": 10.0285,
+            "mono_fps": 10.071296804108291,
+            "depth_fps": 10.071296804108291,
+            "render_ms": {
+              "p50": 12.300000011920929,
+              "p95": 17.400000035762787,
+              "max": 23.69999998807907
+            },
+            "render_ms_per_second": 123.43820108875009,
+            "render_tasks_over_50ms": 0,
+            "animation_frame_gap_ms": {
+              "p50": 16.700000000000728,
+              "p95": 16.80000000000291,
+              "max": 16.900000000001455
+            },
+            "animation_gaps_over_50ms": 0,
+            "timer_delay_ms": {
+              "p50": 3.899999976158142,
+              "p95": 12.800000011920929,
+              "max": 15.699999988079071
+            },
+            "visible": true
+          }
+        ]
+      },
+      {
+        "cohort": "after",
+        "results": [
+          {
+            "mode": "mono10_depth1",
+            "duration_seconds": 20.009200000047684,
+            "mono_fps": 10.045379125578284,
+            "depth_fps": 1.049517222075343,
+            "render_ms": {
+              "p50": 4.5,
+              "p95": 7,
+              "max": 9.399999976158142
+            },
+            "render_ms_per_second": 44.14469342363453,
+            "render_tasks_over_50ms": 0,
+            "animation_frame_gap_ms": {
+              "p50": 16.699999999999818,
+              "p95": 16.80000000000291,
+              "max": 17.100000000000364
+            },
+            "animation_gaps_over_50ms": 0,
+            "timer_delay_ms": {
+              "p50": 2.100000023841858,
+              "p95": 8.100000023841858,
+              "max": 9.400000035762787
+            },
+            "visible": true
+          },
+          {
+            "mode": "mono_depth10",
+            "duration_seconds": 10.0065,
+            "mono_fps": 10.09343926447809,
+            "depth_fps": 10.09343926447809,
+            "render_ms": {
+              "p50": 5.5,
+              "p95": 12.5,
+              "max": 13.599999964237213
+            },
+            "render_ms_per_second": 76.77009941034932,
+            "render_tasks_over_50ms": 0,
+            "animation_frame_gap_ms": {
+              "p50": 16.700000000000728,
+              "p95": 16.80000000000291,
+              "max": 17.100000000002183
+            },
+            "animation_gaps_over_50ms": 0,
+            "timer_delay_ms": {
+              "p50": 1.100000023841858,
+              "p95": 3.600000023841858,
+              "max": 7.399999976158142
+            },
+            "visible": true
+          }
+        ]
+      },
+      {
+        "cohort": "after",
+        "results": [
+          {
+            "mode": "mono10_depth1",
+            "duration_seconds": 20.011900000035762,
+            "mono_fps": 10.044023805817579,
+            "depth_fps": 1.0493756215033292,
+            "render_ms": {
+              "p50": 4,
+              "p95": 6,
+              "max": 9
+            },
+            "render_ms_per_second": 39.816309284579596,
+            "render_tasks_over_50ms": 0,
+            "animation_frame_gap_ms": {
+              "p50": 16.699999999999818,
+              "p95": 16.80000000000109,
+              "max": 17
+            },
+            "animation_gaps_over_50ms": 0,
+            "timer_delay_ms": {
+              "p50": 2.100000023841858,
+              "p95": 8.100000023841858,
+              "max": 9.300000011920929
+            },
+            "visible": true
+          },
+          {
+            "mode": "mono_depth10",
+            "duration_seconds": 10.011,
+            "mono_fps": 10.088902207571673,
+            "depth_fps": 10.088902207571673,
+            "render_ms": {
+              "p50": 8.699999988079071,
+              "p95": 12.300000011920929,
+              "max": 13.199999988079071
+            },
+            "render_ms_per_second": 84.92658073615628,
+            "render_tasks_over_50ms": 0,
+            "animation_frame_gap_ms": {
+              "p50": 16.700000000000728,
+              "p95": 16.899999999997817,
+              "max": 17.100000000002183
+            },
+            "animation_gaps_over_50ms": 0,
+            "timer_delay_ms": {
+              "p50": 0.800000011920929,
+              "p95": 11.699999988079071,
+              "max": 15.899999976158142
+            },
+            "visible": true
+          }
+        ]
+      },
+      {
+        "cohort": "before",
+        "results": [
+          {
+            "mode": "mono10_depth1",
+            "duration_seconds": 20.026599999964237,
+            "mono_fps": 10.036651253850327,
+            "depth_fps": 1.0486053548798848,
+            "render_ms": {
+              "p50": 7.300000011920929,
+              "p95": 9.899999976158142,
+              "max": 14.5
+            },
+            "render_ms_per_second": 78.40572039142356,
+            "render_tasks_over_50ms": 0,
+            "animation_frame_gap_ms": {
+              "p50": 16.699999999999818,
+              "p95": 16.899999999997817,
+              "max": 17
+            },
+            "animation_gaps_over_50ms": 0,
+            "timer_delay_ms": {
+              "p50": 1.5999999642372131,
+              "p95": 8.300000011920929,
+              "max": 9.5
+            },
+            "visible": true
+          },
+          {
+            "mode": "mono_depth10",
+            "duration_seconds": 10.0095,
+            "mono_fps": 10.090414106598733,
+            "depth_fps": 10.090414106598733,
+            "render_ms": {
+              "p50": 14.600000023841858,
+              "p95": 16.899999976158142,
+              "max": 19.600000023841858
+            },
+            "render_ms_per_second": 137.20965081741835,
+            "render_tasks_over_50ms": 0,
+            "animation_frame_gap_ms": {
+              "p50": 16.700000000000728,
+              "p95": 16.80000000000291,
+              "max": 17.099999999998545
+            },
+            "animation_gaps_over_50ms": 0,
+            "timer_delay_ms": {
+              "p50": 1,
+              "p95": 9.600000023841858,
+              "max": 15.600000023841858
+            },
+            "visible": true
+          }
+        ]
+      }
+    ]
+  },
+  "field_notes": {
+    "cpu_one_core_percent": "100 percent is one CPU core, not total four-core Pi capacity.",
+    "observed_latest_product_processing_ms": "Statistics sampled from the latest published product; mixed-run values include cheap mono work and must not be interpreted as matcher cost. Use retained matcher statistics in the Wi-Fi comparison.",
+    "received_at_least_80_percent_of_requested_frames": "Loose smoke threshold only; does not establish delivery at the requested cadence."
+  },
+  "ci_runs": {
+    "before": "https://github.com/arputhamips/nuvo-depth/actions/runs/39335890638",
+    "after": "https://github.com/arputhamips/nuvo-depth/actions/runs/39342653499"
+  }
+}
