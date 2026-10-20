@@ -27,8 +27,9 @@ specifications, and qualification evidence.
 
 ## Configure and deploy
 
-- [Terminal/factory installer](install.md) — prompted setup, current-network or
-  protected-hotspot access, manufacturing defaults and signed GitHub assets.
+- [Install Nuvo Depth](install.md) — supported Pi OS and installation command.
+- [Installer reference](installer-reference.md) — terminal options, network setup and recovery.
+- [Manufacturing provisioning](factory-provisioning.md) — internal unit preparation.
 - [Production deployment](../deployment/README.md)
 - [Verified Pi 5 full-stack deployment record](pi5-full-stack-deployment-20260915.md) —
   exact clean-board install steps, package hashes, trigger/API/reboot acceptance,

@@ -63,7 +63,7 @@ the physical pulse waveform.
 
 Before installing Nuvo software:
 
-- configure a unique user/password or SSH key; do not ship a shared password;
+- configure a unique OS user and password; do not ship a shared password;
 - set the hostname and verify wired Ethernet or Wi-Fi connectivity;
 - enable SSH only under the customer's security policy;
 - set the correct locale, timezone, and NTP/time synchronisation;

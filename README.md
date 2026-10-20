@@ -7,7 +7,7 @@ computes depth, and provides a web console and APIs for robotic applications.
 [Website](https://nuvohardware.com/) ·
 [User wiki](https://docs.nuvohardware.com/vision-one/) ·
 [Pi installation](https://docs.nuvohardware.com/vision-one/install/byo-pi) ·
-[Downloads](https://github.com/arputhamips/nuvo-depth/releases)
+[Downloads](https://docs.nuvohardware.com/vision-one/releases/)
 
 The current supported platform is a **Raspberry Pi 5 with the Nuvo dual-IMX296
 camera head**. This repository contains the device software, SDKs, installer,
@@ -27,37 +27,26 @@ and release tooling.
 
 ## Get started
 
-**Have a preinstalled Vision One?** Follow the
-[bundled Pi setup guide](https://docs.nuvohardware.com/vision-one/install/bundled-pi)
-to connect the device, complete network setup, and create your owner login.
-
-**Using your own Pi or SD card?** Prepare the supported Raspberry Pi OS Lite
-64-bit Trixie installation, then run this in an interactive terminal **on the Pi**:
+- **Preinstalled Vision One:** [Connect and set up the device](https://docs.nuvohardware.com/vision-one/install/bundled-pi).
+- **Your own Pi or SD card:** use a Raspberry Pi 5 with Raspberry Pi OS Lite
+  64-bit Trixie (`arm64`), kernel `6.12.75+rpt-rpi-2712`, internet access and
+  administrator access.
+- [Supported OS image](https://docs.nuvohardware.com/vision-one/install/byo-pi).
+- **Current public preview:** `v0.1.1-beta.4`.
 
 ```bash
 curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.4/install-nuvo-depth.sh | sudo bash
 ```
 
-The installer verifies and installs the complete package set. It asks whether
-to keep the current network or use the setup hotspot afterward, then collects
-device, calibration, and owner-login choices. Open the console URL it prints
-when installation finishes.
-
-Read the [Pi installation guide](https://docs.nuvohardware.com/vision-one/install/byo-pi)
-first for the exact supported OS/kernel, hardware requirements, and setup steps.
-
 ## Current status
 
-The current install release is **v0.1.1-beta.4**, a signed beta. Terminal
-installation, first-boot hotspot setup, network confirmation, and owner login
-have been exercised on the qualification Pi. See the
-[release and setup qualification record](docs/release-qualification-20261019.md)
-for the scope of those checks.
-
-The checked-in calibration is provisional. Production metric-depth accuracy
-requires accepted per-unit calibration and physical validation. Fresh-SD
-lifecycle, electrical and USB power/data, wired throughput, and endurance
-acceptance remain separate release gates.
+- The public preview has signed packages and tested installation, hotspot,
+  network confirmation and owner-login flows.
+- [Qualification evidence](docs/release-qualification-20261019.md) records the
+  tested scope; accepted per-unit calibration is required for metric depth.
+- Routine testing uses Actions artifacts. New release candidates are prepared
+  manually as drafts and published only after approval.
+- [Changelog](CHANGELOG.md) and [release process](docs/releases.md).
 
 ## Documentation
 
@@ -70,7 +59,7 @@ and test evidence.
 | Set up and use Vision One | [Setup guide](https://docs.nuvohardware.com/vision-one/guide/getting-started) |
 | Install on your Pi | [Pi installation guide](https://docs.nuvohardware.com/vision-one/install/byo-pi) |
 | Integrate camera output | [SDK guide](https://docs.nuvohardware.com/vision-one/sdk/) and [Python SDK reference](sdk/python/README.md) |
-| Configure terminal or factory provisioning | [Installer reference](docs/install.md) |
+| Configure installer options and recovery | [Installer reference](docs/installer-reference.md) |
 | Understand the runtime and repository | [Image pipeline and repository map](docs/image-pipeline-map.md) |
 | Build or publish packages | [Build and test](docs/build-and-test.md) and [Release operations](docs/releases.md) |
 | Find engineering records | [Repository documentation index](docs/README.md) |
