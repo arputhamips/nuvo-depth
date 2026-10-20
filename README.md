@@ -13,6 +13,23 @@ The current supported platform is a **Raspberry Pi 5 with the Nuvo dual-IMX296
 camera head**. This repository contains the device software, SDKs, installer,
 and release tooling.
 
+## Build your own or buy Vision One
+
+You can also build your own. The main components are:
+
+- **2 × InnoMaker IMX296 color global-shutter cameras:**
+  [Camera product page](https://www.inno-maker.com/product/cam-imx296color/).
+- **A Raspberry Pi 5:** 1 GB can run headless stereo depth only; 2 GB is
+  recommended for running a GUI; 4 GB or more is recommended for running other
+  applications alongside stereo depth.
+  [Raspberry Pi 5 product page](https://www.raspberrypi.com/products/raspberry-pi-5/).
+- **A Dupont Y-splitter** to share the hardware trigger signal between both
+  cameras.
+
+**Build guide:** [Build a stereo camera](https://docs.nuvohardware.com/vision-one/hardware/build-stereo-camera).
+
+Or [order Vision One from NuvoHardware](https://nuvohardware.com/).
+
 ## What is included
 
 - **Camera and depth runtime:** synchronized capture, image rectification,
