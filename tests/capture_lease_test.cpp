@@ -55,6 +55,20 @@ int main() {
   }
 
   {
+    int shared_releases{};
+    depthd::CaptureBufferLease first(9U, 42U, [&] { ++shared_releases; });
+    auto second = first.share();
+    auto third = second.share();
+    first.reset();
+    second.reset();
+    if (shared_releases != 0 || third.token() != 42U || third.capture_epoch() != 9U)
+      return fail(9, "shared camera request was released before its last reader");
+    third.reset();
+    if (shared_releases != 1 || !throws([&] { (void)third.share(); }))
+      return fail(10, "shared camera request release was not exactly once");
+  }
+
+  {
     depthd::CaptureBufferLease throwing(1U, 1U, [] {
       throw std::runtime_error("backend release failure");
     });

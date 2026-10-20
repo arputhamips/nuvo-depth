@@ -232,14 +232,38 @@ int main() {
       }
     }
     if (matches != 3U) return 25;
+    auto fast = frame();
+    fast->metadata.frame.capture_sequence = 24U;
+    fast->metadata.frame.capture_time_ns = 2'400'000'000;
+    fast->available_products = mono;
+    fast->left_rectified.clear(); fast->right_rectified.clear(); fast->disparity.clear();
+    fast->confidence.clear(); fast->validity.clear(); fast->depth_m.clear(); fast->left_mono = {1U, 2U};
+    server.publish(fast);
+    const auto newest_image = images.next(image_cursor, std::chrono::milliseconds(0));
+    if (!newest_image || newest_image->cursor.capture_sequence != 24U) return 34;
+    // HH finishes capture 22 after the image lane has published capture 24.
+    auto late = frame();
+    late->metadata.frame.capture_sequence = 22U;
+    late->metadata.frame.capture_time_ns = 2'200'000'000;
+    late->available_products = mono | product_bit(ProductKind::kDepth);
+    late->left_rectified.clear(); late->right_rectified.clear(); late->disparity.clear();
+    late->confidence.clear(); late->validity.clear(); late->left_mono = {1U, 2U};
+    server.publish(late);
+    if (images.next(newest_image->cursor, std::chrono::milliseconds(0))) return 35;
+    const auto late_depth = matched.next({}, std::chrono::milliseconds(0));
+    if (!late_depth || late_depth->cursor.capture_sequence != 22U) return 36;
     auto changed = frame();
     changed->metadata.frame.configuration_epoch = 2U;
+    changed->metadata.frame.capture_sequence = 25U;
+    changed->metadata.frame.capture_time_ns = 2'500'000'000;
     changed->available_products = mono;
     changed->left_rectified.clear(); changed->right_rectified.clear(); changed->disparity.clear();
     changed->confidence.clear(); changed->validity.clear(); changed->depth_m.clear();
     changed->left_mono = {1U, 2U};
     server.publish(changed);
     if (matched.next({}, std::chrono::milliseconds(0))) return 26;
+    server.publish(late);
+    if (matched.next({}, std::chrono::milliseconds(0))) return 37;
     if (!matcher_cadence.admit(changed->metadata.frame, demand.matcher_products, demand.matcher_cadence_hz)) return 27;
   }
   {

@@ -1151,11 +1151,18 @@ int run_native_daemon(const PipelineArguments& arguments) {
         "active calibration does not belong to this device and preset");
   }
   const auto identity = depthd::make_runtime_identity(loaded, device_uuid);
+  auto lane_options = runtime_options(arguments);
+  // Split the original eight-slot / 256 MiB allowance between the lanes.
+  lane_options.configuration_epochs =
+      std::make_shared<depthd::NativeConfigurationEpochs>(identity.configuration_epoch);
+  lane_options.frame_pool_capacity = 4U;
+  lane_options.frame_pool_payload_budget_bytes = 128U * 1024U * 1024U;
   auto pipeline = depthd::make_native_pipeline(
-      loaded.effective, calibration, identity, runtime_options(arguments));
-  // One worker owns the stateful backends and one newest pending request is
-  // replaceable under overload. Complete outputs are likewise latest-first.
-  depthd::BoundedNativeScheduler scheduler({1U, 1U}, std::move(pipeline));
+      loaded.effective, calibration, identity, lane_options);
+  auto image_pipeline = depthd::make_native_pipeline(
+      loaded.effective, calibration, identity, lane_options);
+  depthd::BoundedNativeScheduler scheduler(
+      {1U, 1U}, std::move(pipeline), std::move(image_pipeline));
 #if defined(DEPTHD_WITH_LOCAL_FRAME_SERVER)
   depthd::ipc_v2::LocalFrameServer local_frames;
 #endif
@@ -1274,11 +1281,14 @@ int run_native_daemon(const PipelineArguments& arguments) {
         }
         const auto raw_product_demand = products;
         bool raw_due{};
+        depthd::ipc_v2::ProductMask independent_images{};
 #if defined(DEPTHD_WITH_LOCAL_FRAME_SERVER)
         if (!arguments.diagnostic_raw_snapshots && arguments.trace_directory.empty()) {
           products = 0U;
-          if (raw_capture_cadence.admit(context->identity, demand.image_products, demand.image_cadence_hz))
-            products |= demand.image_products;
+          if (raw_capture_cadence.admit(context->identity, demand.image_products, demand.image_cadence_hz)) {
+            independent_images = demand.image_products;
+            products |= independent_images;
+          }
           if (matcher_capture_cadence.admit(context->identity, demand.matcher_products, demand.matcher_cadence_hz))
             products |= demand.matcher_products;
           raw_due = products != 0U;
@@ -1340,6 +1350,9 @@ int run_native_daemon(const PipelineArguments& arguments) {
         }
 #endif
         processing.products = products;
+#if defined(DEPTHD_WITH_LOCAL_FRAME_SERVER)
+        processing.independent_image_products = independent_images;
+#endif
         trace_isp_pair(arguments.trace_directory, processing);
         fulfill_calibration_capture(arguments.calibration_request_directory,
                                     arguments.calibration_state_root, processing,
@@ -1422,7 +1435,7 @@ int run_native_daemon(const PipelineArguments& arguments) {
         if (previous_capture_sequence != 0U && sequence > previous_capture_sequence + 1U) {
           capture_sequence_gaps += sequence - previous_capture_sequence - 1U;
         }
-        previous_capture_sequence = sequence;
+        previous_capture_sequence = std::max(previous_capture_sequence, sequence);
         ++published;
         if ((frame->available_products & depthd::ipc_v2::kMatcherProducts) != 0U) {
           ++matched_published; matched_statistics = frame->stats; matched_statistics_sequence = sequence;
@@ -1440,8 +1453,11 @@ int run_native_daemon(const PipelineArguments& arguments) {
 #else
         if (arguments.diagnostic_raw_snapshots) publish_snapshot(arguments.snapshot_directory, *frame, published);
 #endif
-        last_frame = frame;
-        last_context = context;
+        if (!last_frame || frame->metadata.frame.capture_time_ns >=
+                               last_frame->metadata.frame.capture_time_ns) {
+          last_frame = frame;
+          last_context = context;
+        }
       }
       std::shared_ptr<const NativeCaptureContext> latest_capture;
       {

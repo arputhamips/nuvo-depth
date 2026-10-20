@@ -11,6 +11,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -42,6 +43,9 @@ struct StereoProcessingRequest {
   // Preserve an admitted numeric preview against ordinary pending raw work.
   // Newer previews may replace it; the queue remains bounded.
   bool preserve_for_preview{};
+  // Images requested independently of a matched product set. When both are
+  // due, publish these promptly while preserving the matched set intact.
+  ipc_v2::ProductMask independent_image_products{};
   StereoPair capture{};
   std::shared_ptr<const void> left_mapping_owner{};
   std::shared_ptr<const void> right_mapping_owner{};
@@ -79,6 +83,7 @@ struct StereoProcessingRequest {
     capture = std::move(other.capture);
     products = other.products;
     preserve_for_preview = other.preserve_for_preview;
+    independent_image_products = other.independent_image_products;
 
     left_mapping_owner = std::move(other.left_mapping_owner);
     right_mapping_owner = std::move(other.right_mapping_owner);
@@ -96,10 +101,31 @@ struct StereoProcessingRequest {
   }
 };
 
+// Shared by independent pipelines: a revision has one epoch even when one
+// lane skipped intermediate control-file updates. History is bounded; an
+// unknown superseded revision is dropped rather than relabelled as current.
+class NativeConfigurationEpochs final {
+ public:
+  explicit NativeConfigurationEpochs(std::uint64_t initial_epoch);
+  [[nodiscard]] std::optional<std::uint64_t> observe(
+      std::string_view revision, std::int64_t capture_time_ns);
+ private:
+  std::mutex mutex_;
+  std::uint64_t epoch_;
+  std::int64_t newest_capture_time_ns_{};
+  struct Revision {
+    std::string value;
+    std::uint64_t epoch;
+    std::int64_t first_capture_time_ns;
+  };
+  std::deque<Revision> revisions_;
+};
+
 struct NativePipelineConfiguration {
   std::array<std::uint8_t, 16> device_uuid{};
   std::array<std::uint8_t, 16> run_uuid{};
   std::uint64_t configuration_epoch{1U};
+  std::shared_ptr<NativeConfigurationEpochs> configuration_epochs{};
   RectifiedCalibrationView image_calibration{};
   RectifiedCalibrationView matching_calibration{};
   DepthConversionOptions depth{};
@@ -212,14 +238,16 @@ struct SchedulerStats {
   bool running{};
 };
 
-// One worker owns the stateful rectifier and SGBM backend. Both queues are
-// bounded. When completed output is full, the oldest complete frame set is
+// Each lane owns its stateful backends and bounded input/output queues. An
+// optional image lane keeps image subscriptions independent of slow matching.
+// When completed output is full, the oldest complete frame set is
 // discarded atomically; individual products are never mixed or dropped.
 class BoundedNativeScheduler final {
  public:
   BoundedNativeScheduler(
       SchedulerConfiguration configuration,
-      std::unique_ptr<NativeProcessingPipeline> pipeline);
+      std::unique_ptr<NativeProcessingPipeline> pipeline,
+      std::unique_ptr<NativeProcessingPipeline> image_pipeline = {});
   ~BoundedNativeScheduler() noexcept;
 
   BoundedNativeScheduler(const BoundedNativeScheduler&) = delete;
@@ -233,19 +261,24 @@ class BoundedNativeScheduler final {
   void stop() noexcept;
 
  private:
-  void worker_loop() noexcept;
+  void worker_loop(bool image_lane) noexcept;
+  SubmitResult enqueue(StereoProcessingRequest request, bool image_lane);
 
   SchedulerConfiguration configuration_{};
   std::unique_ptr<NativeProcessingPipeline> pipeline_;
+  std::unique_ptr<NativeProcessingPipeline> image_pipeline_;
   mutable std::mutex mutex_;
   std::condition_variable input_ready_;
   std::condition_variable output_ready_;
   std::deque<StereoProcessingRequest> pending_;
   std::deque<std::shared_ptr<const FrameSetStorage>> completed_;
+  std::deque<StereoProcessingRequest> image_pending_;
+  std::deque<std::shared_ptr<const FrameSetStorage>> image_completed_;
   SchedulerStats stats_{};
   std::string last_error_;
   bool stop_requested_{};
   std::thread worker_;
+  std::thread image_worker_;
 };
 
 void validate(const StereoProcessingRequest& request);

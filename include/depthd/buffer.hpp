@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <utility>
 
@@ -89,6 +90,20 @@ class CaptureBufferLease final {
     return capture_epoch_;
   }
   [[nodiscard]] std::uint64_t token() const noexcept { return token_; }
+
+  // Explicitly share a read-only capture between bounded processing lanes.
+  // The backend sees one release, after the last lane has dropped its views.
+  [[nodiscard]] CaptureBufferLease share() {
+    if (!active()) throw std::logic_error("cannot share an inactive capture lease");
+    auto owner = std::make_shared<CaptureBufferLease>();
+    const auto epoch = capture_epoch_;
+    const auto token = token_;
+    Release first = [owner] {};
+    Release second = [owner] {};
+    *owner = std::move(*this);
+    *this = CaptureBufferLease(epoch, token, std::move(first));
+    return CaptureBufferLease(epoch, token, std::move(second));
+  }
 
   void reset() noexcept {
     auto release = std::move(release_);

@@ -23,6 +23,9 @@ struct RuntimeFactoryOptions {
   std::string stereo_control_file{};
   float minimum_depth_m{0.05F};
   float maximum_depth_m{100.0F};
+  std::shared_ptr<NativeConfigurationEpochs> configuration_epochs{};
+  std::size_t frame_pool_capacity{8U};
+  std::size_t frame_pool_payload_budget_bytes{256U * 1024U * 1024U};
 };
 
 [[nodiscard]] RuntimeIdentity make_runtime_identity(

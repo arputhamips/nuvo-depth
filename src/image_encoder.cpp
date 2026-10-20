@@ -1018,6 +1018,14 @@ struct AsyncFrameEncoder::Impl {
       ++stats_value.preview_unavailable;
       return SubmitResult::kPreviewUnavailable;
     }
+    if (requires_depth(config.source)) {
+      const auto kind = config.source == Source::kDepth
+          ? ipc_v2::ProductKind::kDepth : ipc_v2::ProductKind::kDisparity;
+      if ((frame->available_products & ipc_v2::product_bit(kind)) == 0U) {
+        ++stats_value.preview_unavailable;
+        return SubmitResult::kPreviewUnavailable;
+      }
+    }
     last_submitted = frame->metadata.frame;
     ++stats_value.submitted;
     const bool replaced = pending.has_value();

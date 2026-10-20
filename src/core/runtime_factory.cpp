@@ -222,6 +222,9 @@ std::unique_ptr<NativeProcessingPipeline> make_native_pipeline(
       static_cast<std::int32_t>(configuration.stereo.opencv_threads);
 
   NativePipelineConfiguration pipeline_configuration;
+  pipeline_configuration.configuration_epochs = options.configuration_epochs;
+  pipeline_configuration.frame_pool_capacity = options.frame_pool_capacity;
+  pipeline_configuration.frame_pool_payload_budget_bytes = options.frame_pool_payload_budget_bytes;
   pipeline_configuration.device_uuid = identity.device_uuid;
   pipeline_configuration.run_uuid = identity.run_uuid;
   pipeline_configuration.configuration_epoch = identity.configuration_epoch;

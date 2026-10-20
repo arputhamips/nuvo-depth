@@ -113,12 +113,27 @@ void LocalFrameServer::publish(std::shared_ptr<const FrameSetStorage> frame) {
   if (stopping_) {
     throw std::logic_error("local frame server is stopped");
   }
-  latest_ = std::move(frame);
-  if (latest_matcher_ && (latest_matcher_->metadata.frame.run_uuid != latest_->metadata.frame.run_uuid ||
-      latest_matcher_->metadata.frame.capture_epoch != latest_->metadata.frame.capture_epoch ||
-      latest_matcher_->metadata.frame.configuration_epoch != latest_->metadata.frame.configuration_epoch))
+  const auto same_scope = [](const auto& a, const auto& b) {
+    return a.run_uuid == b.run_uuid && a.capture_epoch == b.capture_epoch &&
+           a.configuration_epoch == b.configuration_epoch;
+  };
+  const auto& identity = frame->metadata.frame;
+  if (latest_ && !same_scope(identity, latest_->metadata.frame)) {
+    // A slow completion from a superseded configuration must not resurrect it.
+    const auto& current = latest_->metadata.frame;
+    if (identity.capture_time_ns < current.capture_time_ns ||
+        (identity.run_uuid == current.run_uuid &&
+         identity.capture_epoch == current.capture_epoch &&
+         identity.configuration_epoch < current.configuration_epoch)) return;
+    latest_.reset();
     latest_matcher_.reset();
-  if ((latest_->available_products & kMatcherProducts) != 0U) latest_matcher_ = latest_;
+  }
+  if ((frame->available_products & kMatcherProducts) != 0U &&
+      (!latest_matcher_ || identity.capture_sequence >
+                              latest_matcher_->metadata.frame.capture_sequence))
+    latest_matcher_ = frame;
+  if (!latest_ || identity.capture_sequence >= latest_->metadata.frame.capture_sequence)
+    latest_ = std::move(frame);
   cache_.clear();
   cache_bytes_ = 0U;
   changed_.notify_all();

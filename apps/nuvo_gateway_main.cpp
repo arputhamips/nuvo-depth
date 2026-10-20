@@ -682,8 +682,17 @@ using FrameBytes = depthd::gateway::SerializedBytes;
   };
   const auto valid_uuid = [&](const char* field) {
     const auto value = metadata.get<std::string>(field);
-    return quoted_fields.contains(field) && value.size() == 32U && value.find_first_not_of('0') != std::string::npos &&
-        value.find_first_not_of("0123456789abcdefABCDEF") == std::string::npos;
+    if (!quoted_fields.contains(field) || (value.size() != 32U && value.size() != 36U)) return false;
+    bool nonzero{};
+    for (std::size_t index = 0; index < value.size(); ++index) {
+      if (value.size() == 36U && (index == 8U || index == 13U || index == 18U || index == 23U)) {
+        if (value[index] != '-') return false;
+      } else {
+        if (std::string_view("0123456789abcdefABCDEF").find(value[index]) == std::string_view::npos) return false;
+        nonzero |= value[index] != '0';
+      }
+    }
+    return nonzero;
   };
   const auto keyframe = metadata.get<std::string>("keyframe");
   const auto source = metadata.get<std::string>("source");

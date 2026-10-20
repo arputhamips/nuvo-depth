@@ -580,6 +580,51 @@ void test_encoder_preflight_under_capture_overload() {
 }
 #endif
 
+void test_independent_images_while_matcher_is_blocked() {
+  using namespace depthd::ipc_v2;
+  const auto mono = product_bit(ProductKind::kLeftMono);
+  const auto depth = product_bit(ProductKind::kDepth);
+  auto gate = std::make_shared<Gate>();
+  auto image_gate = std::make_shared<Gate>();
+  FakeCapture capture;
+  depthd::BoundedNativeScheduler scheduler(
+      {1U, 1U}, pipeline(gate), pipeline(image_gate));
+  depthd::NativeCaptureRunner runner(capture, scheduler, 2s, {},
+      [&](depthd::StereoPair pair) {
+        auto request = prepare(std::move(pair));
+        request.products = mono;
+        request.independent_image_products = mono;
+        if (request.capture.pair_sequence == 1U) request.products |= depth;
+        return request;
+      });
+  const ReleaseGate release_on_failure{gate};
+  capture.offer(1U);
+  eventually([&] { return gate->calls == 1U; }, "matcher did not start");
+  for (std::uint64_t sequence = 1U; sequence <= 11U; ++sequence) {
+    if (sequence > 1U) capture.offer(sequence);
+    const auto image = runner.next(1s);
+    require(image && image->metadata.frame.capture_sequence == sequence &&
+                image->available_products == mono,
+            "blocked matcher interrupted independent image delivery");
+    check_context(*image);
+  }
+  require(image_gate->calls == 0U, "image lane ran a stereo match");
+  {
+    std::lock_guard lock(gate->mutex);
+    gate->released = true;
+    gate->condition.notify_all();
+  }
+  const auto matched = runner.next(1s);
+  require(matched && matched->metadata.frame.capture_sequence == 1U &&
+              matched->available_products == (mono | depth) &&
+              matched->left_mono.front() == 11U,
+          "late depth lost its capture-associated image");
+  check_context(*matched);
+  runner.stop();
+  require(capture.leases_at_stop_ == 0U && scheduler.stats().processing_failures == 0U,
+          "independent processing leaked capture leases or failed");
+}
+
 void test_pinned_storage_is_a_drop() {
   auto gate = std::make_shared<Gate>();
   gate->released = true;
@@ -675,6 +720,7 @@ int main() {
     test_overlap_latest_and_finite_shutdown();
     test_mixed_raw_matcher_pending_is_not_starved();
     test_pinned_storage_is_a_drop();
+    test_independent_images_while_matcher_is_blocked();
 #if defined(DEPTHD_WITH_IMAGE_ENCODER)
     test_numeric_preview_with_independent_raw_cadence();
     test_encoder_preflight_under_capture_overload();

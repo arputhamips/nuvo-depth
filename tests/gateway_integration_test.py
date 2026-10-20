@@ -81,8 +81,9 @@ def raw_frame(sequence, run=2, configuration_epoch=1, width=1, height=1, mask=63
 
 
 def encoded_frame(sequence=1, capture_time_ns=None, **changes):
-    metadata = dict(schema_version=1, device_uuid="01" + "00" * 15,
-        run_uuid="02" + "00" * 15, capture_epoch=1, capture_sequence=sequence,
+    # Match the real encoder's canonical UUID spelling. Raw NUV1 uses hex.
+    metadata = dict(schema_version=1, device_uuid="01000000-0000-0000-0000-000000000000",
+        run_uuid="02000000-0000-0000-0000-000000000000", capture_epoch=1, capture_sequence=sequence,
         configuration_epoch=1, capture_clock=1,
         capture_time_ns=time.clock_gettime_ns(time.CLOCK_BOOTTIME) if capture_time_ns is None else capture_time_ns,
         calibration_sha256="01" + "00" * 31, calibration_authority=1,
@@ -559,7 +560,8 @@ class GatewayIntegrationTest(unittest.TestCase):
                     self.assertTrue(consumer.is_alive(), "old encoded capture satisfied the first-frame wait")
                     self.assertEqual(len(self.local.subscription_updates)-updates, 1, "stale preview reconnected instead of preserving demand")
                     self.wait_demand((0, 0, 5))
-                    fresh = encoded_frame(202 if websocket else 201)
+                    fresh = encoded_frame(202 if websocket else 201, **(
+                        {} if websocket else {"device_uuid": "01" + "00" * 15, "run_uuid": "02" + "00" * 15}))
                     fresh_cursor = self.write_encoded_fixture(fresh)
                     consumer.join(timeout=2)
                     self.assertFalse(consumer.is_alive())
@@ -589,6 +591,8 @@ class GatewayIntegrationTest(unittest.TestCase):
             ("reserved", lambda: header(28, ">I", 1)),
             ("schema type", lambda: encoded_frame(schema_version="1")),
             ("capture identity", lambda: encoded_frame(run_uuid="00"*16)),
+            ("zero canonical identity", lambda: encoded_frame(run_uuid="00000000-0000-0000-0000-000000000000")),
+            ("invalid UUID separators", lambda: encoded_frame(run_uuid="02000000_0000-0000-0000-000000000000")),
             ("clock", lambda: encoded_frame(capture_clock=0)),
             ("future capture", lambda: encoded_frame(capture_time_ns=time.clock_gettime_ns(time.CLOCK_BOOTTIME)+10_000_000_000)),
             ("dimensions", lambda: encoded_frame(width=0)),

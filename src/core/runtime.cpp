@@ -311,7 +311,12 @@ std::shared_ptr<const FrameSetStorage> NativeProcessingPipeline::process(
   const auto started = Clock::now();
   stereo_->refresh_configuration();
   output->stereo_configuration = stereo_->configuration_state();
-  if (output->stereo_configuration.generation != stereo_generation_) {
+  if (configuration_.configuration_epochs) {
+    const auto epoch = configuration_.configuration_epochs->observe(
+        output->stereo_configuration.applied_revision, request.capture.capture_timestamp_ns);
+    if (!epoch) return {};
+    configuration_.configuration_epoch = *epoch;
+  } else if (output->stereo_configuration.generation != stereo_generation_) {
     if (configuration_.configuration_epoch ==
         std::numeric_limits<std::uint64_t>::max()) {
       throw std::overflow_error("configuration epoch exhausted");
@@ -549,10 +554,42 @@ std::shared_ptr<const FrameSetStorage> NativeProcessingPipeline::process(
   return output;
 }
 
+NativeConfigurationEpochs::NativeConfigurationEpochs(const std::uint64_t initial_epoch)
+    : epoch_(initial_epoch) {
+  if (epoch_ == 0U) throw std::invalid_argument("configuration epoch must be nonzero");
+}
+
+std::optional<std::uint64_t> NativeConfigurationEpochs::observe(
+    const std::string_view revision, const std::int64_t capture_time_ns) {
+  std::lock_guard lock(mutex_);
+  for (auto item = revisions_.rbegin(); item != revisions_.rend(); ++item) {
+    if (capture_time_ns < item->first_capture_time_ns) continue;
+    if (item->value == revision) {
+      newest_capture_time_ns_ = std::max(newest_capture_time_ns_, capture_time_ns);
+      return item->epoch;
+    }
+    // A capture in an older interval cannot establish a new current revision.
+    if (item != revisions_.rbegin()) return {};
+    break;
+  }
+  if (!revisions_.empty()) {
+    if (capture_time_ns < newest_capture_time_ns_) return {};
+    if (epoch_ == std::numeric_limits<std::uint64_t>::max())
+      throw std::overflow_error("configuration epoch exhausted");
+    ++epoch_;
+  }
+  newest_capture_time_ns_ = capture_time_ns;
+  if (revisions_.size() == 16U) revisions_.pop_front();
+  revisions_.push_back({std::string(revision), epoch_, capture_time_ns});
+  return epoch_;
+}
+
 BoundedNativeScheduler::BoundedNativeScheduler(
     const SchedulerConfiguration configuration,
-    std::unique_ptr<NativeProcessingPipeline> pipeline)
-    : configuration_(configuration), pipeline_(std::move(pipeline)) {
+    std::unique_ptr<NativeProcessingPipeline> pipeline,
+    std::unique_ptr<NativeProcessingPipeline> image_pipeline)
+    : configuration_(configuration), pipeline_(std::move(pipeline)),
+      image_pipeline_(std::move(image_pipeline)) {
   if (!pipeline_) {
     throw std::invalid_argument("native scheduler requires a pipeline");
   }
@@ -563,7 +600,14 @@ BoundedNativeScheduler::BoundedNativeScheduler(
     throw std::invalid_argument("native scheduler queue capacities must be 1..64");
   }
   stats_.running = true;
-  worker_ = std::thread(&BoundedNativeScheduler::worker_loop, this);
+  worker_ = std::thread(&BoundedNativeScheduler::worker_loop, this, false);
+  try {
+    if (image_pipeline_)
+      image_worker_ = std::thread(&BoundedNativeScheduler::worker_loop, this, true);
+  } catch (...) {
+    stop();
+    throw;
+  }
 }
 
 BoundedNativeScheduler::~BoundedNativeScheduler() noexcept { stop(); }
@@ -571,32 +615,81 @@ BoundedNativeScheduler::~BoundedNativeScheduler() noexcept { stop(); }
 SubmitResult BoundedNativeScheduler::try_submit(
     StereoProcessingRequest request) {
   validate(request);
+  const auto images = request.independent_image_products;
+  if ((images & ipc_v2::kMatcherProducts) != 0U || (images & ~request.products) != 0U)
+    throw std::invalid_argument("independent images must be an image subset of the request");
+  const bool matcher = (request.products & ipc_v2::kMatcherProducts) != 0U;
+  if (image_pipeline_ && matcher && images != 0U) {
+    StereoProcessingRequest image;
+    image.products = images;
+    const auto share_frame = [](CapturedFrame& source) {
+      CapturedFrame result;
+      result.role = source.role;
+      result.camera_stable_id = source.camera_stable_id;
+      result.capture_epoch = source.capture_epoch;
+      result.stream_sequence = source.stream_sequence;
+      result.sensor_timestamp_ns = source.sensor_timestamp_ns;
+      result.isp_exposure_time_us = source.isp_exposure_time_us;
+      result.isp_analogue_gain = source.isp_analogue_gain;
+      result.isp_digital_gain = source.isp_digital_gain;
+      result.sensor_clock = source.sensor_clock;
+      result.grid = source.grid;
+      result.pixel_format = source.pixel_format;
+      result.planes = source.planes;
+      result.lease = source.lease.share();
+      return result;
+    };
+    image.capture.left = share_frame(request.capture.left);
+    image.capture.right = share_frame(request.capture.right);
+    image.capture.capture_epoch = request.capture.capture_epoch;
+    image.capture.pair_sequence = request.capture.pair_sequence;
+    image.capture.capture_timestamp_ns = request.capture.capture_timestamp_ns;
+    image.capture.sensor_delta_ns = request.capture.sensor_delta_ns;
+    image.left_mapping_owner = request.left_mapping_owner;
+    image.right_mapping_owner = request.right_mapping_owner;
+    image.left = request.left;
+    image.right = request.right;
+    // Copy the lazy mapper so each worker owns its mutable mapping cache.
+    image.dmabuf = request.dmabuf;
+    image.left_dmabuf_lease = request.left_dmabuf_lease;
+    image.right_dmabuf_lease = request.right_dmabuf_lease;
+    image.publication_context = request.publication_context;
+    (void)enqueue(std::move(image), true);
+  }
+  // Admission of a numeric preview refers to the matcher lane, even when its
+  // independent image was admitted separately.
+  return enqueue(std::move(request), image_pipeline_ && !matcher);
+}
+
+SubmitResult BoundedNativeScheduler::enqueue(
+    StereoProcessingRequest request, const bool image_lane) {
+  auto& pending = image_lane ? image_pending_ : pending_;
   std::optional<StereoProcessingRequest> replaced;
   {
     std::lock_guard lock(mutex_);
     if (stop_requested_) {
       return SubmitResult::kStopped;
     }
-    if (pending_.size() >= configuration_.pending_capacity) {
-      auto victim = std::find_if(pending_.begin(), pending_.end(),
+    if (pending.size() >= configuration_.pending_capacity) {
+      auto victim = std::find_if(pending.begin(), pending.end(),
             [&request](const auto& queued) {
               return (!queued.preserve_for_preview || request.preserve_for_preview) &&
                   ((queued.products & ipc_v2::kMatcherProducts) == 0U ||
                    (request.products & queued.products) == queued.products);
             });
-      if (victim == pending_.end()) {
+      if (victim == pending.end()) {
         ++stats_.protected_pending_dropped;
         return SubmitResult::kQueueFull;
       }
       replaced.emplace(std::move(*victim));
-      pending_.erase(victim);
+      pending.erase(victim);
       ++stats_.pending_replaced;
     }
-    pending_.push_back(std::move(request));
+    pending.push_back(std::move(request));
     ++stats_.accepted;
-    stats_.pending = pending_.size();
+
   }
-  input_ready_.notify_one();
+  input_ready_.notify_all();
   return SubmitResult::kAccepted;
 }
 
@@ -607,22 +700,21 @@ std::shared_ptr<const FrameSetStorage> BoundedNativeScheduler::wait_next(
   }
   std::unique_lock lock(mutex_);
   output_ready_.wait_for(lock, timeout, [this] {
-    return !completed_.empty() || !last_error_.empty() || stop_requested_;
+    return !completed_.empty() || !image_completed_.empty() || !last_error_.empty() || stop_requested_;
   });
-  if (completed_.empty()) {
-    return {};
-  }
-  auto result = std::move(completed_.front());
-  completed_.pop_front();
-  stats_.completed = completed_.size();
+  auto& completed = completed_.empty() ? image_completed_ : completed_;
+  if (completed.empty()) return {};
+  auto result = std::move(completed.front());
+  completed.pop_front();
+
   return result;
 }
 
 SchedulerStats BoundedNativeScheduler::stats() const noexcept {
   std::lock_guard lock(mutex_);
   auto result = stats_;
-  result.pending = pending_.size();
-  result.completed = completed_.size();
+  result.pending = pending_.size() + image_pending_.size();
+  result.completed = completed_.size() + image_completed_.size();
   result.running = !stop_requested_;
   return result;
 }
@@ -634,6 +726,7 @@ std::string BoundedNativeScheduler::take_last_error() {
 
 void BoundedNativeScheduler::stop() noexcept {
   std::deque<StereoProcessingRequest> abandoned;
+  std::deque<StereoProcessingRequest> abandoned_images;
   {
     std::lock_guard lock(mutex_);
     if (stop_requested_) {
@@ -642,27 +735,30 @@ void BoundedNativeScheduler::stop() noexcept {
     stop_requested_ = true;
     stats_.running = false;
     abandoned.swap(pending_);
+    abandoned_images.swap(image_pending_);
   }
   input_ready_.notify_all();
   output_ready_.notify_all();
-  if (worker_.joinable()) {
-    worker_.join();
-  }
+  if (worker_.joinable()) worker_.join();
+  if (image_worker_.joinable()) image_worker_.join();
 }
 
-void BoundedNativeScheduler::worker_loop() noexcept {
+void BoundedNativeScheduler::worker_loop(const bool image_lane) noexcept {
+  auto& pending = image_lane ? image_pending_ : pending_;
+  auto& completed = image_lane ? image_completed_ : completed_;
+  auto& pipeline = image_lane ? image_pipeline_ : pipeline_;
   while (true) {
     std::optional<StereoProcessingRequest> request;
     {
       std::unique_lock lock(mutex_);
       input_ready_.wait(lock,
-                        [this] { return stop_requested_ || !pending_.empty(); });
+                        [this, &pending] { return stop_requested_ || !pending.empty(); });
       if (stop_requested_) {
         return;
       }
-      request.emplace(std::move(pending_.front()));
-      pending_.pop_front();
-      stats_.pending = pending_.size();
+      request.emplace(std::move(pending.front()));
+      pending.pop_front();
+
     }
 
     try {
@@ -672,13 +768,13 @@ void BoundedNativeScheduler::worker_loop() noexcept {
       // more memory or wait while retaining camera requests.
       {
         std::lock_guard lock(mutex_);
-        while (!pipeline_->has_available_storage() && !completed_.empty()) {
-          completed_.pop_front();
+        while (!pipeline->has_available_storage() && !completed.empty()) {
+          completed.pop_front();
           ++stats_.completed_dropped;
         }
-        stats_.completed = completed_.size();
+
       }
-      auto result = pipeline_->process(std::move(*request));
+      auto result = pipeline->process(std::move(*request));
       std::lock_guard lock(mutex_);
       if (stop_requested_) {
         return;
@@ -687,13 +783,13 @@ void BoundedNativeScheduler::worker_loop() noexcept {
         ++stats_.storage_exhausted_dropped;
         continue;
       }
-      if (completed_.size() >= configuration_.completed_capacity) {
-        completed_.pop_front();
+      if (completed.size() >= configuration_.completed_capacity) {
+        completed.pop_front();
         ++stats_.completed_dropped;
       }
-      completed_.push_back(std::move(result));
+      completed.push_back(std::move(result));
       ++stats_.processed;
-      stats_.completed = completed_.size();
+
       output_ready_.notify_one();
     } catch (const std::exception& error) {
       std::lock_guard lock(mutex_);

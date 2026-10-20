@@ -429,6 +429,31 @@ void test_event_publication_without_snapshot_and_inflight_stop() {
           "stopping encoder published a stale in-flight result");
 }
 
+void test_image_completion_does_not_consume_numeric_plan() {
+  using namespace depthd::encoding;
+  auto config = Configuration{};
+  config.codec = Codec::kJpeg;
+  config.source = Source::kDepth;
+  std::atomic<unsigned> publications{};
+  AsyncFrameEncoder async({}, {}, config, {}, {}, {},
+      [&](const auto&, std::uint64_t, std::span<const std::byte> bytes) {
+        if (!bytes.empty()) ++publications;
+      });
+  auto complete = frame();
+  const auto plan = async.prepare_capture(complete->metadata.frame);
+  require(plan.result == SubmitResult::kAccepted, "numeric preview not admitted");
+  require(async.commit_native_capture(plan), "numeric capture commit failed");
+  auto image = frame();
+  image->available_products = depthd::ipc_v2::product_bit(depthd::ipc_v2::ProductKind::kLeftMono);
+  require(async.submit_native(image, plan) == SubmitResult::kPreviewUnavailable,
+          "image-only completion consumed a numeric encoder plan");
+  require(async.submit_native(complete, plan) == SubmitResult::kAccepted,
+          "numeric completion was starved by its earlier image");
+  eventually([&] { return publications == 1U; }, "numeric completion was not encoded");
+  async.stop();
+  require(async.stats().failures == 0U, "numeric completion caused an encoding failure");
+}
+
 void test_capture_plans_and_reload() {
   using depthd::encoding::SubmitResult;
   const auto root = std::filesystem::temp_directory_path() / "depthd-encoder-reload-test";
@@ -718,6 +743,7 @@ int main() {
   assert(async.stats().configuration_reloads == 2U);
   std::filesystem::remove_all(root);
   test_capture_plans_and_reload();
+  test_image_completion_does_not_consume_numeric_plan();
   test_event_publication_without_snapshot_and_inflight_stop();
   test_independent_capture_sources();
   test_sycc_full_range_conversion();

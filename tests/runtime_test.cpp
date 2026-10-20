@@ -788,6 +788,21 @@ void test_demand_computes_only_required_stages_and_products() {
           "mono-only output entered metric authorization");
 }
 
+void test_independent_lanes_share_configuration_epochs() {
+  depthd::NativeConfigurationEpochs epochs(1U);
+  require(epochs.observe("first", 100) == 1U, "first revision changed initial epoch");
+  require(epochs.observe("second", 200) == 2U, "new revision did not advance epoch");
+  require(epochs.observe("first", 150) == 1U, "late lane relabelled an old revision");
+  require(epochs.observe("third", 300) == 3U, "third revision did not advance epoch");
+  require(epochs.observe("third", 400) == 3U, "lane that skipped a revision diverged");
+  require(!epochs.observe("unknown-old", 250), "unknown stale revision became current");
+  for (int index = 4; index < 24; ++index)
+    require(epochs.observe(std::to_string(index), index * 100) == static_cast<unsigned>(index),
+            "bounded configuration history lost current epoch");
+  require(!epochs.observe("first", 100), "evicted old revision became current");
+  require(epochs.observe("first", 2400) == 24U, "reverting controls did not advance epoch");
+}
+
 void test_capture_rgb_preserves_channels_and_padded_rows() {
   std::atomic<unsigned> released{};
   auto input = request(1U, released);
@@ -812,6 +827,7 @@ void test_capture_rgb_preserves_channels_and_padded_rows() {
 int main() {
   try {
     test_synchronous_pipeline();
+    test_independent_lanes_share_configuration_epochs();
     test_configuration_epoch_tracks_applied_matcher_changes();
     test_demand_computes_only_required_stages_and_products();
     test_capture_rgb_preserves_channels_and_padded_rows();
