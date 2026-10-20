@@ -58,6 +58,9 @@ struct StereoConfigurationState {
   std::string requested_revision;
   std::string applied_revision;
   std::string rejection_error;
+  // Canonical effective settings, shared across backends with different reload
+  // histories. Formatting-only control writes keep this value unchanged.
+  std::string effective_revision;
 };
 
 class NativeDisparityBackend {

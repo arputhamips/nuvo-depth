@@ -1,13 +1,14 @@
 # Native runtime, IPC v2, and shared IP gateway
 
-This document records the implementation boundary after Steps 4–6. It is a
+This document records the implementation boundary after Steps 4â€“6. It is a
 status document, not a claim that hardware or release qualification is done.
 
 ## Implemented skeleton
 
 The native runtime accepts one already-associated stereo capture while both
-camera leases and CPU mapping owners are retained. One worker owns the
-rectifier and stereo matcher. It produces an immutable, owning frame set with:
+camera leases and CPU mapping owners are retained. Independent image and
+matcher workers each own their stateful backends and bounded queues. A slow
+match cannot delay the image worker. Each produces an immutable frame set with:
 
 - rectified logical-left and logical-right images on the image grid;
 - disparity, confidence, metric optical-axis depth, and validity on the native
@@ -16,7 +17,15 @@ rectifier and stereo matcher. It produces an immutable, owning frame set with:
   authority for the complete set; and
 - backend names and bounded processing statistics.
 
-Input and completed queues are bounded. Backpressure rejects capture work or
+The live runtime splits its eight storage slots and 256 MiB payload allowance
+between the two workers. Explicit shared capture leases release each camera
+request once, after both workers have dropped their mappings. A matcher result
+retains its capture-associated images even when independent mono frames have
+already advanced. Late results cannot replace the newest image or restore an
+older configuration. A bounded shared revision history gives both workers the
+same configuration epoch, including when one skips intermediate control writes.
+
+Input and completed queues are bounded per worker. Backpressure rejects capture work or
 drops the oldest *complete* result. Individual products are never combined
 across captures. Provisional calibration does not authorize metric depth unless
 an explicit engineering-only override is supplied.
@@ -43,9 +52,11 @@ service. It does not also copy them into an unused in-process broker or write
 raw snapshots each frame. `depthd --snapshot-dir DIR` explicitly enables raw
 disk diagnostics. The broker API remains available for library consumers.
 
-The gateway holds one persistent raw subscription to
-`/run/nuvo-depth/data.sock` for the union of active consumers' selected products
-and their maximum cadence. It fetches nothing while no raw consumer is open.
+The gateway holds separate persistent image and matcher subscriptions to
+`/run/nuvo-depth/data.sock`, each using its consumers' union of products and
+maximum cadence. A depth subscription keeps all its associated images together;
+independent image subscriptions do not raise its match rate. Each reader fetches
+nothing while its group has no consumer.
 A separate persistent subscription carries maximum encoded-preview demand;
 preview encoding stops after its last consumer disconnects. Snapshot requests
 also acquire demand, wait at most three seconds for matching fresh products,
@@ -176,6 +187,10 @@ frame. WebSocket reads stay active for ping/pong and close frames. Writes must
 complete within five seconds; shutdown interrupts tracked connections and has
 a five-second client deadline. The service sets a ten-second stop timeout.
 Removing or reconfiguring the native encoded output clears the gateway cache.
+The encoded validator accepts the encoder's canonical hyphenated UUIDs and the
+compact hex spelling. Both retain strict nonzero identity, header, scalar type,
+keyframe and capture-freshness checks. Image-only completions cannot consume a
+numeric preview plan before its matching depth/disparity completion arrives.
 
 The first C++ SDK surface is `nuvo::StreamDecoder`. It is an incremental,
 bounded decoder for bytes after TLS authentication/decryption and handles both

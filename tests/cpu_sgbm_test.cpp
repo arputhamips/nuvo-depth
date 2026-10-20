@@ -228,6 +228,9 @@ int main() {
   std::filesystem::last_write_time(control, observed_time + std::chrono::seconds(2));
   selectable->refresh_configuration();
   const auto equal_state = selectable->configuration_state();
+  if (changed_state.effective_revision == initial_state.effective_revision ||
+      equal_state.effective_revision != changed_state.effective_revision ||
+      equal_state.effective_revision.size() != 64U) return 20;
   if (equal_state.generation != changed_state.generation ||
       equal_state.applied_revision == changed_state.applied_revision ||
       equal_state.applied_revision != equal_state.requested_revision ||

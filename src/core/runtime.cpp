@@ -313,7 +313,10 @@ std::shared_ptr<const FrameSetStorage> NativeProcessingPipeline::process(
   output->stereo_configuration = stereo_->configuration_state();
   if (configuration_.configuration_epochs) {
     const auto epoch = configuration_.configuration_epochs->observe(
-        output->stereo_configuration.applied_revision, request.capture.capture_timestamp_ns);
+        output->stereo_configuration.effective_revision.empty()
+            ? output->stereo_configuration.applied_revision
+            : output->stereo_configuration.effective_revision,
+        request.capture.capture_timestamp_ns);
     if (!epoch) return {};
     configuration_.configuration_epoch = *epoch;
   } else if (output->stereo_configuration.generation != stereo_generation_) {

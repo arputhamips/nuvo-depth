@@ -10,6 +10,9 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iomanip>
+#include <locale>
+#include <sstream>
 #include <limits>
 #include <numeric>
 #include <optional>
@@ -302,7 +305,21 @@ class CpuSgbmBackend final : public StereoBackend,
   }
 
   [[nodiscard]] StereoConfigurationState configuration_state() const override {
-    return configuration_state_;
+    auto result = configuration_state_;
+    std::ostringstream value;
+    value.imbue(std::locale::classic());
+    value << std::setprecision(std::numeric_limits<float>::max_digits10)
+          << static_cast<int>(config_.algorithm) << ':' << config_.input_width << ':'
+          << config_.input_height << ':' << config_.working_width << ':' << config_.working_height << ':'
+          << config_.working_min_disparity << ':' << config_.accepted_min_disparity_px << ':'
+          << config_.accepted_max_disparity_px << ':' << config_.working_disparities << ':'
+          << config_.block_size << ':' << config_.sgbm_mode << ':' << config_.uniqueness_ratio << ':'
+          << config_.speckle_window_size << ':' << config_.speckle_range << ':'
+          << config_.disparity_12_max_diff << ':' << config_.pre_filter_cap << ':'
+          << config_.bm_pre_filter_size << ':' << config_.bm_texture_threshold << ':'
+          << config_.specular_threshold << ':' << config_.median_filter_size << ':' << config_.opencv_threads;
+    result.effective_revision = revision::sha256_hex(value.str());
+    return result;
   }
 
   [[nodiscard]] std::string_view name() const noexcept override {
