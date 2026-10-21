@@ -81,9 +81,27 @@ A well-lit textured scene and a measured distance reference are still needed
 to assess current image quality and absolute range. No recalibration was
 performed and no new accuracy qualification is claimed.
 
+After the user switched on the lights, another three associated stereo previews
+and 300-frame stream were captured. Median raw brightness rose to 51/255 left
+and 55/255 right. Delivery was 9.99980 fps, with no missing/duplicate stream
+frames or completion/requeue/trigger/processing errors. Frame age was 100.71 ms
+median, 101.10 ms p95 and 101.70 ms maximum. Valid pixels ranged from 62.23% to
+64.21%, with a median of 63.29%. Final temperature was 58.2 °C with no throttling.
+
+The brighter scene confirmed a remaining vertical alignment discrepancy:
+496 mutual SIFT correspondences, selected by a 0.7 descriptor ratio and positive
+disparity below 128 px without a vertical-error filter, had 2.82 px median
+absolute vertical error and 4.45 px p95. The beta 5 calibration remains selected
+as requested; neither its matrices nor the measured depth were adjusted to
+hide this residual. Stream throughput and numeric conversion pass, but current
+rectification quality and absolute accuracy remain unqualified. No known
+distance reference was supplied for this scene.
+
 Local evidence and three preview images are retained under
 `output/minimal-depth-validation-20261021-run2/`; complete raw frames and
 metadata remain on the Pi under the same directory name in `/home/nuvo`.
+The illuminated scene's evidence and three final previews are under
+`output/minimal-depth-validation-20261021-lit/` and the corresponding Pi folder.
 
 ## Repository checks
 
