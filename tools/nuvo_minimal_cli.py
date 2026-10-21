@@ -269,20 +269,30 @@ def install_main(argv=None):
         if not args.dry_run: subprocess.run(['apt-get', 'update'], check=True)
         subprocess.run(['apt-get', '--simulate', *command[1:]], check=True)
         if args.dry_run: return
-        environment = dict(os.environ, DEBIAN_FRONTEND='noninteractive')
-        subprocess.run([*command[:1], '--yes', '-o', 'Dpkg::Options::=--force-confdef', '-o', 'Dpkg::Options::=--force-confold', *command[1:]], env=environment, check=True)
-        preparation = admin.platform_prepare(Path('/'), True)
-        subprocess.run(['depthd', '--check-config', '/etc/nuvo-depth/daemon.yaml'], check=True)
-        subprocess.run(['systemctl', 'daemon-reload'], check=True)
-        subprocess.run(['systemctl', 'enable', SERVICE], check=True)
-        if preparation['reboot_required']:
-            print('Camera boot configuration prepared. Reboot, reconnect over SSH, then run sudo nuvoctl depth capture.')
-            if args.reboot: subprocess.run(['systemctl', 'reboot'], check=True)
-            return
-        subprocess.run(['systemctl', 'restart', SERVICE], check=True)
-        # Service readiness alone does not exercise the demand-driven matcher.
-        subprocess.run(['/usr/lib/nuvo-depth/nuvo-depth-read', '--frames', '3', '--timeout-seconds', '30'], stdout=subprocess.DEVNULL, check=True)
-        print('Minimal installation verified: three fresh raw depth frames. Configure with sudo nuvoctl configure.')
+        # Serialize package/boot changes independently of the control-file lock.
+        lock_path = Path('/var/lib/nuvo-depth-minimal-install.lock')
+        import fcntl
+        with lock_path.open('a') as install_lock:
+            fcntl.flock(install_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return apply_install(command, preparation, args)
+
+
+def apply_install(command, preparation, args):
+    install_preflight(Path('/'))
+    environment = dict(os.environ, DEBIAN_FRONTEND='noninteractive')
+    subprocess.run([*command[:1], '--yes', '-o', 'Dpkg::Options::=--force-confdef', '-o', 'Dpkg::Options::=--force-confold', *command[1:]], env=environment, check=True)
+    preparation = admin.platform_prepare(Path('/'), True)
+    subprocess.run(['depthd', '--check-config', '/etc/nuvo-depth/daemon.yaml'], check=True)
+    subprocess.run(['systemctl', 'daemon-reload'], check=True)
+    subprocess.run(['systemctl', 'enable', SERVICE], check=True)
+    if preparation['reboot_required'] or not admin.platform_preflight(Path('/'))['ready']:
+        print('Camera boot configuration prepared. Reboot, reconnect over SSH, then run sudo nuvoctl depth capture.')
+        if args.reboot: subprocess.run(['systemctl', 'reboot'], check=True)
+        return
+    subprocess.run(['systemctl', 'restart', SERVICE], check=True)
+    # Service readiness alone does not exercise the demand-driven matcher.
+    subprocess.run(['/usr/lib/nuvo-depth/nuvo-depth-read', '--frames', '3', '--timeout-seconds', '30'], stdout=subprocess.DEVNULL, check=True)
+    print('Minimal installation verified: three fresh raw depth frames. Configure with sudo nuvoctl configure.')
 
 
 if __name__ == '__main__':

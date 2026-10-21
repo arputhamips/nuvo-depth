@@ -25,6 +25,7 @@ def build(source, packages, output, repository, tag, version, platform, private_
     if profile not in release.PROFILE_PACKAGES:
         raise ValueError('unsupported installation profile')
     installer_name = 'install-nuvo-depth-minimal.sh' if profile == 'minimal' else 'install-nuvo-depth.sh'
+    install_doc = 'minimal-install.md' if profile == 'minimal' else 'install.md'
     if not release.REPOSITORY.fullmatch(repository) or not release.TAG.fullmatch(tag):
         raise ValueError("supply the final owner/repository and exact release tag")
     public_key = subprocess.check_output(["openssl", "pkey", "-in", str(private_key), "-pubout"], text=True)
@@ -96,7 +97,7 @@ OS dependencies still require the configured APT sources or a local APT cache.
 LICENSE and NOTICE contain the software terms. Matching Corresponding Source
 is nuvo-depth-source.tar.gz when published by the release workflow; build records
 and test results are included alongside the signed manifest.
-Documentation: https://github.com/{repository}/blob/{tag}/docs/install.md
+Documentation: https://github.com/{repository}/blob/{tag}/docs/{install_doc}
 ''', encoding="utf-8")
     manifest["files"] = files
     for name in ("nuvo-install.pyz", installer_name, "release.pub", "LICENSE", "NOTICE", "README.txt"):

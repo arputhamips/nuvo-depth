@@ -508,6 +508,9 @@ endif()
 # location. Keep it stable across arm64 and build hosts so the unit never needs
 # a CMake multiarch triplet.
 set(DEPTHD_LIBEXEC_DIR "lib/nuvo-depthd")
+if(DEPTHD_MINIMAL_PACKAGE AND NOT TARGET depthd_runtime_factory)
+  message(FATAL_ERROR "Minimal packages require the native OpenCV depth pipeline")
+endif()
 
 if(DEPTHD_MINIMAL_PACKAGE)
   install(TARGETS depthd RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
