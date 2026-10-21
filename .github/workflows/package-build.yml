@@ -6,11 +6,19 @@ on:
         description: Branch, tag or commit to build for testing
         type: string
         required: false
+      package_profile:
+        description: Package installation profile
+        type: choice
+        options: [appliance, minimal]
+        default: appliance
   workflow_call:
     inputs:
       source_ref:
         type: string
         required: true
+      package_profile:
+        type: string
+        default: appliance
 permissions:
   contents: read
 jobs:
@@ -38,6 +46,7 @@ jobs:
         env:
           DEB_BUILD_OPTIONS: parallel=2
           CTEST_OUTPUT_ON_FAILURE: '1'
+          NUVO_PACKAGE_PROFILE: ${{ inputs.package_profile || 'appliance' }}
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           mkdir -p output/package-build
@@ -46,17 +55,24 @@ jobs:
           dpkg-buildpackage -b -us -uc
           cp ../*.deb ../*.buildinfo ../*.changes output/package-build/
           cp obj-aarch64-linux-gnu/Testing/Temporary/LastTest.log output/package-build/ctest.log
+          if [ "$NUVO_PACKAGE_PROFILE" = minimal ]; then
+            cp install-nuvo-depth-minimal.sh deployment/release-platform.json output/package-build/
+            mkdir -p output/package-build/tools
+            cp tools/nuvo_minimal_cli.py tools/nuvoctl.py tools/nuvo_release.py output/package-build/tools/
+          fi
           dpkg-query -W -f='${binary:Package}\t${Version}\t${Architecture}\n' > output/package-build/build-packages.txt
           python3 - <<'PY'
           import json, os, pathlib, subprocess
           record = {"schema_version": 1, "source_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
                     "version": subprocess.check_output(["dpkg-parsechangelog", "-S", "Version"], text=True).strip(),
                     "architecture": "arm64", "codename": "trixie",
+                    "profile": os.environ['NUVO_PACKAGE_PROFILE'],
                     "workflow_run": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
                     "hardware_tests": "not run: hosted ARM64 builder has no Pi cameras"}
           pathlib.Path("output/package-build/build-record.json").write_text(json.dumps(record, indent=2)+"\n")
           PY
       - name: Smoke test runtime package installation in the disposable container
+        if: inputs.package_profile != 'minimal'
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
@@ -77,9 +93,13 @@ jobs:
           python3 /usr/lib/nuvo-depth/generate_spdx.py --help > /dev/null
           python3 -c 'from nuvo_depth import NuvoClient, decode_frame'
           test -z "$(dpkg --audit)"
+      - name: Inspect minimal package and dependency isolation
+        if: inputs.package_profile == 'minimal'
+        run: |
+          python3 tests/minimal_package_test.py output/package-build/nuvo-depth-minimal_*.deb
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: nuvo-debian-arm64
+          name: ${{ inputs.package_profile == 'minimal' && 'nuvo-minimal-arm64' || 'nuvo-debian-arm64' }}
           path: output/package-build/
           if-no-files-found: error
           retention-days: 30
@@ -90,3 +110,39 @@ jobs:
           name: arm64-test-diagnostics
           path: obj-aarch64-linux-gnu/Testing/Temporary/
           retention-days: 7
+  minimal-install:
+    if: inputs.package_profile == 'minimal'
+    needs: build
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    container:
+      image: debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: nuvo-minimal-arm64
+          path: /tmp/minimal-artifact
+      - name: Install into a fresh runtime-only Trixie environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl
+          key=/tmp/raspberrypi-archive-keyring.deb
+          curl -fL https://archive.raspberrypi.com/debian/pool/main/r/raspberrypi-archive-keyring/raspberrypi-archive-keyring_2025.1+rpt1_all.deb -o "$key"
+          echo "2e727149d7acb8cc7f604e66d0049161039c8aa1eaf1175e54f9e69d963d60e4  $key" | sha256sum --check --strict
+          dpkg-deb -x "$key" /tmp/raspi-key
+          cp /tmp/raspi-key/usr/share/keyrings/raspberrypi-archive-keyring.pgp /usr/share/keyrings/
+          printf '%s\n' 'deb [signed-by=/usr/share/keyrings/raspberrypi-archive-keyring.pgp] https://archive.raspberrypi.com/debian/ trixie main' > /etc/apt/sources.list.d/raspi.list
+          apt-get update
+          apt-get install -y --no-install-recommends /tmp/minimal-artifact/nuvo-depth-minimal_*.deb
+          depthd --check-config /etc/nuvo-depth/daemon.yaml
+          nuvoctl --help
+          nuvoctl config validate
+          /usr/lib/nuvo-depth/nuvo-depth-read --help
+          test -z "$(dpkg --audit)"
+          for package in nuvo-depth-gateway nuvo-depth-tools nuvo-depth-calibration python3-nuvo-depth network-manager dnsmasq-base avahi-daemon python3-opencv python3-numpy ffmpeg; do
+            test "$(dpkg-query -W -f='${db:Status-Status}' "$package" 2>/dev/null || true)" != installed
+          done
+          dpkg-query -W -f='${binary:Package}\t${Version}\n'

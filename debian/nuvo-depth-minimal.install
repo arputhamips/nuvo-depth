@@ -1,0 +1,11 @@
+etc/nuvo-depth/
+usr/bin/depthd
+usr/bin/nuvoctl
+usr/lib/nuvo-depth/
+usr/lib/systemd/system/nuvo-depthd-native.service
+usr/lib/systemd/system/nuvo-trigger-prepare.service
+usr/lib/sysusers.d/nuvo-depth.conf
+usr/lib/tmpfiles.d/nuvo-depth.conf
+usr/share/nuvo-depth/calibration/
+usr/share/doc/nuvo-depth/
+usr/share/doc/nuvo-depth-minimal/

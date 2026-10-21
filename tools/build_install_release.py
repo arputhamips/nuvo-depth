@@ -21,7 +21,10 @@ def asset_name(name):
     return re.sub(r"[^A-Za-z0-9_.-]", ".", name)
 
 
-def build(source, packages, output, repository, tag, version, platform, private_key, extras=None):
+def build(source, packages, output, repository, tag, version, platform, private_key, extras=None, *, profile='appliance'):
+    if profile not in release.PROFILE_PACKAGES:
+        raise ValueError('unsupported installation profile')
+    installer_name = 'install-nuvo-depth-minimal.sh' if profile == 'minimal' else 'install-nuvo-depth.sh'
     if not release.REPOSITORY.fullmatch(repository) or not release.TAG.fullmatch(tag):
         raise ValueError("supply the final owner/repository and exact release tag")
     public_key = subprocess.check_output(["openssl", "pkey", "-in", str(private_key), "-pubout"], text=True)
@@ -33,7 +36,7 @@ def build(source, packages, output, repository, tag, version, platform, private_
     for path in sorted(packages.glob("*.deb")):
         fields = subprocess.check_output(["dpkg-deb", "--field", str(path), "Package", "Version", "Architecture"], text=True)
         metadata = dict(line.split(": ", 1) for line in fields.strip().splitlines())
-        if metadata.get("Package") not in release.RUNTIME_PACKAGES:
+        if metadata.get("Package") not in release.PROFILE_PACKAGES[profile]:
             continue
         selected.append((path, metadata))
         with path.open("rb") as package_file:
@@ -44,9 +47,10 @@ def build(source, packages, output, repository, tag, version, platform, private_
     placeholder = {"name": "nuvo-install.pyz", "size": 1, "sha256": "0"*64}
     manifest = {"schema_version": 1, "format": "nuvo-depth-release", "repository": repository,
                 "tag": tag, "version": version, "platform": platform, "files": files + [placeholder]}
+    if profile != 'appliance': manifest['profile'] = profile
     release.validate_manifest(manifest)
     extras = list(extras or [])
-    reserved = {f["name"] for f in files} | {"manifest.json", "manifest.sig", "nuvo-install.pyz", "install-nuvo-depth.sh", "release.pub", "LICENSE", "NOTICE", "README.txt"}
+    reserved = {f["name"] for f in files} | {"manifest.json", "manifest.sig", "nuvo-install.pyz", installer_name, "release.pub", "LICENSE", "NOTICE", "README.txt"}
     for path in extras:
         if not release.NAME.fullmatch(path.name) or asset_name(path.name) in reserved or path.is_symlink() or not path.is_file() or path.suffix not in {".gz", ".json", ".txt", ".buildinfo", ".log"}:
             raise ValueError("unsafe or duplicate supplementary release asset")
@@ -56,16 +60,18 @@ def build(source, packages, output, repository, tag, version, platform, private_
     for path, _ in selected:
         shutil.copyfile(path, output / asset_name(path.name))
     with zipfile.ZipFile(output / "nuvo-install.pyz", "x", compression=zipfile.ZIP_DEFLATED) as archive:
-        for name in ("nuvo_install.py", "nuvo_setup.py", "nuvo_release.py", "nuvoctl.py"):
+        modules = ("nuvo_minimal_cli.py", "nuvo_release.py", "nuvoctl.py") if profile == 'minimal' else ("nuvo_install.py", "nuvo_setup.py", "nuvo_release.py", "nuvoctl.py")
+        for name in modules:
             text = (source / "tools" / name).read_text(encoding="utf-8")
             if name == "nuvo_release.py":
                 text = re.sub(r'^DEFAULT_REPOSITORY = .*$', lambda _: "DEFAULT_REPOSITORY = " + repr(repository), text, flags=re.M)
                 text = re.sub(r'^DEFAULT_PUBLIC_KEY = .*$', lambda _: "DEFAULT_PUBLIC_KEY = " + repr(public_key), text, flags=re.M)
             archive.writestr(name, text)
-        archive.writestr("__main__.py", "from nuvo_install import main\nmain()\n")
+        entry = 'from nuvo_minimal_cli import install_main\ninstall_main()\n' if profile == 'minimal' else 'from nuvo_install import main\nmain()\n'
+        archive.writestr("__main__.py", entry)
         for name in ("LICENSE", "NOTICE"):
             archive.write(source / name, name)
-    shell = (source / "install-nuvo-depth.sh").read_text(encoding="utf-8")
+    shell = (source / installer_name).read_text(encoding="utf-8")
     shell = re.sub(r'^DEFAULT_REPOSITORY="[^"]*"$', lambda _: f'DEFAULT_REPOSITORY="{repository}"', shell, count=1, flags=re.M)
     shell = re.sub(r'^DEFAULT_RELEASE="[^"]*"$', lambda _: f'DEFAULT_RELEASE="{tag}"', shell, count=1, flags=re.M)
     public_der = subprocess.check_output(["openssl", "pkey", "-pubin", "-outform", "DER"], input=public_key.encode("ascii"))
@@ -74,7 +80,7 @@ def build(source, packages, output, repository, tag, version, platform, private_
     shell, replacements = re.subn(r"^RELEASE_PUBLIC_KEY_PEM='[^']*'", lambda _: "RELEASE_PUBLIC_KEY_PEM='" + public_key.strip() + "'", shell, count=1, flags=re.M)
     if replacements != 1:
         raise ValueError("bootstrap public-key assignment not found")
-    (output / "install-nuvo-depth.sh").write_text(shell, encoding="utf-8", newline="\n")
+    (output / installer_name).write_text(shell, encoding="utf-8", newline="\n")
     (output / "release.pub").write_text(public_key, encoding="ascii", newline="\n")
     for name in ("LICENSE", "NOTICE"):
         shutil.copyfile(source / name, output / name)
@@ -84,7 +90,7 @@ Normally, use the one-line install command on the GitHub release page.
 The installer selects and verifies every package; do not install them individually.
 
 For a cached/offline bundle, extract it and run:
-  sudo bash ./install-nuvo-depth.sh --bundle "$PWD"
+  sudo bash ./{installer_name} --bundle "$PWD"
 OS dependencies still require the configured APT sources or a local APT cache.
 
 LICENSE and NOTICE contain the software terms. Matching Corresponding Source
@@ -93,7 +99,7 @@ and test results are included alongside the signed manifest.
 Documentation: https://github.com/{repository}/blob/{tag}/docs/install.md
 ''', encoding="utf-8")
     manifest["files"] = files
-    for name in ("nuvo-install.pyz", "install-nuvo-depth.sh", "release.pub", "LICENSE", "NOTICE", "README.txt"):
+    for name in ("nuvo-install.pyz", installer_name, "release.pub", "LICENSE", "NOTICE", "README.txt"):
         data = (output / name).read_bytes()
         manifest["files"].append({"name": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()})
     for path in extras:
@@ -116,7 +122,10 @@ def publish_bundle(assets, output, private_key):
     for item in manifest["files"]:
         release.check_asset(assets / item["name"], item)
     output.mkdir(parents=True, exist_ok=False)
-    archive = output / release.BUNDLE_NAME
+    minimal = manifest.get('profile') == 'minimal'
+    bundle_name = release.MINIMAL_BUNDLE_NAME if minimal else release.BUNDLE_NAME
+    installer_name = 'install-nuvo-depth-minimal.sh' if minimal else 'install-nuvo-depth.sh'
+    archive = output / bundle_name
     names = sorted([item["name"] for item in manifest["files"]] + ["manifest.json", "manifest.sig"])
     with tarfile.open(archive, "w:gz", format=tarfile.USTAR_FORMAT) as bundle:
         for name in names:
@@ -127,10 +136,10 @@ def publish_bundle(assets, output, private_key):
                 bundle.addfile(info, data)
     if archive.stat().st_size > release.BUNDLE_LIMIT:
         raise ValueError("installer bundle exceeds bootstrap download limit")
-    signature = output / (release.BUNDLE_NAME + ".sig")
+    signature = output / (bundle_name + ".sig")
     subprocess.run(["openssl", "pkeyutl", "-sign", "-inkey", str(private_key), "-rawin", "-in", str(archive), "-out", str(signature)], check=True)
     release.verify_signature(archive, signature, assets / "release.pub")
-    shutil.copyfile(assets / "install-nuvo-depth.sh", output / "install-nuvo-depth.sh")
+    shutil.copyfile(assets / installer_name, output / installer_name)
 
 
 def main():
@@ -145,8 +154,9 @@ def main():
     parser.add_argument("--platform", type=Path, required=True)
     parser.add_argument("--private-key", type=Path, required=True, help="offline release secret; never committed")
     parser.add_argument("--extra", type=Path, action="append", default=[], help="supplementary source/build evidence to include in signed manifest")
+    parser.add_argument('--profile', choices=sorted(release.PROFILE_PACKAGES), default='appliance')
     args = parser.parse_args()
-    build(args.source, args.packages, args.output, args.repository, args.tag, args.version, release.load_json(args.platform), args.private_key, args.extra)
+    build(args.source, args.packages, args.output, args.repository, args.tag, args.version, release.load_json(args.platform), args.private_key, args.extra, profile=args.profile)
     if args.publication_output:
         publish_bundle(args.output, args.publication_output, args.private_key)
     print("Signed install assets ready: " + str(args.output))

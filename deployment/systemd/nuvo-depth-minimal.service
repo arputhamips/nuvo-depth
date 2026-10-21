@@ -1,0 +1,47 @@
+[Unit]
+Description=Nuvo Depth minimal raw stereo processing daemon
+After=local-fs.target systemd-udev-settle.service
+ConditionPathExists=/etc/nuvo-depth/daemon.yaml
+
+[Service]
+Type=notify
+NotifyAccess=main
+WatchdogSec=5s
+User=nuvo-depth
+Group=nuvo-video
+SupplementaryGroups=video render gpio
+RuntimeDirectory=nuvo-depth
+RuntimeDirectoryMode=0750
+StateDirectory=nuvo-depth
+StateDirectoryMode=0750
+CacheDirectory=nuvo-depth
+CacheDirectoryMode=0750
+ExecStartPre=+/usr/bin/systemctl start nuvo-trigger-prepare.service
+ExecStartPre=/usr/bin/depthd --check-config /etc/nuvo-depth/daemon.yaml
+# The supplied geometry is provisional; output retains its authority metadata.
+# Reuse existing validated per-unit bundles by omitting --calibration-root in a drop-in.
+ExecStart=/usr/bin/depthd --run /etc/nuvo-depth/daemon.yaml --calibration-root /usr/share/nuvo-depth/calibration --status /run/nuvo-depth/status.json --stereo-control /etc/nuvo-depth/stereo.json --exposure-control /etc/nuvo-depth/exposure.json --device-identity /var/lib/nuvo-depth/identity/device.uuid --allow-provisional-depth
+ExecStopPost=+/usr/lib/nuvo-depth/nuvo-trigger-prepare --stop
+Restart=on-failure
+RestartSec=2s
+TimeoutStartSec=30s
+TimeoutStopSec=20s
+KillSignal=SIGINT
+UMask=0027
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/run/nuvo-depth /var/lib/nuvo-depth /var/cache/nuvo-depth
+ReadWritePaths=-/run/nuvo-depth-trigger/pwm
+MemoryMax=512M
+TasksMax=128
+
+[Install]
+WantedBy=multi-user.target

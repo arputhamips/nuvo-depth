@@ -19,6 +19,8 @@ RUNTIME_PACKAGES = {
     "nuvo-depth-gateway", "libnuvo-depth1", "python3-nuvo-depth",
     "nuvo-depth-calibration", "nuvo-depth-tools",
 }
+PROFILE_PACKAGES = {'appliance': RUNTIME_PACKAGES, 'minimal': {'nuvo-depth-minimal'}}
+MINIMAL_BUNDLE_NAME = 'nuvo-depth-minimal-pi5-arm64.tar.gz'
 REPOSITORY = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
 TAG = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.+-]*\Z")
 NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.+~-]{0,190}\Z")
@@ -79,6 +81,9 @@ def validate_manifest(value, repository=None, tag=None):
     if not isinstance(version, str) or not re.fullmatch(r"[0-9][A-Za-z0-9.+:~\-]{0,100}", version):
         raise ValueError("invalid Debian release version")
     validate_platform(value.get("platform", {}))
+    expected_packages = PROFILE_PACKAGES.get(value.get('profile', 'appliance'))
+    if expected_packages is None:
+        raise ValueError('unsupported installation profile')
     files = value.get("files")
     if not isinstance(files, list) or not 1 <= len(files) <= 64:
         raise ValueError("release file list is invalid")
@@ -94,10 +99,10 @@ def validate_manifest(value, repository=None, tag=None):
             raise ValueError("invalid release asset checksum")
         if name.endswith(".deb"):
             package = item.get("package")
-            if package not in RUNTIME_PACKAGES or package in packages or item.get("version") != version or item.get("architecture") not in {"arm64", "all"}:
+            if package not in expected_packages or package in packages or item.get("version") != version or item.get("architecture") not in {"arm64", "all"}:
                 raise ValueError("mixed, duplicate or unexpected runtime package")
             packages.add(package)
-    if packages != RUNTIME_PACKAGES or "nuvo-install.pyz" not in names:
+    if packages != expected_packages or "nuvo-install.pyz" not in names:
         raise ValueError("release is not a complete Nuvo runtime cohort")
     if sum(f["size"] for f in files) > 4 * 1024**3:
         raise ValueError("release exceeds total size bound")
@@ -151,7 +156,8 @@ def check_asset(path: Path, item):
         raise ValueError(f"asset checksum mismatch: {item['name']}")
 
 
-def acquire_release(destination: Path, public_key: Path, repository=None, tag=None, bundle=None):
+def acquire_release(destination: Path, public_key: Path, repository=None, tag=None, bundle=None, *, profile='appliance'):
+    bundle_name = MINIMAL_BUNDLE_NAME if profile == 'minimal' else BUNDLE_NAME
     if bundle:
         directory = Path(bundle).resolve()
     else:
@@ -162,9 +168,9 @@ def acquire_release(destination: Path, public_key: Path, repository=None, tag=No
         directory = destination
         directory.mkdir(parents=True, exist_ok=True)
         base = f"https://github.com/{repository}/releases/download/{tag}"
-        archive = directory / BUNDLE_NAME
+        archive = directory / bundle_name
         try:
-            download(base + "/" + BUNDLE_NAME, archive, BUNDLE_LIMIT)
+            download(base + "/" + bundle_name, archive, BUNDLE_LIMIT)
         except urllib.error.HTTPError as error:
             if error.code != 404:
                 raise
@@ -172,13 +178,15 @@ def acquire_release(destination: Path, public_key: Path, repository=None, tag=No
             download(base + "/manifest.json", directory / "manifest.json", 1024 * 1024)
             download(base + "/manifest.sig", directory / "manifest.sig", 64)
         else:
-            signature = directory / (BUNDLE_NAME + ".sig")
+            signature = directory / (bundle_name + ".sig")
             download(base + "/" + signature.name, signature, 64)
             verify_signature(archive, signature, public_key)
             unpack_bundle(archive, directory)
             bundle = directory
     verify_signature(directory / "manifest.json", directory / "manifest.sig", public_key)
     manifest = validate_manifest(load_json(directory / "manifest.json"), repository, tag)
+    if manifest.get('profile', 'appliance') != profile:
+        raise ValueError('bundle installation profile does not match the requested profile')
     if not bundle:
         for item in manifest["files"]:
             if item["name"].endswith(".deb"):

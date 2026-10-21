@@ -1,0 +1,20 @@
+#!/bin/sh
+set -e
+if command -v systemd-sysusers >/dev/null 2>&1; then
+    systemd-sysusers /usr/lib/sysusers.d/nuvo-depth.conf
+fi
+if command -v systemd-tmpfiles >/dev/null 2>&1; then
+    systemd-tmpfiles --create /usr/lib/tmpfiles.d/nuvo-depth.conf
+fi
+if [ "$1" = configure ]; then
+    python3 - <<'PY'
+import grp, os, pathlib, uuid
+path = pathlib.Path('/var/lib/nuvo-depth/identity/device.uuid')
+if not path.exists():
+    with path.open('x') as output:
+        output.write(str(uuid.uuid4()) + '\n')
+    os.chown(path, 0, grp.getgrnam('nuvo-video').gr_gid)
+    os.chmod(path, 0o640)
+PY
+fi
+#DEBHELPER#
