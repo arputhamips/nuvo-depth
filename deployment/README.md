@@ -22,8 +22,9 @@ gateway over Ethernet, USB Ethernet, or explicitly bounded best-effort WiFi.
 - Status, snapshots, and local socket: `/run/nuvo-depth/`
 - Web console and presets: `/usr/share/nuvo-depth/`
 - Qualification plan: `/usr/share/nuvo-depth/qualification/pi5-beta.yaml`
-- Legacy comparison service/assets: `/usr/lib/nuvo-depthd` and
-  `/var/lib/nuvo-depthd`; these are not the new appliance API.
+- Native compatibility executable and diagnostic helpers: `/usr/lib/nuvo-depthd`.
+- Verified calibration/configuration seed state: `/var/lib/nuvo-depthd`; asset
+  verification and rollback remain supported. The parallel Python service is retired.
 
 `/etc/nuvo-depth/encoding.json` controls the optional downstream H.264/MJPEG
 stream. It can select raw-only, encoded-only, or simultaneous delivery and is

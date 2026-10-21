@@ -469,12 +469,15 @@ class GatewayIntegrationTest(unittest.TestCase):
                 self.assertEqual(response.headers.get_content_type(),"font/ttf")
                 self.assertEqual(response.read(),(self.web/asset).read_bytes())
                 self.assertIn("default-src 'self'",response.headers["Content-Security-Policy"])
-        for scene in ("indoor","outdoor"):
-            for product in ("photo","depth"):
-                asset=f"assets/benchmark/diode-{scene}-{product}.jpg"
-                with self.open("/"+asset) as response:
-                    self.assertEqual(response.headers.get_content_type(),"image/jpeg")
-                    self.assertEqual(response.read(),(self.web/asset).read_bytes())
+        # Retired demo routes stay inaccessible even if old files survive upgrade.
+        for scene in ("indoor", "outdoor"):
+            for product in ("photo", "depth"):
+                asset = f"assets/benchmark/diode-{scene}-{product}.jpg"
+                path = self.web / asset; path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"stale demo fixture")
+                with self.assertRaises(urllib.error.HTTPError) as retired:
+                    self.open("/" + asset)
+                self.assertEqual(retired.exception.code, 404)
         with self.assertRaises(urllib.error.HTTPError) as unknown:
             self.open("/assets/fonts/unknown.ttf")
         self.assertEqual(unknown.exception.code,404)

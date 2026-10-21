@@ -45,27 +45,17 @@ assert.equal(model.samples.length, 1, 'a previously unavailable timing can be sa
 const rateStart = source.indexOf('const now=performance.now();', source.indexOf('async function refreshHealth()'));
 const rateEnd = source.indexOf('lastHealthRun=health.run_uuid', rateStart);
 assert(rateStart > 0 && rateEnd > rateStart);
-const hostSource = fs.readFileSync(path.join(__dirname, '../web/pipeline-host.js'), 'utf8');
-const hostRateStart = hostSource.indexOf('depthOutputRate=lastRun===');
-const hostRateEnd = hostSource.indexOf('lastPublished=health.matched_frames', hostRateStart);
-assert(hostRateStart > 0 && hostRateEnd > hostRateStart);
 for (const [published, expected] of [[44, 4], [40, 0]]) {
   const healthSample = {run_uuid:'run-a',published_frames:published,matcher_active:false};
   const pageContext = {health:healthSample,performance:{now:()=>2000},lastHealthRun:'run-a',lastHealthPublished:40,lastHealthAt:1000,depthOutputRate:null,setMeasurement:()=>{},$:()=>({}),depthPublicationCount:context.depthPublicationCount};
   vm.runInNewContext(source.slice(rateStart, rateEnd), pageContext);
   assert.equal(pageContext.depthOutputRate, expected, 'main page must report observed publications even between matcher work');
-  const hostContext = {health:healthSample,now:2000,lastRun:'run-a',lastPublished:40,lastHealthAt:1000,depthOutputRate:null};
-  vm.runInNewContext(hostSource.slice(hostRateStart, hostRateEnd), hostContext);
-  assert.equal(hostContext.depthOutputRate, expected, 'pipeline must report observed publications even between matcher work');
 }
 const mixedHealth={run_uuid:'run-a',published_frames:50,matched_frames:41,matcher_active:false};
 const mixedPage={health:mixedHealth,performance:{now:()=>2000},lastHealthRun:'run-a',lastHealthPublished:40,lastHealthAt:1000,
   depthOutputRate:null,setMeasurement:()=>{},$:()=>({}),depthPublicationCount:context.depthPublicationCount};
 vm.runInNewContext(source.slice(rateStart,rateEnd),mixedPage);
 assert.equal(mixedPage.depthOutputRate,1,'10 Hz raw publications must report the 1 Hz matcher rate');
-const mixedHost={health:mixedHealth,now:2000,lastRun:'run-a',lastPublished:40,lastHealthAt:1000,depthOutputRate:null};
-vm.runInNewContext(hostSource.slice(hostRateStart,hostRateEnd),mixedHost);
-assert.equal(mixedHost.depthOutputRate,1);
 const mixedModel={run:null,published:null,samples:[],latest:null,stale:false};
 context.recordPerformanceSample(mixedModel,{run_uuid:'mixed',published_frames:10,matched_frames:1,processing_ms:1,matcher_statistics:{processing_ms:100}},1000);
 context.recordPerformanceSample(mixedModel,{run_uuid:'mixed',published_frames:20,matched_frames:2,processing_ms:1,matcher_statistics:{processing_ms:110}},2000);

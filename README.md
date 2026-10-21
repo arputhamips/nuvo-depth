@@ -125,7 +125,7 @@ does not require browsing or building these folders.
 | `src/` | Native processing, runtime, calibration, transport, and gateway implementations |
 | `tests/` | Unit, integration, installer, SDK, web, package-hygiene, and hardware checks |
 | `tools/` | Installation, provisioning, calibration, diagnostics, benchmarks, qualification, and release tools |
-| `web/` | Device console, shared browser modules, offline assets, and parked editor prototype source |
+| `web/` | Device console, shared browser modules, and offline assets |
 
 </details>
 

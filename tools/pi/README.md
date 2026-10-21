@@ -3,9 +3,9 @@
 For device installation and first use, follow the
 [Pi installation guide](https://docs.nuvohardware.com/vision-one/install/byo-pi)
 and [setup guide](https://docs.nuvohardware.com/vision-one/guide/getting-started).
-The native `depthd` daemon is the current camera owner. The Python pipeline
-below is retained for comparison, diagnostics, and reproducibility of older rig
-evidence; do not start it alongside the native capture service.
+The native `depthd` daemon is the camera owner. The former Python processing
+pipeline and its private result-ring/obstacle-cloud libraries have been retired.
+Use SDK/gateway observations for live processing measurements.
 
 These tools validate and profile the Nuvo 100 mm dual-IMX296 depth camera on
 Raspberry Pi 5. The product pipeline is depth-only: synchronized capture,
@@ -34,39 +34,22 @@ The other rig tools are:
    one frame per camera and reports their sensor timestamp delta.
 3. `audit_imx296_trigger.sh` reports the driver trigger parameter, boot
    overlays, detected cameras, and GPIO 17 state.
-4. `profile_cpu_pipeline.py` measures the live OpenCV SGBM path, including
-   cold-start, capture, per-stage, sensor-age, output-latency, and CPU data.
-5. `profile_async_zero_copy_pipeline.py` is the legacy comparison entrypoint. It
-   combines leased Picamera2 completions, bounded latest-pair matching, GPU or
-   CPU rectification, CPU SGBM, scheduled JPEG preview, and native outputs.
+4. `profile_production_resources.py` samples the native services and optional
+   encoded stream while they run.
+5. `collect_live_performance.py` collects matcher counters and timings through
+   the gateway relay without changing device controls.
 6. `benchmark_preprocess_variants.py`, `benchmark_stereo_bm.py`, and related
-   replay tools compare depth-processing alternatives without changing the
-   product profile.
-7. `stereo_auto_exposure.py` meters the stereo pair as one instrument and
-   applies a shared shutter and matched gain.
-8. `validate_ros_bridge.py` checks the optional read-only ROS bridge contract
-   while the native producer is running.
+   replay tools compare alternatives using saved input pairs.
+7. `stereo_auto_exposure.py` provides shared stereo metering for rig diagnostics.
+8. `validate_ros_bridge.py` validates a separately supplied ROS bridge. The
+   native appliance does not publish ROS topics or a private obstacle-cloud ring.
 
-The product capture profile uses full-resolution YUV420 luma for depth and a
-left-camera color stream for preview. `--preview-source raw` encodes the raw
-left view; `--preview-source rectified` aligns the preview with the depth
-result. The `egl_gl_dmabuf` rectifier is preferred, with `cpu_opencv` available
-as the configured fallback.
-
-Metric depth arrays remain optional in the Python layer because the native
-output library derives the compact obstacle cloud from disparity and calibrated
-camera metadata. To exercise the native output boundary manually, build
-`libdepthd_native_output.so` and add:
-
-```bash
---result-ring /run/depthd/results.ring \
---native-output-library ./build/libdepthd_native_output.so
-```
-
-Disparity, CameraInfo metadata, diagnostics, and the compact `base_link` cloud
-are written for every result. JPEG is written on its configured lower-rate
-schedule. Add `--publish-left-mono-to-ring` only for an explicit grayscale
-diagnostic consumer.
+Do not run direct camera tools alongside the native capture service. The native
+CPU and optional EGL/DMABUF rectification backends remain available; their
+configuration and fallback behavior are described in the runtime documentation.
+Keep a depth subscription active when using `collect_live_performance.py`:
+health polling alone does not request matching. Its observations are sampled
+matcher results, rather than received depth packets.
 
 The package profile and calibration seed are documented in
 [`docs/pi5-depth-100mm-profile.md`](../../docs/pi5-depth-100mm-profile.md).

@@ -140,18 +140,9 @@ struct LegacyStereoV1 {
 
 struct LegacyOutputsV1 {
   double disparity_hz{};
-  std::string disparity_topic;
   bool metric_depth_enabled{};
   double compressed_image_hz{};
-  std::string compressed_image_topic;
   std::uint32_t jpeg_quality{};
-  std::string left_camera_info_topic;
-  std::string diagnostics_topic;
-  bool obstacle_cloud_enabled{};
-  std::string obstacle_cloud_topic;
-  std::string result_ring_path;
-  std::uint32_t result_ring_slots{};
-  bool result_ring_left_mono_enabled{};
 };
 
 struct LegacyProfileV1 {
@@ -164,8 +155,8 @@ struct LegacyProfileV1 {
   LegacyOutputsV1 outputs;
 };
 
-// EffectiveConfig is the normalized, hardware-independent input to future
-// runtime construction. ROS topic names stay isolated as legacy adapter data.
+// EffectiveConfig contains the normalized settings used by native construction.
+// Retired schema-v1 output keys are accepted only at the import boundary.
 struct ProductConfig {
   std::string platform;
   std::string role;
@@ -273,18 +264,6 @@ struct OutputConfig {
   bool metric_depth_enabled{};
   double compressed_image_hz{};
   std::uint32_t jpeg_quality{};
-  bool obstacle_cloud_enabled{};
-  std::string result_ring_path;
-  std::uint32_t result_ring_slots{};
-  bool result_ring_left_mono_enabled{};
-};
-
-struct LegacyRosAdapterConfig {
-  std::string disparity_topic;
-  std::string compressed_image_topic;
-  std::string left_camera_info_topic;
-  std::string diagnostics_topic;
-  std::string obstacle_cloud_topic;
 };
 
 struct EffectiveConfig {
@@ -296,7 +275,6 @@ struct EffectiveConfig {
   RectificationConfig rectification;
   StereoConfig stereo;
   OutputConfig outputs;
-  LegacyRosAdapterConfig legacy_ros;
 };
 
 struct ConfigWarning {

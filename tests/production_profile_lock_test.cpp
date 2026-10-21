@@ -1,7 +1,4 @@
 #include "depthd/contract.hpp"
-#include "depthd/ipc/result_ring_layout.hpp"
-#include "depthd/native_output.hpp"
-#include "depthd/obstacle_cloud.hpp"
 #include "depthd/stereo_backend.hpp"
 
 #include <fstream>
@@ -50,40 +47,6 @@ int main() {
       depthd::kRightOpticalFrame != "camera_front_right_optical") {
     return 2;
   }
-  const depthd::CompactObstacleCloudConfig cloud;
-  if (cloud.roi_y_min != 96 || cloud.roi_y_max != 420 ||
-      cloud.row_step != 2 || cloud.col_step != 2 ||
-      cloud.depth_min_m != 0.75 || cloud.depth_max_m != 6.0 ||
-      cloud.min_height_m != 0.18 || cloud.max_height_m != 1.20 ||
-      cloud.angle_min_rad != -0.70 || cloud.angle_max_rad != 0.70 ||
-      cloud.voxel_leaf_size_m != 0.05 ||
-      cloud.min_points_per_voxel != 5 ||
-      cloud.min_cluster_voxels != 12 ||
-      cloud.min_cluster_raw_points != 60 || cloud.max_voxels != 32768) {
-    return 5;
-  }
-  if (depthd::ipc::kResultRingSchemaVersion != 1 ||
-      depthd::ipc::kResultRingSlotCount != 4 ||
-      depthd::ipc::kResultRingFileBytes != 11620352ULL ||
-      depthd::ipc::kImageWidth != 728 ||
-      depthd::ipc::kImageHeight != 544 ||
-      depthd::ipc::kDisparityStrideBytes != 2912 ||
-      depthd::ipc::kDisparityCapacityBytes != 1584128 ||
-      depthd::ipc::kObstaclePointCapacity != 32768) {
-    return 6;
-  }
-  const auto optical_to_base =
-      depthd::make_nuvo_left_optical_to_base_transform();
-  if (optical_to_base.matrix[0] != 0.0 ||
-      optical_to_base.matrix[2] != 1.0 ||
-      optical_to_base.matrix[3] != 0.760 ||
-      optical_to_base.matrix[4] != -1.0 ||
-      optical_to_base.matrix[7] != 0.050 ||
-      optical_to_base.matrix[9] != -1.0 ||
-      optical_to_base.matrix[11] != 0.180) {
-    return 7;
-  }
-
   const std::string config =
       read_file(std::string(DEPTHD_SOURCE_DIR) +
                 "/config/nuvo_pi5_depth_100mm.yaml");
@@ -148,17 +111,5 @@ int main() {
     return 8;
   }
 
-  const std::string profiler =
-      read_file(std::string(DEPTHD_SOURCE_DIR) +
-                "/tools/pi/profile_cpu_pipeline.py");
-  if (!contains_all(
-          profiler,
-          {"WIDTH = 728", "HEIGHT = 544", "WORKING_WIDTH = 364",
-           "WORKING_HEIGHT = 272", "WORKING_DISPARITIES = 64",
-           "FULL_DISPARITY_LIMIT = 128.0",
-           "FOCAL_LENGTH_PX = 493.542046188",
-           "BASELINE_M = 0.100"})) {
-    return 4;
-  }
   return 0;
 }

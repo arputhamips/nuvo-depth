@@ -91,7 +91,9 @@ NuvoStream uses one common protocol for Ethernet, USB Ethernet, and WiFi:
 - 32-byte, network-byte-order `NUV1` header;
 - at most 64 KiB metadata and 64 MiB product payload, further reduced by
   subscription negotiation; and
-- Protobuf metadata schema in `protocol/nuvo_stream_v1.proto`.
+- bounded JSON metadata decoded by `sdk/python/nuvo_depth/frame.py` and the C
+  SDK. `protocol/nuvo_stream_v1.proto` is an unused reference schema, not the
+  shipping serialization or a build dependency.
 
 The gateway admission core reserves the exact framed byte rate against the
 configured capacity of the actual accepted Ethernet, USB Ethernet, or WiFi

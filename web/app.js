@@ -575,6 +575,7 @@ async function refreshHealth() {
   try {
     const health = await (await api('/api/v1/health')).json();
     lastHealth = health;
+    updateViewerAvailability();
     $('calibrationPresetId').value=health.profile_id||'';
     const now=performance.now();
     let depthActivity='Waiting for sample';
@@ -650,7 +651,7 @@ async function refreshHealth() {
     $('calibrationNotice').textContent = provisional ? 'Metric depth is unverified. Engineering use only.' : accepted ? 'The active calibration passed its declared validation authority.' : 'Depth requires an active calibration.';
     $('calibrationBanner').hidden=accepted;
     $('diagnosticJson').textContent = JSON.stringify(health,null,2);
-  } catch (_) { $('connection').textContent = 'Not connected'; $('connection').className = 'pill offline'; $('frameRate').textContent='—'; depthOutputRate=null; lastHealthPublished=null; performanceModel.stale=true; performanceModel.latest=null; renderPerformanceMonitor(); updateLiveMetrics(null); document.querySelector('.status-strip').classList.add('stale'); $('overviewCaptureState').textContent='Disconnected'; $('overviewDepthState').textContent='Unknown'; $('deviceResolution').textContent='Last known device state'; setFlowState('flowConnectionState','Waiting'); setFlowState('flowCaptureState','Waiting'); }
+  } catch (_) { updateViewerAvailability(true); $('connection').textContent = 'Not connected'; $('connection').className = 'pill offline'; $('frameRate').textContent='—'; depthOutputRate=null; lastHealthPublished=null; performanceModel.stale=true; performanceModel.latest=null; renderPerformanceMonitor(); updateLiveMetrics(null); document.querySelector('.status-strip').classList.add('stale'); $('overviewCaptureState').textContent='Disconnected'; $('overviewDepthState').textContent='Unknown'; $('deviceResolution').textContent='Last known device state'; setFlowState('flowConnectionState','Waiting'); setFlowState('flowCaptureState','Waiting'); }
 }
 
 function parseFrame(buffer) { return window.NuvoFrameCodec.parseFrame(buffer); }
@@ -658,12 +659,14 @@ function product(frame, name) { return frame.metadata.products.find(x => x.kind 
 function setSampleCanvasLive(id, live) {
   $(id).closest('.sample-canvas')?.classList.toggle('live', live);
 }
-document.querySelectorAll('[data-benchmark-scene]').forEach(button => button.addEventListener('click', () => {
-  document.querySelectorAll('[data-benchmark-panel]').forEach(panel => {
-    panel.hidden = panel.dataset.benchmarkPanel !== button.dataset.benchmarkScene;
-  });
-  document.querySelectorAll('[data-benchmark-scene]').forEach(item => item.setAttribute('aria-pressed',String(item===button)));
-}));
+function updateViewerAvailability(disconnected=false) {
+  const empty=$('viewerEmptyState');
+  empty.hidden=!disconnected&&!!lastFrameAt;
+  empty.textContent=disconnected?(lastFrameAt?'Disconnected · showing last received products':'Disconnected · waiting for device'):
+    !outputSettings.enabled?'Select raw outputs on the Outputs page.':encoding?.mode==='encoded'?'Raw delivery is off. Enable raw products on Streaming.':'Waiting for selected live products.';
+  $('encodedEmptyState').textContent=disconnected?'Disconnected · waiting for encoded preview':encoding?.mode==='raw'?'Encoded preview is off':'Waiting for encoded preview';
+  if(disconnected)setSampleCanvasLive('encodedCanvas',false);
+}
 function drawGray(canvas,frame,descriptor) { return window.NuvoFrameCodec.drawGray(canvas,frame,descriptor); }
 function drawDepth(canvas,frame,descriptor) {
   const valid=window.NuvoFrameCodec.drawDepth(canvas,frame,descriptor);
@@ -690,8 +693,7 @@ function renderFrame(frame) {
   for(const [id,descriptor] of [['leftCanvas',firstImage],['rightCanvas',right],['disparityCanvas',disparity],['depthCanvas',depth]])$(id).closest('figure').hidden=!descriptor;
   if(firstImage)$('leftCanvas').closest('figure').querySelector('figcaption').textContent=OUTPUT_PRODUCTS.find(p=>p[0]===firstImage.kind)?.[1]||firstImage.kind;
   if(frame.metadata.products.length){
-    $('benchmarkGallery').hidden=true;
-    $('viewerSampleNotice').hidden=true;
+    $('viewerEmptyState').hidden=true;
     $('viewerLiveGrid').hidden=false;
     $('viewerTelemetry').hidden=false;
   }
@@ -714,12 +716,6 @@ function renderFrame(frame) {
     drawVisibleProduct(canvas,frame,descriptor);
   });
   document.querySelectorAll('.page.active [data-preview-state]').forEach(label=>{label.textContent='Selected products live';label.className='chip chip-green';});
-  if(frame.metadata.products.length){
-    $('benchmarkGallery').hidden=true;
-    $('viewerSampleNotice').hidden=true;
-    $('viewerLiveGrid').hidden=false;
-    $('viewerTelemetry').hidden=false;
-  }
   lastFrameAt=Date.now();lastSequence=frame.sequence;lastIdentity=identity;
   setFlowState('flowCaptureState','Products live','complete');
   $('sequence').textContent=`Frame ${frame.metadata.capture_sequence}`; $('age').textContent='Updated now';$('frameError').textContent='';
@@ -818,12 +814,12 @@ function restartStreams(){
   document.querySelectorAll('[data-tuning-product]').forEach(canvas=>{canvas.width=728;canvas.height=544;canvas.closest('.sample-canvas').classList.remove('live');});
   document.querySelectorAll('[data-preview-state]').forEach(label=>{label.textContent=encoding?.mode==='encoded'?'Raw delivery off':'Waiting for live frames';label.className='chip chip-neutral';});
   document.querySelectorAll('.preview-unavailable').forEach(note=>note.hidden=encoding?.mode!=='encoded');
-  $('benchmarkGallery').hidden=false;
-  $('viewerSampleNotice').hidden=false;
+  $('viewerEmptyState').hidden=false;
   $('viewerLiveGrid').hidden=true;
   $('viewerTelemetry').hidden=true;
   $('sequence').textContent='Frame —';$('validity').textContent='Valid —';$('age').textContent='Waiting for products';lastFrameAt=0;lastIdentity='';
   $('encodedSequence').textContent='Frame —';$('encodedSize').textContent='—';$('encodedLatency').textContent='—';$('encodedAge').textContent='Waiting';encodedFrameAt=0;
+  updateViewerAvailability();
   startRawViewer();startEncodedViewer();
 }
 

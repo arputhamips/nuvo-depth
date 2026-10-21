@@ -1,5 +1,9 @@
 # External-trigger and async zero-copy results
 
+> Historical engineering evidence: the Python processing pipeline and its private
+> result-ring/obstacle-cloud libraries described below have been retired. Current
+> capture, preview, depth and SDK transport use the native daemon and gateway.
+
 ## Hardware correction
 
 The supplied Pi uses two InnoMaker IMX296 color global-shutter cameras whose

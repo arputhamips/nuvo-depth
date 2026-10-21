@@ -115,10 +115,6 @@ int main() {
       depthd::config::CalibrationStatus::kProvisionalRecalibrationRequired) {
     return fail(2, "provisional calibration status was not preserved");
   }
-  if (loaded.effective.legacy_ros.disparity_topic !=
-      "/camera/front/disparity") {
-    return fail(3, "legacy ROS settings were not isolated during normalization");
-  }
   if (loaded.warnings.empty() ||
       loaded.warnings.front().path != "rig.calibration_status") {
     return fail(4, "provisional calibration warning was not emitted");
@@ -131,10 +127,9 @@ int main() {
     return fail(5, "effective output or digest is not deterministic");
   }
   if (first_dump.find("\"configuration_sha256\"") == std::string::npos ||
-      first_dump.find("\"legacy_ros_adapter\"") == std::string::npos ||
       first_dump.find("provisional_recalibration_required") ==
           std::string::npos) {
-    return fail(6, "effective JSON is missing provenance or compatibility data");
+    return fail(6, "effective JSON is missing provenance or calibration authority");
   }
 
   if (depthd::config::sha256_hex("") !=
@@ -264,6 +259,34 @@ int main() {
       replace_once(active_yaml, "  median_filter_size: 0\n", ""));
   if (depthd::config::load(without_median.path()).effective.stereo.median_filter_size != 0U) {
     return fail(28, "legacy schema-v1 smoothing default changed");
+  }
+  // Frozen schema-v1 seeds stay loadable, while retired settings no longer
+  // affect native behavior or its effective configuration identity.
+  auto reduced_yaml = active_yaml;
+  for (const auto key : {"disparity_topic", "compressed_image_topic",
+                         "left_camera_info_topic", "diagnostics_topic",
+                         "obstacle_cloud_enabled", "obstacle_cloud_topic",
+                         "result_ring_path", "result_ring_slots",
+                         "result_ring_left_mono_enabled"}) {
+    const auto line = reduced_yaml.find(std::string("  ") + key + ":");
+    if (line == std::string::npos) return fail(29, "missing compatibility test key");
+    const auto end = reduced_yaml.find('\n', line);
+    reduced_yaml.erase(line, end - line + 1U);
+  }
+  const TemporaryConfig reduced(reduced_yaml);
+  const TemporaryConfig ignored(replace_once(
+      replace_once(active_yaml, "result_ring_slots: 4", "result_ring_slots: 0"),
+      "disparity_topic: /camera/front/disparity", "disparity_topic: retired"));
+  if (depthd::config::load(reduced.path()).configuration_sha256 != loaded.configuration_sha256 ||
+      depthd::config::load(ignored.path()).configuration_sha256 != loaded.configuration_sha256 ||
+      first_dump.find("legacy_ros_adapter") != std::string::npos ||
+      first_dump.find("result_ring") != std::string::npos ||
+      first_dump.find("obstacle_cloud") != std::string::npos) {
+    return fail(30, "retired adapter settings leaked into the native configuration");
+  }
+  if (!expect_validation(replace_once(active_yaml, "result_ring_slots:", "result_ring_slotz:"),
+                         "outputs.result_ring_slotz")) {
+    return fail(31, "unknown output keys must still fail closed");
   }
   return 0;
 }

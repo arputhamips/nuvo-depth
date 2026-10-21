@@ -11,9 +11,10 @@ systemctl is-active nuvo-depthd-native.service nuvo-gateway.service \
 curl --cacert device-ca.pem https://YOUR-PI-HOSTNAME.local:7443/api/v1/health
 ```
 
-The native production candidate is `nuvo-depthd-native.service`. The similarly
-named `nuvo-depthd.service` is a retired Python rollback comparator and may be
-inactive by design.
+The camera service is `nuvo-depthd-native.service`. The similarly named
+`nuvo-depthd.service` belonged to the removed Python pipeline; current packages
+do not install it. Transport, calibration and verified-asset rollback remain
+independent of that retired pipeline.
 
 A healthy live response has `status: running`, an advancing
 `capture_sequence`, 728 × 544 image and depth dimensions,

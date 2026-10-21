@@ -254,19 +254,7 @@
       <section id="viewer" class="page">
         <div class="page-header"><h1>Live view</h1></div>
         <div id="viewerModeNotice" class="notice compact" hidden>Raw products are disabled in encoded-only mode. Select Raw + encoded or Raw only on the Streaming page to view all four products.</div>
-        <div id="viewerSampleNotice" class="sample-notice" role="note"><span class="sample-dot" aria-hidden="true"></span><span>Photographic DIODE benchmark reference, not a live camera frame or Nuvo algorithm result. Live stereo products replace this example when available.</span></div>
-        <div id="benchmarkGallery">
-          <div class="benchmark-heading"><div><strong>Reference scene</strong><small>DIODE benchmark · photographed scenes · reference depth</small></div><div class="button-row benchmark-scenes" role="group" aria-label="Benchmark scene"><button type="button" data-benchmark-scene="indoor" aria-pressed="true">Indoor</button><button type="button" data-benchmark-scene="outdoor" aria-pressed="false">Outdoor</button></div></div>
-          <div class="benchmark-grid" data-benchmark-panel="indoor">
-            <figure><figcaption>Reference photograph <span>Lecture hall</span></figcaption><img src="/assets/benchmark/diode-indoor-photo.jpg" alt="DIODE benchmark photograph of a lecture hall"></figure>
-            <figure><figcaption>Reference depth <span>not Nuvo output</span></figcaption><img src="/assets/benchmark/diode-indoor-depth.jpg" alt="DIODE benchmark reference depth for the lecture hall photograph"></figure>
-          </div>
-          <div class="benchmark-grid" data-benchmark-panel="outdoor" hidden>
-            <figure><figcaption>Reference photograph <span>Airfield</span></figcaption><img src="/assets/benchmark/diode-outdoor-photo.jpg" alt="DIODE benchmark photograph of an airfield"></figure>
-            <figure><figcaption>Reference depth <span>not Nuvo output</span></figcaption><img src="/assets/benchmark/diode-outdoor-depth.jpg" alt="DIODE benchmark reference depth for the airfield photograph"></figure>
-          </div>
-          <p class="benchmark-credit">DIODE benchmark sample · source imagery under the MIT license. Visualization is illustrative, not a performance claim.</p>
-        </div>
+        <div id="viewerEmptyState" class="notice compact" role="status">Waiting for selected live products.</div>
         <div id="viewerLiveGrid" class="viewer-grid selected-output-grid" hidden>
           <figure><figcaption>Left rectified</figcaption><canvas id="leftCanvas"></canvas></figure>
           <figure><figcaption>Right rectified</figcaption><canvas id="rightCanvas"></canvas></figure>
@@ -438,9 +426,8 @@
               </figcaption>
               <div class="sample-canvas">
                 <canvas id="encodedCanvas"></canvas>
-                <div class="sample-overlay">
-                  <img src="/assets/benchmark/diode-indoor-photo.jpg" alt="DIODE photographic benchmark example shown until an encoded frame arrives">
-                  <span>Recorded reference · not live</span>
+                <div class="sample-overlay preview-empty">
+                  <span id="encodedEmptyState">Waiting for encoded preview</span>
                 </div>
               </div>
             </figure>

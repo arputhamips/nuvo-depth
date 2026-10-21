@@ -78,6 +78,8 @@ qualification status are recorded in each document.
 - [Release operations](releases.md) — signed GitHub bundles and matching source.
 - [Repository audit](repository-audit-20261019.md) — retained file groups,
   generated-file exclusions, and package/export checks.
+- [Repository cleanup](repository-cleanup-20261021.md) — retired editor, legacy
+  processing stack and demo assets, compatibility boundaries, and validation.
 - [Historical architecture review](history/multi-platform-review.md) — an
   archived review of an earlier system, not current setup instructions.
 - [Historical deployment options](architecture-options.md) — early robot and

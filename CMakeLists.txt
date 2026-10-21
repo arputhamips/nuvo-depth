@@ -101,16 +101,6 @@ add_library(depthd_rectification STATIC
 )
 add_library(depthd::rectification ALIAS depthd_rectification)
 
-add_library(depthd_obstacle_cloud STATIC
-  src/obstacle_cloud.cpp
-)
-add_library(depthd::obstacle_cloud ALIAS depthd_obstacle_cloud)
-
-add_library(depthd_result_ring STATIC
-  src/result_ring.cpp
-)
-add_library(depthd::result_ring ALIAS depthd_result_ring)
-
 find_package(Threads REQUIRED)
 
 add_library(depthd_capture STATIC
@@ -318,15 +308,6 @@ if(DEPTHD_WITH_SYSTEMD)
   target_compile_definitions(depthd PRIVATE DEPTHD_WITH_SYSTEMD=1)
 endif()
 
-add_library(depthd_native_output_core STATIC
-  src/native_output.cpp
-)
-add_library(depthd::native_output_core ALIAS depthd_native_output_core)
-
-add_library(depthd_native_output SHARED
-  src/native_output_c.cpp
-)
-
 target_include_directories(depthd_contract
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -353,71 +334,6 @@ set_target_properties(depthd_rectification PROPERTIES
   POSITION_INDEPENDENT_CODE ON
 )
 depthd_enable_warnings(depthd_rectification)
-
-target_include_directories(depthd_obstacle_cloud
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-target_compile_features(depthd_obstacle_cloud PUBLIC cxx_std_20)
-set_target_properties(depthd_obstacle_cloud PROPERTIES
-  POSITION_INDEPENDENT_CODE ON
-)
-depthd_enable_warnings(depthd_obstacle_cloud)
-
-target_include_directories(depthd_result_ring
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-target_compile_features(depthd_result_ring PUBLIC cxx_std_20)
-target_link_libraries(depthd_result_ring PUBLIC depthd::obstacle_cloud)
-set_target_properties(depthd_result_ring PROPERTIES
-  POSITION_INDEPENDENT_CODE ON
-)
-depthd_enable_warnings(depthd_result_ring)
-
-target_include_directories(depthd_native_output_core
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-target_compile_features(depthd_native_output_core PUBLIC cxx_std_20)
-target_link_libraries(depthd_native_output_core PUBLIC
-  depthd::obstacle_cloud depthd::result_ring
-)
-set_target_properties(depthd_native_output_core PROPERTIES
-  POSITION_INDEPENDENT_CODE ON
-)
-depthd_enable_warnings(depthd_native_output_core)
-
-target_include_directories(depthd_native_output
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-target_compile_features(depthd_native_output PUBLIC cxx_std_20)
-target_compile_definitions(depthd_native_output PRIVATE
-  DEPTHD_NATIVE_OUTPUT_BUILD
-)
-target_link_libraries(depthd_native_output PRIVATE depthd::native_output_core)
-depthd_enable_warnings(depthd_native_output)
-
-add_executable(depthd_obstacle_cloud_benchmark
-  tools/obstacle_cloud_benchmark.cpp
-)
-target_compile_features(depthd_obstacle_cloud_benchmark PRIVATE cxx_std_20)
-target_link_libraries(depthd_obstacle_cloud_benchmark PRIVATE
-  depthd::obstacle_cloud
-)
-depthd_enable_warnings(depthd_obstacle_cloud_benchmark)
-
-add_executable(depthd_result_ring_inspect
-  tools/result_ring_inspect.cpp
-)
-target_compile_features(depthd_result_ring_inspect PRIVATE cxx_std_20)
-target_link_libraries(depthd_result_ring_inspect PRIVATE depthd::result_ring)
-depthd_enable_warnings(depthd_result_ring_inspect)
 
 if(DEPTHD_WITH_OPENCV)
   find_package(OpenCV 4.6 QUIET COMPONENTS core imgproc imgcodecs calib3d)
@@ -572,22 +488,6 @@ if(DEPTHD_WITH_EGL_GL_DMABUF_RECTIFICATION)
     )
   endif()
 
-  add_library(depthd_egl_gl_dmabuf_rectification_c SHARED
-    src/egl_gl_dmabuf_rectification_c.cpp
-  )
-  target_include_directories(depthd_egl_gl_dmabuf_rectification_c
-    PUBLIC
-      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-      $<INSTALL_INTERFACE:include>
-  )
-  target_compile_features(depthd_egl_gl_dmabuf_rectification_c PUBLIC cxx_std_20)
-  target_link_libraries(depthd_egl_gl_dmabuf_rectification_c PRIVATE
-    depthd::egl_gl_dmabuf_rectification
-  )
-  set_target_properties(depthd_egl_gl_dmabuf_rectification_c PROPERTIES
-    OUTPUT_NAME depthd_egl_gl_dmabuf_rectification
-  )
-  depthd_enable_warnings(depthd_egl_gl_dmabuf_rectification_c)
 endif()
 
 # This is a private runtime directory, not an ABI-dependent public library
@@ -595,10 +495,6 @@ endif()
 # a CMake multiarch triplet.
 set(DEPTHD_LIBEXEC_DIR "lib/nuvo-depthd")
 
-install(TARGETS depthd_native_output
-  LIBRARY DESTINATION "${DEPTHD_LIBEXEC_DIR}"
-  RUNTIME DESTINATION "${DEPTHD_LIBEXEC_DIR}"
-)
 if(TARGET depthd)
   # Keep the historical libexec location for rollback tooling while installing
   # the native appliance entry point in the normal executable path.
@@ -663,13 +559,6 @@ install(FILES
   web/assets/fonts/hanken-grotesk-500.ttf
   web/assets/fonts/hanken-grotesk-600.ttf web/assets/fonts/OFL.txt
   DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/web/assets/fonts"
-  COMPONENT device-web
-)
-install(FILES
-  web/assets/benchmark/diode-indoor-photo.jpg web/assets/benchmark/diode-indoor-depth.jpg
-  web/assets/benchmark/diode-outdoor-photo.jpg web/assets/benchmark/diode-outdoor-depth.jpg
-  web/assets/benchmark/LICENSE web/assets/benchmark/README.md
-  DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/web/assets/benchmark"
   COMPONENT device-web
 )
 install(FILES
@@ -746,22 +635,12 @@ install(FILES
   DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/nuvo-depth"
 )
 install(PROGRAMS
-  tools/pi/profile_async_zero_copy_pipeline.py
-  tools/pi/async_stereo_capture.py
   tools/pi/capture_stream_profile.py
   tools/pi/capture_rectified_pair.py
-  tools/pi/profile_cpu_pipeline.py
   tools/pi/stereo_auto_exposure.py
   tools/pi/validate_exposure_live.py
-  tools/pi/depthd_native_output.py
-  tools/pi/depthd_egl_gl_rectification.py
   DESTINATION "${DEPTHD_LIBEXEC_DIR}"
 )
-if(TARGET depthd_egl_gl_dmabuf_rectification_c)
-  install(TARGETS depthd_egl_gl_dmabuf_rectification_c
-    LIBRARY DESTINATION "${DEPTHD_LIBEXEC_DIR}"
-  )
-endif()
 install(PROGRAMS deployment/depthd_assets.py
   DESTINATION "${CMAKE_INSTALL_SBINDIR}"
   RENAME depthd-assets
@@ -779,12 +658,6 @@ install(FILES
 install(FILES deployment/assets/nuvo-pi5-depth-100mm-assets.json
   DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depthd/runtime-seed"
 )
-install(FILES deployment/systemd/nuvo-depthd.service
-  DESTINATION "lib/systemd/system"
-)
-install(FILES deployment/systemd/nuvo-depthd.tmpfiles.conf
-  DESTINATION "lib/tmpfiles.d"
-)
 install(FILES deployment/README.md
   DESTINATION "share/doc/nuvo-depthd"
   RENAME deployment.md
@@ -801,10 +674,7 @@ if(BUILD_TESTING)
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/depthd_assets_test.py
     )
-    add_test(NAME depthd_pipeline_deadline_accounting_test
-      COMMAND ${Python3_EXECUTABLE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/tests/pipeline_deadline_accounting_test.py
-    )
+
     add_test(NAME depthd_python_sdk_test
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/python_sdk_test.py
@@ -845,6 +715,10 @@ if(BUILD_TESTING)
     add_test(NAME depthd_web_ui_static_test
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/web_ui_static_test.py
+    )
+    add_test(NAME depthd_live_performance_test
+      COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/live_performance_test.py
     )
     if(DEPTHD_WITH_CONFIG)
       add_test(NAME depthd_performance_profiles_test
@@ -1057,60 +931,9 @@ if(BUILD_TESTING)
     COMMAND depthd_egl_gl_dmabuf_rectification_backend_test
   )
 
-  add_executable(depthd_obstacle_cloud_test tests/obstacle_cloud_test.cpp)
-  target_link_libraries(depthd_obstacle_cloud_test PRIVATE
-    depthd::obstacle_cloud
-  )
-  depthd_enable_warnings(depthd_obstacle_cloud_test)
-  add_test(NAME depthd_obstacle_cloud_test COMMAND depthd_obstacle_cloud_test)
-
-  add_executable(depthd_result_ring_test tests/result_ring_test.cpp)
-  target_link_libraries(depthd_result_ring_test PRIVATE depthd::result_ring)
-  depthd_enable_warnings(depthd_result_ring_test)
-  add_test(NAME depthd_result_ring_test COMMAND depthd_result_ring_test)
-
-  add_executable(depthd_native_output_test tests/native_output_test.cpp)
-  target_link_libraries(depthd_native_output_test PRIVATE
-    depthd::native_output_core depthd_native_output
-  )
-  depthd_enable_warnings(depthd_native_output_test)
-  add_test(NAME depthd_native_output_test COMMAND depthd_native_output_test)
-
   if(UNIX)
     find_package(Python3 COMPONENTS Interpreter QUIET)
     if(Python3_Interpreter_FOUND)
-      execute_process(
-        COMMAND ${Python3_EXECUTABLE} -c "import numpy"
-        RESULT_VARIABLE DEPTHD_PYTHON_NUMPY_RESULT
-        OUTPUT_QUIET
-        ERROR_QUIET
-      )
-      if(DEPTHD_PYTHON_NUMPY_RESULT EQUAL 0)
-        add_test(NAME depthd_dmabuf_capture_adapter_test
-          COMMAND ${Python3_EXECUTABLE}
-            ${CMAKE_CURRENT_SOURCE_DIR}/tests/dmabuf_capture_adapter_test.py
-        )
-        if(TARGET depthd_egl_gl_dmabuf_rectification_c)
-          add_test(NAME depthd_egl_gl_ctypes_fallback_test
-            COMMAND ${Python3_EXECUTABLE}
-              ${CMAKE_CURRENT_SOURCE_DIR}/tests/egl_gl_ctypes_fallback_test.py
-              --library $<TARGET_FILE:depthd_egl_gl_dmabuf_rectification_c>
-          )
-          set_tests_properties(depthd_egl_gl_ctypes_fallback_test PROPERTIES
-            ENVIRONMENT
-              "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/tools/pi"
-          )
-        endif()
-        add_test(NAME depthd_native_output_python_test
-          COMMAND ${Python3_EXECUTABLE}
-            ${CMAKE_CURRENT_SOURCE_DIR}/tests/native_output_python_test.py
-            --library $<TARGET_FILE:depthd_native_output>
-        )
-        set_tests_properties(depthd_native_output_python_test PROPERTIES
-          ENVIRONMENT
-            "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/tools/pi"
-        )
-      endif()
       execute_process(
         COMMAND ${Python3_EXECUTABLE} -c "import numpy, cv2"
         RESULT_VARIABLE DEPTHD_PYTHON_OPENCV_RESULT
@@ -1130,10 +953,7 @@ if(BUILD_TESTING)
           COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/stereo_validation_diagnostics_test.py
         )
-        add_test(NAME depthd_egl_gl_map_adapter_test
-          COMMAND ${Python3_EXECUTABLE}
-            ${CMAKE_CURRENT_SOURCE_DIR}/tests/egl_gl_map_adapter_test.py
-        )
+
       endif()
     endif()
   endif()
@@ -1207,7 +1027,7 @@ if(BUILD_TESTING)
       DEPTHD_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
     )
     target_link_libraries(depthd_production_profile_lock_test PRIVATE
-      depthd::cpu_sgbm depthd::obstacle_cloud depthd::native_output_core
+      depthd::cpu_sgbm
     )
     depthd_enable_warnings(depthd_production_profile_lock_test)
     add_test(NAME depthd_production_profile_lock_test

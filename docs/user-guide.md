@@ -45,10 +45,9 @@ in the header. Apply and Discard remain outside the card in a sticky action bar.
 
 ## Image pipeline status
 
-The experimental node editor is paused and excluded from production builds.
 Use **Capture**, **Matcher**, **Streaming**, **Outputs**, and **Live view** to
-configure and check the camera. Its source is retained in the
-[pipeline workspace](../web/pipeline-ui/README.md) for future development.
+configure and check the camera. The experimental node editor has been retired;
+the console uses the same shared device settings and frame codec directly.
 
 ## Recommended daily workflow
 

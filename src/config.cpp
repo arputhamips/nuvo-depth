@@ -447,44 +447,24 @@ LegacyStereoV1 parse_stereo(const YAML::Node& node) {
 
 LegacyOutputsV1 parse_outputs(const YAML::Node& node) {
   constexpr auto path = "outputs";
+  // The immutable schema-v1 seed includes these retired adapter keys. Accept
+  // their presence without carrying them into native settings or its digest.
   check_mapping(node, path,
-                {"disparity_hz", "disparity_topic", "metric_depth_enabled",
-                 "compressed_image_hz", "compressed_image_topic",
-                 "jpeg_quality", "left_camera_info_topic",
+                {"disparity_hz", "metric_depth_enabled", "compressed_image_hz",
+                 "jpeg_quality"},
+                {"disparity_topic", "compressed_image_topic", "left_camera_info_topic",
                  "diagnostics_topic", "obstacle_cloud_enabled",
                  "obstacle_cloud_topic", "result_ring_path",
                  "result_ring_slots", "result_ring_left_mono_enabled"});
   LegacyOutputsV1 result;
   result.disparity_hz =
       read_double(child(node, "disparity_hz"), "outputs.disparity_hz");
-  result.disparity_topic =
-      read_string(child(node, "disparity_topic"), "outputs.disparity_topic");
   result.metric_depth_enabled = read_bool(
       child(node, "metric_depth_enabled"), "outputs.metric_depth_enabled");
   result.compressed_image_hz = read_double(
       child(node, "compressed_image_hz"), "outputs.compressed_image_hz");
-  result.compressed_image_topic = read_string(
-      child(node, "compressed_image_topic"),
-      "outputs.compressed_image_topic");
   result.jpeg_quality =
       read_u32(child(node, "jpeg_quality"), "outputs.jpeg_quality");
-  result.left_camera_info_topic = read_string(
-      child(node, "left_camera_info_topic"),
-      "outputs.left_camera_info_topic");
-  result.diagnostics_topic = read_string(child(node, "diagnostics_topic"),
-                                         "outputs.diagnostics_topic");
-  result.obstacle_cloud_enabled = read_bool(
-      child(node, "obstacle_cloud_enabled"),
-      "outputs.obstacle_cloud_enabled");
-  result.obstacle_cloud_topic = read_string(
-      child(node, "obstacle_cloud_topic"), "outputs.obstacle_cloud_topic");
-  result.result_ring_path = read_string(child(node, "result_ring_path"),
-                                        "outputs.result_ring_path");
-  result.result_ring_slots = read_u32(child(node, "result_ring_slots"),
-                                      "outputs.result_ring_slots");
-  result.result_ring_left_mono_enabled = read_bool(
-      child(node, "result_ring_left_mono_enabled"),
-      "outputs.result_ring_left_mono_enabled");
   return result;
 }
 
@@ -532,12 +512,6 @@ void validate_path(const std::string& value, const std::string& path) {
   if (value == "/.." || value.starts_with("../") ||
       value.find("/../") != std::string::npos || value.ends_with("/..")) {
     validation_error(path, "must not contain '..' path components");
-  }
-}
-
-void validate_topic(const std::string& value, const std::string& path) {
-  if (value.empty() || value.front() != '/' || value.find(' ') != std::string::npos) {
-    validation_error(path, "must be an absolute ROS topic without spaces");
   }
 }
 
@@ -833,26 +807,6 @@ std::string serialize_effective(const EffectiveConfig& config) {
     append_double_field(output, first, "compressed_image_hz",
                         outputs.compressed_image_hz);
     append_integer_field(output, first, "jpeg_quality", outputs.jpeg_quality);
-    append_bool_field(output, first, "obstacle_cloud_enabled",
-                      outputs.obstacle_cloud_enabled);
-    append_string_field(output, first, "result_ring_path",
-                        outputs.result_ring_path);
-    append_integer_field(output, first, "result_ring_slots",
-                         outputs.result_ring_slots);
-    append_bool_field(output, first, "result_ring_left_mono_enabled",
-                      outputs.result_ring_left_mono_enabled);
-  });
-  append_object_field(output, root, "legacy_ros_adapter", [&](bool& first) {
-    append_string_field(output, first, "disparity_topic",
-                        config.legacy_ros.disparity_topic);
-    append_string_field(output, first, "compressed_image_topic",
-                        config.legacy_ros.compressed_image_topic);
-    append_string_field(output, first, "left_camera_info_topic",
-                        config.legacy_ros.left_camera_info_topic);
-    append_string_field(output, first, "diagnostics_topic",
-                        config.legacy_ros.diagnostics_topic);
-    append_string_field(output, first, "obstacle_cloud_topic",
-                        config.legacy_ros.obstacle_cloud_topic);
   });
   output.push_back('}');
   return output;
@@ -1007,16 +961,7 @@ EffectiveConfig normalize(const LegacyProfileV1& legacy) {
   result.outputs = {legacy.outputs.disparity_hz,
                     legacy.outputs.metric_depth_enabled,
                     legacy.outputs.compressed_image_hz,
-                    legacy.outputs.jpeg_quality,
-                    legacy.outputs.obstacle_cloud_enabled,
-                    legacy.outputs.result_ring_path,
-                    legacy.outputs.result_ring_slots,
-                    legacy.outputs.result_ring_left_mono_enabled};
-  result.legacy_ros = {legacy.outputs.disparity_topic,
-                       legacy.outputs.compressed_image_topic,
-                       legacy.outputs.left_camera_info_topic,
-                       legacy.outputs.diagnostics_topic,
-                       legacy.outputs.obstacle_cloud_topic};
+                    legacy.outputs.jpeg_quality};
   return result;
 }
 
@@ -1050,10 +995,8 @@ void validate(const EffectiveConfig& config) {
   // values exercise checked arithmetic instead of wrapping intermediate sizes.
   const auto capture_pixels = checked_multiply(
       capture.width, capture.height, "capture.width*capture.height");
-  const auto disparity_bytes = checked_multiply(
-      capture_pixels, sizeof(float), "capture disparity frame bytes");
-  (void)checked_multiply(disparity_bytes, config.outputs.result_ring_slots,
-                         "outputs.result_ring_slots frame storage");
+  (void)checked_multiply(capture_pixels, sizeof(float),
+                         "capture disparity frame bytes");
 
   if (capture.width == 0U || capture.height == 0U ||
       capture.width > kMaxImageDimension ||
@@ -1320,22 +1263,7 @@ void validate(const EffectiveConfig& config) {
   if (outputs.jpeg_quality == 0U || outputs.jpeg_quality > 100U) {
     validation_error("outputs.jpeg_quality", "must be in the range 1..100");
   }
-  validate_path(outputs.result_ring_path, "outputs.result_ring_path");
-  if (outputs.result_ring_slots < 2U ||
-      outputs.result_ring_slots > kMaxBufferCount) {
-    validation_error("outputs.result_ring_slots", "must be in the range 2..64");
-  }
 
-  validate_topic(config.legacy_ros.disparity_topic,
-                 "outputs.disparity_topic");
-  validate_topic(config.legacy_ros.compressed_image_topic,
-                 "outputs.compressed_image_topic");
-  validate_topic(config.legacy_ros.left_camera_info_topic,
-                 "outputs.left_camera_info_topic");
-  validate_topic(config.legacy_ros.diagnostics_topic,
-                 "outputs.diagnostics_topic");
-  validate_topic(config.legacy_ros.obstacle_cloud_topic,
-                 "outputs.obstacle_cloud_topic");
 }
 
 std::string canonical_json(const EffectiveConfig& config) {
@@ -1362,10 +1290,6 @@ LoadedConfig load(const std::filesystem::path& path) {
          "provisional calibration is structurally valid but does not authorize "
          "factory-calibrated metric depth"});
   }
-  result.warnings.push_back(
-      {"outputs.*_topic",
-       "ROS topic fields are retained as legacy adapter configuration and do "
-       "not define native daemon behavior"});
   if (result.effective.capture.hardware_trigger.enabled) {
     result.warnings.push_back(
         {"capture.hardware_trigger.pulse_width_us",

@@ -1,5 +1,9 @@
 # EGL/OpenGL DMABUF rectification
 
+> Historical benchmark instructions below use the retired Python ctypes/C wrapper.
+> The native EGL/DMABUF engine, native backend tests and CPU fallback remain
+> supported; current runtime construction does not load a Python wrapper.
+
 ## Status and rollback
 
 `egl_gl_dmabuf` is the selected production depth rectifier. The systemd unit

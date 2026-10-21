@@ -1,5 +1,9 @@
 # Result ring IPC
 
+> Historical engineering evidence: the Python processing pipeline and its private
+> result-ring/obstacle-cloud libraries described below have been retired. Current
+> capture, preview, depth and SDK transport use the native daemon and gateway.
+
 Depth Daemon and the ROS container exchange completed products through one
 file-backed mmap ring at `/run/depthd/results.ring`. The ABI authority is
 `include/depthd/ipc/result_ring_layout.hpp`. The ROS package must vendor the

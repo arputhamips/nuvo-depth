@@ -2015,12 +2015,6 @@ void await_clients(const std::atomic_size_t& active) noexcept {
              target == "/assets/fonts/hanken-grotesk-600.ttf") {
     file = options.web_root / std::string(target.substr(1));
     type = "font/ttf";
-  } else if (target == "/assets/benchmark/diode-indoor-photo.jpg" ||
-             target == "/assets/benchmark/diode-indoor-depth.jpg" ||
-             target == "/assets/benchmark/diode-outdoor-photo.jpg" ||
-             target == "/assets/benchmark/diode-outdoor-depth.jpg") {
-    file = options.web_root / std::string(target.substr(1));
-    type = "image/jpeg";
   } else if (target == "/depth-profiles.json") {
     file = options.web_root / "depth-profiles.json";
     type = "application/json";

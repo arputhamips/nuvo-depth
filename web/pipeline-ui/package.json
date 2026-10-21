@@ -1,9 +1,0 @@
-{
-  "name": "nuvo-image-pipeline",
-  "private": true,
-  "license": "GPL-3.0-or-later",
-  "scripts": {"build": "vite build && node copy-build.mjs"},
-  "dependencies": {"@xyflow/react": "^12.10.0", "react": "^19.2.0", "react-dom": "^19.2.0"},
-  "devDependencies": {"vite": "^7.3.0"},
-  "type": "module"
-}

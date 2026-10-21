@@ -1,5 +1,9 @@
 # Native compact obstacle cloud
 
+> Historical engineering evidence: the Python processing pipeline and its private
+> result-ring/obstacle-cloud libraries described below have been retired. Current
+> capture, preview, depth and SDK transport use the native daemon and gateway.
+
 ## Purpose
 
 `depthd::CompactObstacleCloudGenerator` converts the locked 728 x 544 float32

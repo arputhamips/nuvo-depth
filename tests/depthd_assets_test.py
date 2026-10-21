@@ -158,50 +158,27 @@ class ProductionDeploymentFilesTest(unittest.TestCase):
         self.assertEqual(manifest["target"]["baseline_m"], 0.1)
         self.assertEqual(manifest["target"]["role"], "standalone-depth-camera")
 
-    def test_production_unit_owns_all_runtime_paths_and_locks_profile(self) -> None:
-        unit = (
-            REPOSITORY / "deployment" / "systemd" / "nuvo-depthd.service"
-        ).read_text(encoding="utf-8")
-        config = (REPOSITORY / "config" / "nuvo_pi5_depth_100mm.yaml").read_text(
-            encoding="utf-8"
-        )
-        profiler = (
-            REPOSITORY / "tools" / "pi" / "profile_async_zero_copy_pipeline.py"
-        ).read_text(encoding="utf-8")
-        self.assertNotIn("/home/cam/nuvo-base", unit + config + profiler)
+    def test_native_production_unit_owns_capture_and_recovers_calibration(self) -> None:
+        unit = (REPOSITORY / "deployment/systemd/nuvo-depthd-native.service").read_text(encoding="utf-8")
+        target = (REPOSITORY / "deployment/systemd/nuvo-depth.target").read_text(encoding="utf-8")
+        config = (REPOSITORY / "config/nuvo_pi5_depth_100mm.yaml").read_text(encoding="utf-8")
         for required in (
-            "ExecStartPre=/usr/sbin/depthd-assets preflight",
-            "--left-camera-index 1",
-            "--right-camera-index 0",
-            "--capture-stream-profile isp_luma_rgb_left",
-            "Environment=DEPTHD_RECTIFICATION_BACKEND=egl_gl_dmabuf",
-            "--rectification-backend ${DEPTHD_RECTIFICATION_BACKEND}",
-            "--rectification-fallback-backend cpu_opencv",
-            "--allow-rectification-fallback",
-            "/usr/lib/nuvo-depthd/libdepthd_egl_gl_dmabuf_rectification.so",
-            "--fps 10.0",
-            "--jpeg-hz 2.0",
-            "--ae-max-shutter-us 8000",
-            "--ae-max-gain 3.0",
-            "--working-width 364",
-            "--working-height 272",
-            "--working-disparities 64",
-            "--full-disparity-limit 128.0",
-            "--block-size 5",
-            "--uniqueness-ratio 1",
-            "--speckle-window-size 30",
-            "--result-ring /run/depthd/results.ring",
-            "/usr/lib/nuvo-depthd/libdepthd_native_output.so",
-            "/config/calibration/nuvo_depth_100mm/front_left.yaml",
-            "/config/calibration/nuvo_depth_100mm/front_right.yaml",
+            "User=nuvo-depth", "Group=nuvo-video",
+            "ExecStartPre=+/usr/bin/systemctl start nuvo-trigger-prepare.service",
+            "nuvo-calibration recover --state-root /var/lib/nuvo-depth",
+            "ExecStartPre=/usr/bin/depthd --check-config /etc/nuvo-depth/daemon.yaml",
+            "ExecStart=/usr/bin/depthd --run /etc/nuvo-depth/daemon.yaml",
+            "--encoding-config /etc/nuvo-depth/encoding.json",
+            "--stereo-control /etc/nuvo-depth/stereo.json",
+            "--exposure-control /etc/nuvo-depth/exposure.json",
         ):
             self.assertIn(required, unit)
-        self.assertIn("role: standalone_depth_camera\n", config)
-        self.assertIn("profile_id: balanced_728x544_10\n", config)
-        self.assertIn("baseline_m: 0.100\n", config)
-        product_runtime = unit.lower() + config.lower() + profiler.lower()
-        self.assertNotIn("semantic", product_runtime)
-        self.assertNotIn("hailo", product_runtime)
+        self.assertIn("Wants=nuvo-depthd-native.service", target)
+        self.assertNotIn("/usr/bin/python3", unit)
+        self.assertNotIn("results.ring", unit)
+        for required in ("role: standalone_depth_camera", "profile_id: balanced_728x544_10",
+                         "baseline_m: 0.100", "backend: cpu_opencv", "fallback_backend: egl_gl_dmabuf"):
+            self.assertIn(required, config)
 
         cmake = (REPOSITORY / "CMakeLists.txt").read_text(encoding="utf-8")
         package_dependencies = cmake.split(

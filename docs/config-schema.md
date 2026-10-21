@@ -14,19 +14,21 @@ limits XTR exposure to `trigger period - 250 µs` without changing schema v1. Se
 
 ## Scope
 
-The native configuration component is an opt-in preflight skeleton. It parses
+The native configuration component parses
 and validates the current `schema_version: 1` product profile without opening a
-camera, GPIO line, EGL device, result ring, calibration file, or any path under
+camera, GPIO line, EGL device, calibration file, or any path under
 `/var/lib`.
 
-It is not the production frame loop and is not used by the installed systemd
-service yet.
+The installed native service runs this preflight before constructing capture,
+rectification, matching and output stages from the normalized settings.
 
-Schema v1 is treated as a legacy import boundary. Every current field is parsed
-into `LegacyProfileV1`, then normalized into `EffectiveConfig`. ROS topic fields
-are retained under `legacy_ros_adapter`; they do not define native daemon
-behavior. This lets a later schema replace historical ROS and fixed-profile
-concepts without making them part of the permanent daemon API.
+Schema v1 remains an import boundary so the immutable seed and existing device
+configurations keep loading. Active fields normalize into `EffectiveConfig`.
+Retired ROS topic, obstacle-cloud and result-ring keys are accepted as optional
+compatibility keys, but are not stored, validated as runtime settings, included
+in effective JSON, or included in the configuration digest. Unknown and duplicate
+keys still fail preflight. Native geometry, calibration and capture validity
+checks remain enforced.
 
 ## Build
 
@@ -75,7 +77,7 @@ The JSON dump includes:
 - SHA-256 of the canonical effective configuration object;
 - structured warnings;
 - the normalized configuration;
-- legacy ROS adapter fields in their own object.
+- active output cadence, metric-depth and encoder fallback settings.
 
 The hash does not depend on the input filename, YAML comments, mapping order,
 or number spelling. It is computed over the canonical effective configuration,
@@ -133,12 +135,14 @@ stereo
   uniqueness_ratio, speckle_window_size, speckle_range
   disparity_12_max_diff, pre_filter_cap, opencv_threads
 outputs
-  disparity_hz, disparity_topic, metric_depth_enabled
-  compressed_image_hz, compressed_image_topic, jpeg_quality
-  left_camera_info_topic, diagnostics_topic
-  obstacle_cloud_enabled, obstacle_cloud_topic
-  result_ring_path, result_ring_slots, result_ring_left_mono_enabled
+  disparity_hz, metric_depth_enabled, compressed_image_hz, jpeg_quality
 ```
+
+The frozen schema-v1 seed also contains optional, ignored output keys:
+`disparity_topic`, `compressed_image_topic`, `left_camera_info_topic`,
+`diagnostics_topic`, `obstacle_cloud_enabled`, `obstacle_cloud_topic`,
+`result_ring_path`, `result_ring_slots`, and `result_ring_left_mono_enabled`.
+Their presence or values do not change the native effective configuration.
 
 ## Structural validation
 
@@ -148,7 +152,7 @@ The preflight rejects:
   shapes, integer range errors, NaN, and infinity;
 - zero, excessive, or overflowing frame/buffer geometry;
 - duplicate logical camera indices and unsupported schema-v1 mode identifiers;
-- invalid orientation, buffer count, POSIX runtime paths, or ROS topic syntax;
+- invalid orientation, buffer count, calibration paths or trigger GPIO paths;
 - a trigger pulse, exposure, or pair tolerance inconsistent with capture
   cadence;
 - invalid metering ROI, thresholds, clipped fraction, shutter range, gain range,
@@ -156,8 +160,7 @@ The preflight rejects:
 - mismatched rig/stereo baselines, capture/output geometry, or aspect ratio;
 - invalid OpenCV disparity multiples, search span, block size, prefilter cap, or
   thread count;
-- output cadences above capture cadence, invalid JPEG quality, or invalid ring
-  slot counts.
+- output cadences above capture cadence or invalid JPEG quality.
 
 The preflight intentionally does not check that configured files exist. Package
 asset verification and hardware runtime preflight remain separate operations.

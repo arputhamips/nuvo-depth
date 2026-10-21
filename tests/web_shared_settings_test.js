@@ -33,12 +33,12 @@ assert.equal(check({delivery:'exact'},{qualified:true}).delivery,'exact');
 assert.throws(()=>check({products:['left_rgb','right_rgb']}),/budget/);
 assert.throws(()=>check({}, {maxFrameBytes:100}),/frame size/);
 assert.throws(()=>check({}, {width:0}),/dimensions/);
-const parked=require('../web/pipeline-model.js');
-for(const [product] of products){
+for(const [product,,bytesPerPixel] of products){
   const candidate={...selection,products:[product],cadence_hz:1};
-  const expected=parked.compile(parked.fromSettings(candidate));
   const actual=D.validateOutputSelection(candidate,{},products);
-  for(const field of ['enabled','frameBytes','bytesPerSecond','cadence_hz','delivery','preview','preview_cadence_hz'])assert.equal(actual[field],expected[field],product+' '+field);
-  assert.deepEqual(actual.products,expected.products);
+  assert.equal(actual.frameBytes,728*544*bytesPerPixel+65568,product+' transport size');
+  assert.equal(actual.bytesPerSecond,actual.frameBytes,product+' cadence');
+  for(const field of ['enabled','cadence_hz','delivery','preview','preview_cadence_hz'])assert.equal(actual[field],candidate[field],product+' '+field);
+  assert.deepEqual(actual.products,[product]);
 }
 console.log('Shared settings numeric types, limits, cross-field constraints and edit-base draft tests passed');

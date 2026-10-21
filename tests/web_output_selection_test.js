@@ -77,32 +77,25 @@ consolePolling.document.hidden=true;consoleTimers.forEach(fn=>fn());consoleListe
 assert.deepEqual(consoleCalls,{health:1,settings:5},'hidden console must stop all routine endpoint polling');
 consolePolling.document.hidden=false;consoleListeners.visibilitychange();assert.deepEqual(consoleCalls,{health:2,settings:10});
 assert(!source.includes("socketUrl('/api/v1/stream')"),'browser must not request implicit legacy-all depth products');
-const pipelineHost = fs.readFileSync(require('node:path').join(__dirname, '../web/pipeline-host.js'), 'utf8');
-const pollingStart = pipelineHost.indexOf('  setInterval(()=>{if(!document.hidden)refreshHealth();}');
-assert(pollingStart > 0);
-const timers=[],listeners={},calls={health:0,capabilities:0,configuration:0,restart:0,refresh:0};
-const pollingContext={
-  setInterval:fn=>timers.push(fn),document:{hidden:false,addEventListener:(name,fn)=>listeners[name]=fn},
-  window:{addEventListener:()=>{}},names:{exposure:[],algorithm:[],encoding:[]},
-  refreshHealth:()=>calls.health++,refreshCapabilities:()=>calls.capabilities++,refreshConfiguration:()=>calls.configuration++,
-  restartStreams:()=>calls.restart++,refresh:()=>calls.refresh++,
-};
-vm.runInNewContext(pipelineHost.slice(pollingStart,pipelineHost.lastIndexOf('\n})();')),pollingContext);
-timers.forEach(fn=>fn());
-assert.deepEqual(calls,{health:1,capabilities:1,configuration:3,restart:0,refresh:0});
-pollingContext.document.hidden=true;listeners.visibilitychange();timers.forEach(fn=>fn());
-assert.deepEqual(calls,{health:1,capabilities:1,configuration:3,restart:1,refresh:0},'hidden pipeline must release subscriptions and skip all polling');
-pollingContext.document.hidden=false;listeners.visibilitychange();
-assert.equal(calls.refresh,1,'returning to the pipeline must refresh settings before restarting streams');
-const pipelineController=fs.readFileSync(require('node:path').join(__dirname,'../web/pipeline.js'),'utf8');
-const encodedDemand=pipelineController.match(/wantsEncoded:\(\)=>([^,\n]+)/);
-assert(encodedDemand,'pipeline must declare its preview demand');
-const previewBody={hidden:false};
-const demandContext={$:()=>previewBody,selected:'monitor',applied:{preview:true}};
-vm.createContext(demandContext);
-assert.equal(vm.runInContext(encodedDemand[1],demandContext),true);
-previewBody.hidden=true;
-assert.equal(vm.runInContext(encodedDemand[1],demandContext),false,'a minimized viewer must release encoded processing demand');
-previewBody.hidden=false;demandContext.selected='out-1';
-assert.equal(vm.runInContext(encodedDemand[1],demandContext),false,'a raw output must not silently keep the encoder active');
+const emptyElements={viewerEmptyState:{},encodedEmptyState:{}};
+let encodedLive=true;
+const availability={$:id=>emptyElements[id],lastFrameAt:0,outputSettings:{enabled:true},encoding:{mode:'both'},
+  setSampleCanvasLive:(id,live)=>{assert.equal(id,'encodedCanvas');encodedLive=live}};
+vm.createContext(availability);
+vm.runInContext(source.slice(source.indexOf('function updateViewerAvailability('),source.indexOf('function drawGray(')),availability);
+availability.updateViewerAvailability();
+assert.equal(emptyElements.viewerEmptyState.hidden,false);
+assert.match(emptyElements.viewerEmptyState.textContent,/Waiting/);
+availability.lastFrameAt=100;
+availability.updateViewerAvailability();assert.equal(emptyElements.viewerEmptyState.hidden,true);
+availability.updateViewerAvailability(true);
+assert.equal(emptyElements.viewerEmptyState.hidden,false);
+assert.match(emptyElements.viewerEmptyState.textContent,/Disconnected.*last received/);
+assert.equal(encodedLive,false,'disconnected encoded output must expose its empty state');
+availability.lastFrameAt=0;availability.outputSettings.enabled=false;
+availability.updateViewerAvailability();assert.match(emptyElements.viewerEmptyState.textContent,/Select raw outputs/);
+availability.outputSettings.enabled=true;availability.encoding.mode='encoded';
+availability.updateViewerAvailability();assert.match(emptyElements.viewerEmptyState.textContent,/Raw delivery is off/);
+availability.encoding.mode='raw';availability.updateViewerAvailability();
+assert.equal(emptyElements.encodedEmptyState.textContent,'Encoded preview is off');
 console.log('Web output selection, bandwidth, RGB/BGR, and demand lifecycle tests passed');

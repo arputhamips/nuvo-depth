@@ -49,17 +49,12 @@ def main() -> None:
         "overview", "viewer", "exposure", "presets", "algorithm", "streaming",
         "network", "calibration", "diagnostics", "recovery",
     ], f"unexpected operator navigation order: {parser.navigation_order}"
-    pipeline = (ROOT / "web" / "pipeline.js").read_text(encoding="utf-8")
     literal_refs = set(re.findall(r"\$\('([^']+)'\)", script))
     missing = literal_refs - set(parser.ids)
     assert not missing, f"JavaScript refers to missing IDs: {sorted(missing)}"
-    pipeline_html=(ROOT/"web/pipeline.html").read_text(encoding="utf-8")
-    pipeline_parser=InterfaceParser();pipeline_parser.feed(pipeline_html)
-    assert len(pipeline_parser.ids)==len(set(pipeline_parser.ids)), "duplicate pipeline IDs"
     assert 'id="pipeline"' not in html and '/pipeline' not in html
     assert 'NuvoPipeline' not in script and '/pipeline.html' not in script, "production console must not depend on the parked pipeline"
-    assert '/app.js' not in pipeline_html and '/pipeline.js' not in html
-    assert set(re.findall(r"\$\('([^']+)'\)",pipeline))-set(pipeline_parser.ids)=={'streamSource','outputForm'}, "unexpected missing pipeline controls"
+    assert '/pipeline.js' not in html
     for identifier in ("performanceMonitor", "performanceStages", "performanceChart",
                        "overviewPerformanceSlot", "diagnosticsPerformanceSlot"):
         assert identifier in parser.ids
@@ -91,16 +86,11 @@ def main() -> None:
         assert f'<option value="{source}">' in html
     assert '<option value="left_color">Left camera · color</option>' in html
     assert "source==='left_color'?'Left color · ISP':'Right color · ISP'" in script
-    for name in ("diode-indoor-photo", "diode-indoor-depth",
-                 "diode-outdoor-photo", "diode-outdoor-depth"):
-        assert (ROOT / "web" / "assets" / "benchmark" / f"{name}.jpg").is_file()
-    assert 'Photographic DIODE benchmark reference' in html
-    assert 'not Nuvo output' in html
-    assert 'data-benchmark-panel="indoor"' in html
-    assert 'data-benchmark-panel="outdoor" hidden' in html
-    assert "panel.hidden = panel.dataset.benchmarkPanel !== button.dataset.benchmarkScene" in script
-    assert "$('benchmarkGallery').hidden=true" in script
-    assert "$('benchmarkGallery').hidden=false" in script
+    assert 'id="viewerEmptyState"' in html and 'Waiting for selected live products.' in html
+    assert 'id="encodedEmptyState"' in html and 'Waiting for encoded preview' in html
+    assert 'DIODE' not in html and '/assets/benchmark/' not in html
+    assert 'benchmarkGallery' not in script and 'data-benchmark-scene' not in script
+    assert 'Disconnected · showing last received products' in script
     # The overview's calibration alert leads directly to the corrective action.
     assert 'data-open="calibration"' in html
     assert 'class="cards status-strip"' in html
@@ -121,15 +111,10 @@ def main() -> None:
         subprocess.run([node,str(ROOT/"tests/web_configuration_revision_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_performance_model_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_output_selection_test.js")],check=True)
-        subprocess.run([node,str(ROOT/"tests/web_pipeline_model_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_shared_settings_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_calibration_status_test.js")],check=True)
-        for asset in ("app.js","pipeline.js","pipeline-host.js","device-settings.js","frame-codec.js"):
+        for asset in ("app.js","device-settings.js","frame-codec.js"):
             subprocess.run([node,"--check",str(ROOT/"web"/asset)],check=True)
-        # The parked editor's generated bundle is optional local build output.
-        canvas = ROOT / "web/pipeline-canvas.js"
-        if canvas.is_file():
-            subprocess.run([node,"--check",str(canvas)],check=True)
     print(f"UI contract OK: {len(parser.pages)} pages, {len(parser.ids)} unique IDs")
 
 

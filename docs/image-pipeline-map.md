@@ -146,13 +146,12 @@ The positioning preview is encoded; solver input is **not**. The daemon captures
 | Area | Role and production status |
 | --- | --- |
 | `apps/`, `src/core/`, `platform/pi5/`, `platform/linux/`, `include/depthd/` | Native Pi capture, pairing, processing, encoder, IPC and gateway described above. |
-| `web/` | Claimed browser UI, raw canvas viewer, encoded monitor, exposure/matcher/transport editors, advanced calibration UI. Offline DIODE benchmark examples are **reference placeholders**, never Nuvo measurements. |
+| `web/` | Claimed browser UI, raw canvas viewer, encoded monitor, exposure/matcher/transport editors, advanced calibration UI. Waiting/disconnected states show no photographic substitutes for live products. |
 | `sdk/python/`, `include/nuvo/`, `src/sdk_c.cpp` | TLS snapshot/configuration clients, incremental C NUV1 decoder, Python NUV1/NVE1 decoders, NVR1 recording/replay. The local socket client helper is C++, not a Python SDK transport. |
 | `tools/calibration/`, `src/calibration_store.cpp`, `config/calibration/` | ChArUco/chessboard solving, bundle validation/activation and startup rectification-map preparation. Provisional seed and sample matrix coexist with per-unit active bundles. |
 | `tools/nuvoctl.py`, `tools/nuvo_system_agent.py`, `deployment/`, `debian/`, `qualification/`, `config/pi/` | Provisioning, boot overlay/trigger preparation, privileged controls, systemd, APT packaging and qualification gates. No package install auto-enables the camera target. |
 | `CMakeLists.txt`, `CMakePresets.json`, `tools/release/` | Build variants and feature gates, source/SPDX generation, and vendor APT staging. The arm64 production build requires Pi capture, both CPU and GPU rectification support, OpenCV, FFmpeg, gateway and systemd. |
 | `tools/pi/`, `tests/`, `tools/*benchmark*`, `docs/`, `presets/` | HIL checks, CPU/GPU/encoder profiling, flicker traces, unit/integration tests, validation reports, reference presets and operating documentation. These are not extra production frame stages. |
-| `src/native_output*`, `src/result_ring.cpp`, `src/obstacle_cloud.cpp` | Compatibility/downstream library: disparity-to-compact-cloud and legacy four-slot mmap result ring. The native Pi daemon does **not** invoke it or publish ROS topics itself. |
 | `protocol/nuvo_stream_v1.proto`, `src/gateway.cpp` | Protocol schema and tested transport-admission core. The shipping gateway uses JSON wire metadata and persistent demand-driven local IPC, actual receiving-interface detection and bounded admission. |
 | `src/depth_conversion.cpp` | Runtime Q-based float-metre depth conversion plus a separate optional float-depth to uint16-millimetre quantizer; the native frame set publishes float metres, not the quantized variant. |
 
@@ -163,7 +162,7 @@ The positioning preview is encoded; solver input is **not**. The daemon captures
   cadence and while a consumer needs them.
 - The native backend creates one YUV420 main stream per camera. Legacy YAML
   lores/ROS/cloud descriptors do not create extra native processing stages.
-  Compact obstacle output is disabled in the default profile.
+  Legacy obstacle-cloud/result-ring processing has been retired.
 - RP1 PIO PWM eliminates userspace pulse scheduling on the current GPIO17 wiring.
   Timing status distinguishes hardware commands from measurements. The kernel
   driver holds its last pin level when disabled; both cameras stop first.

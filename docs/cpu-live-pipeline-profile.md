@@ -1,5 +1,9 @@
 # Live CPU pipeline profile
 
+> Historical engineering evidence: the Python processing pipeline and its private
+> result-ring/obstacle-cloud libraries described below have been retired. Current
+> capture, preview, depth and SDK transport use the native daemon and gateway.
+
 ## Scope
 
 This profile measures the temporary Python camera-to-depth validation path on
