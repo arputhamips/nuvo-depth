@@ -103,6 +103,30 @@ metadata remain on the Pi under the same directory name in `/home/nuvo`.
 The illuminated scene's evidence and three final previews are under
 `output/minimal-depth-validation-20261021-lit/` and the corresponding Pi folder.
 
+## Matcher comparison
+
+The latest validated calibration recorded for beta 5 is selected. Its matcher
+controls were separate from calibration: the earlier Pi used SGBM HH, a 96 px
+range and a 5 × 5 validity-preserving median filter; the user configured minimal
+with 3-way, 128 px and no median filter. Replaying the exact same illuminated
+capture through the native pipeline with those two control sets preserved
+identical rectified images. HH reduced visible horizontal streaks and increased
+valid pixel coverage from 63.21% to 68.50%. This does not resolve the vertical
+alignment residual shared by both matcher outputs.
+
+A live 90-frame Pi test with the beta 5 matcher controls delivered 3.286 fps,
+with frame age 377.67 ms median and 427.56 ms p95. Median valid coverage was
+67.92%; completion, requeue, trigger and processing error deltas were all zero.
+At a requested 10 Hz, capture sequence skips are expected with this slower
+matcher: the bounded pipeline keeps processing recent captures. Temperature
+was 56.5 °C and throttling was `0x0`. The original 3-way/128 control file was
+restored byte for byte in a `finally` block, and three fresh frames confirmed
+the restored settings applied. The Pi's calibration remains restored.
+
+The exact-frame comparison image is
+`output/minimal-depth-validation-20261021-lit/matcher-comparison.png`; the HH
+live evidence is in `output/minimal-depth-validation-20261021-lit-hh/`.
+
 ## Repository checks
 
 The configuration/OpenCV host build passed all 54 CTest checks after updating
@@ -114,3 +138,17 @@ Replaying the exact captured mono pair through the native pipeline with the new
 shared seed reproduced the Pi's left/right rectified images, disparity, depth
 and validity arrays exactly, including NaNs. Changing the shared authority
 marker did not change geometry or numeric output.
+
+Both ARM64 package profiles built successfully from source
+`fa158f570ca513a3e878c552507872e9de509d11` using the manual package workflow:
+
+- Minimal: [Actions run 39686442512](https://github.com/arputhamips/nuvo-depth/actions/runs/39686442512),
+  54/54 tests and installation into a fresh runtime-only Trixie container passed.
+- Full: [Actions run 39686445958](https://github.com/arputhamips/nuvo-depth/actions/runs/39686445958),
+  56/56 tests and the existing installation smoke check passed.
+
+Downloaded packages were unpacked on the workstation and both packaged YAML
+pairs matched the new default source bytes exactly. Both daemon configurations
+contained the measured baseline and focal length. No installer was run on the
+Pi, and published beta 6 assets remain unchanged. Later commits on the branch
+only extend this validation report.
