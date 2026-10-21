@@ -8,7 +8,7 @@ product:
 rig:
   sensor: imx296
   camera_count: 2
-  baseline_m: 0.100
+  baseline_m: 0.0996937500869897
   calibration_status: provisional_recalibration_required
 
 capture:
@@ -71,8 +71,8 @@ rectification:
 
 stereo:
   backend: cpu_sgbm
-  baseline_m: 0.100
-  rectified_focal_length_px: 493.542046188
+  baseline_m: 0.0996937500869897
+  rectified_focal_length_px: 441.79166212006197
   output_width: 728
   output_height: 544
   min_disparity: 0

@@ -106,10 +106,12 @@ sudo nuvoctl platform preflight
 sudo systemctl enable --now nuvo-depth.target
 ```
 
-The seed calibration is marked `provisional_recalibration_required`. It keeps
-the existing camera-unit intrinsics and changes the projection to a nominal
-100 mm baseline. Perform a new stereo calibration on the final mechanical
-assembly before using metric range as calibrated product output. Factory
+The default seed uses the geometry that ran on the unchanged rig with beta 5:
+728 × 544, a measured 99.694 mm baseline and a 441.792 px rectified focal length.
+Its source bundle and file hashes are recorded in
+`config/calibration/nuvo_depth_100mm/profile.json`. The shared seed remains
+`provisional_recalibration_required`; a different mechanical assembly needs
+its own validation before its metric range is treated as calibrated. Factory
 activation also requires a valid Ed25519 signature chained to the separately
 provisioned public-key trust store. Remove the service's explicit provisional
 engineering override before a customer release.

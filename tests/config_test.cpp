@@ -166,7 +166,7 @@ int main() {
     return fail(12, "wrong scalar type was accepted");
   }
   if (!expect_validation(
-          replace_once(active_yaml, "  baseline_m: 0.100",
+          replace_once(active_yaml, "  baseline_m: 0.0996937500869897",
                        "  baseline_m: .nan"),
           "rig.baseline_m")) {
     return fail(13, "nonfinite value was accepted");

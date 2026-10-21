@@ -25,7 +25,8 @@ longer applies.
 | Disparity/depth matcher size | 728 x 544 |
 | Matcher | OpenCV CPU SGBM or StereoBM; two-thread 3-way SGBM is the default |
 | Full-resolution disparity interval | 0 to 128 px by default |
-| Rectified focal length | 493.542046188 px |
+| Measured default baseline | 0.0996937500869897 m |
+| Rectified focal length | 441.79166212006197 px |
 | Preferred rectifier | Cached OpenCV CPU remap |
 | Rectifier fallback | EGL/OpenGL DMA-BUF |
 | Preview | Left JPEG at 2 Hz |
@@ -39,32 +40,27 @@ service dependency.
 
 ## Geometry
 
-Metric range follows `Z = fB / d`. With the nominal profile,
-`fB = 49.3542046188 px*m`. A 2 m target therefore has about 24.68 px disparity,
-while a 6 m target has about 8.23 px disparity. The 128 px default corresponds
-to a nominal near range of about 0.386 m. The compact obstacle output keeps its more conservative 0.75 m
+Metric range follows `Z = fB / d`. With the default profile,
+`fB = 44.04386755391325 px*m`. A 2 m target therefore has about 22.02 px disparity,
+while a 6 m target has about 7.34 px disparity. The 128 px default corresponds
+to a nominal near range of about 0.344 m. The compact obstacle output keeps its more conservative 0.75 m
 minimum.
 
-The logical-left sensor is camera index 1 and the logical-right sensor is index
-0 on the established Pi topology. The provisional right projection matrix uses
-`Tx = -fB = -49.3542046188`.
+The logical-left sensor is bound to `i2c@80000` (legacy index 0), and the
+logical-right sensor to `i2c@88000` (legacy index 1). The right projection matrix
+uses `Tx = -fB = -44.04386755391325`.
 
 ## Calibration requirement
 
-The files under `config/calibration/nuvo_depth_100mm/` preserve the intrinsics
-and rectification seed from the existing camera unit and replace the projection
-baseline with 100 mm. That is enough to establish the software contract, but it
-does not account for the final sensors, lens focus, enclosure tolerances, or
-actual rotation/translation of the assembled rig.
-
-The provisional right-camera document also carries a measured
-`rectified_output_correction`. It was robustly fitted across three retained
-camera captures after the full-resolution matcher exposed a systematic vertical
-residual: median absolute feature error fell from 1.77 px to 0.15 px and SGBM
-coverage rose by about 4.2 percentage points. The correction composes the dense
-right rectification map only; it does not change focal length, baseline, or the
-metric depth equation. This empirical correction improves the engineering
-preview but does not promote the seed to a validated calibration.
+The files under `config/calibration/nuvo_depth_100mm/` now use the exact geometry
+that ran on the unchanged rig with beta 5, recovered from bundle
+`8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2`.
+Both cameras use an eight-coefficient rational distortion model, with no
+additional empirical output correction. `profile.json` records the source and
+asset hashes. Only the authority marker differs from the original user-validated
+documents: shared package seeds remain provisional for other assembled units.
+Existing active per-unit bundles retain precedence in the full installation.
+Published beta 6 assets still contain the earlier provisional geometry.
 
 ## Matcher qualification
 

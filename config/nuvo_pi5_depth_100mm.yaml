@@ -9,7 +9,7 @@ product:
 rig:
   sensor: imx296
   camera_count: 2
-  baseline_m: 0.100
+  baseline_m: 0.0996937500869897
   calibration_status: provisional_recalibration_required
 
 capture:
@@ -68,9 +68,9 @@ rectification:
   backend: cpu_opencv
   fallback_backend: egl_gl_dmabuf
   allow_fallback: true
-  # These seed files retain the existing camera-unit intrinsics and encode the
-  # new nominal 100 mm projection. Recalibrate the assembled 100 mm rig before
-  # treating metric depth as production-calibrated.
+  # Default geometry is the profile used on the unchanged rig with beta 5.
+  # Shared seed geometry retains provisional authority for other camera units.
+  # Provenance: calibration/nuvo_depth_100mm/profile.json.
   left_calibration: /var/lib/nuvo-depthd/current/config/calibration/nuvo_depth_100mm/front_left.yaml
   right_calibration: /var/lib/nuvo-depthd/current/config/calibration/nuvo_depth_100mm/front_right.yaml
   map_format: fixed_point
@@ -79,8 +79,8 @@ rectification:
 
 stereo:
   backend: cpu_sgbm
-  baseline_m: 0.100
-  rectified_focal_length_px: 493.542046188
+  baseline_m: 0.0996937500869897
+  rectified_focal_length_px: 441.79166212006197
   output_width: 728
   output_height: 544
   min_disparity: 0

@@ -155,8 +155,20 @@ class ProductionDeploymentFilesTest(unittest.TestCase):
             if entry["source_group"] == "artifact"
         }
         self.assertEqual(artifact_entries, {})
-        self.assertEqual(manifest["target"]["baseline_m"], 0.1)
+        self.assertEqual(manifest["target"]["baseline_m"], 0.0996937500869897)
         self.assertEqual(manifest["target"]["role"], "standalone-depth-camera")
+
+    def test_default_geometry_matches_recovered_beta5_assets(self) -> None:
+        folder = REPOSITORY / "config/calibration/nuvo_depth_100mm"
+        profile = json.loads((folder / "profile.json").read_text())
+        self.assertEqual(profile["source_beta5_bundle_id"],
+                         "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2")
+        for name, asset in profile["assets"].items():
+            data = (folder / name).read_bytes()
+            self.assertEqual(sha256(data), asset["default_seed_sha256"])
+            restored = data.replace(b"calibration_status: provisional_recalibration_required",
+                                    b"calibration_status: user_validated")
+            self.assertEqual(sha256(restored), asset["beta5_user_validated_sha256"])
 
     def test_native_production_unit_owns_capture_and_recovers_calibration(self) -> None:
         unit = (REPOSITORY / "deployment/systemd/nuvo-depthd-native.service").read_text(encoding="utf-8")
@@ -177,7 +189,7 @@ class ProductionDeploymentFilesTest(unittest.TestCase):
         self.assertNotIn("/usr/bin/python3", unit)
         self.assertNotIn("results.ring", unit)
         for required in ("role: standalone_depth_camera", "profile_id: balanced_728x544_10",
-                         "baseline_m: 0.100", "backend: cpu_opencv", "fallback_backend: egl_gl_dmabuf"):
+                         "baseline_m: 0.0996937500869897", "backend: cpu_opencv", "fallback_backend: egl_gl_dmabuf"):
             self.assertIn(required, config)
 
         cmake = (REPOSITORY / "CMakeLists.txt").read_text(encoding="utf-8")

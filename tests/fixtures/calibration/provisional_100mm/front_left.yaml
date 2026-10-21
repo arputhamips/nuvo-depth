@@ -1,0 +1,33 @@
+# Provisional seed for the logical-left camera on RP1 i2c@80000.
+# Camera intrinsics and rectification stay attached to this physical sensor.
+# Re-run stereo calibration after final mechanical assembly.
+calibration_status: provisional_recalibration_required
+baseline_m: 0.100
+image_width: 728
+image_height: 544
+camera_name: front_left
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [475.149382139, 0, 345.1589232, 0, 473.754996158, 264.180330721, 0, 0, 1]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [-0.428530954954, 0.208076719221, 0.000403880010165, 0.000327313334963, -0.0553414414179]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [0.999891729501, -0.0143325429095, 0.0033327900547, 0.0143195073831, 0.999889853842, 0.00390280571691, -0.00338836009108, -0.00385465924639, 0.999986830222]
+# Historical scene-fit output correction retained with physical i2c@80000.
+# This sensor was formerly mislabeled logical-right. The correction follows
+# the sensor when correcting camera roles; it is not a qualified calibration.
+# Replace it with a full target calibration for the final assembly.
+rectified_output_correction:
+  rows: 3
+  cols: 3
+  data: [1, 0, 0, -0.0091791619, 1.0191521645, -0.1733816713, 0, 0, 1]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [493.542046188, 0, 348.240810394, 0, 0, 493.542046188, 266.509811401, 0, 0, 0, 1, 0]

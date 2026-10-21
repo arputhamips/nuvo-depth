@@ -76,7 +76,8 @@ int main() {
            "result_ring_slots: 4", "obstacle_cloud_enabled: false",
            "obstacle_cloud_topic: /camera/front/obstacles",
            "role: standalone_depth_camera", "profile_id: balanced_728x544_10",
-           "baseline_m: 0.100",
+           "baseline_m: 0.0996937500869897",
+           "rectified_focal_length_px: 441.79166212006197",
            "calibration_status: provisional_recalibration_required"})) {
     return 3;
   }
@@ -102,12 +103,14 @@ int main() {
                 "/config/calibration/nuvo_depth_100mm/front_right.yaml");
   if (!contains_all(left_calibration,
                     {"calibration_status: provisional_recalibration_required",
-                     "baseline_m: 0.100",
-                     "data: [493.542046188, 0, 348.240810394, 0,"}) ||
+                     "baseline_m: 0.0996937500869897",
+                     "distortion_model: rational_polynomial",
+                     "441.79166212006197"}) ||
       !contains_all(right_calibration,
                     {"calibration_status: provisional_recalibration_required",
-                     "baseline_m: 0.100",
-                     "data: [493.542046188, 0, 348.240810394, -49.3542046188,"})) {
+                     "baseline_m: 0.0996937500869897",
+                     "distortion_model: rational_polynomial",
+                     "-44.04386755391325"})) {
     return 8;
   }
 

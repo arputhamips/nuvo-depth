@@ -88,9 +88,13 @@ application user with `sudo usermod -aG nuvo-video USER`, then log in again.
 
 ## Geometry and operation
 
-The package includes the existing 100 mm provisional rectification files.
-Outputs retain `provisional_recalibration_required` authority; these files do
-not establish metric accuracy for a different assembled rig. There is no
+The default geometry is the profile used on the unchanged rig with beta 5:
+728 × 544, a measured 99.694 mm baseline, and a 441.792 px rectified focal
+length. Its provenance and file hashes are recorded in
+`config/calibration/nuvo_depth_100mm/profile.json`. Shared seed outputs retain
+`provisional_recalibration_required` authority; these files do not establish
+metric accuracy for a different assembled rig. Published beta 6 packages
+predate this default change and still contain the earlier seed. There is no
 calibration capture or solving workflow in this package. To use previously
 validated per-unit bundles, retain their state under `/var/lib/nuvo-depth` and
 override the service command to omit its explicit `--calibration-root` option.

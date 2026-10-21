@@ -1,33 +1,60 @@
-# Provisional seed for the logical-left camera on RP1 i2c@80000.
-# Camera intrinsics and rectification stay attached to this physical sensor.
-# Re-run stereo calibration after final mechanical assembly.
 calibration_status: provisional_recalibration_required
-baseline_m: 0.100
+baseline_m: 0.0996937500869897
 image_width: 728
 image_height: 544
+distortion_model: rational_polynomial
 camera_name: front_left
 camera_matrix:
   rows: 3
   cols: 3
-  data: [475.149382139, 0, 345.1589232, 0, 473.754996158, 264.180330721, 0, 0, 1]
-distortion_model: plumb_bob
+  data:
+  - 479.1466910201599
+  - 0.0
+  - 352.2286915291708
+  - 0.0
+  - 478.4694917731739
+  - 265.7064085084526
+  - 0.0
+  - 0.0
+  - 1.0
 distortion_coefficients:
   rows: 1
-  cols: 5
-  data: [-0.428530954954, 0.208076719221, 0.000403880010165, 0.000327313334963, -0.0553414414179]
+  cols: 8
+  data:
+  - -3.63846891973403
+  - 4.4338231608498155
+  - 0.0006345930752863545
+  - 0.00017454555649021032
+  - 0.8414043767516566
+  - -3.1980762464704866
+  - 2.7630685443504484
+  - 3.0595005311598014
 rectification_matrix:
   rows: 3
   cols: 3
-  data: [0.999891729501, -0.0143325429095, 0.0033327900547, 0.0143195073831, 0.999889853842, 0.00390280571691, -0.00338836009108, -0.00385465924639, 0.999986830222]
-# Historical scene-fit output correction retained with physical i2c@80000.
-# This sensor was formerly mislabeled logical-right. The correction follows
-# the sensor when correcting camera roles; it is not a qualified calibration.
-# Replace it with a full target calibration for the final assembly.
-rectified_output_correction:
-  rows: 3
-  cols: 3
-  data: [1, 0, 0, -0.0091791619, 1.0191521645, -0.1733816713, 0, 0, 1]
+  data:
+  - 0.9999222826228015
+  - -0.004671268230829643
+  - -0.011558891275640826
+  - 0.004774689064404734
+  - 0.9999486743786498
+  - 0.008935936029280132
+  - 0.011516555854277698
+  - -0.008990431663539564
+  - 0.9998932648436826
 projection_matrix:
   rows: 3
   cols: 4
-  data: [493.542046188, 0, 348.240810394, 0, 0, 493.542046188, 266.509811401, 0, 0, 0, 1, 0]
+  data:
+  - 441.79166212006197
+  - 0.0
+  - 378.2476806640625
+  - 0.0
+  - 0.0
+  - 441.79166212006197
+  - 283.0408821105957
+  - 0.0
+  - 0.0
+  - 0.0
+  - 1.0
+  - 0.0

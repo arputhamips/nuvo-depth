@@ -28,7 +28,24 @@ void write(const std::filesystem::path& path, const std::string& value) {
 
 int main() {
   const auto root = std::filesystem::path(DEPTHD_SOURCE_DIR) /
-                    "config/calibration/nuvo_depth_100mm";
+                    "tests/fixtures/calibration/provisional_100mm";
+  // Package defaults reuse the measured beta 5 geometry. Shared seed files
+  // retain provisional authority; accepted per-unit bundles remain separate.
+  const auto defaults = std::filesystem::path(DEPTHD_SOURCE_DIR) /
+                        "config/calibration/nuvo_depth_100mm";
+  const auto default_profile = depthd::load_and_prepare_stereo_calibration(
+      defaults / "front_left.yaml", defaults / "front_right.yaml", 728U, 544U);
+  assert(default_profile.authority ==
+         depthd::CalibrationAuthority::kProvisionalRecalibrationRequired);
+  assert(std::abs(default_profile.image_view.baseline_m -
+                  0.0996937500869897) < 1e-12);
+  assert(std::abs(default_profile.left.projection_matrix[0] -
+                  441.79166212006197) < 1e-10);
+  assert(default_profile.left.distortion_coefficients.size() == 8U);
+  assert(default_profile.right.distortion_coefficients.size() == 8U);
+  assert(!default_profile.left.has_rectified_output_correction);
+  assert(!default_profile.right.has_rectified_output_correction);
+  assert(depthd::is_valid(default_profile.maps));
   const auto prepared = depthd::load_and_prepare_stereo_calibration(
       root / "front_left.yaml", root / "front_right.yaml", 364U, 272U);
   assert(prepared.authority ==

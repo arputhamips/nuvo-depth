@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "profile_id": "balanced_728x544_10",
+  "default_since": "2026-10-21",
+  "source_beta5_bundle_id": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+  "source_qualification": "docs/release-qualification-beta5-20261021.json",
+  "source_session": "c0c39e391fea4edd93e97c6607cf148f",
+  "image_width": 728,
+  "image_height": 544,
+  "baseline_m": 0.0996937500869897,
+  "rectified_focal_length_px": 441.79166212006197,
+  "left_camera_id": "/base/axi/pcie@1000120000/rp1/i2c@80000/imx296@1a",
+  "right_camera_id": "/base/axi/pcie@1000120000/rp1/i2c@88000/imx296@1a",
+  "geometry_unchanged_from_beta5": true,
+  "seed_authority": "provisional_recalibration_required",
+  "authority_note": "Only calibration_status differs from the recovered user-validated YAML. Shared geometry does not establish validation for a different assembled camera unit.",
+  "assets": {
+    "front_left.yaml": {
+      "beta5_user_validated_sha256": "98518840e1c5d061a15c75a23997019f7ec4e88ca677a22acde62e75fc08230a",
+      "default_seed_sha256": "ca039628404293cdb0e0ee5d64201363b228db5aead98b2ac9aadc95687a56af"
+    },
+    "front_right.yaml": {
+      "beta5_user_validated_sha256": "8d241f274918670713535542ce3553f4da1b282baeb8ba62d03db5ac9a11f503",
+      "default_seed_sha256": "7a2bf29c40fb7d67e8728cf0c27de23ba5de2a83173180cb29f82113657fc94b"
+    }
+  }
+}
