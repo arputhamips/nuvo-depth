@@ -98,7 +98,7 @@ Description: Nuvo Depth administration and diagnostic tools
 
 Package: nuvo-depth-minimal
 Architecture: arm64
-Depends: ${shlibs:Depends}, ${misc:Depends}, python3 (>= 3.11),
+Depends: ${shlibs:Depends}, ${misc:Depends}, python3 (>= 3.11), systemd,
  libcamera0.7 (= 0.7.2+rpt20261009-1), libcamera-ipa (= 0.7.2+rpt20261009-1),
  raspi-utils-dt
 Conflicts: nuvo-depth, nuvo-depth-core, nuvo-depth-platform-pi5,

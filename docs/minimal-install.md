@@ -59,7 +59,8 @@ The default one-frame capture writes row-major little-endian float32 optical-axi
 Z depth in metres to `depth.f32`, associated validity bytes to
 `depth.f32.validity.u8`, and the original frame metadata to `depth.f32.json`.
 The metadata contains dimensions, frame identity, timestamp and calibration
-authority. Invalid depth is NaN; validity zero identifies invalid pixels.
+authority. Invalid depth is NaN; validity code `1` identifies valid pixels.
+Other validity codes preserve the pipeline's invalidity reason.
 Existing output files are never overwritten.
 
 Streams contain self-describing, length-delimited NuvoStream frames with only
