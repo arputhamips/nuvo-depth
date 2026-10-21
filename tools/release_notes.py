@@ -44,21 +44,33 @@ def changelog_entry(document: str, tag: str) -> str:
     return body
 
 
-def render(source: Path, repository: str, tag: str, channel: str) -> str:
+def render(source: Path, repository: str, tag: str, channel: str, *, profiles=("appliance",)) -> str:
     validate_channel(tag, channel)
+    if not profiles or len(set(profiles)) != len(profiles) or any(p not in nuvo_release.PROFILE_PACKAGES for p in profiles):
+        raise ValueError("select distinct supported installation profiles")
     if not nuvo_release.REPOSITORY.fullmatch(repository):
         raise ValueError("invalid owner/repository")
     changes = changelog_entry((source / "CHANGELOG.md").read_text(encoding="utf-8"), tag)
     platform = nuvo_release.validate_platform(nuvo_release.load_json(source / "deployment/release-platform.json"))
     kernels = ", ".join(f"`{value}`" for value in platform["kernels"])
+    commands = []
+    for profile in profiles:
+        minimal = profile == "minimal"
+        if len(profiles) > 1:
+            commands.append("# Minimal raw depth (configure over SSH)" if minimal else "# Full appliance (browser interface)")
+        script = "install-nuvo-depth-minimal.sh" if minimal else "install-nuvo-depth.sh"
+        commands.append(f"curl -fsSL https://github.com/{repository}/releases/download/{tag}/{script} | sudo bash")
+        commands.append("")
+    choices = "- Choose one installation: full appliance, or minimal raw depth with terminal configuration over SSH.\n" if len(profiles) > 1 else ""
     return (f"## Changelog\n\n{changes}\n\n"
             "## Install\n\n"
             "- Raspberry Pi 5.\n"
             "- Raspberry Pi OS Lite 64-bit, Debian Trixie (`arm64`).\n"
             f"- Supported kernel: {kernels}.\n"
-            "- Internet connection and administrator access on the Pi.\n\n"
+            "- Internet connection and administrator access on the Pi.\n"
+            f"{choices}\n"
             "```bash\n"
-            f"curl -fsSL https://github.com/{repository}/releases/download/{tag}/install-nuvo-depth.sh | sudo bash\n"
+            + "\n".join(commands) +
             "```\n")
 
 
@@ -68,9 +80,10 @@ def main():
     parser.add_argument("--repository", default=nuvo_release.DEFAULT_REPOSITORY)
     parser.add_argument("--tag", required=True)
     parser.add_argument("--channel", choices=("beta", "stable"), default="beta")
+    parser.add_argument("--profiles", nargs="+", choices=tuple(nuvo_release.PROFILE_PACKAGES), default=["appliance"])
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    args.output.write_text(render(args.source, args.repository, args.tag, args.channel), encoding="utf-8", newline="\n")
+    args.output.write_text(render(args.source, args.repository, args.tag, args.channel, profiles=args.profiles), encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

@@ -21,9 +21,12 @@
   `tools/ci/prepare-trixie-builder.sh` and `dpkg-buildpackage`.
 - The `nuvo-debian-arm64` artifact contains packages, matching source, dependency
   versions and test/build records. It expires after 30 days.
+- Select `package_profile=minimal` for the independent `nuvo-minimal-arm64`
+  artifact and clean runtime installation checks.
 
 ```bash
 gh workflow run package-build.yml --ref main -f source_ref=COMMIT
+gh workflow run package-build.yml --ref main -f source_ref=COMMIT -f package_profile=minimal
 ```
 
 ## Prepare a release candidate
@@ -45,11 +48,12 @@ gh workflow run install-release.yml --ref main \
   -f tag=vX.Y.Z-beta.N -f channel=beta
 ```
 
-- `0.1.1~beta.5` in Debian metadata maps to `v0.1.1-beta.5`.
+- `0.1.1~beta.6` in Debian metadata maps to `v0.1.1-beta.6`.
 - Beta tags cannot be built as stable candidates, or stable tags as betas.
 - A missing, empty or unreviewed changelog entry blocks release preparation.
 - The workflow verifies the tag/version and platform record, builds/tests the
-  packages, signs their exact cohort and creates a draft with all assets attached.
+  full and minimal packages from the same commit, checks both build records,
+  signs each exact cohort separately and creates one draft with six assets attached.
 - Existing releases and assets are never overwritten.
 
 ## Review and publish
@@ -71,7 +75,7 @@ gh workflow run install-release.yml --ref main \
 
 - Source: the exact version's entry in `CHANGELOG.md`.
 - Order: **Changelog**, optional categories with bullets, **Install** with Pi OS
-  prerequisites, then the release-pinned curl command.
+  prerequisites, then the release-pinned curl commands for the two installation choices.
 - End at the command; no installer tutorial, asset-purpose table, manufacturing
   flags or repository-access explanations.
 - `tools/release_notes.py` generates the same format for drafts and public releases.
@@ -86,10 +90,12 @@ gh workflow run install-release.yml --ref main \
 - Signing verifies the committed public key, source commit and package cohort.
 - All action dependencies are pinned. Private keys are never artifacts.
 - Use **Check release signing** to verify the configured key without a release.
-- Customer assets: `install-nuvo-depth.sh`, `nuvo-depth-pi5-arm64.tar.gz`, and
-  its `.sig`. GitHub also provides its standard source archives.
-- The signed bundle retains eight runtime packages, the installer, matching
-  GPL source, licenses and build records. It does not include the factory package.
+- Full assets: `install-nuvo-depth.sh`, `nuvo-depth-pi5-arm64.tar.gz`, and its `.sig`.
+- Minimal assets: `install-nuvo-depth-minimal.sh`, `nuvo-depth-minimal-pi5-arm64.tar.gz`,
+  and its `.sig`. GitHub also provides its standard source archives.
+- The full bundle retains eight runtime packages; the minimal bundle retains
+  only `nuvo-depth-minimal`. Each includes its own installer, matching GPL
+  source, licenses and build records. Neither includes the factory package.
 - Package filenames are normalized before signing; Debian control metadata keeps
   its exact version. The installer verifies the bundle, manifest and package hashes.
 - A build/test result is not hardware or calibration acceptance. Keep those

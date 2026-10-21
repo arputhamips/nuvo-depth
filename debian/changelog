@@ -1,3 +1,12 @@
+nuvo-depth (0.1.1~beta.6) unstable; urgency=medium
+
+  * Add a minimal Pi 5 raw depth package reusing the native pipeline.
+  * Configure and capture depth over SSH with the terminal CLI.
+  * Prepare separate signed full and minimal installer bundles.
+  * Preserve the full appliance installation and setup behavior.
+
+ -- Nirmal <nml@meridian.cv>  Wed, 21 Oct 2026 16:10:00 -0500
+
 nuvo-depth (0.1.1~beta.5) unstable; urgency=medium
 
   * Open the HTTPS console without browser login or owner-password setup.

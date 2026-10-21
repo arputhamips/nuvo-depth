@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [v0.1.1-beta.6] - 2026-10-21
+
+### Added
+
+- Offer a minimal Raspberry Pi 5 package using the existing native depth pipeline with raw depth output.
+- Configure the minimal installation over SSH with an interactive terminal wizard and `nuvoctl` commands.
+- Capture float depth, validity masks and metadata, or stream raw frames from the terminal.
+- Provide separate signed bundles and version-pinned install scripts for the full appliance and minimal raw depth profiles.
+
+### Changed
+
+- Keep the full appliance installation available with its existing browser interface and setup workflow.
+- Omit the browser interface, network setup, SDK, calibration tools and encoder from the minimal installation.
+
 ## [v0.1.1-beta.5] - 2026-10-21
 
 ### Changed

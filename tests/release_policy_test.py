@@ -44,6 +44,19 @@ class ReleasePolicyTest(unittest.TestCase):
         self.assertNotIn("factory", result.casefold())
         self.assertNotIn("ssh key", result.casefold())
 
+    def test_both_installation_choices_use_the_same_pinned_candidate(self):
+        result = release_notes.render(ROOT, "arputhamips/nuvo-depth", "v0.1.1-beta.6", "beta", profiles=("appliance", "minimal"))
+        commands = [line for line in result.splitlines() if line.startswith("curl ")]
+        prefix = "curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.6/"
+        self.assertEqual(commands, [prefix + script + " | sudo bash" for script in ("install-nuvo-depth.sh", "install-nuvo-depth-minimal.sh")])
+        self.assertIn("configuration over SSH", result)
+        self.assertTrue(result.endswith(commands[-1] + "\n```\n"))
+        self.assertNotIn("without a browser password", result)
+        self.assertNotIn("factory", result.casefold())
+        for profiles in ((), ("minimal", "minimal"), ("unknown",)):
+            with self.subTest(profiles=profiles), self.assertRaises(ValueError):
+                release_notes.render(ROOT, "arputhamips/nuvo-depth", "v0.1.1-beta.6", "beta", profiles=profiles)
+
 
 if __name__ == "__main__":
     unittest.main()

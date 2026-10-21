@@ -71,6 +71,29 @@ class SignedMinimalTest(unittest.TestCase):
             builder.publish_bundle(assets, publication, key)
             self.assertEqual({p.name for p in publication.iterdir()}, {
                 release.MINIMAL_BUNDLE_NAME, release.MINIMAL_BUNDLE_NAME+'.sig', 'install-nuvo-depth-minimal.sh'})
+            # A shared release can carry both profiles without mixing package
+            # cohorts, installers or download names, even from one input directory.
+            for package in sorted(release.RUNTIME_PACKAGES):
+                (tree/'control').write_text(f'Package: {package}\nVersion: 1.2.3\nArchitecture: arm64\nMaintainer: Test <test@example.com>\nDescription: fixture\n')
+                subprocess.run(['dpkg-deb', '--build', '--root-owner-group', str(tree.parent), str(packages/(package+'.deb'))], check=True, capture_output=True)
+            full = base/'full'
+            full_manifest = builder.build(ROOT, packages, full, 'test/nuvo', 'v1.2.3', '1.2.3', platform, key)
+            self.assertEqual({f['package'] for f in full_manifest['files'] if 'package' in f}, release.RUNTIME_PACKAGES)
+            full_downloads = base/'full-downloads'
+            builder.publish_bundle(full, full_downloads, key)
+            names = {p.name for p in publication.iterdir()} | {p.name for p in full_downloads.iterdir()}
+            self.assertEqual(len(names), 6)
+            for profile, folder, bundle, script in (
+                ('appliance', full_downloads, release.BUNDLE_NAME, 'install-nuvo-depth.sh'),
+                ('minimal', publication, release.MINIMAL_BUNDLE_NAME, 'install-nuvo-depth-minimal.sh'),
+            ):
+                release.verify_signature(folder/bundle, folder/(bundle+'.sig'), assets/'release.pub')
+                unpacked = base/('unpacked-'+profile)
+                release.unpack_bundle(folder/bundle, unpacked)
+                cohort, files = release.acquire_release(base, assets/'release.pub', bundle=unpacked, profile=profile)
+                self.assertEqual({f['package'] for f in cohort['files'] if 'package' in f}, release.PROFILE_PACKAGES[profile])
+                self.assertEqual(len(files), len(release.PROFILE_PACKAGES[profile]))
+                self.assertIn('DEFAULT_RELEASE="v1.2.3"', (folder/script).read_text())
 
 
 if __name__ == '__main__': unittest.main()
