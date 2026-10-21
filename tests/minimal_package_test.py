@@ -21,7 +21,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert not any(excluded in name for name in files), excluded
     for binary in ('usr/bin/depthd', 'usr/lib/nuvo-depth/nuvo-depth-read'):
         linked = subprocess.check_output(['ldd', str(root/binary)], text=True)
-        for excluded in ('libavcodec', 'libavutil', 'libswscale', 'libssl', 'libboost_system'):
+        for excluded in ('libavcodec', 'libavutil', 'libswscale', 'libssl', 'libboost_system', 'libEGL', 'libGLES'):
             # Upstream OpenCV/libcamera may have unrelated transitive libraries;
             # direct ELF NEEDED entries define Nuvo's feature dependency boundary.
             dynamic = subprocess.check_output(['readelf', '-d', str(root/binary)], text=True)

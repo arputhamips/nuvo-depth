@@ -26,10 +26,10 @@ option(DEPTHD_MINIMAL_PACKAGE "Install only the headless raw-depth runtime and C
 
 if(DEPTHD_MINIMAL_PACKAGE)
   if(NOT DEPTHD_WITH_CONFIG OR NOT DEPTHD_WITH_OPENCV OR
-     NOT DEPTHD_WITH_PI5_CAPTURE OR NOT DEPTHD_WITH_EGL_GL_DMABUF_RECTIFICATION OR
+     NOT DEPTHD_WITH_PI5_CAPTURE OR DEPTHD_WITH_EGL_GL_DMABUF_RECTIFICATION OR
      NOT DEPTHD_WITH_SYSTEMD OR DEPTHD_WITH_GATEWAY OR
      DEPTHD_WITH_FFMPEG_ENCODER OR DEPTHD_PRODUCTION_BUILD)
-    message(FATAL_ERROR "Minimal Pi packages require config, OpenCV, Pi capture, EGL/GLES and systemd; gateway, encoder and appliance production mode must be OFF")
+    message(FATAL_ERROR "Minimal Pi packages require config, OpenCV, Pi capture and systemd; GPU rectification, gateway, encoder and appliance production mode must be OFF")
   endif()
 endif()
 
@@ -522,7 +522,11 @@ if(DEPTHD_MINIMAL_PACKAGE)
   install(FILES deployment/systemd/nuvo-depth-minimal.service DESTINATION "lib/systemd/system" RENAME nuvo-depthd-native.service)
   install(FILES deployment/systemd/nuvo-depth-minimal.sysusers.conf DESTINATION "lib/sysusers.d" RENAME nuvo-depth.conf)
   install(FILES deployment/systemd/nuvo-depth-minimal.tmpfiles.conf DESTINATION "lib/tmpfiles.d" RENAME nuvo-depth.conf)
-  install(FILES config/nuvo_pi5_depth_100mm.yaml DESTINATION "${CMAKE_INSTALL_FULL_SYSCONFDIR}/nuvo-depth" RENAME daemon.yaml)
+  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/nuvo_pi5_depth_100mm.yaml" DEPTHD_MINIMAL_CONFIG)
+  string(REPLACE "fallback_backend: egl_gl_dmabuf" "fallback_backend: cpu_opencv" DEPTHD_MINIMAL_CONFIG "${DEPTHD_MINIMAL_CONFIG}")
+  string(REPLACE "allow_fallback: true" "allow_fallback: false" DEPTHD_MINIMAL_CONFIG "${DEPTHD_MINIMAL_CONFIG}")
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/minimal-daemon.yaml" "${DEPTHD_MINIMAL_CONFIG}")
+  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/minimal-daemon.yaml" DESTINATION "${CMAKE_INSTALL_FULL_SYSCONFDIR}/nuvo-depth" RENAME daemon.yaml)
   install(FILES config/stereo.json config/exposure.json DESTINATION "${CMAKE_INSTALL_FULL_SYSCONFDIR}/nuvo-depth")
   install(FILES config/calibration/nuvo_depth_100mm/front_left.yaml config/calibration/nuvo_depth_100mm/front_right.yaml
     DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/calibration")

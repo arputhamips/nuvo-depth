@@ -53,6 +53,7 @@
       "cacheVariables": {
         "DEPTHD_PRODUCTION_BUILD": "OFF",
         "DEPTHD_MINIMAL_PACKAGE": "ON",
+        "DEPTHD_WITH_EGL_GL_DMABUF_RECTIFICATION": "OFF",
         "DEPTHD_WITH_GATEWAY": "OFF",
         "DEPTHD_WITH_FFMPEG_ENCODER": "OFF"
       }
