@@ -91,3 +91,8 @@ The configuration/OpenCV host build passed all 54 CTest checks after updating
 the default geometry, its immutable asset manifest and relevant fixtures.
 The earlier provisional geometry remains a fixture for its existing parser
 and map-correction tests. Runtime capture, stereo and depth code are unchanged.
+
+Replaying the exact captured mono pair through the native pipeline with the new
+shared seed reproduced the Pi's left/right rectified images, disparity, depth
+and validity arrays exactly, including NaNs. Changing the shared authority
+marker did not change geometry or numeric output.
