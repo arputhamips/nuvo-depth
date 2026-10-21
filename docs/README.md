@@ -84,6 +84,8 @@ qualification status are recorded in each document.
 ## Package and distribute
 
 - [Release operations](releases.md) — signed GitHub bundles and matching source.
+- [Beta 6 full and minimal draft qualification](release-qualification-beta6-20261021.md) —
+  separate signed installers, exact package cohorts, physical-camera checks and limits.
 - [Repository audit](repository-audit-20261019.md) — retained file groups,
   generated-file exclusions, and package/export checks.
 - [Repository cleanup](repository-cleanup-20261021.md) — retired editor, legacy

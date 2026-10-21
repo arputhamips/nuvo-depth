@@ -23,7 +23,7 @@ run with `package_profile=minimal`. Extract it, then on the Pi run:
 ```bash
 sha256sum --check SHA256SUMS
 sudo bash ./install-nuvo-depth-minimal.sh \
-  --package ./nuvo-depth-minimal_0.1.1~beta.5_arm64.deb \
+  --package ./nuvo-depth-minimal_0.1.1~beta.6_arm64.deb \
   --platform ./release-platform.json --dry-run
 ```
 
