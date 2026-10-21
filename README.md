@@ -67,6 +67,7 @@ curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-be
 - Routine testing uses Actions artifacts. New release candidates are prepared
   manually as drafts and published only after approval.
 - [Changelog](CHANGELOG.md) and [release process](docs/releases.md).
+- [Minimal raw-depth installation](docs/minimal-install.md) is available for testing through Actions artifacts; it provides terminal configuration and local depth output.
 
 ## Documentation
 

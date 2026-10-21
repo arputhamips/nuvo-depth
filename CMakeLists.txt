@@ -22,6 +22,16 @@ option(DEPTHD_WITH_FFMPEG_ENCODER
 option(DEPTHD_PRODUCTION_BUILD
   "Require every backend needed by the Pi 5 shipping appliance" OFF)
 option(DEPTHD_WITH_SYSTEMD "Build systemd readiness/watchdog integration" OFF)
+option(DEPTHD_MINIMAL_PACKAGE "Install only the headless raw-depth runtime and CLI" OFF)
+
+if(DEPTHD_MINIMAL_PACKAGE)
+  if(NOT DEPTHD_WITH_CONFIG OR NOT DEPTHD_WITH_OPENCV OR
+     NOT DEPTHD_WITH_PI5_CAPTURE OR DEPTHD_WITH_EGL_GL_DMABUF_RECTIFICATION OR
+     NOT DEPTHD_WITH_SYSTEMD OR DEPTHD_WITH_GATEWAY OR
+     DEPTHD_WITH_FFMPEG_ENCODER OR DEPTHD_PRODUCTION_BUILD)
+    message(FATAL_ERROR "Minimal Pi packages require config, OpenCV, Pi capture and systemd; GPU rectification, gateway, encoder and appliance production mode must be OFF")
+  endif()
+endif()
 
 if(DEPTHD_PRODUCTION_BUILD)
   if(NOT DEPTHD_WITH_CONFIG OR NOT DEPTHD_WITH_OPENCV OR
@@ -228,6 +238,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(depthd PRIVATE depthd::local_frame_server)
     target_compile_definitions(depthd PRIVATE DEPTHD_WITH_LOCAL_FRAME_SERVER=1)
   endif()
+  add_executable(nuvo-depth-read tools/nuvo_depth_read.cpp)
+  target_compile_features(nuvo-depth-read PRIVATE cxx_std_20)
+  target_link_libraries(nuvo-depth-read PRIVATE depthd::local_frame_server)
+  depthd_enable_warnings(nuvo-depth-read)
 endif()
 
 add_library(nuvo_depth_sdk SHARED src/sdk_c.cpp src/wire_protocol.cpp)
@@ -494,7 +508,30 @@ endif()
 # location. Keep it stable across arm64 and build hosts so the unit never needs
 # a CMake multiarch triplet.
 set(DEPTHD_LIBEXEC_DIR "lib/nuvo-depthd")
+if(DEPTHD_MINIMAL_PACKAGE AND NOT TARGET depthd_runtime_factory)
+  message(FATAL_ERROR "Minimal packages require the native OpenCV depth pipeline")
+endif()
 
+if(DEPTHD_MINIMAL_PACKAGE)
+  install(TARGETS depthd RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+  install(TARGETS nuvo-depth-read RUNTIME DESTINATION "lib/nuvo-depth")
+  install(PROGRAMS tools/nuvo_minimal_cli.py DESTINATION "${CMAKE_INSTALL_BINDIR}" RENAME nuvoctl)
+  install(FILES tools/nuvoctl.py DESTINATION "lib/nuvo-depth")
+  install(PROGRAMS tools/pi/nuvo_trigger_prepare.py DESTINATION "lib/nuvo-depth" RENAME nuvo-trigger-prepare)
+  install(FILES deployment/systemd/nuvo-trigger-prepare.service DESTINATION "lib/systemd/system")
+  install(FILES deployment/systemd/nuvo-depth-minimal.service DESTINATION "lib/systemd/system" RENAME nuvo-depthd-native.service)
+  install(FILES deployment/systemd/nuvo-depth-minimal.sysusers.conf DESTINATION "lib/sysusers.d" RENAME nuvo-depth.conf)
+  install(FILES deployment/systemd/nuvo-depth-minimal.tmpfiles.conf DESTINATION "lib/tmpfiles.d" RENAME nuvo-depth.conf)
+  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/nuvo_pi5_depth_100mm.yaml" DEPTHD_MINIMAL_CONFIG)
+  string(REPLACE "fallback_backend: egl_gl_dmabuf" "fallback_backend: cpu_opencv" DEPTHD_MINIMAL_CONFIG "${DEPTHD_MINIMAL_CONFIG}")
+  string(REPLACE "allow_fallback: true" "allow_fallback: false" DEPTHD_MINIMAL_CONFIG "${DEPTHD_MINIMAL_CONFIG}")
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/minimal-daemon.yaml" "${DEPTHD_MINIMAL_CONFIG}")
+  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/minimal-daemon.yaml" DESTINATION "${CMAKE_INSTALL_FULL_SYSCONFDIR}/nuvo-depth" RENAME daemon.yaml)
+  install(FILES config/stereo.json config/exposure.json DESTINATION "${CMAKE_INSTALL_FULL_SYSCONFDIR}/nuvo-depth")
+  install(FILES config/calibration/nuvo_depth_100mm/front_left.yaml config/calibration/nuvo_depth_100mm/front_right.yaml
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/calibration")
+  install(FILES docs/minimal-install.md DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/nuvo-depth-minimal")
+else()
 if(TARGET depthd)
   # Keep the historical libexec location for rollback tooling while installing
   # the native appliance entry point in the normal executable path.
@@ -662,10 +699,22 @@ install(FILES deployment/README.md
   DESTINATION "share/doc/nuvo-depthd"
   RENAME deployment.md
 )
+endif()
 
 if(BUILD_TESTING)
+  if(TARGET nuvo-depth-read)
+    add_executable(depthd_minimal_depth_reader_test tests/minimal_depth_reader_test.cpp)
+    target_link_libraries(depthd_minimal_depth_reader_test PRIVATE depthd::local_frame_server)
+    depthd_enable_warnings(depthd_minimal_depth_reader_test)
+    add_test(NAME depthd_minimal_depth_reader_test COMMAND depthd_minimal_depth_reader_test $<TARGET_FILE:nuvo-depth-read>)
+    set_tests_properties(depthd_minimal_depth_reader_test PROPERTIES TIMEOUT 10)
+  endif()
   find_package(Python3 COMPONENTS Interpreter QUIET)
   if(Python3_Interpreter_FOUND)
+    add_test(NAME depthd_minimal_cli_test COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/minimal_cli_test.py)
+    add_test(NAME depthd_minimal_install_test COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/minimal_install_test.py)
     add_test(NAME depthd_trigger_prepare_test
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/trigger_prepare_test.py

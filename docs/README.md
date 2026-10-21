@@ -32,6 +32,10 @@ specifications, and qualification evidence.
 ## Configure and deploy
 
 - [Install Nuvo Depth](install.md) — supported Pi OS and installation command.
+- [Minimal raw-depth installation](minimal-install.md) — Actions test package,
+  SSH setup, terminal configuration and raw local output.
+- [Minimal package Pi acceptance](minimal-package-qualification-20261021.md) —
+  exact artifact, physical camera tests and full-appliance restoration.
 - [Installer reference](installer-reference.md) — terminal options, network setup and recovery.
 - [Manufacturing provisioning](factory-provisioning.md) — internal unit preparation.
 - [Production deployment](../deployment/README.md)

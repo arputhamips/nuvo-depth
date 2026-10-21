@@ -45,16 +45,30 @@
         "DEPTHD_WITH_SYSTEMD": "ON",
         "CMAKE_INSTALL_PREFIX": "/usr"
       }
+    },
+    {
+      "name": "pi5-minimal",
+      "inherits": "pi5-release",
+      "binaryDir": "${sourceDir}/build/pi5-minimal",
+      "cacheVariables": {
+        "DEPTHD_PRODUCTION_BUILD": "OFF",
+        "DEPTHD_MINIMAL_PACKAGE": "ON",
+        "DEPTHD_WITH_EGL_GL_DMABUF_RECTIFICATION": "OFF",
+        "DEPTHD_WITH_GATEWAY": "OFF",
+        "DEPTHD_WITH_FFMPEG_ENCODER": "OFF"
+      }
     }
   ],
   "buildPresets": [
     {"name": "minimal-host", "configurePreset": "minimal-host"},
     {"name": "development-full", "configurePreset": "development-full"},
-    {"name": "pi5-release", "configurePreset": "pi5-release"}
+    {"name": "pi5-release", "configurePreset": "pi5-release"},
+    {"name": "pi5-minimal", "configurePreset": "pi5-minimal"}
   ],
   "testPresets": [
     {"name": "minimal-host", "configurePreset": "minimal-host", "output":{"outputOnFailure":true}},
     {"name": "development-full", "configurePreset": "development-full", "output":{"outputOnFailure":true}},
-    {"name": "pi5-release", "configurePreset": "pi5-release", "output":{"outputOnFailure":true}}
+    {"name": "pi5-release", "configurePreset": "pi5-release", "output":{"outputOnFailure":true}},
+    {"name": "pi5-minimal", "configurePreset": "pi5-minimal", "output":{"outputOnFailure":true}}
   ]
 }

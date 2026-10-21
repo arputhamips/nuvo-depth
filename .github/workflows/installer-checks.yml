@@ -3,6 +3,8 @@ on:
   push:
     paths:
       - 'install-nuvo-depth.sh'
+      - 'install-nuvo-depth-minimal.sh'
+      - 'tests/minimal*'
       - 'tools/**'
       - 'deployment/**'
       - 'debian/**'
@@ -16,6 +18,8 @@ on:
   pull_request:
     paths:
       - 'install-nuvo-depth.sh'
+      - 'install-nuvo-depth-minimal.sh'
+      - 'tests/minimal*'
       - 'tools/**'
       - 'deployment/**'
       - 'debian/**'
@@ -37,6 +41,9 @@ jobs:
       - name: Validate shell and provisioning contracts
         run: |
           bash -n install-nuvo-depth.sh
+          bash -n install-nuvo-depth-minimal.sh
+          python3 tests/minimal_cli_test.py
+          python3 tests/minimal_install_test.py
           python3 tests/install_provisioning_test.py
           python3 tests/install_release_test.py
           python3 tests/release_policy_test.py
