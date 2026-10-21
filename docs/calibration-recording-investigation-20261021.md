@@ -96,3 +96,104 @@ including `recorded-map-verification.json`, `historical-alignment.json`,
 The old-runtime live evidence is in
 `output/calibration-beta5-live-comparison-20261021/` and the matching Pi folder.
 The package-default PR remains a draft; no release assets were replaced.
+
+## Original board session, including the beta 4 check
+
+The original session was located in the retained history of **Evaluate Nuvo
+Depth Web UI**, rather than inferred from a release. The board has 13 × 9
+squares, measured square size 34 mm, marker size 25.3 mm and dictionary
+`DICT_5X5_100`. Session `c0c39e391fea4edd93e97c6607cf148f` was qualified
+and activated on 18 October around 19:14 UTC. Its preserved outputs are in
+`output/readiness-20261018/calibration-second/qualified-runtime/bundle/`.
+The user subsequently accepted the 979 mm reading against the 1,008 mm laser
+reference. This is the recovered measured pair, independently of beta labels.
+
+The 20 October recording reused its `8adf4c…` identity. No separate completed
+20 October calibration was found in the retained repo session histories; the
+20 October calibration screenshot shows a new session at 0/30 captures. The
+Research first-time setup flow chat independently confirmed this provenance.
+It found no separate later right-camera file or independent asset hash from
+that day. Because the native loader does not recompute a bundle ID from its
+manifest, the recorded ID alone cannot exclude an undocumented file-and-manifest
+edit. The exact original pair remains the best recovered evidence; the exact
+recorded left map is independently verified above.
+
+Beta 4's packaged seed has the earlier provisional geometry, rather than the
+measured per-unit pair. Extracting that seed would not recover the user's
+calibration. The released beta 4 binary was also run on the Pi against the same
+new board input, recovered measured pair and HH/96/median-5 settings as the
+Actions minimal binary. Rectified left/right, disparity, depth (including NaNs)
+and validity arrays were identical. No beta 4 package was installed.
+The report is `output/calibration-recording-investigation-20261021/beta4-runtime-comparison.json`.
+
+## Fresh board validation
+
+The user placed the original board in both cameras for a fresh stationary
+check. Three synchronized pairs were saved with unmodified ISP luma and
+rectified images. ChArUco IDs establish correspondence; corners use the same
+3 px refinement window, 100 iterations and 0.0001 px termination as the original
+fit. Coordinates are transformed through the unchanged recovered matrices
+using iterative distortion inversion. No matches are filtered by vertical
+error and no correction is fitted.
+
+Each pair has 76 shared corners. Their p95 vertical errors are **3.061**, **3.074**
+and **3.032 px**; all fail the original 0.50 px p95 limit. The first pair has
+median absolute vertical error **2.566 px** and maximum **3.227 px**.
+Evidence and annotated stereo images are in
+`output/calibration-board-check-20261021/`.
+
+The Pi's apt history records a camera package upgrade on 19 October from
+`0.7.2+rpt20260817-1` to `0.7.2+rpt20261009-1`, between calibration and recording.
+To check this hypothesis without downgrading the OS, the earlier Raspberry Pi
+camera libraries, IPA and tuning files were extracted into a diagnostic folder.
+The current binary is ABI-incompatible with that package, so a retained native
+capture binary built before that upgrade was used for three finite raw ISP
+traces. Its provisional seed was used only to satisfy the old binary's model
+parser; none of its rectified or depth products enter this comparison. Its raw
+left/right inputs were remapped offline with the recovered measured pair.
+
+The earlier stack's new board pair has 82 shared corners, median **2.541 px**,
+p95 **3.096 px**, maximum **3.286 px**. Both stacks selected full 1456 × 1088
+sensor readout and produced 728 × 544 YUV420 images at rotation 180°. This check
+does not identify the library upgrade as the explanation. The earlier binary
+and libraries were never installed as packages. The Actions runtime and system
+camera libraries were restored after each attempt. The evidence is in
+`output/calibration-pre-camera-upgrade-20261021/`.
+
+The recovered calibration therefore fails current live board validation even
+through the earlier capture stack. Its files are preserved unchanged. No
+software alignment fix or new calibration has been applied, and the cause of
+the geometry discrepancy remains unresolved. A new stereo calibration is
+recommended before accepting current depth accuracy; the recovered pair should
+remain available for rollback and comparison. A package-default change alone
+must not be described as fixing this live alignment failure.
+
+## Actions package installed and checked on the Pi
+
+The minimal artifact from [run 39686442512](https://github.com/arputhamips/nuvo-depth/actions/runs/39686442512),
+source `fa158f570ca513a3e878c552507872e9de509d11`, was installed directly as a
+local Debian package. No bootstrap installer or release operation was run.
+Package SHA-256 is
+`40e06e9b17c319aa2a8b9efc48a01e4704243ed4bfd64e8dc52e0df6d9289987`;
+the loaded native binary hash is
+`d1efee507a768446fc8d314062ad579d1badf589c52d3a51b01dd048b7c512ab`.
+All nine protected configuration, calibration, service-override and identity
+file hashes remained unchanged. Both installed shared seed assets match the
+branch's recorded-calibration defaults; the validated per-unit pair continues
+to take precedence through the existing override.
+
+The first 300-frame stream overlapped the requested board captures and delivered
+9.900 fps with three delivered capture skips, p95 age 202.0 ms, and zero camera,
+requeue, trigger or processing failures. A separate 120-frame check with no
+concurrent capture consumer delivered **9.9995 fps**, zero delivered sequence
+gaps, p95 age **101.95 ms**, and the same zero failure counts. Valid depths were
+positive finite float32 values, invalid values were NaN, and conversion matched
+`fB/disparity`. This validates transport and numeric processing; it does not
+override the failed board-alignment result.
+
+The final Pi state uses the Actions minimal binary, normal installed camera
+libraries and the unchanged recovered calibration, stereo and exposure
+controls. Earlier test binaries, extracted camera libraries, preload experiments
+and transient overrides were removed. The protected hashes were checked again.
+Collected reports are in `output/calibration-alignment-test-evidence-20261021/`;
+full raw captures remain in the named evidence folders on the Pi and workstation.

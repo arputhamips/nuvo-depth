@@ -152,3 +152,12 @@ pairs matched the new default source bytes exactly. Both daemon configurations
 contained the measured baseline and focal length. No installer was run on the
 Pi, and published beta 6 assets remain unchanged. Later commits on the branch
 only extend this validation report.
+
+The subsequent physical-Pi Actions artifact installation, original-session trace,
+beta 4 replay and fresh ChArUco validation are recorded in
+[the alignment investigation](calibration-recording-investigation-20261021.md).
+The artifact installation preserves the selected per-unit pair and settings,
+and the isolated 120-frame stream sustains 10 Hz. Current board alignment fails
+the original calibration limit with both current and earlier capture stacks;
+the restored package default does not fix that discrepancy. No new calibration
+or release was made.
