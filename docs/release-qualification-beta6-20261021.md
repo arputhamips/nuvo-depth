@@ -1,12 +1,16 @@
-# Beta 6 draft qualification — 2026-10-21
+# Beta 6 qualification and publication — 2026-10-21
 
-**v0.1.1-beta.6 is a draft prerelease.** The full and minimal signed bundles
-passed signature, provenance, package and physical-camera checks. It has not
-been published or marked latest. Beta 5 remains the public preview.
+**v0.1.1-beta.6 was published as an approved public prerelease on 2026-10-21
+at 16:49 CDT, with latest disabled.** The exact reviewed full and minimal assets
+were promoted unchanged. Anonymous downloads of all six assets passed hash
+verification. [Publication evidence](release-publication-beta6-20261021.json).
+
+The qualification below records the draft before publication. The original
+machine-readable draft record is retained unchanged.
 
 - Source: [`5db24de8bee229fb2d3940a8f1e503e96e494b36`](https://github.com/arputhamips/nuvo-depth/commit/5db24de8bee229fb2d3940a8f1e503e96e494b36).
 - Debian version: `0.1.1~beta.6` for all nine packages across the two exclusive profiles.
-- [Draft release](https://github.com/arputhamips/nuvo-depth/releases/tag/untagged-7308751acdb65e55adc1).
+- [Public prerelease](https://github.com/arputhamips/nuvo-depth/releases/tag/v0.1.1-beta.6).
 - [Actions build, clean-install and signing evidence](https://github.com/arputhamips/nuvo-depth/actions/runs/39676729482).
 - [Machine-readable verification and hardware results](release-qualification-beta6-20261021.json).
 

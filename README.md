@@ -49,25 +49,32 @@ Or [order Vision One from NuvoHardware](https://nuvohardware.com/).
   64-bit Trixie (`arm64`), kernel `6.12.75+rpt-rpi-2712`, internet access and
   administrator access.
 - [Supported OS image](https://docs.nuvohardware.com/vision-one/install/byo-pi).
-- **Current public preview:** `v0.1.1-beta.5`.
+- **Current public preview:** `v0.1.1-beta.6`. Choose one installation; the minimal
+  profile requires SSH and an existing network connection.
 
 ```bash
-curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.5/install-nuvo-depth.sh | sudo bash
+# Full appliance with browser interface
+curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.6/install-nuvo-depth.sh | sudo bash
+
+# Minimal raw depth with terminal configuration over SSH
+curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.6/install-nuvo-depth-minimal.sh | sudo bash
 ```
 
 ## Current status
 
-- The public beta 5 signed cohort passed an interactive upgrade, a rerun through
-  its pinned public installer, automatic-session API checks and short Pi-local
-  performance tests. Public downloads match the reviewed package hashes.
-- [Beta 5 qualification evidence](docs/release-qualification-beta5-20261021.md)
-  records the scope and limits. [Earlier setup evidence](docs/release-qualification-20261019.md)
+- The public beta 6 release provides full and minimal signed package bundles
+  with separate installers. Both cohorts passed physical Pi camera checks;
+  minimal signed installation, CLI controls, reinstall and isolated startup passed.
+  Public downloads match the reviewed package hashes.
+- [Beta 6 qualification evidence](docs/release-qualification-beta6-20261021.md)
+  records the scope and limits. [Beta 5 qualification](docs/release-qualification-beta5-20261021.md)
+  records prior interactive upgrade and public-installer checks. [Earlier setup evidence](docs/release-qualification-20261019.md)
   covers prior hotspot/network cohorts. Accepted per-unit calibration is
   required for metric depth.
 - Routine testing uses Actions artifacts. New release candidates are prepared
   manually as drafts and published only after approval.
 - [Changelog](CHANGELOG.md) and [release process](docs/releases.md).
-- [Minimal raw-depth installation](docs/minimal-install.md) is available for testing through Actions artifacts; it provides terminal configuration and local depth output.
+- [Minimal raw-depth installation](docs/minimal-install.md) provides terminal configuration and local depth output.
 
 ## Documentation
 

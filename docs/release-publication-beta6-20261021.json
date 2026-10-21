@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-10-21T21:49:35.632728+00:00",
+  "tag": "v0.1.1-beta.6",
+  "release_url": "https://github.com/arputhamips/nuvo-depth/releases/tag/v0.1.1-beta.6",
+  "release_id": 420067619,
+  "public": true,
+  "prerelease": true,
+  "published_at": "2026-10-21T21:49:11Z",
+  "latest_release": null,
+  "marked_latest": false,
+  "reviewed_notes_unchanged": true,
+  "reviewed_asset_ids_unchanged": true,
+  "assets": {
+    "install-nuvo-depth-minimal.sh": {
+      "url": "https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.6/install-nuvo-depth-minimal.sh",
+      "bytes": 7014,
+      "digest": "sha256:5b0bf8904bdae65e1caa21f3ea3bab04e270a1795d58cac2e53ebdc21289bbce",
+      "anonymous_http_status": 200,
+      "asset_id": 663819388
+    },
+    "install-nuvo-depth.sh": {
+      "url": "https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.6/install-nuvo-depth.sh",
+      "bytes": 7108,
+      "digest": "sha256:0b5d70577ce434b4588eea01add3a98de9d5d0b93e9c3e865dc391a2446f29e5",
+      "anonymous_http_status": 200,
+      "asset_id": 663819396
+    },
+    "nuvo-depth-minimal-pi5-arm64.tar.gz": {
+      "url": "https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.6/nuvo-depth-minimal-pi5-arm64.tar.gz",
+      "bytes": 1402469,
+      "digest": "sha256:471cb61f0685385b9fb8bc0ba00ecf53e62a6dfa0c902c07ce87cb16f8c279bb",
+      "anonymous_http_status": 200,
+      "asset_id": 663819392
+    },
+    "nuvo-depth-minimal-pi5-arm64.tar.gz.sig": {
+      "url": "https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.6/nuvo-depth-minimal-pi5-arm64.tar.gz.sig",
+      "bytes": 64,
+      "digest": "sha256:54b0dc76b46d35ee9f52c5e556567b4d4050a4a0d7a854dc3569a3d965c0938d",
+      "anonymous_http_status": 200,
+      "asset_id": 663819395
+    },
+    "nuvo-depth-pi5-arm64.tar.gz": {
+      "url": "https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.6/nuvo-depth-pi5-arm64.tar.gz",
+      "bytes": 2156239,
+      "digest": "sha256:5384f81376cb4a33e84bac39f3243a1e44bd3b2fde18b884dd13c52fd2feea45",
+      "anonymous_http_status": 200,
+      "asset_id": 663819390
+    },
+    "nuvo-depth-pi5-arm64.tar.gz.sig": {
+      "url": "https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.6/nuvo-depth-pi5-arm64.tar.gz.sig",
+      "bytes": 64,
+      "digest": "sha256:86886928c279c48923f4ee7425a3e70ee242fcc6aef04e49a49e62ac29f96a58",
+      "anonymous_http_status": 200,
+      "asset_id": 663819411
+    }
+  }
+}

@@ -32,7 +32,7 @@ specifications, and qualification evidence.
 ## Configure and deploy
 
 - [Install Nuvo Depth](install.md) — supported Pi OS and installation command.
-- [Minimal raw-depth installation](minimal-install.md) — Actions test package,
+- [Minimal raw-depth installation](minimal-install.md) — public preview and Actions test package,
   SSH setup, terminal configuration and raw local output.
 - [Minimal package Pi acceptance](minimal-package-qualification-20261021.md) —
   exact artifact, physical camera tests and full-appliance restoration.
@@ -84,7 +84,7 @@ qualification status are recorded in each document.
 ## Package and distribute
 
 - [Release operations](releases.md) — signed GitHub bundles and matching source.
-- [Beta 6 full and minimal draft qualification](release-qualification-beta6-20261021.md) —
+- [Beta 6 full and minimal qualification](release-qualification-beta6-20261021.md) —
   separate signed installers, exact package cohorts, physical-camera checks and limits.
 - [Repository audit](repository-audit-20261019.md) — retained file groups,
   generated-file exclusions, and package/export checks.

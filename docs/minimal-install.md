@@ -15,6 +15,19 @@ Enable SSH and configure internet access before running the installer.
 The bootstrap uses Python 3, which is included in the supported Pi OS image.
 The installer retains your existing network and SSH configuration.
 
+## Install the public preview
+
+The current public preview is `v0.1.1-beta.6`. Its minimal bundle and installer
+are separate from the full appliance downloads.
+
+```bash
+curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.6/install-nuvo-depth-minimal.sh | sudo bash
+```
+
+An initial install can require a reboot for camera overlays. Reconnect over SSH
+after reboot and capture depth to finish the camera check. The package itself
+does not change boot configuration or start capture until the installer is run.
+
 ## Test with Actions artifacts
 
 Download `nuvo-minimal-arm64` from a manual **ARM64 Debian packages** workflow
@@ -35,10 +48,6 @@ signed manifest and package-hash verification instead:
 ```bash
 sudo bash ./install-nuvo-depth-minimal.sh --bundle ./extracted-minimal-bundle
 ```
-
-An initial install can require a reboot for camera overlays. Reconnect over SSH
-after reboot and capture depth to finish the camera check. The package itself
-does not change boot configuration or start capture until the installer is run.
 
 ## Configure and use
 
