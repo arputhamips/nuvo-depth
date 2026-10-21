@@ -12,6 +12,7 @@ Use a Raspberry Pi 5, the supported dual-IMX296 trigger head, and Raspberry Pi
 OS Lite 64-bit Trixie. The currently qualified kernel is
 `6.12.75+rpt-rpi-2712`; libcamera and IPA must match the package's pinned cohort.
 Enable SSH and configure internet access before running the installer.
+The bootstrap uses Python 3, which is included in the supported Pi OS image.
 The installer retains your existing network and SSH configuration.
 
 ## Test with Actions artifacts
