@@ -1607,6 +1607,35 @@ void await_clients(const std::atomic_size_t& active) noexcept {
     return text_response(http::status::forbidden, "application/json",
                          "{\"error\":\"origin rejected\"}\n", request.version());
   }
+  if (request.method() == http::verb::get && target == "/api/v1/session") {
+    // Browser access is automatic. Keep a bounded cookie/CSRF session rather
+    // than making every administrative endpoint unauthenticated. Browsers
+    // omit Origin on ordinary GETs, so also reject foreign Fetch Metadata.
+    const auto site = request["Sec-Fetch-Site"];
+    if (!site.empty() && site != "same-origin" && site != "none") {
+      return text_response(http::status::forbidden, "application/json",
+                           "{\"error\":\"origin rejected\"}\n", request.version());
+    }
+    const auto existing = sessions.csrf_for(cookie_value(
+        request[http::field::cookie], "nuvo_session"));
+    std::optional<Sessions::Created> created;
+    if (!existing) {
+      created = sessions.create();
+      if (!created) {
+        return text_response(http::status::service_unavailable, "application/json",
+                             "{\"error\":\"session capacity reached\"}\n", request.version());
+      }
+    }
+    const auto& csrf = existing ? *existing : created->csrf;
+    auto result = text_response(http::status::ok, "application/json",
+        "{\"role\":\"admin\",\"csrf\":\"" + csrf +
+        "\",\"needs_owner_password\":false}\n", request.version());
+    if (created) {
+      result.set(http::field::set_cookie, "nuvo_session=" + created->session +
+                  "; Path=/; Secure; HttpOnly; SameSite=Strict");
+    }
+    return result;
+  }
   if (request.method() == http::verb::post && target == "/api/v1/session") {
     // Reserve capacity before consuming a single-use setup code.
     auto session = sessions.create();
@@ -1661,19 +1690,6 @@ void await_clients(const std::atomic_size_t& active) noexcept {
       !authenticated(request, claim, sessions)) {
     return text_response(http::status::unauthorized, "application/json",
                          "{\"error\":\"authentication required\"}\n",
-                         request.version());
-  }
-  if (request.method() == http::verb::get && target == "/api/v1/session") {
-    const auto csrf = sessions.csrf_for(cookie_value(
-        request[http::field::cookie], "nuvo_session"));
-    if (!csrf) {
-      return text_response(http::status::unauthorized, "application/json",
-                           "{\"error\":\"browser session required\"}\n",
-                           request.version());
-    }
-    return text_response(http::status::ok, "application/json",
-                         "{\"role\":\"admin\",\"csrf\":\"" + *csrf +
-                             "\",\"needs_owner_password\":" + (needs_owner_password(options) ? "true" : "false") + "}\n",
                          request.version());
   }
   if (request.method() == http::verb::get && target == "/api/v1/setup/status") {

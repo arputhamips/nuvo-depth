@@ -1,0 +1,1144 @@
+{
+  "schema_version": 1,
+  "generated_utc": "2026-10-21T20:03:22.081360+00:00",
+  "runtime_artifact": {
+    "commit": "098910edaa7291f450c65e8711fe9fecba941acd",
+    "record": {
+      "schema_version": 1,
+      "source_commit": "098910edaa7291f450c65e8711fe9fecba941acd",
+      "version": "0.1.1~beta.4",
+      "architecture": "arm64",
+      "codename": "trixie",
+      "workflow_run": "https://github.com/arputhamips/nuvo-depth/actions/runs/39665155172",
+      "hardware_tests": "not run: hosted ARM64 builder has no Pi cameras"
+    },
+    "packages": [
+      {
+        "name": "libnuvo-depth1_0.1.1~beta.4_arm64.deb",
+        "sha256": "578ee8a04cc75426e7d7ea8e0f78de3792a899897c00417de053627672a63e83"
+      },
+      {
+        "name": "nuvo-depth-core_0.1.1~beta.4_arm64.deb",
+        "sha256": "35508306772388ffc1dcc4e25a32bc15f6dfa56ce06f683709f017463ed21a86"
+      },
+      {
+        "name": "nuvo-depth-gateway_0.1.1~beta.4_arm64.deb",
+        "sha256": "5217d4e91584bdb935caa3e314d7abdb5d8a3aaed31c26c0aae6192fcad3628c"
+      },
+      {
+        "name": "python3-nuvo-depth_0.1.1~beta.4_all.deb",
+        "sha256": "f80d4664ce6f619daf5fcce8f811205f881272fe6d4d0aa916168829c27c5381"
+      }
+    ]
+  },
+  "provenance": {
+    "artifact_payload_files_verified": 73,
+    "binary_sha256": {
+      "usr/lib/aarch64-linux-gnu/libnuvo-depth.so.0.1.1": "4533bd4004762550c37dd40d2191d293c541561811c384978506d66142878058",
+      "usr/bin/depthd": "3848639c5b9395192842bbb867da6e32801386819a47c47c91a9bde2ca7d9ceb",
+      "usr/lib/nuvo-depthd/depthd": "3848639c5b9395192842bbb867da6e32801386819a47c47c91a9bde2ca7d9ceb",
+      "usr/lib/nuvo-depth/nuvo-gateway": "ef33a1a682df64847c9358f60030697e35df63ab5482679d3b7ad066336e3490"
+    },
+    "source_commit": "098910edaa7291f450c65e8711fe9fecba941acd",
+    "platform": {
+      "model": "Raspberry Pi 5 Model B Rev 1.1",
+      "kernel": "6.12.75+rpt-rpi-2712",
+      "governor": "ondemand",
+      "memory_kib": 16608160
+    }
+  },
+  "original_controls": {
+    "utc": "2026-10-21T19:57:27Z",
+    "stereo": {
+      "algorithm": "sgbm",
+      "block_size": 5,
+      "bm_pre_filter_size": 9,
+      "bm_texture_threshold": 10,
+      "disparity_12_max_diff": 1,
+      "max_disparity": 96,
+      "median_filter_size": 5,
+      "min_disparity": 0,
+      "opencv_threads": 2,
+      "pre_filter_cap": 31,
+      "schema_version": 1,
+      "search_range": 96,
+      "sgbm_mode": "hh",
+      "speckle_range": 2,
+      "speckle_window_size": 30,
+      "specular_threshold": 256,
+      "uniqueness_ratio": 0
+    },
+    "encoding": {
+      "bitrate_bps": 8000000,
+      "cadence_hz": 10,
+      "codec": "h264",
+      "height": 0,
+      "jpeg_quality": 80,
+      "keyframe_interval": 1,
+      "low_latency": true,
+      "mode": "both",
+      "preset": "veryfast",
+      "schema_version": 1,
+      "source": "depth",
+      "threads": 2,
+      "width": 0
+    },
+    "protected_file_count": 87
+  },
+  "method": {
+    "warmup_seconds": 5,
+    "measurement_seconds": 60,
+    "location": "Pi-local TLS",
+    "preview_request": "H264 left_color encoded stream at10Hz",
+    "depth_request": "Raw depth,left_mono best_effort at10Hz",
+    "fps": "Unique increasing capture identities; (frames-1)/(last-arrival-first-arrival), plus frames/60seconds",
+    "latency": "Capture CLOCK_BOOTTIME to full received and SDK-envelope-validated packet; excludes H264 decoding/browser rendering/display.",
+    "cpu": "Cgroup CPU seconds/wall seconds;100% equals one core. Observer reported separately.",
+    "matcher_timing": "Deduplicate nested matcher_statistics.capture_sequence within stable run/epoch; repeated mono-only top-level timing excluded.",
+    "matcher_work": "Sum unique observed completed matcher processing_ms; boundary and polling effects apply; compare sample count with matched_frames delta."
+  },
+  "runs": [
+    {
+      "location": "pi_local_tls",
+      "case": "pi_preview_only",
+      "utc_completed": "2026-10-21T19:58:38Z",
+      "duration_seconds": 60.000155536,
+      "streams": [
+        {
+          "kind": "encoded",
+          "requested_hz": 10,
+          "delivery": "encoded",
+          "frames": 597,
+          "fps": 9.949058782315314,
+          "frames_per_measurement_second": 9.949974207013529,
+          "latency_ms": {
+            "count": 597,
+            "p50": 79.729128,
+            "p95": 124.450005,
+            "max": 171.982931
+          },
+          "interframe_ms": {
+            "count": 596,
+            "p50": 100.4982715,
+            "p95": 101.192134,
+            "max": 146.979038
+          },
+          "unique_increasing_captures": true,
+          "errors": [],
+          "first_capture_sequence": 75,
+          "last_capture_sequence": 674,
+          "capture_epoch": 2,
+          "run_id": "386f6b39cdbd",
+          "codec": "h264",
+          "source": "left_color",
+          "shape": [
+            728,
+            544
+          ],
+          "bytes_per_second": 991963.1952335411,
+          "keyframes": 597
+        }
+      ],
+      "associated_image_checks": [],
+      "telemetry_seconds": 59.952497386,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 17.312743342738187,
+        "nuvo-gateway.service": 0.8118394082339888
+      },
+      "capture_fps": 10.007923375350682,
+      "matcher_fps": 0.0,
+      "encoded_fps": 10.007923375350682,
+      "counter_deltas": {
+        "captured_pairs": 600,
+        "published_frames": 0,
+        "matched_frames": 0,
+        "encoded_frames": 600,
+        "scheduler_accepted": 0,
+        "scheduler_pending_replaced": 0,
+        "scheduler_protected_pending_dropped": 0,
+        "scheduler_processed": 0,
+        "scheduler_processing_failures": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_completed_dropped": 0,
+        "stale_dropped": 0,
+        "capacity_dropped": 0,
+        "trigger_errors": 0,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "encoding_image_admitted": 600,
+        "encoding_image_copies": 600,
+        "encoding_image_pool_dropped": 0,
+        "encoding_numeric_admitted": 0,
+        "exposure_configuration_errors": 0,
+        "capture_sequence_gaps": 0,
+        "ready_pair_replacements": 0,
+        "raw_cadence_skipped": 0
+      },
+      "matcher_statistics_samples": 0,
+      "matcher_ms": {
+        "processing_ms": null,
+        "rectification_ms": null,
+        "stereo_preprocess_ms": null,
+        "stereo_match_ms": null,
+        "stereo_postprocess_ms": null
+      },
+      "matcher_work": {
+        "unique_observed_completions": 0,
+        "matched_frames_delta": 0,
+        "observed_processing_total_ms": 0,
+        "observed_processing_wall_fraction": 0.0,
+        "method": "Sum of unique completed nested matcher_statistics.processing_ms / observed wall interval; boundary and polling sampling apply; not all-core utilization."
+      },
+      "temperature_c": {
+        "count": 1461,
+        "p50": 39.7,
+        "p95": 41.35,
+        "max": 42.45
+      },
+      "throttled": "throttled=0x0",
+      "status_errors": {
+        "stereo_configuration_error": [],
+        "encoding_configuration_error": [],
+        "exposure_last_error": []
+      },
+      "start_counters": {
+        "capture_epoch": 2,
+        "captured_pairs": 74,
+        "published_frames": 0,
+        "matched_frames": 0,
+        "encoded_frames": 49
+      },
+      "end_counters": {
+        "capture_epoch": 2,
+        "captured_pairs": 674,
+        "published_frames": 0,
+        "matched_frames": 0,
+        "encoded_frames": 649
+      },
+      "observer_total_cpu_seconds": 1.927462636
+    },
+    {
+      "location": "pi_local_tls",
+      "case": "pi_depth_only10",
+      "utc_completed": "2026-10-21T19:59:44Z",
+      "duration_seconds": 60.000221815,
+      "streams": [
+        {
+          "kind": "depth",
+          "requested_hz": 10,
+          "delivery": "best_effort",
+          "frames": 195,
+          "fps": 3.2607404418872683,
+          "frames_per_measurement_second": 3.2499879850652516,
+          "latency_ms": {
+            "count": 195,
+            "p50": 394.906293,
+            "p95": 444.389437,
+            "max": 472.905407
+          },
+          "interframe_ms": {
+            "count": 194,
+            "p50": 303.99602500000003,
+            "p95": 333.364758,
+            "max": 367.660034
+          },
+          "unique_increasing_captures": true,
+          "errors": [],
+          "first_capture_sequence": 736,
+          "last_capture_sequence": 1331,
+          "capture_epoch": 2,
+          "run_id": "386f6b39cdbd",
+          "products": [
+            "depth",
+            "left_mono"
+          ],
+          "shapes": {
+            "depth": [
+              728,
+              544
+            ],
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "associated_descriptor_checks": true,
+          "configuration_epochs": [
+            1
+          ],
+          "calibration_hashes": [
+            "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2"
+          ]
+        }
+      ],
+      "associated_image_checks": [],
+      "telemetry_seconds": 59.965516139,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 105.10988157576641,
+        "nuvo-gateway.service": 2.556117413292995
+      },
+      "capture_fps": 10.0057506152236,
+      "matcher_fps": 3.2518689499476703,
+      "encoded_fps": 0.0,
+      "counter_deltas": {
+        "captured_pairs": 600,
+        "published_frames": 195,
+        "matched_frames": 195,
+        "encoded_frames": 0,
+        "scheduler_accepted": 600,
+        "scheduler_pending_replaced": 404,
+        "scheduler_protected_pending_dropped": 0,
+        "scheduler_processed": 195,
+        "scheduler_processing_failures": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_completed_dropped": 0,
+        "stale_dropped": 0,
+        "capacity_dropped": 0,
+        "trigger_errors": 0,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "encoding_image_admitted": 0,
+        "encoding_image_copies": 0,
+        "encoding_image_pool_dropped": 0,
+        "encoding_numeric_admitted": 0,
+        "exposure_configuration_errors": 0,
+        "capture_sequence_gaps": 403,
+        "ready_pair_replacements": 0,
+        "raw_cadence_skipped": 0
+      },
+      "matcher_statistics_samples": 195,
+      "matcher_ms": {
+        "processing_ms": {
+          "count": 195,
+          "p50": 304.216,
+          "p95": 324.499,
+          "max": 357.983
+        },
+        "rectification_ms": {
+          "count": 195,
+          "p50": 4.27101,
+          "p95": 6.2877,
+          "max": 10.109
+        },
+        "stereo_preprocess_ms": {
+          "count": 195,
+          "p50": 0.002297,
+          "p95": 0.00337,
+          "max": 0.004463
+        },
+        "stereo_match_ms": {
+          "count": 195,
+          "p50": 292.665,
+          "p95": 311.848,
+          "max": 346.104
+        },
+        "stereo_postprocess_ms": {
+          "count": 195,
+          "p50": 3.64502,
+          "p95": 3.78753,
+          "max": 4.57945
+        }
+      },
+      "matcher_work": {
+        "unique_observed_completions": 195,
+        "matched_frames_delta": 195,
+        "observed_processing_total_ms": 59793.215,
+        "observed_processing_wall_fraction": 0.9971266629540784,
+        "method": "Sum of unique completed nested matcher_statistics.processing_ms / observed wall interval; boundary and polling sampling apply; not all-core utilization."
+      },
+      "temperature_c": {
+        "count": 1450,
+        "p50": 46.85,
+        "p95": 49.05,
+        "max": 49.6
+      },
+      "throttled": "throttled=0x0",
+      "status_errors": {
+        "stereo_configuration_error": [],
+        "encoding_configuration_error": [],
+        "exposure_last_error": []
+      },
+      "start_counters": {
+        "capture_epoch": 2,
+        "captured_pairs": 736,
+        "published_frames": 16,
+        "matched_frames": 16,
+        "encoded_frames": 655
+      },
+      "end_counters": {
+        "capture_epoch": 2,
+        "captured_pairs": 1336,
+        "published_frames": 211,
+        "matched_frames": 211,
+        "encoded_frames": 655
+      },
+      "observer_total_cpu_seconds": 3.9909260189999998
+    },
+    {
+      "location": "pi_local_tls",
+      "case": "pi_preview_depth10_1",
+      "utc_completed": "2026-10-21T20:00:50Z",
+      "duration_seconds": 60.000241421,
+      "streams": [
+        {
+          "kind": "encoded",
+          "requested_hz": 10,
+          "delivery": "encoded",
+          "frames": 596,
+          "fps": 9.940889964938595,
+          "frames_per_measurement_second": 9.933293364906376,
+          "latency_ms": {
+            "count": 596,
+            "p50": 86.792396,
+            "p95": 129.732577,
+            "max": 177.054833
+          },
+          "interframe_ms": {
+            "count": 595,
+            "p50": 100.534669,
+            "p95": 103.441607,
+            "max": 146.333386
+          },
+          "unique_increasing_captures": true,
+          "errors": [],
+          "first_capture_sequence": 1401,
+          "last_capture_sequence": 1999,
+          "capture_epoch": 2,
+          "run_id": "386f6b39cdbd",
+          "codec": "h264",
+          "source": "left_color",
+          "shape": [
+            728,
+            544
+          ],
+          "bytes_per_second": 988786.1881041614,
+          "keyframes": 596
+        },
+        {
+          "kind": "depth",
+          "requested_hz": 10,
+          "delivery": "best_effort",
+          "frames": 194,
+          "fps": 3.2195798141718397,
+          "frames_per_measurement_second": 3.2333203234762364,
+          "latency_ms": {
+            "count": 194,
+            "p50": 396.5745095,
+            "p95": 448.992457,
+            "max": 485.528637
+          },
+          "interframe_ms": {
+            "count": 193,
+            "p50": 308.903514,
+            "p95": 344.042963,
+            "max": 351.342701
+          },
+          "unique_increasing_captures": true,
+          "errors": [],
+          "first_capture_sequence": 1398,
+          "last_capture_sequence": 1997,
+          "capture_epoch": 2,
+          "run_id": "386f6b39cdbd",
+          "products": [
+            "depth",
+            "left_mono"
+          ],
+          "shapes": {
+            "depth": [
+              728,
+              544
+            ],
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "associated_descriptor_checks": true,
+          "configuration_epochs": [
+            1
+          ],
+          "calibration_hashes": [
+            "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2"
+          ]
+        }
+      ],
+      "associated_image_checks": [
+        {
+          "streams": [
+            "encoded",
+            "depth"
+          ],
+          "common_captures": 192,
+          "mismatches": 0,
+          "compared_fields": [
+            "capture_time_ns"
+          ]
+        }
+      ],
+      "telemetry_seconds": 59.970539891,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 119.26272654872936,
+        "nuvo-gateway.service": 3.4826116353063465
+      },
+      "capture_fps": 10.004912430178809,
+      "matcher_fps": 3.218246831707517,
+      "encoded_fps": 10.004912430178809,
+      "counter_deltas": {
+        "captured_pairs": 600,
+        "published_frames": 193,
+        "matched_frames": 193,
+        "encoded_frames": 600,
+        "scheduler_accepted": 600,
+        "scheduler_pending_replaced": 407,
+        "scheduler_protected_pending_dropped": 0,
+        "scheduler_processed": 193,
+        "scheduler_processing_failures": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_completed_dropped": 0,
+        "stale_dropped": 0,
+        "capacity_dropped": 0,
+        "trigger_errors": 0,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "encoding_image_admitted": 600,
+        "encoding_image_copies": 600,
+        "encoding_image_pool_dropped": 0,
+        "encoding_numeric_admitted": 0,
+        "exposure_configuration_errors": 0,
+        "capture_sequence_gaps": 407,
+        "ready_pair_replacements": 0,
+        "raw_cadence_skipped": 0
+      },
+      "matcher_statistics_samples": 193,
+      "matcher_ms": {
+        "processing_ms": {
+          "count": 193,
+          "p50": 308.603,
+          "p95": 320.153,
+          "max": 361.34
+        },
+        "rectification_ms": {
+          "count": 193,
+          "p50": 5.23333,
+          "p95": 8.52902,
+          "max": 11.2036
+        },
+        "stereo_preprocess_ms": {
+          "count": 193,
+          "p50": 0.002296,
+          "p95": 0.003315,
+          "max": 0.009648
+        },
+        "stereo_match_ms": {
+          "count": 193,
+          "p50": 296.671,
+          "p95": 307.158,
+          "max": 348.041
+        },
+        "stereo_postprocess_ms": {
+          "count": 193,
+          "p50": 3.6302,
+          "p95": 3.99358,
+          "max": 4.55569
+        }
+      },
+      "matcher_work": {
+        "unique_observed_completions": 193,
+        "matched_frames_delta": 193,
+        "observed_processing_total_ms": 59942.19,
+        "observed_processing_wall_fraction": 0.9995272697052332,
+        "method": "Sum of unique completed nested matcher_statistics.processing_ms / observed wall interval; boundary and polling sampling apply; not all-core utilization."
+      },
+      "temperature_c": {
+        "count": 1445,
+        "p50": 51.25,
+        "p95": 52.35,
+        "max": 53.45
+      },
+      "throttled": "throttled=0x0",
+      "status_errors": {
+        "stereo_configuration_error": [],
+        "encoding_configuration_error": [],
+        "exposure_last_error": []
+      },
+      "start_counters": {
+        "capture_epoch": 2,
+        "captured_pairs": 1400,
+        "published_frames": 230,
+        "matched_frames": 230,
+        "encoded_frames": 705
+      },
+      "end_counters": {
+        "capture_epoch": 2,
+        "captured_pairs": 2000,
+        "published_frames": 423,
+        "matched_frames": 423,
+        "encoded_frames": 1305
+      },
+      "observer_total_cpu_seconds": 4.813788956000001
+    },
+    {
+      "location": "pi_local_tls",
+      "case": "pi_preview_depth10_2",
+      "utc_completed": "2026-10-21T20:01:56Z",
+      "duration_seconds": 60.00067004,
+      "streams": [
+        {
+          "kind": "encoded",
+          "requested_hz": 10,
+          "delivery": "encoded",
+          "frames": 596,
+          "fps": 9.938585835588432,
+          "frames_per_measurement_second": 9.933222405727655,
+          "latency_ms": {
+            "count": 596,
+            "p50": 88.82454,
+            "p95": 128.13433,
+            "max": 168.477766
+          },
+          "interframe_ms": {
+            "count": 595,
+            "p50": 100.537812,
+            "p95": 102.30577,
+            "max": 147.277317
+          },
+          "unique_increasing_captures": true,
+          "errors": [],
+          "first_capture_sequence": 2064,
+          "last_capture_sequence": 2663,
+          "capture_epoch": 2,
+          "run_id": "386f6b39cdbd",
+          "codec": "h264",
+          "source": "left_color",
+          "shape": [
+            728,
+            544
+          ],
+          "bytes_per_second": 989215.186437608,
+          "keyframes": 596
+        },
+        {
+          "kind": "depth",
+          "requested_hz": 10,
+          "delivery": "best_effort",
+          "frames": 193,
+          "fps": 3.205259732499031,
+          "frames_per_measurement_second": 3.2166307454789216,
+          "latency_ms": {
+            "count": 193,
+            "p50": 396.898938,
+            "p95": 447.832199,
+            "max": 493.998758
+          },
+          "interframe_ms": {
+            "count": 192,
+            "p50": 310.1683165,
+            "p95": 328.151073,
+            "max": 383.761889
+          },
+          "unique_increasing_captures": true,
+          "errors": [],
+          "first_capture_sequence": 2060,
+          "last_capture_sequence": 2660,
+          "capture_epoch": 2,
+          "run_id": "386f6b39cdbd",
+          "products": [
+            "depth",
+            "left_mono"
+          ],
+          "shapes": {
+            "depth": [
+              728,
+              544
+            ],
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "associated_descriptor_checks": true,
+          "configuration_epochs": [
+            1
+          ],
+          "calibration_hashes": [
+            "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2"
+          ]
+        }
+      ],
+      "associated_image_checks": [
+        {
+          "streams": [
+            "encoded",
+            "depth"
+          ],
+          "common_captures": 192,
+          "mismatches": 0,
+          "compared_fields": [
+            "capture_time_ns"
+          ]
+        }
+      ],
+      "telemetry_seconds": 59.967106754,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 119.66958868699002,
+        "nuvo-gateway.service": 3.5500995716422428
+      },
+      "capture_fps": 10.005485214775316,
+      "matcher_fps": 3.2184310774193934,
+      "encoded_fps": 10.005485214775316,
+      "counter_deltas": {
+        "captured_pairs": 600,
+        "published_frames": 193,
+        "matched_frames": 193,
+        "encoded_frames": 600,
+        "scheduler_accepted": 600,
+        "scheduler_pending_replaced": 408,
+        "scheduler_protected_pending_dropped": 0,
+        "scheduler_processed": 193,
+        "scheduler_processing_failures": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_completed_dropped": 0,
+        "stale_dropped": 0,
+        "capacity_dropped": 0,
+        "trigger_errors": 0,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "encoding_image_admitted": 600,
+        "encoding_image_copies": 600,
+        "encoding_image_pool_dropped": 0,
+        "encoding_numeric_admitted": 0,
+        "exposure_configuration_errors": 0,
+        "capture_sequence_gaps": 410,
+        "ready_pair_replacements": 0,
+        "raw_cadence_skipped": 0
+      },
+      "matcher_statistics_samples": 193,
+      "matcher_ms": {
+        "processing_ms": {
+          "count": 193,
+          "p50": 309.77,
+          "p95": 326.921,
+          "max": 400.854
+        },
+        "rectification_ms": {
+          "count": 193,
+          "p50": 4.86654,
+          "p95": 6.81712,
+          "max": 9.79714
+        },
+        "stereo_preprocess_ms": {
+          "count": 193,
+          "p50": 0.002407,
+          "p95": 0.003426,
+          "max": 0.00437
+        },
+        "stereo_match_ms": {
+          "count": 193,
+          "p50": 297.955,
+          "p95": 314.177,
+          "max": 389.888
+        },
+        "stereo_postprocess_ms": {
+          "count": 193,
+          "p50": 3.64455,
+          "p95": 4.22797,
+          "max": 4.81536
+        }
+      },
+      "matcher_work": {
+        "unique_observed_completions": 193,
+        "matched_frames_delta": 193,
+        "observed_processing_total_ms": 60230.766,
+        "observed_processing_wall_fraction": 1.0043967311459865,
+        "method": "Sum of unique completed nested matcher_statistics.processing_ms / observed wall interval; boundary and polling sampling apply; not all-core utilization."
+      },
+      "temperature_c": {
+        "count": 1446,
+        "p50": 54.0,
+        "p95": 55.1,
+        "max": 56.2
+      },
+      "throttled": "throttled=0x0",
+      "status_errors": {
+        "stereo_configuration_error": [],
+        "encoding_configuration_error": [],
+        "exposure_last_error": []
+      },
+      "start_counters": {
+        "capture_epoch": 2,
+        "captured_pairs": 2063,
+        "published_frames": 442,
+        "matched_frames": 442,
+        "encoded_frames": 1361
+      },
+      "end_counters": {
+        "capture_epoch": 2,
+        "captured_pairs": 2663,
+        "published_frames": 635,
+        "matched_frames": 635,
+        "encoded_frames": 1961
+      },
+      "observer_total_cpu_seconds": 4.759622420000001
+    },
+    {
+      "location": "pi_local_tls",
+      "case": "pi_mono_depth10",
+      "utc_completed": "2026-10-21T20:03:03Z",
+      "duration_seconds": 60.000145923,
+      "streams": [
+        {
+          "kind": "mono",
+          "requested_hz": 10,
+          "delivery": "best_effort",
+          "frames": 596,
+          "fps": 9.928780893200107,
+          "frames_per_measurement_second": 9.933309175028754,
+          "latency_ms": {
+            "count": 596,
+            "p50": 76.9791105,
+            "p95": 123.554638,
+            "max": 131.500799
+          },
+          "interframe_ms": {
+            "count": 595,
+            "p50": 100.564153,
+            "p95": 104.572719,
+            "max": 147.39955
+          },
+          "unique_increasing_captures": true,
+          "errors": [],
+          "first_capture_sequence": 2727,
+          "last_capture_sequence": 3327,
+          "capture_epoch": 2,
+          "run_id": "386f6b39cdbd",
+          "products": [
+            "left_mono"
+          ],
+          "shapes": {
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "associated_descriptor_checks": true,
+          "configuration_epochs": [
+            1
+          ],
+          "calibration_hashes": [
+            "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2"
+          ]
+        },
+        {
+          "kind": "depth",
+          "requested_hz": 10,
+          "delivery": "best_effort",
+          "frames": 195,
+          "fps": 3.2350945398289306,
+          "frames_per_measurement_second": 3.249992095856723,
+          "latency_ms": {
+            "count": 195,
+            "p50": 399.717898,
+            "p95": 443.747715,
+            "max": 481.780161
+          },
+          "interframe_ms": {
+            "count": 194,
+            "p50": 307.5498195,
+            "p95": 325.909763,
+            "max": 363.160322
+          },
+          "unique_increasing_captures": true,
+          "errors": [],
+          "first_capture_sequence": 2724,
+          "last_capture_sequence": 3323,
+          "capture_epoch": 2,
+          "run_id": "386f6b39cdbd",
+          "products": [
+            "depth",
+            "left_mono"
+          ],
+          "shapes": {
+            "depth": [
+              728,
+              544
+            ],
+            "left_mono": [
+              728,
+              544
+            ]
+          },
+          "associated_descriptor_checks": true,
+          "configuration_epochs": [
+            1
+          ],
+          "calibration_hashes": [
+            "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2"
+          ]
+        }
+      ],
+      "associated_image_checks": [
+        {
+          "streams": [
+            "mono",
+            "depth"
+          ],
+          "common_captures": 194,
+          "mismatches": 0,
+          "compared_fields": [
+            "capture_time_ns",
+            "configuration_epoch",
+            "mono_sha256",
+            "calibration_sha256"
+          ]
+        }
+      ],
+      "telemetry_seconds": 59.968819402,
+      "cpu_one_core_percent": {
+        "nuvo-depthd-native.service": 105.97944337366829,
+        "nuvo-gateway.service": 4.6601050810528335
+      },
+      "capture_fps": 10.005199468375555,
+      "matcher_fps": 3.2350144947747626,
+      "encoded_fps": 0.0,
+      "counter_deltas": {
+        "captured_pairs": 600,
+        "published_frames": 794,
+        "matched_frames": 194,
+        "encoded_frames": 0,
+        "scheduler_accepted": 1200,
+        "scheduler_pending_replaced": 406,
+        "scheduler_protected_pending_dropped": 0,
+        "scheduler_processed": 794,
+        "scheduler_processing_failures": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_completed_dropped": 0,
+        "stale_dropped": 0,
+        "capacity_dropped": 0,
+        "trigger_errors": 0,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "encoding_image_admitted": 0,
+        "encoding_image_copies": 0,
+        "encoding_image_pool_dropped": 0,
+        "encoding_numeric_admitted": 0,
+        "exposure_configuration_errors": 0,
+        "capture_sequence_gaps": 0,
+        "ready_pair_replacements": 0,
+        "raw_cadence_skipped": 0
+      },
+      "matcher_statistics_samples": 194,
+      "matcher_ms": {
+        "processing_ms": {
+          "count": 194,
+          "p50": 307.37800000000004,
+          "p95": 321.297,
+          "max": 348.272
+        },
+        "rectification_ms": {
+          "count": 194,
+          "p50": 5.18429,
+          "p95": 7.43241,
+          "max": 9.5661
+        },
+        "stereo_preprocess_ms": {
+          "count": 194,
+          "p50": 0.0023705,
+          "p95": 0.003167,
+          "max": 0.003666
+        },
+        "stereo_match_ms": {
+          "count": 194,
+          "p50": 294.9565,
+          "p95": 308.72,
+          "max": 336.716
+        },
+        "stereo_postprocess_ms": {
+          "count": 194,
+          "p50": 3.65386,
+          "p95": 3.8459,
+          "max": 4.89177
+        }
+      },
+      "matcher_work": {
+        "unique_observed_completions": 194,
+        "matched_frames_delta": 194,
+        "observed_processing_total_ms": 59972.021,
+        "observed_processing_wall_fraction": 1.0000533877110125,
+        "method": "Sum of unique completed nested matcher_statistics.processing_ms / observed wall interval; boundary and polling sampling apply; not all-core utilization."
+      },
+      "temperature_c": {
+        "count": 1448,
+        "p50": 55.65,
+        "p95": 56.75,
+        "max": 58.4
+      },
+      "throttled": "throttled=0x0",
+      "status_errors": {
+        "stereo_configuration_error": [],
+        "encoding_configuration_error": [],
+        "exposure_last_error": []
+      },
+      "start_counters": {
+        "capture_epoch": 2,
+        "captured_pairs": 2727,
+        "published_frames": 704,
+        "matched_frames": 654,
+        "encoded_frames": 1967
+      },
+      "end_counters": {
+        "capture_epoch": 2,
+        "captured_pairs": 3327,
+        "published_frames": 1498,
+        "matched_frames": 848,
+        "encoded_frames": 1967
+      },
+      "observer_total_cpu_seconds": 5.8813480830000024
+    }
+  ],
+  "baseline_comparisons": [
+    {
+      "case": "pi_preview_depth10_1",
+      "preview_fps_change_percent": -0.08210643393965489,
+      "preview_interframe_p95_change_ms": 2.249473000000009,
+      "preview_packet_latency_p95_change_ms": 5.282571999999988,
+      "depth_fps_change_vs_depth_only_percent": -1.2623092346352283
+    },
+    {
+      "case": "pi_preview_depth10_2",
+      "preview_fps_change_percent": -0.10526570358090348,
+      "preview_interframe_p95_change_ms": 1.1136359999999996,
+      "preview_packet_latency_p95_change_ms": 3.684325000000001,
+      "depth_fps_change_vs_depth_only_percent": -1.7014757959736837
+    }
+  ],
+  "frame_audits": [
+    {
+      "case": "pi_preview_only",
+      "kind": "encoded",
+      "unique_captures": 597,
+      "frame_records_sha256": "5927d5f625fde2016547754a9331e85f01ff87d099394a9274f9cdf945288a51"
+    },
+    {
+      "case": "pi_depth_only10",
+      "kind": "depth",
+      "unique_captures": 195,
+      "frame_records_sha256": "095934e2b0374fd36d897b7b9933a7c15775f470e8da0ddd0889ff567ad3d7f6"
+    },
+    {
+      "case": "pi_preview_depth10_1",
+      "kind": "encoded",
+      "unique_captures": 596,
+      "frame_records_sha256": "3eb686690c9dc08cbed40685b834e800eb7e619944f4d1dd1021921a50c8407f"
+    },
+    {
+      "case": "pi_preview_depth10_1",
+      "kind": "depth",
+      "unique_captures": 194,
+      "frame_records_sha256": "b203a35f45ca1f9921c590552a99dfe8497df4c03c08c8f3c1f2888d3e86f3ca"
+    },
+    {
+      "case": "pi_preview_depth10_2",
+      "kind": "encoded",
+      "unique_captures": 596,
+      "frame_records_sha256": "870b55d9bac01e86e34681cf1c2a70d3c7f1387b119302b8f3df410336862064"
+    },
+    {
+      "case": "pi_preview_depth10_2",
+      "kind": "depth",
+      "unique_captures": 193,
+      "frame_records_sha256": "a214249615eebb7f3685f28e802795003eab049c14b21f63fa8e2769b25da49c"
+    },
+    {
+      "case": "pi_mono_depth10",
+      "kind": "mono",
+      "unique_captures": 596,
+      "frame_records_sha256": "321d7419f57cc9b45e0803d2786848248de2a1fe8084925e54a7f7ac9d8c5a1c"
+    },
+    {
+      "case": "pi_mono_depth10",
+      "kind": "depth",
+      "unique_captures": 195,
+      "frame_records_sha256": "d4c70007fb334d323f36a76dcaeda0b1b22c8e584dca375caf031791b1363f93"
+    }
+  ],
+  "restoration": {
+    "utc": "2026-10-21T20:03:19Z",
+    "worker_fully_inactive": true,
+    "own_overrides_removed": true,
+    "encoding_exact_original": true,
+    "foreign_encoding_preserved": false,
+    "original_service_arguments": {
+      "nuvo-depthd-native.service": true,
+      "nuvo-gateway.service": true
+    },
+    "original_active_states": {
+      "nuvo-depthd-native.service": true,
+      "nuvo-gateway.service": true
+    },
+    "installed_packages_unchanged": true,
+    "protected_files_compared": 87,
+    "protected_files_unchanged": 87,
+    "foreign_changes_preserved": [],
+    "current_stereo": {
+      "algorithm": "sgbm",
+      "block_size": 5,
+      "bm_pre_filter_size": 9,
+      "bm_texture_threshold": 10,
+      "disparity_12_max_diff": 1,
+      "max_disparity": 96,
+      "median_filter_size": 5,
+      "min_disparity": 0,
+      "opencv_threads": 2,
+      "pre_filter_cap": 31,
+      "schema_version": 1,
+      "search_range": 96,
+      "sgbm_mode": "hh",
+      "speckle_range": 2,
+      "speckle_window_size": 30,
+      "specular_threshold": 256,
+      "uniqueness_ratio": 0
+    },
+    "throttled": "throttled=0x0",
+    "own_changes_restored": true,
+    "independent_restore_timer_stopped": true
+  },
+  "limitations": [
+    "Host-local API throughput is not Wi-Fi-delivered or browser-rendered throughput.",
+    "Depth10Hz is requested as an upper bound; observed throughput is about3.2Hz for the unchanged hh96pixel matcher configuration.",
+    "Depth quality/calibration accuracy and all-core saturation are not established by this benchmark.",
+    "No stereo/calibration/exposure/auth controls were intentionally written; external changes abort the matrix and are preserved.",
+    "The frozen artifact retains Debian version0.1.1~beta.4 metadata but is identified by commit098910ed and workflow39665155172; it is not a test of the published beta4 or upcoming beta5 cohort."
+  ],
+  "qualification_scope": {
+    "source_commit": "098910edaa7291f450c65e8711fe9fecba941acd",
+    "kind": "Frozen cleaned-source Actions artifact; not the later beta5 login/installer changes",
+    "published_release_tested": false,
+    "hardware": "Raspberry Pi 5 Model B Rev1.1; kernel6.12.75+rpt-rpi-2712; ondemand governor",
+    "transport": "Pi-local certificate-verified HTTPS/TLS; no LAN or browser-render measurement"
+  },
+  "temporary_encoding_configuration": {
+    "bitrate_bps": 8000000,
+    "cadence_hz": 10,
+    "codec": "h264",
+    "height": 0,
+    "jpeg_quality": 80,
+    "keyframe_interval": 1,
+    "low_latency": true,
+    "mode": "both",
+    "preset": "veryfast",
+    "schema_version": 1,
+    "source": "left_color",
+    "threads": 2,
+    "width": 0
+  },
+  "benchmark_harness_review": {
+    "used_harness": ".codex-tmp/cleanup098910e20261021_harness_used.py",
+    "used_harness_sha256": "83735234d0285dd9b26fd5558859a23e872203854e19856683ac13aa8895001f",
+    "future_helper": ".codex-tmp/cleanup098910e20261021_harness.py",
+    "fixed_helper_sha256": "9e809060b342fb25f1e5d496770ee1999d62db6adc3149335596924ce6c6b24a",
+    "fixed_after_measurements": true,
+    "revision": "Recheck original encoding bytes after service stop and immediately before replace; abort/preserve foreign edit and restart original services.",
+    "synthetic_tests_passed": 9,
+    "measurement_scope": "Used harness retained exactly; no detected foreign changes and87/87protected hashes restored. No metrics regenerated."
+  }
+}

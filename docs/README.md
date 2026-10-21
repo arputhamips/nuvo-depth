@@ -9,7 +9,7 @@ specifications, and qualification evidence.
 
 - [Set up a bundled unit](https://docs.nuvohardware.com/vision-one/install/bundled-pi).
 - [Install on your own Pi or SD card](https://docs.nuvohardware.com/vision-one/install/byo-pi).
-- [First browser connection and login](https://docs.nuvohardware.com/vision-one/guide/getting-started).
+- [First browser connection](https://docs.nuvohardware.com/vision-one/guide/getting-started).
 - [User guide](user-guide.md) — first connection, normal workflow, exposure,
   stereo matching, streaming, and product delivery.
 - [Operations and troubleshooting](operations-troubleshooting.md) — service
@@ -18,6 +18,8 @@ specifications, and qualification evidence.
   current installation, network, ownership, and bounded runtime evidence.
 - [Independent image/depth Pi retest](performance-independent-processing-20261020.md) —
   mono 10 Hz/depth 1 Hz with `hh`, encoded cold starts, and Wi-Fi delivery limits.
+- [Cleaned runtime Pi retest](performance-cleanup-pi-20261021.md) — preview and
+  depth both requested at 10 Hz, depth-only baseline, freshness and restoration.
 - [Pi 5 performance comparison](performance-comparison-20261019.md) — repeated
   mono 10 Hz/depth 1 Hz measurements, Wi-Fi/API and browser results, and limits.
 - [Pi 5 release-readiness report](pi5-release-readiness-20260914.md) — earlier
@@ -80,6 +82,8 @@ qualification status are recorded in each document.
   generated-file exclusions, and package/export checks.
 - [Repository cleanup](repository-cleanup-20261021.md) — retired editor, legacy
   processing stack and demo assets, compatibility boundaries, and validation.
+- [Direct browser access and beta 5 preparation](browser-access-beta5-20261021.md) —
+  automatic sessions, installer integration, compatibility and source checks.
 - [Historical architecture review](history/multi-platform-review.md) — an
   archived review of an earlier system, not current setup instructions.
 - [Historical deployment options](architecture-options.md) — early robot and

@@ -4,15 +4,15 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const script = fs.readFileSync(path.join(__dirname, '../web/app.js'), 'utf8');
-const start = script.indexOf('async function api(');
-const end = script.indexOf("$('claimForm')", start);
+const start = script.indexOf('let sessionBootstrap =');
+const end = script.indexOf('async function refreshSetupStatus', start);
 assert(start >= 0 && end > start);
 const calls = [], responses = [];
 const deviceSettings=require('../web/device-settings.js');
 const validStereoBody=fs.readFileSync(path.join(__dirname,'../config/stereo.json'),'utf8');
 const context = {
   lastHealth:null,
-  Headers, csrf: 'csrf', dialog: {open:false, showModal(){this.open=true}},
+  Headers, csrf: 'csrf',
   configurationRevisions: new Map(), latestConfigurationRevisions: new Map(),
   encodingFormDirty:false, algorithmFormDirty:false, exposureFormDirty:false,
   fetch: async (url, options) => {calls.push({url, options}); return responses.shift()},

@@ -3,7 +3,7 @@
 For first-time installation, use the [main user wiki](https://docs.nuvohardware.com/vision-one/):
 [bundled units](https://docs.nuvohardware.com/vision-one/install/bundled-pi),
 [your own Pi or SD card](https://docs.nuvohardware.com/vision-one/install/byo-pi),
-and [browser connection and login](https://docs.nuvohardware.com/vision-one/guide/getting-started).
+and [browser connection](https://docs.nuvohardware.com/vision-one/guide/getting-started).
 This is the versioned console and runtime reference.
 
 ## First connection
@@ -13,10 +13,9 @@ This is the versioned console and runtime reference.
    for larger raw streams.
 2. Open the printed `https://HOSTNAME.local:7443/` console URL. If mDNS is
    unavailable, use the Pi's IP address with port `7443`. Verify the device's
-   certificate against the trusted setup material before entering credentials.
-3. Enter the owner password chosen during installation, or the short one-time
-   setup code. First claim asks you to choose a permanent owner password if one
-   was not set in the terminal. The setup code is consumed on successful use.
+   certificate against the trusted setup material before using the console.
+3. The console connects automatically. No browser password, setup code or
+   owner-password setup is required, including on previously configured units.
 4. Check **Overview**. With capture enabled, confirm **Streaming**, the installed
    profile's dimensions, and no red health message. Pending calibration can
    intentionally leave capture disabled while the console is available.

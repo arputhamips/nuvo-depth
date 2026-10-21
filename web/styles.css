@@ -38,7 +38,6 @@
   --nav-active-bg: rgb(91 157 255 / 11%);
   --nav-active-border: rgb(91 157 255 / 28%);
   --canvas-bg: #07090b;
-  --dialog-backdrop: rgb(0 0 0 / 72%);
   --radius-sm: 6px;
   --radius-md: 5px;
   --radius-lg: 5px;
@@ -85,7 +84,6 @@ html[data-theme="light"] {
   --nav-active-bg: #edf4ff;
   --nav-active-border: #b8d1f2;
   --canvas-bg: #07090b;
-  --dialog-backdrop: rgb(15 23 42 / 45%);
 }
 
 * { box-sizing: border-box; }
@@ -327,9 +325,6 @@ input[type="checkbox"] { width: 18px; min-height: 18px; height: 18px; accent-col
 .network-advanced { margin-top: 12px; }
 .network-advanced > .settings { padding: 0 12px 12px; }
 
-dialog { width: min(480px, calc(100% - 32px)); padding: 32px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--panel); color: var(--ink); box-shadow: 0 24px 80px rgb(0 0 0 / 40%); }
-dialog::backdrop { background: var(--dialog-backdrop); }
-dialog h2 { font-size: 20px; }
 
 @media (max-width: 1100px) {
   .stream-layout { grid-template-columns: 1fr; }
@@ -456,9 +451,6 @@ nav :is(button, a).active:hover { color: var(--blue-400); background: var(--nav-
 .calibration-metrics strong { font-size: 20px; }
 .calibration-boundary summary { font-size: 12px; font-weight: 500; }
 pre { font-family: Consolas, "Liberation Mono", monospace; }
-dialog { padding: 24px; border-radius: 10px; }
-dialog p { color: var(--muted); font-size: 13px; }
-dialog .error { color: var(--danger); }
 
 @media (min-width: 801px) {
   nav { position: sticky; top: 56px; height: calc(100dvh - 56px); overflow-y: auto; }

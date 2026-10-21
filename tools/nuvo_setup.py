@@ -280,8 +280,8 @@ def apply_configuration(root, plan, run=command):
         elif plan["access_policy"] == "keep_current":
             state["access_stage"] = "confirmed"
         save(root, STATE, state)
-    if not auth.get("claimed") and not auth.get("pairing"):
-        issue_pairing(root)
+    # Browser access uses automatic HTTPS sessions. Preserve existing legacy
+    # credentials, but new installations do not need an enrollment code.
     # Bundle activation validates signatures/bindings; do not rewrite unit IDs.
     if plan.get("calibration_bundle"):
         run(["/usr/lib/nuvo-depth/nuvo-calibration", "activate", plan["calibration_bundle"], "--namespace", plan["calibration_namespace"]])

@@ -3,7 +3,7 @@
 For normal installation, use the [Vision One user wiki](https://docs.nuvohardware.com/vision-one/):
 [bundled unit setup](https://docs.nuvohardware.com/vision-one/install/bundled-pi),
 [your own Pi or SD card](https://docs.nuvohardware.com/vision-one/install/byo-pi),
-and [first browser login](https://docs.nuvohardware.com/vision-one/guide/getting-started).
+and [first browser connection](https://docs.nuvohardware.com/vision-one/guide/getting-started).
 This document is the engineering deployment reference.
 
 The product package is a depth-only, systemd-managed Raspberry Pi 5 appliance

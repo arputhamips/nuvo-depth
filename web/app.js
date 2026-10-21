@@ -31,7 +31,6 @@ function applyTheme(theme, persist = false) {
 applyTheme(savedTheme() || systemTheme());
 
 const $ = id => document.getElementById(id);
-const dialog = $('claimDialog');
 let lastSequence = 0, lastIdentity = '', lastFrameAt = 0;
 let lastHealthRun = '', lastHealthPublished = null, lastHealthAt = 0;
 let rawPolling = false, rawSocket = null, encoding = null;
@@ -191,10 +190,30 @@ openPage(location.hash.slice(1));
 $('originLabel').textContent = location.origin;
 $('encodedEndpoint').textContent = `${location.origin}/api/v1/encoded/latest · WebSocket /api/v1/encoded/stream`;
 
+let sessionBootstrap = null;
+async function connectSession() {
+  if(!sessionBootstrap)sessionBootstrap=(async()=>{
+    const response=await fetch('/api/v1/session',{credentials:'same-origin',cache:'no-store'});
+    if(!response.ok)throw new Error('Device connection unavailable');
+    const session=await response.json();
+    if(!/^[a-f0-9]{64}$/.test(session.csrf||''))throw new Error('Device session is invalid');
+    csrf=session.csrf;
+  })().finally(()=>{sessionBootstrap=null;});
+  return sessionBootstrap;
+}
 async function api(path,options={}) {
-  return window.NuvoDeviceSettings.request(path,options,{csrf,configurationRevisions,latestConfigurationRevisions,
-    encodingFormDirty,algorithmFormDirty,exposureFormDirty,safeExposureUs:Number(lastHealth?.exposure_safe_max_us)||8000,
-    onUnauthorized(){if(!dialog.open)dialog.showModal();}});
+  if(!csrf)await connectSession();
+  const previous=csrf;
+  const request=()=>window.NuvoDeviceSettings.request(path,options,{csrf,configurationRevisions,latestConfigurationRevisions,
+    encodingFormDirty,algorithmFormDirty,exposureFormDirty,safeExposureUs:Number(lastHealth?.exposure_safe_max_us)||8000});
+  try{return await request();}
+  catch(error){
+    if(error.status!==401)throw error;
+    // A rejected request has not run. Refresh once, sharing concurrent recovery
+    // and preserving the form's original configuration revision on a retry.
+    if(csrf===previous)await connectSession();
+    return request();
+  }
 }
 
 async function refreshSetupStatus(){
@@ -209,27 +228,6 @@ async function refreshSetupStatus(){
       (state.error?` · ${state.error}`:'');
   }catch(_){}
 }
-
-$('claimForm').addEventListener('submit', async event => {
-  event.preventDefault(); $('claimError').textContent = '';
-  const token = $('claimToken').value;
-  try {
-    const session = await (await api('/api/v1/session', {method:'POST', headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:token})})).json();
-    csrf = session.csrf; $('claimToken').value = ''; dialog.close();
-    if(session.needs_owner_password)$('ownerDialog').showModal();
-    await refreshSetupStatus();
-    await Promise.all([refreshHealth(),refreshTransport(),refreshEncoding(),refreshStereo(),refreshExposure(),refreshCapabilities()]); restartStreams();
-  } catch (error) { $('claimError').textContent = error.message; }
-});
-
-$('ownerForm').addEventListener('submit', async event => {
-  event.preventDefault();$('ownerError').textContent='';
-  if($('ownerPassword').value!==$('ownerRepeat').value){$('ownerError').textContent='Passwords must match.';return;}
-  try {
-    await api('/api/v1/setup/owner',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('ownerPassword').value})});
-    $('ownerPassword').value='';$('ownerRepeat').value='';$('ownerDialog').close();
-  } catch(error){$('ownerError').textContent=error.message;}
-});
 
 async function refreshTransport() {
   try {
@@ -308,7 +306,7 @@ $('encodingReset').addEventListener('click', () => {
 async function refreshEncoding() {
   try {
     const updated=await (await api('/api/v1/encoding')).json();
-    const changed=encoding&&JSON.stringify(updated)!==JSON.stringify(encoding);
+    const changed=!encoding||JSON.stringify(updated)!==JSON.stringify(encoding);
     encoding=updated;
     if(!encodingFormDirty)showEncodingConfig(encoding);
     else if(changed)$('encodingSaveState').textContent='Device changed · review and apply';
@@ -1001,9 +999,8 @@ $('copyDiagnostics').addEventListener('click',async()=>{
 
 async function restoreSession() {
   try {
-    const session = await (await api('/api/v1/session')).json(); csrf = session.csrf;
+    await connectSession();
     await refreshSetupStatus();
-    if(session.needs_owner_password)$('ownerDialog').showModal();
     await Promise.all([refreshHealth(),refreshTransport(),refreshEncoding(),refreshStereo(),refreshExposure(),refreshCapabilities()]);
     if(lastHealth){
       if(!$('calibrationWidth').value)$('calibrationWidth').value=lastHealth.image_width||728;
@@ -1011,7 +1008,10 @@ async function restoreSession() {
       $('calibrationRates').value=String(lastHealth.capture_target_hz||$('calibrationRates').value||60);
     }
     await restoreCalibrationSession();restartStreams();
-  } catch (_) {}
+  } catch (error) {
+    $('connection').textContent='Not connected';$('connection').className='pill offline';
+    $('diagnosticJson').textContent=error.message;
+  }
 }
 
 // Performance sample model. Retain observations, never synthesize frame history.

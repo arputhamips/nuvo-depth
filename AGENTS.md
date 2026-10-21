@@ -6,7 +6,7 @@
 - Create a versioned release draft only when the user explicitly requests a
   release candidate. Do not publish it or mark it latest without explicit approval.
 - Beta candidates stay draft prereleases for internal testing. A public preview
-  is a deliberate exception approved by the user, currently `v0.1.1-beta.4`.
+  is a deliberate exception approved by the user, currently `v0.1.1-beta.5`.
 - Public release notes start with a bullet-point changelog, then Pi prerequisites
   and the pinned curl command. No prose follows the command.
 - Keep manufacturing provisioning and repository-access instructions out of

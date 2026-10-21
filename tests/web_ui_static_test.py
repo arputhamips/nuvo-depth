@@ -90,6 +90,9 @@ def main() -> None:
     assert 'id="encodedEmptyState"' in html and 'Waiting for encoded preview' in html
     assert 'DIODE' not in html and '/assets/benchmark/' not in html
     assert 'benchmarkGallery' not in script and 'data-benchmark-scene' not in script
+    assert '<dialog' not in html and 'type="password"' not in html
+    assert 'claimDialog' not in script and 'ownerDialog' not in script
+    assert 'needs_owner_password' not in script and '/api/v1/setup/owner' not in script
     assert 'Disconnected · showing last received products' in script
     # The overview's calibration alert leads directly to the corrective action.
     assert 'data-open="calibration"' in html
@@ -109,6 +112,7 @@ def main() -> None:
                 for attribute in ("type","min","max","step"):
                     assert field.get(attribute)==native.get(attribute), f"shared field mismatch: {identifier} {attribute}"
         subprocess.run([node,str(ROOT/"tests/web_configuration_revision_test.js")],check=True)
+        subprocess.run([node,str(ROOT/"tests/web_session_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_performance_model_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_output_selection_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_shared_settings_test.js")],check=True)

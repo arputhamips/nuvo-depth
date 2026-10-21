@@ -1,3 +1,13 @@
+nuvo-depth (0.1.1~beta.5) unstable; urgency=medium
+
+  * Open the HTTPS console without browser login or owner-password setup.
+  * Remove browser credential prompts and setup-code handoff from installation.
+  * Keep image and depth workers independent and reduce copies and rendering.
+  * Reject stale encoded frames and report matcher output independently.
+  * Retire the parked editor, legacy Python processing stack and demo images.
+
+ -- Nirmal <nml@meridian.cv>  Wed, 21 Oct 2026 15:02:00 -0500
+
 nuvo-depth (0.1.1~beta.4) unstable; urgency=medium
 
   * Publish one signed installer bundle instead of individual release packages.

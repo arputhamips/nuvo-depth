@@ -6,7 +6,7 @@
   or release is created for routine fixes or benchmarks.
 - **Internal beta:** `vX.Y.Z-beta.N`, built and signed as a draft prerelease.
 - **Public preview:** an explicitly approved beta. The current preview is
-  `v0.1.1-beta.4`; earlier experimental betas remain drafts.
+  `v0.1.1-beta.5`; earlier approved previews remain available and experimental betas remain drafts.
 - **Stable:** `vX.Y.Z`, published only after approval and marked latest.
 - Stable releases appear first on the website, followed by approved public
   previews; each group is sorted by semantic version, newest first.
@@ -45,7 +45,7 @@ gh workflow run install-release.yml --ref main \
   -f tag=vX.Y.Z-beta.N -f channel=beta
 ```
 
-- `0.1.1~beta.4` in Debian metadata maps to `v0.1.1-beta.4`.
+- `0.1.1~beta.5` in Debian metadata maps to `v0.1.1-beta.5`.
 - Beta tags cannot be built as stable candidates, or stable tags as betas.
 - A missing, empty or unreviewed changelog entry blocks release preparation.
 - The workflow verifies the tag/version and platform record, builds/tests the

@@ -289,6 +289,109 @@ class ConfigurationAgent:
 
 
 class GatewayIntegrationTest(unittest.TestCase):
+    def test_automatic_browser_session_preserves_unclaimed_and_owner_state(self):
+        setup = self.agent.setup
+        paths = [self.agent.root / name for name in (setup.AUTH, setup.PRIVATE)]
+        originals = {p: p.read_bytes() if p.exists() else None for p in paths}
+        jar = http.cookiejar.CookieJar()
+        browser = urllib.request.build_opener(urllib.request.HTTPSHandler(
+            context=ssl.create_default_context(cafile=self.certificate)), urllib.request.HTTPCookieProcessor(jar))
+        def request(path, method="GET", headers=None, body=None):
+            return browser.open(urllib.request.Request(self.origin + path, data=body, headers=headers or {}, method=method), timeout=5)
+        try:
+            setup.save(self.agent.root, setup.AUTH, {"schema_version": 1, "claimed": False})
+            setup.issue_pairing(self.agent.root)
+            material = {p: p.read_bytes() for p in paths}
+            for headers in ({"Origin": "https://foreign.example"}, {"Sec-Fetch-Site": "cross-site"}, {"Sec-Fetch-Site": "same-site"}):
+                with self.assertRaises(urllib.error.HTTPError) as denied:
+                    request("/api/v1/session", headers=headers)
+                self.assertEqual(denied.exception.code, 403)
+                self.assertIsNone(denied.exception.headers.get("Set-Cookie"))
+            with request("/api/v1/session", headers={"Sec-Fetch-Site": "same-origin"}) as response:
+                session = json.load(response); cookie = response.headers["Set-Cookie"]
+                self.assertIsNone(response.headers.get("Access-Control-Allow-Origin"))
+            self.assertFalse(session["needs_owner_password"])
+            self.assertEqual(len(session["csrf"]), 64)
+            for attribute in ("Secure", "HttpOnly", "SameSite=Strict"):
+                self.assertIn(attribute, cookie)
+            self.assertEqual({p: p.read_bytes() for p in paths}, material)
+            with request("/api/v1/capabilities") as response:
+                self.assertEqual(response.status, 200)
+            # No token/code/password claim is needed to open a live stream.
+            client = NuvoClient(self.origin, ca_file=self.certificate)
+            client._cookies = jar; client._csrf = session["csrf"]
+            with client.frames(cadence_hz=1, products=["left_mono"]) as stream:
+                self.assertIn("left_mono", next(stream).products)
+            with request("/api/v1/stereo") as response:
+                revision = response.headers["ETag"]; stereo = response.read()
+            for csrf in (None, "wrong"):
+                headers = {"Content-Type": "application/json", "If-Match": revision}
+                if csrf:
+                    headers["X-Nuvo-CSRF"] = csrf
+                with self.assertRaises(urllib.error.HTTPError) as denied:
+                    request("/api/v1/stereo", "POST", headers, stereo)
+                self.assertEqual(denied.exception.code, 403)
+            with request("/api/v1/stereo", "POST", {"Content-Type": "application/json", "If-Match": revision,
+                         "X-Nuvo-CSRF": session["csrf"]}, stereo) as response:
+                self.assertEqual(response.status, 202)
+            # An old claimed device with no password must also open directly;
+            # legacy setup state may still report that historical condition.
+            setup.save(self.agent.root, setup.AUTH, {"schema_version": 1, "claimed": True})
+            material = {p: p.read_bytes() for p in paths}
+            with request("/api/v1/session") as response:
+                restored = json.load(response)
+                self.assertIsNone(response.headers.get("Set-Cookie"))
+            self.assertEqual(restored["csrf"], session["csrf"])
+            self.assertFalse(restored["needs_owner_password"])
+            self.assertEqual({p: p.read_bytes() for p in paths}, material)
+        finally:
+            for p, value in originals.items():
+                if value is None:
+                    p.unlink(missing_ok=True)
+                else:
+                    p.write_bytes(value)
+
+    def test_automatic_browser_sessions_reuse_bounded_capacity(self):
+        arguments = list(self.process.args)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as reservation:
+            reservation.bind(("127.0.0.1", 0)); port = reservation.getsockname()[1]
+        arguments[arguments.index("--port") + 1] = str(port)
+        arguments += ["--maximum-sessions", "2"]
+        process = subprocess.Popen(arguments, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        origin = f"https://127.0.0.1:{port}"
+        context = ssl.create_default_context(cafile=self.certificate)
+        def browser():
+            return urllib.request.build_opener(urllib.request.HTTPSHandler(context=context),
+                                               urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        try:
+            first = browser()
+            for _ in range(30):
+                try:
+                    with first.open(origin + "/api/v1/session", timeout=5) as response:
+                        session = json.load(response)
+                    break
+                except urllib.error.URLError:
+                    time.sleep(.1)
+            else:
+                self.fail("bounded-session gateway did not start")
+            for _ in range(3):
+                with first.open(origin + "/api/v1/session", timeout=5) as response:
+                    self.assertEqual(json.load(response)["csrf"], session["csrf"])
+                    self.assertIsNone(response.headers.get("Set-Cookie"))
+            # Unknown/expired cookies are replaced automatically, within the cap.
+            second = browser()
+            with second.open(urllib.request.Request(origin + "/api/v1/session", headers={"Cookie": "nuvo_session=expired"}), timeout=5) as response:
+                self.assertNotEqual(json.load(response)["csrf"], session["csrf"])
+            with self.assertRaises(urllib.error.HTTPError) as full:
+                browser().open(origin + "/api/v1/session", timeout=5)
+            self.assertEqual(full.exception.code, 503)
+            with first.open(origin + "/api/v1/capabilities", timeout=5) as response:
+                self.assertEqual(response.status, 200)
+        finally:
+            process.terminate(); process.wait(timeout=3)
+            self.assertEqual(process.returncode, 0, process.stderr.read())
+            process.stderr.close()
+
     def test_http_keepalive_is_bounded_and_authentication_is_per_request(self):
         address = urllib.parse.urlsplit(self.origin)
         connection = http.client.HTTPSConnection(address.hostname, address.port,

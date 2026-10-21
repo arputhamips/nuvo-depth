@@ -1,5 +1,10 @@
 # User flow — Use case 2: install Nuvo on a user-owned Pi or SD card
 
+> Browser-access update (v0.1.1-beta.5): the HTTPS console now opens directly,
+> without a login, setup code or owner-password step. Ownership/login proposals
+> below are historical and do not describe the current browser or installer.
+> Network setup, certificate verification and calibration requirements still apply.
+
 **Specification:** UF-02 · **Version:** 0.5 · **Updated:** 19 October 2026  
 **Status:** Prompted terminal installer and factory preset published as a signed GitHub beta. Both network choices, terminal ownership and reboot recovery have [physical Pi setup evidence](../release-qualification-20261019.md#uf-01-and-uf-02-physical-setup-acceptance). See [commands and current limits](../install.md).
 

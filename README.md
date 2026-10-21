@@ -36,7 +36,7 @@ Or [order Vision One from NuvoHardware](https://nuvohardware.com/).
   stereo matching, and associated image, disparity, depth, confidence, and
   validity outputs.
 - **Web console:** device setup, health, live previews, camera controls, and
-  calibration tools, accessed through an authenticated HTTPS gateway.
+  calibration tools, accessed directly through an HTTPS gateway without browser login.
 - **Application interfaces:** C and Python SDKs, local IPC, and network delivery
   for integrating camera output into your application.
 - **Installation and maintenance:** terminal setup, protected Wi-Fi setup
@@ -49,16 +49,16 @@ Or [order Vision One from NuvoHardware](https://nuvohardware.com/).
   64-bit Trixie (`arm64`), kernel `6.12.75+rpt-rpi-2712`, internet access and
   administrator access.
 - [Supported OS image](https://docs.nuvohardware.com/vision-one/install/byo-pi).
-- **Current public preview:** `v0.1.1-beta.4`.
+- **Current public preview:** `v0.1.1-beta.5`.
 
 ```bash
-curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.4/install-nuvo-depth.sh | sudo bash
+curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.5/install-nuvo-depth.sh | sudo bash
 ```
 
 ## Current status
 
 - The public preview has signed packages and tested installation, hotspot,
-  network confirmation and owner-login flows.
+  network confirmation and automatic browser sessions.
 - [Qualification evidence](docs/release-qualification-20261019.md) records the
   tested scope; accepted per-unit calibration is required for metric depth.
 - Routine testing uses Actions artifacts. New release candidates are prepared

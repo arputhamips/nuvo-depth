@@ -21,7 +21,7 @@ It retains the station connection until deliberate AP activation after package
 work and delivery of setup material have finished.
 
 Factory mode asks no questions. It creates unique per-unit identity, certificate,
-AP password and eight-character setup proof (displayed as `ABCD-EFGH`), enables
+and AP password, enables
 the setup/console services, and arms the hotspot for the next boot. The same
 download, package, configuration and validation path runs in both modes.
 `--reboot` permits a required camera reboot; otherwise the operator restarts
@@ -32,9 +32,12 @@ Use `/var/lib/nuvo-depth/identity/device.uuid` in the separate per-unit calibrat
 process, then rerun factory installation with that unit's accepted signed bundle.
 An arbitrary pre-existing legacy identity without factory setup state is refused.
 
-Print the unique AP SSID/password, setup code, hostname, and certificate
+Print the unique AP SSID/password, hostname, and certificate
 fingerprint on the unit's setup card using the root-only material. Secrets are
 displayed only to an interactive terminal, never installer service logs.
+The HTTPS console opens directly after certificate verification, without a
+setup code or owner-password step. Existing legacy credential records survive
+reinstallation but are not required for browser access.
 
 ```bash
 sudo nuvo-setup private       # private interactive terminal only

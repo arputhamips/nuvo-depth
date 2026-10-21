@@ -46,17 +46,20 @@ class ProvisioningTest(unittest.TestCase):
         with mock.patch.object(setup.admin, "provision_identity", return_value={"device_uuid": "12345678-1234-1234-1234-123456789abc"}), mock.patch.object(setup.admin, "platform_prepare", return_value={"reboot_required": True}):
             return setup.apply_configuration(self.root, plan, self.run_command)
 
-    def test_terminal_answers_current_network_and_password(self):
-        answers = iter(["1", "Office camera", "2", "", "y", "y", "n"])
+    def test_terminal_answers_current_network_without_browser_credentials(self):
+        answers = iter(["1", "Office camera", "2", "", "y", "n"])
         with redirect_stdout(io.StringIO()):
-            plan = installer.collect_plan(self.root, options(), input_fn=lambda _: next(answers), password_fn=lambda _: "my new nuvo password")
+            plan = installer.collect_plan(self.root, options(), input_fn=lambda _: next(answers),
+                                          password_fn=mock.Mock(side_effect=AssertionError("password prompt")))
         self.assertEqual(plan["access_policy"], "keep_current")
         self.assertEqual(plan["hardware"], "custom")
-        self.assertTrue(setup.verify_password("my new nuvo password", plan["owner_password"]))
-        self.assertNotIn("my new nuvo password", json.dumps(plan))
+        self.assertNotIn("owner_password", plan)
+        self.assertIn("no login required", installer.summary(plan)["browser_access"])
         result = self.apply(plan)
         self.assertEqual(result["origin"], "terminal")
-        self.assertTrue(result["claimed"])
+        self.assertFalse(result["claimed"])
+        self.assertNotIn("pairing_code", setup.read(self.root, setup.PRIVATE))
+        self.assertNotIn("password", setup.read(self.root, setup.AUTH))
         self.assertFalse((self.root / setup.PROFILE).exists())
         self.assertFalse((self.root / setup.AP_ENABLED).exists())
         self.assertFalse(any(call[0] == "nmcli" for call in self.calls))
@@ -69,7 +72,7 @@ class ProvisioningTest(unittest.TestCase):
         self.assertFalse(setup.status(self.root)["reboot_required"])
 
     def test_terminal_hotspot_is_not_factory_origin(self):
-        answers = iter(["2", "", "2", "", "n", "y", "n", "n"])
+        answers = iter(["2", "", "2", "", "y", "n", "n"])
         with redirect_stdout(io.StringIO()):
             plan = installer.collect_plan(self.root, options(), input_fn=lambda _: next(answers))
         state = self.apply(plan)
@@ -85,6 +88,7 @@ class ProvisioningTest(unittest.TestCase):
         self.assertEqual(state["access_stage"], "armed")
         self.assertFalse(state["claimed"])
         self.assertFalse(state["shipping_ready"])
+        self.assertNotIn("pairing_code", private)
         self.assertFalse((self.root / "etc/nuvo-depth/capture-enabled").exists())
         self.assertEqual(self.apply(plan)["access_stage"], "armed")
         self.assertEqual(private, setup.read(self.root, setup.PRIVATE))
@@ -118,7 +122,9 @@ class ProvisioningTest(unittest.TestCase):
 
     def test_pairing_consumes_code_then_owner_password_supports_login(self):
         self.apply(self.factory_plan())
-        code = setup.read(self.root, setup.PRIVATE)["pairing_code"]
+        # Explicit legacy API/administrator enrollment remains compatible;
+        # ordinary installations and browser sessions no longer depend on it.
+        code = setup.issue_pairing(self.root)
         self.assertEqual(len(code), 9)
         result = setup.authenticate(self.root, code, now=1000)
         self.assertTrue(result["authenticated"])
@@ -129,6 +135,34 @@ class ProvisioningTest(unittest.TestCase):
         material = json.dumps(setup.read(self.root, setup.AUTH))
         self.assertNotIn("my long owner password", material)
         self.assertNotIn("pairing_code", setup.read(self.root, setup.PRIVATE))
+
+    def test_rerun_preserves_legacy_owner_credentials_without_prompting(self):
+        self.apply(self.factory_plan())
+        credentials = {"schema_version": 1, "claimed": True,
+                       "password": setup.password_record("existing owner password")}
+        setup.save(self.root, setup.AUTH, credentials)
+        original = (self.root / setup.AUTH).read_bytes()
+        answers = iter(["1", "", "2", "", "y", "n"])
+        with redirect_stdout(io.StringIO()):
+            plan = installer.collect_plan(self.root, options(), input_fn=lambda _: next(answers),
+                                          password_fn=mock.Mock(side_effect=AssertionError("password prompt")))
+        self.apply(plan)
+        self.assertEqual((self.root / setup.AUTH).read_bytes(), original)
+        self.assertNotIn("owner_password", plan)
+
+    def test_access_handoff_has_no_browser_pairing_or_password_instructions(self):
+        self.apply(self.factory_plan())
+        private = setup.read(self.root, setup.PRIVATE)
+        private["pairing_code"] = "OLD-CODE"
+        setup.save(self.root, setup.PRIVATE, private)
+        output = io.StringIO()
+        with redirect_stdout(output), mock.patch.object(output, "isatty", return_value=True):
+            installer.print_access(self.root)
+        text = output.getvalue()
+        self.assertIn("no Nuvo password or setup code is required", text)
+        self.assertIn("Setup Wi-Fi:", text)
+        self.assertNotIn("OLD-CODE", text)
+        self.assertNotIn("nuvo-setup pair", text)
 
     def test_pairing_failure_limit_and_expiration_persist(self):
         code = setup.issue_pairing(self.root)

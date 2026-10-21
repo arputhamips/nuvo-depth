@@ -1,5 +1,10 @@
 # User flow — Use case 1: first setup of an assembled Nuvo device
 
+> Browser-access update (v0.1.1-beta.5): the HTTPS console now opens directly,
+> without a login, setup code or owner-password step. Ownership/login proposals
+> below are historical and do not describe the current browser or installer.
+> Network setup, certificate verification and calibration requirements still apply.
+
 **Specification:** UF-01 · **Version:** 0.4 · **Updated:** 19 October 2026  
 **Status:** Factory provisioning, protected hotspot and short-code ownership implemented, with [physical first-boot/browser setup evidence](../release-qualification-20261019.md#uf-01-and-uf-02-physical-setup-acceptance). Fresh-image/manufacturing acceptance and broader discovery/recovery features remain separate; see [implementation and limits](../install.md).
 

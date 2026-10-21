@@ -44,10 +44,9 @@ returned by the matching getter, changing only intended fields.
 Use the device's actual hostname and verified certificate. `NuvoClient.claim()`
 and `nuvo-record --claim-token` currently use the long administrative token,
 which a trusted Pi administrator can obtain from
-`/var/lib/nuvo-depth/identity/claim.token`. The short first-use setup code and
-owner-password browser flow are documented in the
-[setup guide](https://docs.nuvohardware.com/vision-one/guide/getting-started);
-they are separate from this SDK method.
+`/var/lib/nuvo-depth/identity/claim.token`. This existing SDK token interface
+remains supported. The browser console connects automatically without entering
+credentials; see the [setup guide](https://docs.nuvohardware.com/vision-one/guide/getting-started).
 
 `camera.latest()` returns one raw frame snapshot. `camera.latest_encoded()`
 returns an optional monitoring snapshot and reports an error when the encoder

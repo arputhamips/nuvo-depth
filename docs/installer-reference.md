@@ -15,11 +15,13 @@ Customer install releases require the platform qualification recorded in their
 signed manifest. Use only an explicitly published release. The public source and
 release repository is [arputhamips/nuvo-depth](https://github.com/arputhamips/nuvo-depth).
 
-The current prerelease tested for setup is
-[v0.1.1-beta.4](https://github.com/arputhamips/nuvo-depth/releases/tag/v0.1.1-beta.4).
-Use that exact tag in the commands below. The
-[qualification record](release-qualification-20261019.md#uf-01-and-uf-02-physical-setup-acceptance)
-distinguishes physical first-use tests from fresh-SD and manufacturing acceptance.
+The installation version described by these commands is
+[v0.1.1-beta.5](https://github.com/arputhamips/nuvo-depth/releases/tag/v0.1.1-beta.5).
+Use that exact tag after it is explicitly published. The
+[October 19 qualification record](release-qualification-20261019.md#uf-01-and-uf-02-physical-setup-acceptance)
+describes the earlier release cohorts' physical first-use/hotspot tests. It is
+not beta 5 fresh-SD, first-user or manufacturing acceptance. The later beta 5
+cohort requires its own package-installation and direct-browser checks.
 Physical Pi acceptance, USB power/data qualification and shipping approval
 remain separate gates.
 
@@ -45,7 +47,7 @@ available when deliberately switching a Wi-Fi SSH connection to a hotspot.
 Open a terminal on the Pi (locally or in an interactive SSH session) and run:
 
 ```bash
-curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.4/install-nuvo-depth.sh | sudo bash
+curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.5/install-nuvo-depth.sh | sudo bash
 ```
 
 The same command is documented in the product wiki. To use a future release,
@@ -61,7 +63,7 @@ sudo bash ./install-nuvo-depth.sh --release vX.Y.Z
 To inspect the script before running it:
 
 ```bash
-VERSION=v0.1.1-beta.4
+VERSION=v0.1.1-beta.5
 curl --proto '=https' --proto-redir '=https' -fL \
   "https://github.com/arputhamips/nuvo-depth/releases/download/$VERSION/install-nuvo-depth.sh" \
   -o install-nuvo-depth.sh
@@ -89,8 +91,7 @@ The questions cover:
    require separately provisioned factory trust keys.
 4. Explicit provisional engineering preview, when using the supported head.
    Without accepted calibration or this opt-in, only the console starts.
-5. Set an owner password now, or defer ownership using a short setup code.
-6. Boot startup and deliberate reboot/hotspot activation. A single summary is
+5. Boot startup and deliberate reboot/hotspot activation. A single summary is
    shown before applying the plan. Hotspot recovery requires boot startup.
 
 The display name is a Nuvo label; it does not change the OS hostname. Custom
@@ -128,20 +129,20 @@ and refuses conflicting camera overlays/includes for manual resolution.
    Interrupted changes, including reboots, follow this
    recovery path. An ordinary outage after confirmed setup does not reopen it.
 5. Open `https://HOSTNAME.local:7443/`, verify the self-signed device certificate
-   against the printed SHA-256 fingerprint, then enter the owner password or
-   short setup code. First claim asks for a permanent owner password only if
-   the terminal installer did not already set one.
+   against the printed SHA-256 fingerprint. The console connects directly;
+   no Nuvo password, setup code or owner-password prompt is used.
 
 The initial implementation uses a manually entered SSID, the setup card and an
 explicit confirmation link. QR generation, automatic captive-portal detection,
 Wi-Fi scanning, enterprise Wi-Fi and physical-button recovery are future work.
 Do not promise their availability based on the wider product-flow specs.
 
-Passwords are salted scrypt verifiers in the root-only ownership store. Setup
-codes are consumed on success, expire ten minutes after the first attempt,
-and are locked for five minutes after five failed attempts. Wi-Fi credentials
-are root-only NetworkManager keyfiles, not command-line arguments or logs.
-Existing long administrative tokens remain compatible with the gateway/SDK.
+Anyone who can reach the HTTPS console on the device's network can use its
+controls. Browser sessions retain origin checks, Secure/HttpOnly/SameSite cookies
+and CSRF protection. Wi-Fi credentials remain root-only NetworkManager keyfiles,
+not command-line arguments or logs. Existing ownership records and explicit
+legacy authentication APIs are preserved for compatibility; the browser and
+installer do not use them. Long administrative tokens remain supported by SDKs.
 
 ## Status and recovery
 
@@ -149,7 +150,6 @@ Existing long administrative tokens remain compatible with the gateway/SDK.
 sudo python3 tools/nuvo_install.py --status  # reviewed checkout
 sudo nuvo-setup status                      # installed helper
 sudo journalctl -u nuvo-install
-sudo nuvo-setup pair                        # deliberately reissue setup proof
 sudo nuvo-setup activate-ap                 # only an already-armed, unconfirmed AP
 ```
 
@@ -161,8 +161,7 @@ OS/package issue and rerun the same reviewed release. It preserves identity,
 claimed ownership, AP secrets and confirmed handoff state. It does not perform
 an automatic package downgrade, uninstall, OS rollback, or customer reset.
 
-If the UI was claimed but the password was never saved, reissue a setup code
-from the trusted terminal. Physical reset/recovery is not implemented here.
+No browser credential recovery is required. Physical reset/recovery is not implemented here.
 When starting without calibration, use the terminal's explicit engineering
 preview option for calibration capture, then rerun with the accepted bundle
 and disable engineering preview for authority-enforced operation.

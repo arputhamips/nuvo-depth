@@ -34,11 +34,12 @@ class ReleasePolicyTest(unittest.TestCase):
                 release_notes.changelog_entry(document, "v1.2.3")
 
     def test_render_ends_at_the_pinned_install_command(self):
-        result = release_notes.render(ROOT, "arputhamips/nuvo-depth", "v0.1.1-beta.4", "beta")
+        result = release_notes.render(ROOT, "arputhamips/nuvo-depth", "v0.1.1-beta.5", "beta")
         self.assertTrue(result.startswith("## Changelog\n"))
         self.assertLess(result.index("### Changed"), result.index("## Install"))
         self.assertIn("Raspberry Pi OS Lite 64-bit", result)
-        self.assertIn("releases/download/v0.1.1-beta.4/install-nuvo-depth.sh | sudo bash", result)
+        self.assertIn("releases/download/v0.1.1-beta.5/install-nuvo-depth.sh | sudo bash", result)
+        self.assertIn("without a browser password", result)
         self.assertTrue(result.endswith("| sudo bash\n```\n"))
         self.assertNotIn("factory", result.casefold())
         self.assertNotIn("ssh key", result.casefold())

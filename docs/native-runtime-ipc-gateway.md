@@ -198,14 +198,33 @@ The first C++ SDK surface is `nuvo::StreamDecoder`. It is an incremental,
 bounded decoder for bytes after TLS authentication/decryption and handles both
 fragmented and coalesced TCP reads.
 
+## Browser access and SDK compatibility
+
+The HTTPS console opens directly. Anyone with network access to it can obtain
+an administrative browser session; there is no browser password or setup-code
+gate. `GET /api/v1/session` reuses a valid cookie or creates one within the
+existing session cap and twelve-hour expiry. It returns a CSRF token and a
+Secure/HttpOnly/SameSite=Strict cookie. Origin mismatches and foreign browser
+Fetch Metadata are rejected. The remaining API and WebSocket routes still
+require a session or compatible administrative bearer token; mutations also
+require CSRF. The console refreshes an expired session automatically and retries
+a rejected request once, retaining configuration edit-base revisions.
+
+The existing token/password/code `POST /api/v1/session` interface and explicit
+legacy owner APIs remain compatible. Automatic browser access does not consume
+pairing material or rewrite ownership records. Fresh installation no longer
+asks for a Nuvo owner password or issues an enrollment code. OS/SSH credentials,
+protected Wi-Fi provisioning, certificate identity, calibration and recovery
+requirements are unchanged.
+
 ## Installed candidate and remaining gates
 
 `nuvo-depthd-native.service`, the sealed local frame service, TLS gateway,
-claim/session flow, REST/WebSocket API, web console, mDNS record, C ABI, Python
+automatic browser sessions, compatible SDK token claims, REST/WebSocket API, web console, mDNS record, C ABI, Python
 SDK, bounded NVR1 recorder/replay, calibration activation, transport rollback
-watchdog, and Debian package split are implemented. Package installation does
-not enable the target. The original Python service and IPC v1 remain as a
-rollback comparator until live parity is measured.
+watchdog, and Debian package split are implemented. The installer applies the
+selected startup policy. The parallel Python service and its private IPC/output
+stack have been retired; actual asset/calibration/transport rollback remains.
 
 The September 9, 2026 rig pass now provides live Pi DMA-BUF coherency,
 3 x 1,000-pair restart/capture evidence, 1,000 zero-gap native publications,

@@ -42,7 +42,8 @@ Nuvo Depth terminal installer
   --reboot                Permit a required reboot
   --dry-run               Inspect without making changes
   --bundle DIRECTORY      Use an extracted signed bundle; APT dependencies remain
-Questions and masked passwords use your terminal, including curl | sudo bash.
+Setup questions use your terminal, including curl | sudo bash.
+The HTTPS console opens directly without a Nuvo password or setup code.
 HELP
         exit 0 ;;
       *) shift ;;

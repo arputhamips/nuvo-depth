@@ -244,7 +244,7 @@ class ReleaseTest(unittest.TestCase):
     @unittest.skipUnless(os.name=="posix","requires a controlling PTY")
     def test_curl_pipe_preserves_questions_and_masked_passwords(self):
         import errno, pty, select, signal, time
-        program="import getpass,sys\nassert sys.stdin.isatty()\nassert input('Network choice: ')=='current'\nassert getpass.getpass('Owner password: ')=='private test password'\nprint('interactive fixture complete')\n"
+        program="import getpass,sys\nassert sys.stdin.isatty()\nassert input('Network choice: ')=='current'\nassert getpass.getpass('Wi-Fi password: ')=='private test password'\nprint('interactive fixture complete')\n"
         directory,_,_,_,env=self.bootstrap_fixture("interactive-pipe",program)
         env=env|{"BOOTSTRAP_URL":"https://github.com/test-owner/nuvo/releases/download/v1.2.3/install-nuvo-depth.sh"}
         pid,master=pty.fork()
@@ -262,7 +262,7 @@ class ReleaseTest(unittest.TestCase):
                         break
                     if not chunk: break
                     transcript+=chunk
-                    for prompt,answer in [(b"Network choice: ",b"current\n"),(b"Owner password: ",b"private test password\n")]:
+                    for prompt,answer in [(b"Network choice: ",b"current\n"),(b"Wi-Fi password: ",b"private test password\n")]:
                         if prompt in transcript and prompt not in answered:
                             os.write(master,answer); answered.add(prompt)
                 done,child_status=os.waitpid(pid,os.WNOHANG)

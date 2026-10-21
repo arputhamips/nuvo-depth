@@ -1,6 +1,6 @@
 # Pi 5 operations and troubleshooting
 
-For first-use setup and network/login recovery, start with the
+For first-use setup and network/connection recovery, start with the
 [Vision One setup guide](https://docs.nuvohardware.com/vision-one/guide/getting-started).
 
 ## Fast health check

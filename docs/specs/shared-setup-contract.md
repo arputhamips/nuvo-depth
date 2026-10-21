@@ -1,5 +1,10 @@
 # Shared setup contract for UF-01 and UF-02
 
+> Browser-access update (v0.1.1-beta.5): the HTTPS console now opens directly,
+> without a login, setup code or owner-password step. Ownership/login proposals
+> below are historical and do not describe the current browser or installer.
+> Network setup, certificate verification and calibration requirements still apply.
+
 **Specification:** SETUP-01 · **Version:** 0.3 · **Updated:** 19 October 2026  
 **Status:** Shared installer, ownership and protected-hotspot backend implemented and published as a signed GitHub beta. Both entry flows have physical Pi setup evidence; see [qualification scope](../release-qualification-20261019.md#uf-01-and-uf-02-physical-setup-acceptance) and [implementation limits](../install.md). Manufacturing acceptance remains separate.
 

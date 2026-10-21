@@ -716,6 +716,13 @@ if(BUILD_TESTING)
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/web_ui_static_test.py
     )
+    find_program(DEPTHD_NODE_EXECUTABLE NAMES node nodejs)
+    if(DEPTHD_NODE_EXECUTABLE)
+      add_test(NAME depthd_web_session_test
+        COMMAND ${DEPTHD_NODE_EXECUTABLE}
+          ${CMAKE_CURRENT_SOURCE_DIR}/tests/web_session_test.js
+      )
+    endif()
     add_test(NAME depthd_live_performance_test
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/live_performance_test.py

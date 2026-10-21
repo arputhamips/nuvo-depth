@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 from contextlib import contextmanager
-import getpass
 import ipaddress
 import json
 import os
@@ -51,7 +50,9 @@ def yes(prompt, default=False, input_fn=input):
             return False
 
 
-def collect_plan(root, args, input_fn=input, password_fn=getpass.getpass):
+def collect_plan(root, args, input_fn=input, password_fn=None):
+    # Keep the optional callback argument compatible with existing automation;
+    # browser access no longer asks for or creates a Nuvo owner password.
     old, auth = setup.read(root, setup.STATE, {}), setup.read(root, setup.AUTH, {})
     if old.get("access_stage") == "connecting":
         raise ValueError("finish the pending Wi-Fi confirmation or wait for hotspot recovery before installing")
@@ -90,19 +91,6 @@ def collect_plan(root, args, input_fn=input, password_fn=getpass.getpass):
             plan["calibration_namespace"] = choose("Calibration authority:", [("user", "User validated"), ("factory", "Signed factory bundle (requires provisioned trust keys)")], "user", input_fn)
         if plan["hardware"] == "nuvo":
             plan["engineering"] = yes("Allow explicitly provisional engineering preview when accepted calibration is absent?", plan["engineering"], input_fn)
-        if not auth.get("claimed") and yes("Set the Nuvo owner password now? (Otherwise issue a one-time setup code)", True, input_fn):
-            while True:
-                password = password_fn("Nuvo password (12+ characters; not your OS password): ")
-                again = password_fn("Confirm Nuvo password: ")
-                try:
-                    if password != again:
-                        raise ValueError("passwords do not match")
-                    plan["owner_password"] = setup.password_record(password)
-                    break
-                except ValueError as error:
-                    print(error)
-                finally:
-                    password = again = None
         plan["startup"] = yes("Start Nuvo services at boot? (required for hotspot recovery)", plan["startup"], input_fn)
         if plan["access_policy"] == "setup_ap" and not plan["startup"]:
             raise ValueError("setup hotspot recovery requires boot startup; rerun and enable startup or keep the current network")
@@ -131,7 +119,7 @@ def collect_plan(root, args, input_fn=input, password_fn=getpass.getpass):
 
 def summary(plan):
     return {key: plan[key] for key in ("factory", "access_policy", "display_name", "hardware", "startup", "engineering", "wifi_interface", "wifi_country", "ap_address", "reboot", "activate_now")} | {
-        "owner": "password supplied" if plan.get("owner_password") else "preserve existing owner / bounded setup code",
+        "browser_access": "opens directly over HTTPS; no login required",
         "calibration": "bundle supplied" if plan.get("calibration_bundle") else "preserve existing / pending"}
 
 
@@ -269,11 +257,9 @@ def print_access(root):
         if state.get("access_policy") == "setup_ap":
             print(f"Setup Wi-Fi: {state.get('ap_ssid')}  Password: {private.get('ap_password')}")
             print("Network setup: http://" + str(ipaddress.IPv4Interface(state["ap_address"]).ip) + "/")
-        if private.get("pairing_code"):
-            print("One-time setup code: " + private["pairing_code"])
+    print("Open the HTTPS console directly; no Nuvo password or setup code is required.")
     print("Status: sudo nuvo-setup status")
-    print("Reissue an expired setup code: sudo nuvo-setup pair")
-    print("Self-signed device trust must be verified using the fingerprint before entering credentials.")
+    print("Verify the self-signed device certificate using its fingerprint before using the console.")
 
 
 def parse():

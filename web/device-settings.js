@@ -551,7 +551,7 @@
     if(errors.size)throw new Error([...errors.values()].join(' '));
   }
   const response = await (state.fetch||fetch)(path, {...options, method, headers, credentials:'same-origin', cache:'no-store'});
-  if (response.status === 401) { state.onUnauthorized?.(); throw new Error('Authentication required'); }
+  if (response.status === 401) { state.onUnauthorized?.(); const error=new Error('Device session expired'); error.status=401; throw error; }
   if (!response.ok) {
     let detail = `${response.status} ${response.statusText}`;
     try { const value = await response.json(); detail = value.error || detail; } catch (_) {}
