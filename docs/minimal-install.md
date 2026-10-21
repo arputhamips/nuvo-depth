@@ -3,6 +3,9 @@
 The minimal package runs the existing native Pi capture and depth pipeline.
 It provides terminal configuration and local raw depth output. It installs no
 Nuvo web console, network SDK, Wi-Fi onboarding, calibration solver or encoder.
+It selects the existing CPU rectifier and omits the optional GPU backend.
+Native OpenCV and libcamera runtime dependencies are still required; distro
+libraries can depend on additional image-format and camera support libraries.
 The full and minimal packages are mutually exclusive.
 
 Use a Raspberry Pi 5, the supported dual-IMX296 trigger head, and Raspberry Pi
