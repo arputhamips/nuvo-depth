@@ -1,0 +1,1608 @@
+{
+  "schema_version": 1,
+  "release": "v0.1.1-beta.5",
+  "source_commit": "0820d50f84c7b4f7c6bb14efe57e79cb2f83b48f",
+  "debian_version": "0.1.1~beta.5",
+  "signed_workflow": "https://github.com/arputhamips/nuvo-depth/actions/runs/39668603486",
+  "qualification_scope": {
+    "passed": [
+      "Exact signed bundle and manifest verification;19manifest files/eight-package cohort",
+      "Normal interactive dry-run and beta4-to-beta5 upgrade",
+      "Credential-free automatic GET session, live frames, secure cookie and CSRF rejection",
+      "Five short Pi-local preview/depth10Hz-requested benchmark cases",
+      "Installed static/runtime provenance and preserved registered conffiles",
+      "Final99/99protected-file restoration with beta5 installed",
+      "Public prerelease; anonymous HTTP200 downloads of all3assets match reviewed draft hashes",
+      "Actual public pinned curl normal interactive same-version beta5 reinstall;exit0/20.594s/no browser credential prompt",
+      "Post-public-reinstall automatic session/live frames/invalidCSRF/22critical files unchanged/eight beta5 packages/empty dpkg audit"
+    ],
+    "not_established": [
+      "Fresh-SD or new-user physical installation",
+      "New hotspot/handoff hardware acceptance",
+      "Rendered browser UI/decoded/displayed frame validation",
+      "LAN/Wi-Fi delivered throughput",
+      "New depth accuracy/calibration or endurance acceptance"
+    ]
+  },
+  "publication": {
+    "status": "published",
+    "release_url": "https://github.com/arputhamips/nuvo-depth/releases/tag/v0.1.1-beta.5",
+    "published_at_utc": "2026-10-21T20:32:14Z",
+    "draft": false,
+    "prerelease": true,
+    "latest": false,
+    "public_asset_url_verification": "passed",
+    "anonymous_download_check": {
+      "checked_at_utc": "2026-10-21T20:32:26.443251+00:00",
+      "release_url": "https://github.com/arputhamips/nuvo-depth/releases/tag/v0.1.1-beta.5",
+      "published_at": "2026-10-21T20:32:14Z",
+      "is_draft": false,
+      "is_prerelease": true,
+      "anonymous_downloads": true,
+      "assets": [
+        {
+          "name": "install-nuvo-depth.sh",
+          "url": "https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.5/install-nuvo-depth.sh",
+          "http_status": 200,
+          "bytes": 7108,
+          "sha256": "c1e17e909e3b43ae189a85e0b5af9495052d6018f51503dff5b180ccdbdaa91e",
+          "matches_reviewed_draft": true
+        },
+        {
+          "name": "nuvo-depth-pi5-arm64.tar.gz",
+          "url": "https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.5/nuvo-depth-pi5-arm64.tar.gz",
+          "http_status": 200,
+          "bytes": 2113739,
+          "sha256": "ca1317044bc28fd8f21b79e5132321675b3c3c52f1b033fe774e7dbdd65992e0",
+          "matches_reviewed_draft": true
+        },
+        {
+          "name": "nuvo-depth-pi5-arm64.tar.gz.sig",
+          "url": "https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.5/nuvo-depth-pi5-arm64.tar.gz.sig",
+          "http_status": 200,
+          "bytes": 64,
+          "sha256": "ef76dad43c81853022ea0510c20da9c15bc29ec26804873c9f185542ee44fa52",
+          "matches_reviewed_draft": true
+        }
+      ]
+    },
+    "public_pinned_installer_same_version_rerun": "passed"
+  },
+  "signed_cohort_verification": {
+    "tag": "v0.1.1-beta.5",
+    "source_commit": "0820d50f84c7b4f7c6bb14efe57e79cb2f83b48f",
+    "version": "0.1.1~beta.5",
+    "outer_signature_verified": true,
+    "manifest_signature_verified": true,
+    "manifest_files_verified": 19,
+    "runtime_packages": [
+      {
+        "name": "libnuvo-depth1_0.1.1.beta.5_arm64.deb",
+        "package": "libnuvo-depth1",
+        "version": "0.1.1~beta.5",
+        "architecture": "arm64",
+        "sha256": "d276e3fc44302a76d3ce3417d707c46d8305208e1d496bf83f23fca2052627ab"
+      },
+      {
+        "name": "nuvo-depth-calibration_0.1.1.beta.5_all.deb",
+        "package": "nuvo-depth-calibration",
+        "version": "0.1.1~beta.5",
+        "architecture": "all",
+        "sha256": "c39fb61e1f12e3d55c8d035653eb38e6e0d3b7d231b0738d46e9150cfc1e504c"
+      },
+      {
+        "name": "nuvo-depth-core_0.1.1.beta.5_arm64.deb",
+        "package": "nuvo-depth-core",
+        "version": "0.1.1~beta.5",
+        "architecture": "arm64",
+        "sha256": "097db8814aeb1b1df87d1b0bb0a4be9624026581ba55ddd58f771ff96e435020"
+      },
+      {
+        "name": "nuvo-depth-gateway_0.1.1.beta.5_arm64.deb",
+        "package": "nuvo-depth-gateway",
+        "version": "0.1.1~beta.5",
+        "architecture": "arm64",
+        "sha256": "7d98595e12c1830e05a5436e391dcbb2ddd017132215770fc5ffd158db8f27fa"
+      },
+      {
+        "name": "nuvo-depth-platform-pi5_0.1.1.beta.5_arm64.deb",
+        "package": "nuvo-depth-platform-pi5",
+        "version": "0.1.1~beta.5",
+        "architecture": "arm64",
+        "sha256": "f43bda6f813377a3d34d2159725e08d35b13b1feb491b4724f22922f98062667"
+      },
+      {
+        "name": "nuvo-depth-tools_0.1.1.beta.5_all.deb",
+        "package": "nuvo-depth-tools",
+        "version": "0.1.1~beta.5",
+        "architecture": "all",
+        "sha256": "555c97e733ec0565eacfe2aad2e8e692a930604488e3e5cf64cdcfa80a6e0380"
+      },
+      {
+        "name": "nuvo-depth_0.1.1.beta.5_arm64.deb",
+        "package": "nuvo-depth",
+        "version": "0.1.1~beta.5",
+        "architecture": "arm64",
+        "sha256": "7fa7140a4f84d740f6ce3e9d36b86d114d3a7d0a7fe54ac656ed27fab046232c"
+      },
+      {
+        "name": "python3-nuvo-depth_0.1.1.beta.5_all.deb",
+        "package": "python3-nuvo-depth",
+        "version": "0.1.1~beta.5",
+        "architecture": "all",
+        "sha256": "94142ecf6efe7fbb377285ec8ac89e6a78c553b2e162d8c3abcb87784b037683"
+      }
+    ],
+    "public_assets": {
+      "nuvo-depth-pi5-arm64.tar.gz": {
+        "sha256": "ca1317044bc28fd8f21b79e5132321675b3c3c52f1b033fe774e7dbdd65992e0",
+        "size": 2113739
+      },
+      "nuvo-depth-pi5-arm64.tar.gz.sig": {
+        "sha256": "ef76dad43c81853022ea0510c20da9c15bc29ec26804873c9f185542ee44fa52",
+        "size": 64
+      },
+      "install-nuvo-depth.sh": {
+        "sha256": "c1e17e909e3b43ae189a85e0b5af9495052d6018f51503dff5b180ccdbdaa91e",
+        "size": 7108
+      }
+    }
+  },
+  "installation": {
+    "dry_run": {
+      "source": "exact signed draft bundle",
+      "dry_run": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.797,
+      "answered_questions": [
+        "Network access AFTER installation:",
+        "Device display name [",
+        "Camera assembly:",
+        "Calibration bundle directory (blank: preserve/defer):",
+        "Allow explicitly provisional engineering preview",
+        "Start Nuvo services at boot?",
+        "Restart automatically if camera preparation requires it?",
+        "Apply this installation plan?"
+      ],
+      "browser_password_question_seen": false,
+      "direct_browser_handoff": false,
+      "log": ".codex-tmp/beta5-pi-draft-dry-run.log"
+    },
+    "beta4_to_beta5_upgrade": {
+      "source": "exact signed draft bundle",
+      "dry_run": false,
+      "exit_code": 0,
+      "elapsed_seconds": 20.141,
+      "answered_questions": [
+        "Network access AFTER installation:",
+        "Device display name [",
+        "Camera assembly:",
+        "Calibration bundle directory (blank: preserve/defer):",
+        "Allow explicitly provisional engineering preview",
+        "Start Nuvo services at boot?",
+        "Restart automatically if camera preparation requires it?",
+        "Apply this installation plan?"
+      ],
+      "browser_password_question_seen": false,
+      "direct_browser_handoff": true,
+      "log": ".codex-tmp/beta5-pi-draft-install.log"
+    },
+    "same_version_published_curl_rerun": {
+      "source": "public pinned curl installer",
+      "dry_run": false,
+      "exit_code": 0,
+      "elapsed_seconds": 20.594,
+      "answered_questions": [
+        "Network access AFTER installation:",
+        "Device display name [",
+        "Camera assembly:",
+        "Calibration bundle directory (blank: preserve/defer):",
+        "Allow explicitly provisional engineering preview",
+        "Start Nuvo services at boot?",
+        "Restart automatically if camera preparation requires it?",
+        "Apply this installation plan?"
+      ],
+      "browser_password_question_seen": false,
+      "direct_browser_handoff": true,
+      "log": ".codex-tmp/beta5-pi-online-install.log"
+    }
+  },
+  "api_checks": {
+    "post_upgrade": {
+      "utc": "2026-10-21T20:20:58Z",
+      "automatic_fresh_browser_session": true,
+      "no_claim_or_owner_secret_used": true,
+      "secure_cookie": true,
+      "no_login_controls_in_served_html": true,
+      "live_mono_frames_without_claim": 4,
+      "unique_increasing_capture_ids": true,
+      "invalid_csrf_rejected": true,
+      "critical_files_compared": 19,
+      "critical_files_changed": [],
+      "identity_calibration_auth_wifi_and_controls_preserved": true,
+      "packages": {
+        "libnuvo-depth1": "0.1.1~beta.5",
+        "nuvo-depth": "0.1.1~beta.5",
+        "nuvo-depth-calibration": "0.1.1~beta.5",
+        "nuvo-depth-core": "0.1.1~beta.5",
+        "nuvo-depth-gateway": "0.1.1~beta.5",
+        "nuvo-depth-platform-pi5": "0.1.1~beta.5",
+        "nuvo-depth-tools": "0.1.1~beta.5",
+        "python3-nuvo-depth": "0.1.1~beta.5"
+      },
+      "dpkg_audit_empty": true,
+      "services_active": {
+        "nuvo-depthd-native.service": true,
+        "nuvo-gateway.service": true
+      },
+      "throttled": "throttled=0x0"
+    },
+    "prepublication": {
+      "utc": "2026-10-21T20:28:29Z",
+      "automatic_fresh_browser_session": true,
+      "no_claim_or_owner_secret_used": true,
+      "secure_cookie": true,
+      "no_login_controls_in_served_html": true,
+      "live_mono_frames_without_claim": 4,
+      "unique_increasing_capture_ids": true,
+      "invalid_csrf_rejected": true,
+      "critical_files_compared": 22,
+      "critical_files_changed": [],
+      "identity_calibration_auth_wifi_and_controls_preserved": true,
+      "packages": {
+        "libnuvo-depth1": "0.1.1~beta.5",
+        "nuvo-depth": "0.1.1~beta.5",
+        "nuvo-depth-calibration": "0.1.1~beta.5",
+        "nuvo-depth-core": "0.1.1~beta.5",
+        "nuvo-depth-gateway": "0.1.1~beta.5",
+        "nuvo-depth-platform-pi5": "0.1.1~beta.5",
+        "nuvo-depth-tools": "0.1.1~beta.5",
+        "python3-nuvo-depth": "0.1.1~beta.5"
+      },
+      "dpkg_audit_empty": true,
+      "services_active": {
+        "nuvo-depthd-native.service": true,
+        "nuvo-gateway.service": true
+      },
+      "throttled": "throttled=0x0"
+    },
+    "post_public_installer_rerun": {
+      "utc": "2026-10-21T20:32:57Z",
+      "automatic_fresh_browser_session": true,
+      "no_claim_or_owner_secret_used": true,
+      "secure_cookie": true,
+      "no_login_controls_in_served_html": true,
+      "live_mono_frames_without_claim": 4,
+      "unique_increasing_capture_ids": true,
+      "invalid_csrf_rejected": true,
+      "critical_files_compared": 22,
+      "critical_files_changed": [],
+      "identity_calibration_auth_wifi_and_controls_preserved": true,
+      "packages": {
+        "libnuvo-depth1": "0.1.1~beta.5",
+        "nuvo-depth": "0.1.1~beta.5",
+        "nuvo-depth-calibration": "0.1.1~beta.5",
+        "nuvo-depth-core": "0.1.1~beta.5",
+        "nuvo-depth-gateway": "0.1.1~beta.5",
+        "nuvo-depth-platform-pi5": "0.1.1~beta.5",
+        "nuvo-depth-tools": "0.1.1~beta.5",
+        "python3-nuvo-depth": "0.1.1~beta.5"
+      },
+      "dpkg_audit_empty": true,
+      "services_active": {
+        "nuvo-depthd-native.service": true,
+        "nuvo-gateway.service": true
+      },
+      "throttled": "throttled=0x0"
+    }
+  },
+  "rendered_browser_validation": {
+    "status": "blocked",
+    "reason": "ERR_CERT_AUTHORITY_INVALID for the device self-signed certificate",
+    "certificate_bypass_used": false,
+    "claims_supported_instead": [
+      "Certificate-verified API clients",
+      "Served HTML has no login controls",
+      "Previously passing frontend behavior/static tests"
+    ]
+  },
+  "benchmark": {
+    "schema_version": 1,
+    "generated_utc": "2026-10-21T20:28:10.971387+00:00",
+    "runtime_artifact": {
+      "commit": "0820d50f84c7b4f7c6bb14efe57e79cb2f83b48f",
+      "record": {
+        "schema_version": 1,
+        "source_commit": "0820d50f84c7b4f7c6bb14efe57e79cb2f83b48f",
+        "version": "0.1.1~beta.5",
+        "architecture": "arm64",
+        "codename": "trixie",
+        "workflow_run": "https://github.com/arputhamips/nuvo-depth/actions/runs/39668603486",
+        "hardware_tests": "not run: hosted ARM64 builder has no Pi cameras",
+        "tag": "v0.1.1-beta.5"
+      },
+      "packages": [
+        {
+          "name": "libnuvo-depth1_0.1.1.beta.5_arm64.deb",
+          "sha256": "d276e3fc44302a76d3ce3417d707c46d8305208e1d496bf83f23fca2052627ab"
+        },
+        {
+          "name": "nuvo-depth-core_0.1.1.beta.5_arm64.deb",
+          "sha256": "097db8814aeb1b1df87d1b0bb0a4be9624026581ba55ddd58f771ff96e435020"
+        },
+        {
+          "name": "nuvo-depth-gateway_0.1.1.beta.5_arm64.deb",
+          "sha256": "7d98595e12c1830e05a5436e391dcbb2ddd017132215770fc5ffd158db8f27fa"
+        },
+        {
+          "name": "python3-nuvo-depth_0.1.1.beta.5_all.deb",
+          "sha256": "94142ecf6efe7fbb377285ec8ac89e6a78c553b2e162d8c3abcb87784b037683"
+        }
+      ]
+    },
+    "provenance": {
+      "installed_static_payload_files_verified": 68,
+      "registered_conffiles_preserved": [
+        {
+          "package": "nuvo-depth-core",
+          "path": "/etc/nuvo-depth/appliance.yaml",
+          "packaged_sha256": "79f94808fb8eb536dc1caef16e46de5bad6dd2e2cde70d16ee1c69994ba7d856",
+          "installed_sha256": "79f94808fb8eb536dc1caef16e46de5bad6dd2e2cde70d16ee1c69994ba7d856",
+          "matches_packaged_default": true
+        },
+        {
+          "package": "nuvo-depth-core",
+          "path": "/etc/nuvo-depth/daemon.yaml",
+          "packaged_sha256": "e5a8956ea4a77780d9e588f467d769f489d42212c82125d5b416da962f4043ac",
+          "installed_sha256": "a4eeddf9c96ae9a7a270b8aaaf53e2a4de3e377c15efd4c938b2f1edb904bea5",
+          "matches_packaged_default": false
+        },
+        {
+          "package": "nuvo-depth-core",
+          "path": "/etc/nuvo-depth/encoding.json",
+          "packaged_sha256": "888481c65790c1e90f7fcd4f1d9c44e8ca2644247aac4730f9b67117f2e902b7",
+          "installed_sha256": "f6ce0b1fda47be9216581be86d252535e061823fe18e0c6c8cc6f722c55ad78a",
+          "matches_packaged_default": false
+        },
+        {
+          "package": "nuvo-depth-core",
+          "path": "/etc/nuvo-depth/exposure.json",
+          "packaged_sha256": "a28847f88293e4a3c284dac470a7b23ab063010925c5c969223a6d9a6b7a64bf",
+          "installed_sha256": "74d08390daedd2cfaa759d24978d40dc5a6c034f85cb0e42381466106080a1e5",
+          "matches_packaged_default": false
+        },
+        {
+          "package": "nuvo-depth-core",
+          "path": "/etc/nuvo-depth/stereo.json",
+          "packaged_sha256": "2a57270936dd4969f1a4f1c49f65bf64ca2b9876b704698dac3f6bced6564cb8",
+          "installed_sha256": "dbaf4abf375916e5565c4955cbff3ba4d19fd86d32815a665493ab4d40409548",
+          "matches_packaged_default": false
+        }
+      ],
+      "installed_regular_payload_files_examined": 73,
+      "binary_sha256": {
+        "usr/lib/aarch64-linux-gnu/libnuvo-depth.so.0.1.1": "4533bd4004762550c37dd40d2191d293c541561811c384978506d66142878058",
+        "usr/bin/depthd": "3848639c5b9395192842bbb867da6e32801386819a47c47c91a9bde2ca7d9ceb",
+        "usr/lib/nuvo-depthd/depthd": "3848639c5b9395192842bbb867da6e32801386819a47c47c91a9bde2ca7d9ceb",
+        "usr/lib/nuvo-depth/nuvo-gateway": "6f49fc8a2a6ff9e36be8592f8b5c1e4e142bc5c17d84962432aed280649a521f"
+      },
+      "source_commit": "0820d50f84c7b4f7c6bb14efe57e79cb2f83b48f",
+      "release": "v0.1.1-beta.5",
+      "version": "0.1.1~beta.5",
+      "runtime_packages": {
+        "libnuvo-depth1": {
+          "version": "0.1.1~beta.5",
+          "architecture": "arm64"
+        },
+        "nuvo-depth-core": {
+          "version": "0.1.1~beta.5",
+          "architecture": "arm64"
+        },
+        "nuvo-depth-gateway": {
+          "version": "0.1.1~beta.5",
+          "architecture": "arm64"
+        },
+        "python3-nuvo-depth": {
+          "version": "0.1.1~beta.5",
+          "architecture": "all"
+        }
+      },
+      "complete_release_cohort": {
+        "libnuvo-depth1": {
+          "version": "0.1.1~beta.5",
+          "architecture": "arm64"
+        },
+        "nuvo-depth-calibration": {
+          "version": "0.1.1~beta.5",
+          "architecture": "all"
+        },
+        "nuvo-depth-core": {
+          "version": "0.1.1~beta.5",
+          "architecture": "arm64"
+        },
+        "nuvo-depth-gateway": {
+          "version": "0.1.1~beta.5",
+          "architecture": "arm64"
+        },
+        "nuvo-depth-platform-pi5": {
+          "version": "0.1.1~beta.5",
+          "architecture": "arm64"
+        },
+        "nuvo-depth-tools": {
+          "version": "0.1.1~beta.5",
+          "architecture": "all"
+        },
+        "nuvo-depth": {
+          "version": "0.1.1~beta.5",
+          "architecture": "arm64"
+        },
+        "python3-nuvo-depth": {
+          "version": "0.1.1~beta.5",
+          "architecture": "all"
+        }
+      },
+      "signed_bundle_manifest_sha256": "5e1fd48fdb5d19040ce8986becc57faf2f4d4acba24c0a51ed8e4d935a631c21",
+      "platform": {
+        "model": "Raspberry Pi 5 Model B Rev 1.1",
+        "kernel": "6.12.75+rpt-rpi-2712",
+        "governor": "ondemand",
+        "memory_kib": 16608160
+      }
+    },
+    "original_controls": {
+      "utc": "2026-10-21T20:22:18Z",
+      "stereo": {
+        "algorithm": "sgbm",
+        "block_size": 5,
+        "bm_pre_filter_size": 9,
+        "bm_texture_threshold": 10,
+        "disparity_12_max_diff": 1,
+        "max_disparity": 96,
+        "median_filter_size": 5,
+        "min_disparity": 0,
+        "opencv_threads": 2,
+        "pre_filter_cap": 31,
+        "schema_version": 1,
+        "search_range": 96,
+        "sgbm_mode": "hh",
+        "speckle_range": 2,
+        "speckle_window_size": 30,
+        "specular_threshold": 256,
+        "uniqueness_ratio": 0
+      },
+      "encoding": {
+        "bitrate_bps": 8000000,
+        "cadence_hz": 10,
+        "codec": "h264",
+        "height": 0,
+        "jpeg_quality": 80,
+        "keyframe_interval": 1,
+        "low_latency": true,
+        "mode": "both",
+        "preset": "veryfast",
+        "schema_version": 1,
+        "source": "depth",
+        "threads": 2,
+        "width": 0
+      },
+      "protected_file_count": 99
+    },
+    "qualification_scope": {
+      "release": "v0.1.1-beta.5",
+      "source_commit": "0820d50f84c7b4f7c6bb14efe57e79cb2f83b48f",
+      "runtime": "Installed signed beta5 cohort; package hashes identify measured bytes",
+      "browser_session": "Automatic GET session; no claim token/code/password supplied"
+    },
+    "temporary_encoding_configuration": {
+      "bitrate_bps": 8000000,
+      "cadence_hz": 10,
+      "codec": "h264",
+      "height": 0,
+      "jpeg_quality": 80,
+      "keyframe_interval": 1,
+      "low_latency": true,
+      "mode": "both",
+      "preset": "veryfast",
+      "schema_version": 1,
+      "source": "left_color",
+      "threads": 2,
+      "width": 0
+    },
+    "method": {
+      "warmup_seconds": 5,
+      "measurement_seconds": 60,
+      "location": "Pi-local TLS",
+      "preview_request": "H264 left_color encoded stream at10Hz",
+      "depth_request": "Raw depth,left_mono best_effort at10Hz",
+      "fps": "Unique increasing capture identities; (frames-1)/(last-arrival-first-arrival), plus frames/60seconds",
+      "latency": "Capture CLOCK_BOOTTIME to full received and SDK-envelope-validated packet; excludes H264 decoding/browser rendering/display.",
+      "cpu": "Cgroup CPU seconds/wall seconds;100% equals one core. Observer reported separately.",
+      "matcher_timing": "Deduplicate nested matcher_statistics.capture_sequence within stable run/epoch; repeated mono-only top-level timing excluded.",
+      "matcher_work": "Sum unique observed completed matcher processing_ms; boundary and polling effects apply; compare sample count with matched_frames delta."
+    },
+    "runs": [
+      {
+        "location": "pi_local_tls",
+        "case": "pi_preview_only",
+        "utc_completed": "2026-10-21T20:23:28Z",
+        "duration_seconds": 60.001093731,
+        "browser_session_bootstrap": {
+          "method": "GET",
+          "path": "/api/v1/session",
+          "credential_input": false,
+          "owner_password_required": false,
+          "secure_http_only_same_site_strict": true
+        },
+        "streams": [
+          {
+            "kind": "encoded",
+            "requested_hz": 10,
+            "delivery": "encoded",
+            "frames": 597,
+            "fps": 9.949288528453994,
+            "frames_per_measurement_second": 9.949818626248735,
+            "latency_ms": {
+              "count": 597,
+              "p50": 80.988181,
+              "p95": 128.397006,
+              "max": 175.508583
+            },
+            "interframe_ms": {
+              "count": 596,
+              "p50": 100.4899595,
+              "p95": 101.064701,
+              "max": 144.935427
+            },
+            "unique_increasing_captures": true,
+            "errors": [],
+            "first_capture_sequence": 74,
+            "last_capture_sequence": 673,
+            "capture_epoch": 2,
+            "run_id": "a967c82a3f3a",
+            "codec": "h264",
+            "source": "left_color",
+            "shape": [
+              728,
+              544
+            ],
+            "bytes_per_second": 985703.5317581751,
+            "keyframes": 597
+          }
+        ],
+        "associated_image_checks": [],
+        "telemetry_seconds": 59.963117344,
+        "cpu_one_core_percent": {
+          "nuvo-depthd-native.service": 19.532223337904785,
+          "nuvo-gateway.service": 0.8788452357751388
+        },
+        "capture_fps": 9.989473972202296,
+        "matcher_fps": 0.0,
+        "encoded_fps": 9.989473972202296,
+        "counter_deltas": {
+          "captured_pairs": 599,
+          "published_frames": 0,
+          "matched_frames": 0,
+          "encoded_frames": 599,
+          "scheduler_accepted": 0,
+          "scheduler_pending_replaced": 0,
+          "scheduler_protected_pending_dropped": 0,
+          "scheduler_processed": 0,
+          "scheduler_processing_failures": 0,
+          "scheduler_storage_exhausted_dropped": 0,
+          "scheduler_completed_dropped": 0,
+          "stale_dropped": 0,
+          "capacity_dropped": 0,
+          "trigger_errors": 0,
+          "frame_completion_errors": 0,
+          "request_requeue_failures": 0,
+          "encoding_image_admitted": 599,
+          "encoding_image_copies": 599,
+          "encoding_image_pool_dropped": 0,
+          "encoding_numeric_admitted": 0,
+          "exposure_configuration_errors": 0,
+          "capture_sequence_gaps": 0,
+          "ready_pair_replacements": 0,
+          "raw_cadence_skipped": 0
+        },
+        "matcher_statistics_samples": 0,
+        "matcher_ms": {
+          "processing_ms": null,
+          "rectification_ms": null,
+          "stereo_preprocess_ms": null,
+          "stereo_match_ms": null,
+          "stereo_postprocess_ms": null
+        },
+        "matcher_work": {
+          "unique_observed_completions": 0,
+          "matched_frames_delta": 0,
+          "observed_processing_total_ms": 0,
+          "observed_processing_wall_fraction": 0.0,
+          "method": "Sum of unique completed nested matcher_statistics.processing_ms / observed wall interval; boundary and polling sampling apply; not all-core utilization."
+        },
+        "temperature_c": {
+          "count": 1455,
+          "p50": 50.7,
+          "p95": 51.8,
+          "max": 53.45
+        },
+        "throttled": "throttled=0x0",
+        "status_errors": {
+          "stereo_configuration_error": [],
+          "encoding_configuration_error": [],
+          "exposure_last_error": []
+        },
+        "start_counters": {
+          "capture_epoch": 2,
+          "captured_pairs": 74,
+          "published_frames": 0,
+          "matched_frames": 0,
+          "encoded_frames": 51
+        },
+        "end_counters": {
+          "capture_epoch": 2,
+          "captured_pairs": 673,
+          "published_frames": 0,
+          "matched_frames": 0,
+          "encoded_frames": 650
+        },
+        "observer_total_cpu_seconds": 2.284092817
+      },
+      {
+        "location": "pi_local_tls",
+        "case": "pi_depth_only10",
+        "utc_completed": "2026-10-21T20:24:34Z",
+        "duration_seconds": 60.000268337,
+        "browser_session_bootstrap": {
+          "method": "GET",
+          "path": "/api/v1/session",
+          "credential_input": false,
+          "owner_password_required": false,
+          "secure_http_only_same_site_strict": true
+        },
+        "streams": [
+          {
+            "kind": "depth",
+            "requested_hz": 10,
+            "delivery": "best_effort",
+            "frames": 187,
+            "fps": 3.1118434137562203,
+            "frames_per_measurement_second": 3.116652728112615,
+            "latency_ms": {
+              "count": 187,
+              "p50": 417.140297,
+              "p95": 468.417365,
+              "max": 501.846158
+            },
+            "interframe_ms": {
+              "count": 186,
+              "p50": 319.354291,
+              "p95": 351.492595,
+              "max": 392.971595
+            },
+            "unique_increasing_captures": true,
+            "errors": [],
+            "first_capture_sequence": 731,
+            "last_capture_sequence": 1329,
+            "capture_epoch": 2,
+            "run_id": "a967c82a3f3a",
+            "products": [
+              "depth",
+              "left_mono"
+            ],
+            "shapes": {
+              "depth": [
+                728,
+                544
+              ],
+              "left_mono": [
+                728,
+                544
+              ]
+            },
+            "associated_descriptor_checks": true,
+            "configuration_epochs": [
+              1
+            ],
+            "calibration_hashes": [
+              "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2"
+            ]
+          }
+        ],
+        "associated_image_checks": [],
+        "telemetry_seconds": 59.938046679,
+        "cpu_one_core_percent": {
+          "nuvo-depthd-native.service": 105.0613983756379,
+          "nuvo-gateway.service": 2.5648233220429804
+        },
+        "capture_fps": 9.993652332515312,
+        "matcher_fps": 3.1032042301299634,
+        "encoded_fps": 0.0,
+        "counter_deltas": {
+          "captured_pairs": 599,
+          "published_frames": 186,
+          "matched_frames": 186,
+          "encoded_frames": 0,
+          "scheduler_accepted": 599,
+          "scheduler_pending_replaced": 412,
+          "scheduler_protected_pending_dropped": 0,
+          "scheduler_processed": 186,
+          "scheduler_processing_failures": 0,
+          "scheduler_storage_exhausted_dropped": 0,
+          "scheduler_completed_dropped": 0,
+          "stale_dropped": 0,
+          "capacity_dropped": 0,
+          "trigger_errors": 0,
+          "frame_completion_errors": 0,
+          "request_requeue_failures": 0,
+          "encoding_image_admitted": 0,
+          "encoding_image_copies": 0,
+          "encoding_image_pool_dropped": 0,
+          "encoding_numeric_admitted": 0,
+          "exposure_configuration_errors": 0,
+          "capture_sequence_gaps": 412,
+          "ready_pair_replacements": 0,
+          "raw_cadence_skipped": 0
+        },
+        "matcher_statistics_samples": 186,
+        "matcher_ms": {
+          "processing_ms": {
+            "count": 186,
+            "p50": 318.6495,
+            "p95": 348.008,
+            "max": 362.641
+          },
+          "rectification_ms": {
+            "count": 186,
+            "p50": 4.786155,
+            "p95": 7.86859,
+            "max": 9.89431
+          },
+          "stereo_preprocess_ms": {
+            "count": 186,
+            "p50": 0.0022965,
+            "p95": 0.003463,
+            "max": 0.04663
+          },
+          "stereo_match_ms": {
+            "count": 186,
+            "p50": 307.1735,
+            "p95": 336.942,
+            "max": 349.005
+          },
+          "stereo_postprocess_ms": {
+            "count": 186,
+            "p50": 3.752135,
+            "p95": 3.94232,
+            "max": 4.75692
+          }
+        },
+        "matcher_work": {
+          "unique_observed_completions": 186,
+          "matched_frames_delta": 186,
+          "observed_processing_total_ms": 59767.959,
+          "observed_processing_wall_fraction": 0.9971622752421193,
+          "method": "Sum of unique completed nested matcher_statistics.processing_ms / observed wall interval; boundary and polling sampling apply; not all-core utilization."
+        },
+        "temperature_c": {
+          "count": 1436,
+          "p50": 58.125,
+          "p95": 59.5,
+          "max": 61.15
+        },
+        "throttled": "throttled=0x0",
+        "status_errors": {
+          "stereo_configuration_error": [],
+          "encoding_configuration_error": [],
+          "exposure_last_error": []
+        },
+        "start_counters": {
+          "capture_epoch": 2,
+          "captured_pairs": 735,
+          "published_frames": 15,
+          "matched_frames": 15,
+          "encoded_frames": 655
+        },
+        "end_counters": {
+          "capture_epoch": 2,
+          "captured_pairs": 1334,
+          "published_frames": 201,
+          "matched_frames": 201,
+          "encoded_frames": 655
+        },
+        "observer_total_cpu_seconds": 4.3312593800000005
+      },
+      {
+        "location": "pi_local_tls",
+        "case": "pi_preview_depth10_1",
+        "utc_completed": "2026-10-21T20:25:40Z",
+        "duration_seconds": 60.002173652,
+        "browser_session_bootstrap": {
+          "method": "GET",
+          "path": "/api/v1/session",
+          "credential_input": false,
+          "owner_password_required": false,
+          "secure_http_only_same_site_strict": true
+        },
+        "streams": [
+          {
+            "kind": "encoded",
+            "requested_hz": 10,
+            "delivery": "encoded",
+            "frames": 596,
+            "fps": 9.93157445219445,
+            "frames_per_measurement_second": 9.932973486205263,
+            "latency_ms": {
+              "count": 596,
+              "p50": 89.023763,
+              "p95": 131.946364,
+              "max": 165.401089
+            },
+            "interframe_ms": {
+              "count": 595,
+              "p50": 100.566793,
+              "p95": 103.552363,
+              "max": 147.978583
+            },
+            "unique_increasing_captures": true,
+            "errors": [],
+            "first_capture_sequence": 1398,
+            "last_capture_sequence": 1997,
+            "capture_epoch": 2,
+            "run_id": "a967c82a3f3a",
+            "codec": "h264",
+            "source": "left_color",
+            "shape": [
+              728,
+              544
+            ],
+            "bytes_per_second": 1006075.4190358877,
+            "keyframes": 596
+          },
+          {
+            "kind": "depth",
+            "requested_hz": 10,
+            "delivery": "best_effort",
+            "frames": 187,
+            "fps": 3.1014477396256384,
+            "frames_per_measurement_second": 3.116553761611383,
+            "latency_ms": {
+              "count": 187,
+              "p50": 411.725393,
+              "p95": 482.420101,
+              "max": 595.043151
+            },
+            "interframe_ms": {
+              "count": 186,
+              "p50": 315.006994,
+              "p95": 364.52497,
+              "max": 498.637935
+            },
+            "unique_increasing_captures": true,
+            "errors": [],
+            "first_capture_sequence": 1394,
+            "last_capture_sequence": 1994,
+            "capture_epoch": 2,
+            "run_id": "a967c82a3f3a",
+            "products": [
+              "depth",
+              "left_mono"
+            ],
+            "shapes": {
+              "depth": [
+                728,
+                544
+              ],
+              "left_mono": [
+                728,
+                544
+              ]
+            },
+            "associated_descriptor_checks": true,
+            "configuration_epochs": [
+              1
+            ],
+            "calibration_hashes": [
+              "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2"
+            ]
+          }
+        ],
+        "associated_image_checks": [
+          {
+            "streams": [
+              "encoded",
+              "depth"
+            ],
+            "common_captures": 185,
+            "mismatches": 0,
+            "compared_fields": [
+              "capture_time_ns"
+            ]
+          }
+        ],
+        "telemetry_seconds": 59.932796579,
+        "cpu_one_core_percent": {
+          "nuvo-depthd-native.service": 119.44028993481419,
+          "nuvo-gateway.service": 3.4759399175608428
+        },
+        "capture_fps": 10.011213129511054,
+        "matcher_fps": 3.1034760701484267,
+        "encoded_fps": 10.011213129511054,
+        "counter_deltas": {
+          "captured_pairs": 600,
+          "published_frames": 186,
+          "matched_frames": 186,
+          "encoded_frames": 600,
+          "scheduler_accepted": 600,
+          "scheduler_pending_replaced": 414,
+          "scheduler_protected_pending_dropped": 0,
+          "scheduler_processed": 186,
+          "scheduler_processing_failures": 0,
+          "scheduler_storage_exhausted_dropped": 0,
+          "scheduler_completed_dropped": 0,
+          "stale_dropped": 0,
+          "capacity_dropped": 0,
+          "trigger_errors": 0,
+          "frame_completion_errors": 0,
+          "request_requeue_failures": 0,
+          "encoding_image_admitted": 600,
+          "encoding_image_copies": 600,
+          "encoding_image_pool_dropped": 0,
+          "encoding_numeric_admitted": 0,
+          "exposure_configuration_errors": 0,
+          "capture_sequence_gaps": 414,
+          "ready_pair_replacements": 0,
+          "raw_cadence_skipped": 0
+        },
+        "matcher_statistics_samples": 186,
+        "matcher_ms": {
+          "processing_ms": {
+            "count": 186,
+            "p50": 314.83799999999997,
+            "p95": 359.259,
+            "max": 474.206
+          },
+          "rectification_ms": {
+            "count": 186,
+            "p50": 5.214295,
+            "p95": 8.73217,
+            "max": 13.8971
+          },
+          "stereo_preprocess_ms": {
+            "count": 186,
+            "p50": 0.002389,
+            "p95": 0.003574,
+            "max": 0.00626
+          },
+          "stereo_match_ms": {
+            "count": 186,
+            "p50": 302.3375,
+            "p95": 346.784,
+            "max": 460.176
+          },
+          "stereo_postprocess_ms": {
+            "count": 186,
+            "p50": 3.73399,
+            "p95": 4.25038,
+            "max": 5.49304
+          }
+        },
+        "matcher_work": {
+          "unique_observed_completions": 186,
+          "matched_frames_delta": 186,
+          "observed_processing_total_ms": 59992.579,
+          "observed_processing_wall_fraction": 1.0009974909300488,
+          "method": "Sum of unique completed nested matcher_statistics.processing_ms / observed wall interval; boundary and polling sampling apply; not all-core utilization."
+        },
+        "temperature_c": {
+          "count": 1437,
+          "p50": 60.05,
+          "p95": 61.7,
+          "max": 63.35
+        },
+        "throttled": "throttled=0x0",
+        "status_errors": {
+          "stereo_configuration_error": [],
+          "encoding_configuration_error": [],
+          "exposure_last_error": []
+        },
+        "start_counters": {
+          "capture_epoch": 2,
+          "captured_pairs": 1397,
+          "published_frames": 220,
+          "matched_frames": 220,
+          "encoded_frames": 705
+        },
+        "end_counters": {
+          "capture_epoch": 2,
+          "captured_pairs": 1997,
+          "published_frames": 406,
+          "matched_frames": 406,
+          "encoded_frames": 1305
+        },
+        "observer_total_cpu_seconds": 4.932007841000001
+      },
+      {
+        "location": "pi_local_tls",
+        "case": "pi_preview_depth10_2",
+        "utc_completed": "2026-10-21T20:26:47Z",
+        "duration_seconds": 60.000179098,
+        "browser_session_bootstrap": {
+          "method": "GET",
+          "path": "/api/v1/session",
+          "credential_input": false,
+          "owner_password_required": false,
+          "secure_http_only_same_site_strict": true
+        },
+        "streams": [
+          {
+            "kind": "encoded",
+            "requested_hz": 10,
+            "delivery": "encoded",
+            "frames": 596,
+            "fps": 9.936177489522077,
+            "frames_per_measurement_second": 9.93330368275295,
+            "latency_ms": {
+              "count": 596,
+              "p50": 82.9940075,
+              "p95": 126.712526,
+              "max": 170.907099
+            },
+            "interframe_ms": {
+              "count": 595,
+              "p50": 100.572722,
+              "p95": 103.5057,
+              "max": 147.156616
+            },
+            "unique_increasing_captures": true,
+            "errors": [],
+            "first_capture_sequence": 2060,
+            "last_capture_sequence": 2659,
+            "capture_epoch": 2,
+            "run_id": "a967c82a3f3a",
+            "codec": "h264",
+            "source": "left_color",
+            "shape": [
+              728,
+              544
+            ],
+            "bytes_per_second": 995693.8445537306,
+            "keyframes": 596
+          },
+          {
+            "kind": "depth",
+            "requested_hz": 10,
+            "delivery": "best_effort",
+            "frames": 190,
+            "fps": 3.169672080369444,
+            "frames_per_measurement_second": 3.1666572143004372,
+            "latency_ms": {
+              "count": 190,
+              "p50": 408.4522015,
+              "p95": 453.925574,
+              "max": 495.687719
+            },
+            "interframe_ms": {
+              "count": 189,
+              "p50": 312.852567,
+              "p95": 341.110494,
+              "max": 371.656471
+            },
+            "unique_increasing_captures": true,
+            "errors": [],
+            "first_capture_sequence": 2057,
+            "last_capture_sequence": 2653,
+            "capture_epoch": 2,
+            "run_id": "a967c82a3f3a",
+            "products": [
+              "depth",
+              "left_mono"
+            ],
+            "shapes": {
+              "depth": [
+                728,
+                544
+              ],
+              "left_mono": [
+                728,
+                544
+              ]
+            },
+            "associated_descriptor_checks": true,
+            "configuration_epochs": [
+              1
+            ],
+            "calibration_hashes": [
+              "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2"
+            ]
+          }
+        ],
+        "associated_image_checks": [
+          {
+            "streams": [
+              "encoded",
+              "depth"
+            ],
+            "common_captures": 189,
+            "mismatches": 0,
+            "compared_fields": [
+              "capture_time_ns"
+            ]
+          }
+        ],
+        "telemetry_seconds": 59.960633617,
+        "cpu_one_core_percent": {
+          "nuvo-depthd-native.service": 119.72172685588052,
+          "nuvo-gateway.service": 3.506732456215832
+        },
+        "capture_fps": 10.006565371415428,
+        "matcher_fps": 3.168745700948219,
+        "encoded_fps": 9.989887762463068,
+        "counter_deltas": {
+          "captured_pairs": 600,
+          "published_frames": 190,
+          "matched_frames": 190,
+          "encoded_frames": 599,
+          "scheduler_accepted": 600,
+          "scheduler_pending_replaced": 410,
+          "scheduler_protected_pending_dropped": 0,
+          "scheduler_processed": 190,
+          "scheduler_processing_failures": 0,
+          "scheduler_storage_exhausted_dropped": 0,
+          "scheduler_completed_dropped": 0,
+          "stale_dropped": 0,
+          "capacity_dropped": 0,
+          "trigger_errors": 0,
+          "frame_completion_errors": 0,
+          "request_requeue_failures": 0,
+          "encoding_image_admitted": 600,
+          "encoding_image_copies": 600,
+          "encoding_image_pool_dropped": 0,
+          "encoding_numeric_admitted": 0,
+          "exposure_configuration_errors": 0,
+          "capture_sequence_gaps": 409,
+          "ready_pair_replacements": 0,
+          "raw_cadence_skipped": 0
+        },
+        "matcher_statistics_samples": 190,
+        "matcher_ms": {
+          "processing_ms": {
+            "count": 190,
+            "p50": 312.6835,
+            "p95": 329.643,
+            "max": 371.662
+          },
+          "rectification_ms": {
+            "count": 190,
+            "p50": 4.21241,
+            "p95": 6.28568,
+            "max": 10.9941
+          },
+          "stereo_preprocess_ms": {
+            "count": 190,
+            "p50": 0.0022500000000000003,
+            "p95": 0.00326,
+            "max": 0.003685
+          },
+          "stereo_match_ms": {
+            "count": 190,
+            "p50": 301.1465,
+            "p95": 318.514,
+            "max": 360.581
+          },
+          "stereo_postprocess_ms": {
+            "count": 190,
+            "p50": 3.729895,
+            "p95": 4.06501,
+            "max": 5.02769
+          }
+        },
+        "matcher_work": {
+          "unique_observed_completions": 190,
+          "matched_frames_delta": 190,
+          "observed_processing_total_ms": 59938.532,
+          "observed_processing_wall_fraction": 0.9996313978744592,
+          "method": "Sum of unique completed nested matcher_statistics.processing_ms / observed wall interval; boundary and polling sampling apply; not all-core utilization."
+        },
+        "temperature_c": {
+          "count": 1443,
+          "p50": 60.6,
+          "p95": 61.7,
+          "max": 62.8
+        },
+        "throttled": "throttled=0x0",
+        "status_errors": {
+          "stereo_configuration_error": [],
+          "encoding_configuration_error": [],
+          "exposure_last_error": []
+        },
+        "start_counters": {
+          "capture_epoch": 2,
+          "captured_pairs": 2059,
+          "published_frames": 424,
+          "matched_frames": 424,
+          "encoded_frames": 1361
+        },
+        "end_counters": {
+          "capture_epoch": 2,
+          "captured_pairs": 2659,
+          "published_frames": 614,
+          "matched_frames": 614,
+          "encoded_frames": 1960
+        },
+        "observer_total_cpu_seconds": 4.759711080999999
+      },
+      {
+        "location": "pi_local_tls",
+        "case": "pi_mono_depth10",
+        "utc_completed": "2026-10-21T20:27:53Z",
+        "duration_seconds": 60.000190276,
+        "browser_session_bootstrap": {
+          "method": "GET",
+          "path": "/api/v1/session",
+          "credential_input": false,
+          "owner_password_required": false,
+          "secure_http_only_same_site_strict": true
+        },
+        "streams": [
+          {
+            "kind": "mono",
+            "requested_hz": 10,
+            "delivery": "best_effort",
+            "frames": 596,
+            "fps": 9.93749566569759,
+            "frames_per_measurement_second": 9.933301832184343,
+            "latency_ms": {
+              "count": 596,
+              "p50": 72.154291,
+              "p95": 123.927889,
+              "max": 165.088854
+            },
+            "interframe_ms": {
+              "count": 595,
+              "p50": 100.529391,
+              "p95": 104.359118,
+              "max": 145.707602
+            },
+            "unique_increasing_captures": true,
+            "errors": [],
+            "first_capture_sequence": 2721,
+            "last_capture_sequence": 3320,
+            "capture_epoch": 2,
+            "run_id": "a967c82a3f3a",
+            "products": [
+              "left_mono"
+            ],
+            "shapes": {
+              "left_mono": [
+                728,
+                544
+              ]
+            },
+            "associated_descriptor_checks": true,
+            "configuration_epochs": [
+              1
+            ],
+            "calibration_hashes": [
+              "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2"
+            ]
+          },
+          {
+            "kind": "depth",
+            "requested_hz": 10,
+            "delivery": "best_effort",
+            "frames": 193,
+            "fps": 3.211219600524025,
+            "frames_per_measurement_second": 3.2166564657912384,
+            "latency_ms": {
+              "count": 193,
+              "p50": 401.601068,
+              "p95": 450.637109,
+              "max": 489.51674
+            },
+            "interframe_ms": {
+              "count": 192,
+              "p50": 308.984235,
+              "p95": 347.601006,
+              "max": 375.693151
+            },
+            "unique_increasing_captures": true,
+            "errors": [],
+            "first_capture_sequence": 2718,
+            "last_capture_sequence": 3316,
+            "capture_epoch": 2,
+            "run_id": "a967c82a3f3a",
+            "products": [
+              "depth",
+              "left_mono"
+            ],
+            "shapes": {
+              "depth": [
+                728,
+                544
+              ],
+              "left_mono": [
+                728,
+                544
+              ]
+            },
+            "associated_descriptor_checks": true,
+            "configuration_epochs": [
+              1
+            ],
+            "calibration_hashes": [
+              "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2"
+            ]
+          }
+        ],
+        "associated_image_checks": [
+          {
+            "streams": [
+              "mono",
+              "depth"
+            ],
+            "common_captures": 192,
+            "mismatches": 0,
+            "compared_fields": [
+              "capture_time_ns",
+              "configuration_epoch",
+              "mono_sha256",
+              "calibration_sha256"
+            ]
+          }
+        ],
+        "telemetry_seconds": 59.981973534,
+        "cpu_one_core_percent": {
+          "nuvo-depthd-native.service": 106.12626969320554,
+          "nuvo-gateway.service": 4.7677224197682895
+        },
+        "capture_fps": 10.00300531391982,
+        "matcher_fps": 3.217633375977542,
+        "encoded_fps": 0.0,
+        "counter_deltas": {
+          "captured_pairs": 600,
+          "published_frames": 793,
+          "matched_frames": 193,
+          "encoded_frames": 0,
+          "scheduler_accepted": 1200,
+          "scheduler_pending_replaced": 407,
+          "scheduler_protected_pending_dropped": 0,
+          "scheduler_processed": 793,
+          "scheduler_processing_failures": 0,
+          "scheduler_storage_exhausted_dropped": 0,
+          "scheduler_completed_dropped": 0,
+          "stale_dropped": 0,
+          "capacity_dropped": 0,
+          "trigger_errors": 0,
+          "frame_completion_errors": 0,
+          "request_requeue_failures": 0,
+          "encoding_image_admitted": 0,
+          "encoding_image_copies": 0,
+          "encoding_image_pool_dropped": 0,
+          "encoding_numeric_admitted": 0,
+          "exposure_configuration_errors": 0,
+          "capture_sequence_gaps": 0,
+          "ready_pair_replacements": 0,
+          "raw_cadence_skipped": 0
+        },
+        "matcher_statistics_samples": 193,
+        "matcher_ms": {
+          "processing_ms": {
+            "count": 193,
+            "p50": 308.786,
+            "p95": 327.819,
+            "max": 381.92
+          },
+          "rectification_ms": {
+            "count": 193,
+            "p50": 4.16247,
+            "p95": 5.50973,
+            "max": 7.85357
+          },
+          "stereo_preprocess_ms": {
+            "count": 193,
+            "p50": 0.002333,
+            "p95": 0.003371,
+            "max": 0.004426
+          },
+          "stereo_match_ms": {
+            "count": 193,
+            "p50": 297.504,
+            "p95": 315.572,
+            "max": 370.236
+          },
+          "stereo_postprocess_ms": {
+            "count": 193,
+            "p50": 3.72428,
+            "p95": 3.98025,
+            "max": 4.75761
+          }
+        },
+        "matcher_work": {
+          "unique_observed_completions": 193,
+          "matched_frames_delta": 193,
+          "observed_processing_total_ms": 60099.29,
+          "observed_processing_wall_fraction": 1.0019558620546805,
+          "method": "Sum of unique completed nested matcher_statistics.processing_ms / observed wall interval; boundary and polling sampling apply; not all-core utilization."
+        },
+        "temperature_c": {
+          "count": 1447,
+          "p50": 61.7,
+          "p95": 62.25,
+          "max": 63.35
+        },
+        "throttled": "throttled=0x0",
+        "status_errors": {
+          "stereo_configuration_error": [],
+          "encoding_configuration_error": [],
+          "exposure_last_error": []
+        },
+        "start_counters": {
+          "capture_epoch": 2,
+          "captured_pairs": 2721,
+          "published_frames": 683,
+          "matched_frames": 633,
+          "encoded_frames": 1966
+        },
+        "end_counters": {
+          "capture_epoch": 2,
+          "captured_pairs": 3321,
+          "published_frames": 1476,
+          "matched_frames": 826,
+          "encoded_frames": 1966
+        },
+        "observer_total_cpu_seconds": 6.101524675
+      }
+    ],
+    "baseline_comparisons": [
+      {
+        "case": "pi_preview_depth10_1",
+        "preview_fps_change_percent": -0.17804364813507334,
+        "preview_interframe_p95_change_ms": 2.4876620000000003,
+        "preview_packet_latency_p95_change_ms": 3.549357999999984,
+        "depth_fps_change_vs_depth_only_percent": -0.3340680345491287
+      },
+      {
+        "case": "pi_preview_depth10_2",
+        "preview_fps_change_percent": -0.13177865828718494,
+        "preview_interframe_p95_change_ms": 2.440999000000005,
+        "preview_packet_latency_p95_change_ms": -1.6844800000000077,
+        "depth_fps_change_vs_depth_only_percent": 1.8583411478092282
+      }
+    ],
+    "frame_audits": [
+      {
+        "case": "pi_preview_only",
+        "kind": "encoded",
+        "unique_captures": 597,
+        "frame_records_sha256": "5f80500183f4a69bbed775f094076e2124f6cdd7454992679ccde40675169bea"
+      },
+      {
+        "case": "pi_depth_only10",
+        "kind": "depth",
+        "unique_captures": 187,
+        "frame_records_sha256": "5a9d0606c2d9f2676a7076cecdcff695e9897060b3c802a973cab96f110683c5"
+      },
+      {
+        "case": "pi_preview_depth10_1",
+        "kind": "encoded",
+        "unique_captures": 596,
+        "frame_records_sha256": "d542731997fdc6d1d6a4f3580cea12ba9f61b1fc7a744543cc4d85201a88f49e"
+      },
+      {
+        "case": "pi_preview_depth10_1",
+        "kind": "depth",
+        "unique_captures": 187,
+        "frame_records_sha256": "bc4cf194016f0b99f05148ecd18a8b8df0ca9abc7ac5dc1c3ed57f74e94301e2"
+      },
+      {
+        "case": "pi_preview_depth10_2",
+        "kind": "encoded",
+        "unique_captures": 596,
+        "frame_records_sha256": "0c20baf6a0d38e0d027ed1d72f297a5df6ce076ad8f7fd0c3649d5739d14a609"
+      },
+      {
+        "case": "pi_preview_depth10_2",
+        "kind": "depth",
+        "unique_captures": 190,
+        "frame_records_sha256": "ce08c226d7467e3e36a79344e75064b3e0a419a7195e340f6d5e2fee39ecb0ca"
+      },
+      {
+        "case": "pi_mono_depth10",
+        "kind": "mono",
+        "unique_captures": 596,
+        "frame_records_sha256": "6c704f8c2a324e611cff4c815d3e18c50463738a113d4a7fcca0913e21bc5236"
+      },
+      {
+        "case": "pi_mono_depth10",
+        "kind": "depth",
+        "unique_captures": 193,
+        "frame_records_sha256": "67db86798f1b68393744c233a4b6e4e87bf681bb984813d658fca22cdf1ccf33"
+      }
+    ],
+    "restoration": {
+      "utc": "2026-10-21T20:28:08Z",
+      "worker_fully_inactive": true,
+      "own_overrides_removed": true,
+      "encoding_exact_original": true,
+      "foreign_encoding_preserved": false,
+      "original_service_arguments": {
+        "nuvo-depthd-native.service": true,
+        "nuvo-gateway.service": true
+      },
+      "original_active_states": {
+        "nuvo-depthd-native.service": true,
+        "nuvo-gateway.service": true
+      },
+      "installed_packages_unchanged": true,
+      "protected_files_compared": 99,
+      "protected_files_unchanged": 99,
+      "foreign_changes_preserved": [],
+      "current_stereo": {
+        "algorithm": "sgbm",
+        "block_size": 5,
+        "bm_pre_filter_size": 9,
+        "bm_texture_threshold": 10,
+        "disparity_12_max_diff": 1,
+        "max_disparity": 96,
+        "median_filter_size": 5,
+        "min_disparity": 0,
+        "opencv_threads": 2,
+        "pre_filter_cap": 31,
+        "schema_version": 1,
+        "search_range": 96,
+        "sgbm_mode": "hh",
+        "speckle_range": 2,
+        "speckle_window_size": 30,
+        "specular_threshold": 256,
+        "uniqueness_ratio": 0
+      },
+      "throttled": "throttled=0x0",
+      "own_changes_restored": true,
+      "independent_restore_timer_stopped": true
+    },
+    "limitations": [
+      "Host-local API throughput is not Wi-Fi-delivered or browser-rendered throughput.",
+      "Matched10Hz is requested as an upper bound; actual completion rate and CPU evidence determine attainable performance.",
+      "Depth quality/calibration accuracy and all-core saturation are not established by this benchmark.",
+      "No stereo/calibration/exposure/auth controls were intentionally written; external changes abort the matrix and are preserved."
+    ]
+  },
+  "local_evidence_inputs": [
+    {
+      "file": "beta50820d5020261021-report.json",
+      "sha256": "7785a27893b853628238bbb8de7cb941edfd9b17f4a0beaf81c96888b37b1eaf"
+    },
+    {
+      "file": "beta5-signed-cohort-verification.json",
+      "sha256": "845fad07639da2ee8eed44c43dda95fad87c08112ac84676fdb175da9fe70818"
+    },
+    {
+      "file": "beta5-pi-draft-dry-run.json",
+      "sha256": "c45fbd140d5c5a5db9330db72dbdc9d18ae3e568838efb4b60c7b82f29ec285c"
+    },
+    {
+      "file": "beta5-pi-draft-install.json",
+      "sha256": "a1bfc19855b8fcb0266806eab18c56c6ced883e94aa0b037fa9fbf8dfe6b75bd"
+    },
+    {
+      "file": "beta5-pi-draft-api-check.json",
+      "sha256": "af7500d47d72fa662431a4332628adaaa7b1ed89af436eba5a84222dd26638ea"
+    },
+    {
+      "file": "beta5-pi-prepublish-api-check.json",
+      "sha256": "c85b16c1c24cb2f42c718a2f5f226df972b2cf67aad2187d07519cb95c87744a"
+    },
+    {
+      "file": "beta5-public-download-check.json",
+      "sha256": "589f4a09ab3026040893c431c36a35c83c369d15c20baf124a2f8980cec3d7aa"
+    },
+    {
+      "file": "beta5-pi-online-install.json",
+      "sha256": "3364f70e16861cc7410ff8e1676f867058e50dc8fd263ec423214e7b20b6ff5b"
+    },
+    {
+      "file": "beta5-pi-public-api-check.json",
+      "sha256": "42e1b18085be574a4cb6e4621c7fb16bddc14997f7bfbc7f9e134e4476c960ce"
+    }
+  ]
+}

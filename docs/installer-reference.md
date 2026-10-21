@@ -17,11 +17,14 @@ release repository is [arputhamips/nuvo-depth](https://github.com/arputhamips/nu
 
 The installation version described by these commands is
 [v0.1.1-beta.5](https://github.com/arputhamips/nuvo-depth/releases/tag/v0.1.1-beta.5).
-Use that exact tag after it is explicitly published. The
+Use that exact published tag in the commands below. The
 [October 19 qualification record](release-qualification-20261019.md#uf-01-and-uf-02-physical-setup-acceptance)
 describes the earlier release cohorts' physical first-use/hotspot tests. It is
-not beta 5 fresh-SD, first-user or manufacturing acceptance. The later beta 5
-cohort requires its own package-installation and direct-browser checks.
+not beta 5 fresh-SD, first-user or manufacturing acceptance. The
+[beta 5 qualification record](release-qualification-beta5-20261021.md) covers
+the signed cohort's interactive upgrade, public pinned installer reinstall,
+direct-session API and short Pi-local performance checks, verified public
+downloads, and the blocked rendered-browser inspection separately.
 Physical Pi acceptance, USB power/data qualification and shipping approval
 remain separate gates.
 

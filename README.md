@@ -57,10 +57,13 @@ curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-be
 
 ## Current status
 
-- The public preview has signed packages and tested installation, hotspot,
-  network confirmation and automatic browser sessions.
-- [Qualification evidence](docs/release-qualification-20261019.md) records the
-  tested scope; accepted per-unit calibration is required for metric depth.
+- The public beta 5 signed cohort passed an interactive upgrade, a rerun through
+  its pinned public installer, automatic-session API checks and short Pi-local
+  performance tests. Public downloads match the reviewed package hashes.
+- [Beta 5 qualification evidence](docs/release-qualification-beta5-20261021.md)
+  records the scope and limits. [Earlier setup evidence](docs/release-qualification-20261019.md)
+  covers prior hotspot/network cohorts. Accepted per-unit calibration is
+  required for metric depth.
 - Routine testing uses Actions artifacts. New release candidates are prepared
   manually as drafts and published only after approval.
 - [Changelog](CHANGELOG.md) and [release process](docs/releases.md).

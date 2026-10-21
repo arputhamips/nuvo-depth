@@ -14,8 +14,10 @@ specifications, and qualification evidence.
   stereo matching, streaming, and product delivery.
 - [Operations and troubleshooting](operations-troubleshooting.md) — service
   checks, recovery, flicker diagnosis, and safe rollback.
-- [Signed release and setup qualification](release-qualification-20261019.md) —
-  current installation, network, ownership, and bounded runtime evidence.
+- [Beta 5 signed-cohort qualification](release-qualification-beta5-20261021.md) —
+  signed upgrade/public installer rerun, direct-session API, Pi-local performance and limits.
+- [Earlier signed release and setup qualification](release-qualification-20261019.md) —
+  prior cohorts' installation, network, ownership, and bounded runtime evidence.
 - [Independent image/depth Pi retest](performance-independent-processing-20261020.md) —
   mono 10 Hz/depth 1 Hz with `hh`, encoded cold starts, and Wi-Fi delivery limits.
 - [Cleaned runtime Pi retest](performance-cleanup-pi-20261021.md) — preview and

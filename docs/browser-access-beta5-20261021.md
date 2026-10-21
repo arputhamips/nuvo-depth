@@ -92,8 +92,15 @@ The ignored generated release notes are `.codex-tmp/beta5-release-notes.md`.
 
 The [cleaned-runtime Pi benchmark](performance-cleanup-pi-20261021.md) tests the
 earlier frozen `098910ed` artifact, before these browser/installer changes. It
-does not qualify the beta 5 cohort. The exact reviewed signed beta 5 draft still
-needs its own Pi upgrade/rerun, direct-browser and performance checks before
-publication; the published pinned installer and website deployment are separate
-subsequent checks. Earlier UF-01/UF-02 records do not imply fresh-SD or first-user
-hardware acceptance of this new cohort.
+does not qualify the beta 5 cohort. The subsequent
+[beta 5 signed-cohort qualification](release-qualification-beta5-20261021.md)
+records the exact signed draft's successful interactive dry-run/upgrade,
+automatic-session API checks and five Pi-local performance cases, with all
+99 protected benchmark files restored. Visual browser inspection was blocked
+by `ERR_CERT_AUTHORITY_INVALID`; no certificate bypass or rendered-video claim
+was made. The same assets are now a public prerelease, with anonymous download
+hashes verified. The actual public pinned curl Pi reinstall passed in 20.594
+seconds, followed by a successful automatic-session/live-frame/CSRF check with
+all eight beta 5 versions and 22 critical files preserved. Earlier UF-01/UF-02
+records do not imply fresh-SD,
+new-user, new hotspot or depth-accuracy acceptance of this cohort.
