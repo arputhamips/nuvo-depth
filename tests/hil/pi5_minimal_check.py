@@ -63,6 +63,7 @@ def main():
     controls = [Path('/etc/nuvo-depth')/name for name in ('exposure.json', 'stereo.json')]
     originals = {path: path.read_bytes() for path in controls}
     report = {'schema_version': 1, 'test': 'minimal-raw-depth-physical-pi',
+              'controls': {path.name: json.loads(data) for path, data in originals.items()},
               'kernel': command('uname', '-r').strip(),
               'package': command('dpkg-query', '-W', '-f=${Version}', 'nuvo-depth-minimal').strip()}
     try:

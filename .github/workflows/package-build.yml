@@ -142,6 +142,17 @@ jobs:
           nuvoctl --help
           nuvoctl config validate
           /usr/lib/nuvo-depth/nuvo-depth-read --help
+          python3 - <<'PY'
+          import grp, pathlib, pwd
+          unit = pathlib.Path('/usr/lib/systemd/system/nuvo-depthd-native.service').read_text()
+          for line in unit.splitlines():
+              if line.startswith('User='):
+                  pwd.getpwnam(line.split('=', 1)[1])
+              if line.startswith(('Group=', 'SupplementaryGroups=')):
+                  for group in line.split('=', 1)[1].split():
+                      grp.getgrnam(group)
+          print('All native service users and groups resolve in the clean runtime.')
+          PY
           test -z "$(dpkg --audit)"
           for package in nuvo-depth-gateway nuvo-depth-tools nuvo-depth-calibration python3-nuvo-depth network-manager dnsmasq-base avahi-daemon python3-opencv python3-numpy ffmpeg; do
             test "$(dpkg-query -W -f='${db:Status-Status}' "$package" 2>/dev/null || true)" != installed
