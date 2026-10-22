@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "frozen_at": "2026-10-22T23:15:48+00:00",
+  "scope": "Onboarding beta candidate regression budgets; not measured product claims",
+  "baseline": "Exact beta 7 candidate cohort using the same beta 5 seed geometry; record actual hashes before runs",
+  "depth_rate_min_ratio": 0.95,
+  "latency_p95_max_ratio": 1.1,
+  "steady_rss_max_ratio": 1.1,
+  "minimum_warmup_seconds": 300,
+  "minimum_run_seconds": 600,
+  "minimum_runs": 3,
+  "minimum_soak_seconds": 3600,
+  "stronger_existing_absolute_thresholds": "Retain unchanged; record workload-specific values before execution",
+  "matcher_controls": "Unchanged two-thread CPU rectification; identical algorithm/search/quality/camera/scene/calibration/consumer controls",
+  "golden_equivalence": "For unchanged code/dependency cohorts require exact payload/validity equality. Any different dependency cohort needs predeclared tolerances before processing, not a post-hoc relaxation."
+}

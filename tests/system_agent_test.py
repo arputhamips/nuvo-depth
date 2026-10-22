@@ -18,6 +18,13 @@ calibration_spec.loader.exec_module(calibration)
 
 
 class SystemAgentTest(unittest.TestCase):
+    @mock.patch.object(module.subprocess,'run')
+    def test_diagnostics_is_a_fixed_read_only_operation(self,run):
+        run.return_value=mock.Mock(returncode=0,stdout='{"schema_version":1}',stderr='')
+        self.assertEqual(module.execute({'operation':'diagnostics.status'})['result']['schema_version'],1)
+        self.assertEqual(run.call_args.args[0],['/usr/bin/nuvoctl','diagnostics','--json'])
+        for extra in ('command','path','output','secret'):
+            with self.assertRaises(ValueError):module.execute({'operation':'diagnostics.status',extra:'arbitrary'})
     @mock.patch.object(module.subprocess,"run")
     def test_setup_secret_uses_stdin_and_strict_allowlist(self,run):
         run.return_value=mock.Mock(returncode=0,stdout='{"authenticated":true}',stderr="")

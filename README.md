@@ -27,9 +27,9 @@ You can also build your own. The main components are:
 
 - **2 × InnoMaker IMX296 color global-shutter cameras:**
   [Camera product page](https://www.inno-maker.com/product/cam-imx296color/).
-- **A Raspberry Pi 5:** 1 GB can run headless stereo depth only; 2 GB is
-  recommended for running a GUI; 4 GB or more is recommended for running other
-  applications alongside stereo depth.
+- **A Raspberry Pi 5 with active cooling:** RAM suitability depends on the
+  workload. Smaller RAM boards remain unqualified for this candidate; a memory
+  limit on a larger board does not qualify a physical 1 GB or 2 GB model.
   [Raspberry Pi 5 product page](https://www.raspberrypi.com/products/raspberry-pi-5/).
 - **A Dupont Y-splitter** to share the hardware trigger signal between both
   cameras.

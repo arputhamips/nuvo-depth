@@ -25,6 +25,14 @@ _MAX_FRAME = MAX_PAYLOAD + MAX_METADATA + 32
 _MAX_UPGRADE_HEADERS = 16 * 1024
 _WEBSOCKET_GUID = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
+def recovery_action(code: int, path: str = '') -> str:
+    if code in (401,403): return 'SDK credentials/session rejected; obtain the long administrator token from the correct unit through trusted SSH and claim a new session.'
+    if code==412: return 'Configuration changed; reload the requested document before saving your edits.'
+    if code in (409,422,429): return 'Subscription or capacity rejected; reduce products/cadence, use best effort where appropriate, or inspect measured link admission. Exact requests are not silently degraded.'
+    if code==503:
+        return 'Monitoring unavailable; inspect the optional encoder setting and capture readiness.' if '/encoded/' in path else 'Raw output/capture unavailable; enable raw delivery and inspect calibration, services and required reboot.'
+    return 'Inspect device diagnostics and the requested supported endpoint; do not disable TLS verification.'
+
 
 class _FrameStream(Iterator[FrameSet]):
     """A synchronous, bounded RFC 6455 client with no background frame queue."""
@@ -125,7 +133,9 @@ class _FrameStream(Iterator[FrameSet]):
             lines = head.decode("ascii").split("\r\n")
             if lines[0].split(" ", 2)[:2] != ["HTTP/1.1", "101"]:
                 # Include only the status, never cookie or other response headers.
-                raise ConnectionError(f"Nuvo WebSocket upgrade rejected: {lines[0]}")
+                parts=lines[0].split(' ',2)
+                code=int(parts[1]) if len(parts)>1 and parts[1].isdigit() else 0
+                raise ConnectionError(f"Nuvo WebSocket upgrade rejected (HTTP {code}): {recovery_action(code,self._url)}")
             response_headers: dict[str, list[str]] = {}
             for line in lines[1:]:
                 name, separator, value = line.partition(":")
@@ -294,7 +304,17 @@ class NuvoClient:
         request = urllib.request.Request(
             self.base_url + path, method=method, headers=headers or {}, data=body
         )
-        with self._opener.open(request, timeout=self.timeout) as response:
+        try:
+            response = self._opener.open(request, timeout=self.timeout)
+        except urllib.error.HTTPError as error:
+            # Preserve HTTPError/code compatibility and exclude response bodies,
+            # request tokens and cookies from user-facing recovery text.
+            error.msg = recovery_action(error.code,path)
+            raise
+        except urllib.error.URLError as error:
+            error.add_note('Verify the device hostname and trusted public certificate fingerprint; retain TLS verification and check network reachability.')
+            raise
+        with response:
             length = response.headers.get("Content-Length")
             if length is not None and int(length) > maximum:
                 raise ValueError("Nuvo response exceeds the client bound")

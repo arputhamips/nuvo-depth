@@ -7,6 +7,13 @@ specifications, and qualification evidence.
 
 ## Use the camera
 
+- [Diagnostics and upgrades](diagnostics-and-upgrades.md) — read-only reports,
+  preview-preserving upgrades and supported recovery.
+- [Runnable Python and C examples](sdk-examples.md) — verified TLS, display,
+  recording/replay and installed public C ABI.
+- [Onboarding acceptance](../qualification/onboarding/README.md) — all 69 cases,
+  frozen budgets, physical procedures, newcomer forms and fail-closed gates.
+
 - [First-use journey validation](first-use-validation-20261022.md) — rolling
   signed install selection, first-depth/sample checks, browser fixtures and limits.
 

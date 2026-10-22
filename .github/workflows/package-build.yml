@@ -58,7 +58,7 @@ jobs:
           if [ "$NUVO_PACKAGE_PROFILE" = minimal ]; then
             cp install-nuvo-depth-minimal.sh deployment/release-platform.json output/package-build/
             mkdir -p output/package-build/tools
-            cp tools/nuvo_minimal_cli.py tools/nuvoctl.py tools/nuvo_release.py tools/nuvo_calibration_control.py tools/nuvo_calibration_store.py output/package-build/tools/
+            cp tools/nuvo_minimal_cli.py tools/nuvoctl.py tools/nuvo_release.py tools/nuvo_calibration_control.py tools/nuvo_calibration_store.py tools/nuvo_diagnostics.py output/package-build/tools/
             (cd output/package-build && sha256sum nuvo-depth-minimal_*.deb install-nuvo-depth-minimal.sh release-platform.json tools/*.py > SHA256SUMS)
           fi
           dpkg-query -W -f='${binary:Package}\t${Version}\t${Architecture}\n' > output/package-build/build-packages.txt

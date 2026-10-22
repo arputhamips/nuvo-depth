@@ -1,0 +1,66 @@
+#!/bin/sh
+set -e
+# Snapshot the previous effective command BEFORE dpkg replaces the unit file.
+# This works with a stopped daemon and beta 6 (which has no shared Python helper).
+if [ "$1" = upgrade ] || { [ "$1" = install ] && [ -n "${2:-}" ]; }; then
+    python3 - <<'PY'
+import os
+from pathlib import Path
+import shlex
+import tempfile
+
+def migrate(root):
+    service = 'nuvo-depthd-native.service'
+    directories = ['usr/lib/systemd/system', 'lib/systemd/system', 'etc/systemd/system']
+    units = [root / directory / service for directory in directories]
+    units = [path for path in units if path.is_file()]
+    if not units:
+        return
+    dropins = {}
+    for directory in directories:
+        for path in (root / directory / (service + '.d')).glob('*.conf'):
+            dropins[path.name] = path
+    command = None
+    guarded = False
+    for text in [units[-1].read_text()] + [dropins[name].read_text() for name in sorted(dropins)]:
+        for line in text.splitlines():
+            if line.startswith('ExecStart='):
+                command = shlex.split(line.split('=', 1)[1]) or None
+            if line == 'ConditionPathExists=':
+                guarded = False
+            elif line.startswith('ConditionPathExists=') and 'capture-enabled' in line:
+                guarded = True
+    marker = root / 'etc/nuvo-depth/capture-enabled'
+    if guarded and not marker.is_file():
+        return  # Existing deliberate defer/disable remains disabled.
+    if not command or Path(command[0]).name != 'depthd' or '--run' not in command:
+        raise ValueError('Cannot preserve the previous capture command; inspect the capture service before upgrading')
+    def atomic(path, data, mode):
+        if path.is_symlink():
+            raise ValueError('Refusing a linked capture policy file')
+        path.parent.mkdir(parents=True, exist_ok=True)
+        descriptor, name = tempfile.mkstemp(prefix='.migration-', dir=path.parent)
+        try:
+            with os.fdopen(descriptor, 'w') as output:
+                os.fchmod(output.fileno(), mode)
+                output.write(data)
+                output.flush()
+                os.fsync(output.fileno())
+            os.replace(name, path)
+            directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try: os.fsync(directory)
+            finally: os.close(directory)
+        finally:
+            if os.path.exists(name): os.unlink(name)
+    override = root / 'etc/systemd/system' / (service + '.d/90-calibration-policy.conf')
+    if not override.exists():
+        atomic(override, '[Service]\nExecStart=\nExecStart=' + shlex.join(command) + '\n', 0o644)
+    if not marker.exists():
+        atomic(marker, 'preserved-existing-capture-policy\n', 0o600)
+    print('Preserved existing minimal capture policy; provisional output retains unverified accuracy.')
+
+if __name__ == '__main__':
+    migrate(Path('/'))
+PY
+fi
+#DEBHELPER#

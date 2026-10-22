@@ -5,6 +5,8 @@ on:
       - 'install-nuvo-depth.sh'
       - 'install-nuvo-depth-minimal.sh'
       - 'tests/minimal*'
+      - 'tests/calibration*'
+      - 'tests/diagnostics*'
       - 'tools/**'
       - 'web/**'
       - 'sdk/python/**'
@@ -25,6 +27,8 @@ on:
       - 'install-nuvo-depth.sh'
       - 'install-nuvo-depth-minimal.sh'
       - 'tests/minimal*'
+      - 'tests/calibration*'
+      - 'tests/diagnostics*'
       - 'tools/**'
       - 'web/**'
       - 'sdk/python/**'
@@ -54,6 +58,8 @@ jobs:
           bash -n install-nuvo-depth-minimal.sh
           python3 tests/minimal_cli_test.py
           python3 tests/calibration_readiness_test.py
+          python3 tests/minimal_migration_test.py
+          python3 tests/diagnostics_test.py
           python3 tests/calibration_import_test.py
           python3 tests/minimal_install_test.py
           python3 tests/install_provisioning_test.py

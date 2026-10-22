@@ -2,6 +2,7 @@
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 const {chromium}=require(process.env.NUVO_PLAYWRIGHT_MODULE||'playwright-core');
 const root=path.resolve(__dirname,'..'),out=path.join(root,'output/first-use-browser');fs.mkdirSync(out,{recursive:true});
+assert.notEqual(process.env.NUVO_BROWSER_INJECT_FAILURE,'1','Deliberate rendered-browser CI qualification failure');
 let sequence=0,invalid=false,pending=false,readinessOverride=null;
 const encoding=JSON.parse(fs.readFileSync(path.join(root,'config/encoding.json')));encoding.mode='raw';
 const metadataBase={schema_version:1,device_uuid:'22'.repeat(16),run_uuid:'11'.repeat(16),capture_epoch:1,configuration_epoch:1,calibration_sha256:'ab'.repeat(32),calibration_authority:0};
@@ -33,7 +34,8 @@ const server=http.createServer((request,response)=>{
 server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTTP/1.1 426 Upgrade Required\r\nConnection: close\r\n\r\n');});
 (async()=>{
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-  const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE||'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'});
+  const executable=process.env.BROWSER_EXECUTABLE||(process.platform==='win32'?'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe':undefined);
+  const browser=await chromium.launch({headless:true,...(executable?{executablePath:executable}:{})});
   try{
     const context=await browser.newContext({acceptDownloads:true,viewport:{width:1440,height:1050}}),page=await context.newPage(),errors=[];
     page.on('pageerror',error=>errors.push(error.message));const url=`http://127.0.0.1:${server.address().port}/`;

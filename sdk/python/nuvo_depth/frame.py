@@ -50,6 +50,10 @@ class FrameSet:
     products: Mapping[str, Product]
     _wire_bytes: bytes
 
+    def to_bytes(self) -> bytes:
+        """Return the original immutable NUV1 message without changing metadata."""
+        return self._wire_bytes
+
     @property
     def device_uuid(self) -> str:
         """Device identity; empty for legacy recordings without UUID metadata."""

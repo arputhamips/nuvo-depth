@@ -27,6 +27,12 @@ as a standalone script against the beta 6 SDK. It does not change calibration.
 
 ## API reference and examples
 
+The [runnable examples guide](../../docs/sdk-examples.md) covers single-frame,
+selected-pixel, PNG display, stream, record and replay commands, the small real
+beta 6 compatibility recording, installed C example and supported client matrix.
+`python -m nuvo_depth.examples --help` lists the source candidate's commands.
+`nuvo_depth.__version__` identifies the installed SDK.
+
 The dependency-light SDK reads associated NUV1 raw frame sets, optional NVE1
 encoded monitoring frames, and device configuration through the authenticated
 TLS gateway shared by Ethernet and approved USB Ethernet.

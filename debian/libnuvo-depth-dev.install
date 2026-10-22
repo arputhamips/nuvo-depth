@@ -1,3 +1,4 @@
 usr/include/nuvo/
 usr/lib/*/libnuvo-depth.so
 usr/lib/*/pkgconfig/nuvo-depth.pc
+usr/share/doc/libnuvo-depth-dev/examples/

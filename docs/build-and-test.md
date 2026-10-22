@@ -10,7 +10,62 @@ The commands below are for source development and package maintenance.
 
 ## Everyday development
 
-Use a Linux or WSL environment with CMake 3.20+, Ninja, and a C++20 compiler.
+Use Debian 13 Trixie or Ubuntu 24.04, including Ubuntu 24.04 under WSL2,
+with CMake 3.25+, Ninja, and a C++20 compiler. Preset schema 6 requires 3.25.
+Install host dependencies from the checkout before building:
+
+```bash
+bash tools/dev/bootstrap-host.sh --minimal
+# Or, for development-full:
+bash tools/dev/bootstrap-host.sh --full
+```
+
+This installs distribution packages including current security updates and saves
+the resolved environment in `output/dev-environment/manifest.json`. It does not
+install Pi camera backends or a Nuvo runtime package. For a disposable Debian
+environment: `docker build -f tools/dev/Dockerfile -t nuvo-depth-dev .`, then
+`docker run --rm -it -v "$PWD:/workspace" nuvo-depth-dev`. Run these commands in
+Linux/WSL, not Windows PowerShell. Windows is also a supported Python SDK client;
+host fixtures do not qualify physical Pi capture or networking.
+
+Browser tools require Node 20+. When the distribution supplies an older Node,
+the bootstrap installs official Node 22.22.1 using frozen x64/arm64 SHA-256
+digests in `/opt/nuvo-host-node-22.22.1` and links its executables in
+`/usr/local/bin`. Existing Node 20+ is retained and its version recorded.
+
+## Real gateway fixture and rendered tests
+
+After the full build, launch the rootless fixture in one terminal:
+
+```bash
+python3 tools/dev/gateway_fixture.py --binary build/development-full/nuvo-gateway --manifest output/gateway-fixture/manifest.json --control output/gateway-fixture/control.json
+```
+
+Its manifest supplies a dynamically allocated HTTPS origin, public certificate,
+fixture SPKI, and control-file path. Private test credentials stay in a temporary
+private directory and are removed at exit. Output is labeled TEST FIXTURE;
+synthetic identities and readiness are not camera/calibration evidence. Stop
+with Ctrl-C. The control JSON selects readiness state, run and gateway restart.
+
+In another terminal, use the pinned browser package:
+
+```bash
+npm --prefix tools/dev/browser ci
+npm --prefix tools/dev/browser exec -- playwright install --with-deps chromium
+export NUVO_PLAYWRIGHT_MODULE="$PWD/tools/dev/browser/node_modules/playwright"
+node tests/first_use_browser_test.cjs
+node tests/gateway_browser_test.cjs output/gateway-fixture/manifest.json
+python3 tests/sdk_tls_test.py
+```
+
+The browser's certificate exception is scoped to the generated fixture SPKI.
+SDK tests independently verify correct trust, unknown trust, hostname mismatch
+and certificate replacement. Product examples always validate TLS. Screenshots,
+traces and results are under `output/first-use-browser` and `output/gateway-browser`.
+Fresh CI jobs run minimal/full builds and Linux/Windows Python 3.11/3.13 clients;
+the `required` job rejects missing required jobs. Documentation changes route
+to lightweight consistency checks. ARM64 packages/signing remain manual.
+
 The minimal preset excludes optional native dependencies. The full development
 preset additionally needs yaml-cpp, OpenCV 4, FFmpeg development libraries,
 Boost.System, and OpenSSL 3. `DEPTHD_WITH_PI5_CAPTURE` stays off for host builds.

@@ -163,6 +163,8 @@ def cli_parser():
     parser = argparse.ArgumentParser(prog='nuvoctl', description=__doc__)
     parser.add_argument('--root', type=Path, default=Path('/'), help=argparse.SUPPRESS)
     commands = parser.add_subparsers(dest='command', required=True)
+    import nuvo_diagnostics
+    nuvo_diagnostics.add_command(commands)
     import nuvo_calibration_control
     nuvo_calibration_control.add_commands(commands)
     commands.add_parser('configure', help='Guided exposure and stereo configuration')
@@ -191,6 +193,9 @@ def main(argv=None):
         return install_main((argv or sys.argv[1:])[1:])
     args = cli_parser().parse_args(argv)
     root = args.root
+    if args.command == 'diagnostics':
+        import nuvo_diagnostics
+        return nuvo_diagnostics.dispatch(args,root,'minimal')
     if args.command == 'depth': return depth_output(args)
     if args.command in ('start', 'stop', 'restart'):
         subprocess.run(['systemctl', args.command, SERVICE], check=True)
@@ -238,8 +243,11 @@ def install_main(argv=None):
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--allow-provisional-preview', action='store_true', help='Explicitly enable preview with unverified distance accuracy')
     parser.add_argument('--calibration-bundle', type=Path, help='Import an existing compatible per-unit calibration')
+    parser.add_argument('--defer-capture', action='store_true', help='Leave capture disabled; overrides the fresh minimal preview default')
     parser.add_argument('--reboot', action='store_true')
     args = parser.parse_args(argv)
+    if sum(bool(value) for value in (args.allow_provisional_preview, args.calibration_bundle, args.defer_capture)) > 1:
+        parser.error('choose one of --calibration-bundle, --allow-provisional-preview or --defer-capture')
     if args.package and (args.bundle or not args.platform): parser.error('--package requires --platform and cannot be combined with --bundle')
     if not args.dry_run and os.geteuid() != 0: parser.error('run installation with sudo')
     with tempfile.TemporaryDirectory(prefix='nuvo-minimal-') as temporary:
@@ -264,6 +272,7 @@ def install_main(argv=None):
         # Validate the managed boot changes before touching installed packages.
         preparation = admin.platform_prepare(Path('/'), False)
         old = subprocess.run(['dpkg-query', '-W', '-f=${Version}', 'nuvo-depth-minimal'], capture_output=True, text=True)
+        args.existing_installation = old.returncode == 0 and bool(old.stdout.strip())
         version = subprocess.check_output(['dpkg-deb', '-f', str(packages[0]), 'Version'], text=True).strip()
         if old.returncode == 0 and subprocess.run(['dpkg', '--compare-versions', old.stdout.strip(), 'gt', version]).returncode == 0:
             raise ValueError('refusing an implicit package downgrade')
@@ -289,9 +298,13 @@ def apply_install(command, preparation, args):
     subprocess.run(['systemctl', 'daemon-reload'], check=True)
     subprocess.run(['systemctl', 'enable', SERVICE], check=True)
     import nuvo_calibration_control as calibration_control
-    print('Calibration choices: preserve existing calibration, import with --calibration-bundle, explicitly enable unverified preview with --allow-provisional-preview, or leave capture disabled.')
+    fresh_preview = not getattr(args, 'existing_installation', True) and not args.calibration_bundle and not getattr(args, 'defer_capture', False)
+    enable_preview = args.allow_provisional_preview or fresh_preview
+    print('Minimal defaults to provisional preview on a new installation; distance accuracy remains unverified. Upgrades preserve the existing capture policy. Import with --calibration-bundle or leave capture disabled with --defer-capture.')
+    if getattr(args, 'defer_capture', False):
+        calibration_control.preview(Path('/'), False)
     if preparation['reboot_required'] or not admin.platform_preflight(Path('/'))['ready']:
-        if args.allow_provisional_preview:
+        if enable_preview:
             policy = calibration_control.CapturePolicy(Path('/'))
             policy.apply(calibration_control.preview_policy(Path('/'),True,policy.snapshot()))
             subprocess.run(['systemctl','daemon-reload'],check=True)
@@ -303,7 +316,7 @@ def apply_install(command, preparation, args):
         return
     if args.calibration_bundle:
         calibration_control.import_bundle(Path('/'),args.calibration_bundle)
-    elif args.allow_provisional_preview:
+    elif enable_preview:
         calibration_control.preview(Path('/'),True)
     elif not (Path('/')/calibration_control.MARKER).is_file():
         ready = calibration_control.readiness()

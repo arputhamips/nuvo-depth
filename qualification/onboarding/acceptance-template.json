@@ -1,0 +1,1051 @@
+{
+  "schema_version": 1,
+  "record_type": "unexecuted_acceptance_template",
+  "specification_file": "implementation-spec.md",
+  "specification_version": "1.0",
+  "created_date": "2026-10-22",
+  "timezone": "America/Chicago",
+  "reference_source_commit": "6537e2cafbd154a70c0d044097c4d3e1f52803f1",
+  "reference_public_preview": "v0.1.1-beta.6",
+  "candidate": {
+    "source_commit": null,
+    "artifact_manifest": null,
+    "environment_manifests": [],
+    "physical_hardware_manifests": [],
+    "public_documentation_revision": null,
+    "frozen_thresholds_record": null
+  },
+  "prior_baseline": {
+    "scope": "Repository audit only; not candidate acceptance evidence",
+    "minimal_host_build": "pass",
+    "minimal_host_ctest_entries": 43,
+    "minimal_host_ctest_failures": 0,
+    "development_full_configure": "stopped_missing_environment_boost_system",
+    "source_commit": "6537e2cafbd154a70c0d044097c4d3e1f52803f1",
+    "new_implementation_tests_executed": false
+  },
+  "allowed_test_statuses": [
+    "not_run",
+    "pass",
+    "fail",
+    "blocked",
+    "not_applicable"
+  ],
+  "run_record_fields": {
+    "run_id": "unique attempt ID",
+    "source_commit": "exact tested commit",
+    "candidate_manifest": "artifact hashes and versions",
+    "environment_manifest": "OS/toolchain/client environment",
+    "hardware_manifest": "required for physical tests",
+    "procedure_revision": "test procedure version",
+    "started_at": "ISO 8601 with UTC offset",
+    "finished_at": "ISO 8601 with UTC offset",
+    "status": "pass, fail, blocked, or reviewed not_applicable",
+    "observed_values": "measurements and actual output",
+    "criteria": "frozen expected values/tolerances",
+    "evidence": "artifact paths or URLs",
+    "reviewer": "acceptance reviewer",
+    "notes": "failure, blockage, scope, or retry explanation"
+  },
+  "completion_gates": {
+    "software_implementation_complete": "not_verified",
+    "self_service_beta_accepted": "not_verified",
+    "production_qualification": "separate_scope"
+  },
+  "rules": [
+    "This file records results; it does not execute product tests.",
+    "Do not mark an aggregate test pass until every required subcase and applicable supported cohort has evidence.",
+    "Retain every attempt; a retry does not erase a prior failure.",
+    "Missing, blocked, not-run, or failed required cases prevent the affected completion gate.",
+    "Not-applicable needs a reviewer and a support-scope rationale; it cannot waive required physical/newcomer/core coverage.",
+    "Historical baseline evidence never counts as passing a new candidate.",
+    "Thresholds and comparison conditions must be frozen before execution."
+  ],
+  "workstreams": [
+    {
+      "workstream": "step_1",
+      "title": "Complete first use journeys",
+      "deliverables": [
+        {
+          "deliverable_id": "D1-01",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        },
+        {
+          "deliverable_id": "D1-02",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        },
+        {
+          "deliverable_id": "D1-03",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "workstream": "step_2",
+      "title": "Keep current instructions consistent",
+      "deliverables": [
+        {
+          "deliverable_id": "D2-01",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        },
+        {
+          "deliverable_id": "D2-02",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        },
+        {
+          "deliverable_id": "D2-03",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "workstream": "step_3",
+      "title": "Calibration readiness and supported import",
+      "deliverables": [
+        {
+          "deliverable_id": "D3-01",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        },
+        {
+          "deliverable_id": "D3-02",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        },
+        {
+          "deliverable_id": "D3-03",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "workstream": "step_4",
+      "title": "Executable application integration",
+      "deliverables": [
+        {
+          "deliverable_id": "D4-01",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        },
+        {
+          "deliverable_id": "D4-02",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        },
+        {
+          "deliverable_id": "D4-03",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "workstream": "step_5",
+      "title": "Actionable diagnostics and recovery",
+      "deliverables": [
+        {
+          "deliverable_id": "D5-01",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        },
+        {
+          "deliverable_id": "D5-02",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        },
+        {
+          "deliverable_id": "D5-03",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "workstream": "step_6",
+      "title": "Reproducible development",
+      "deliverables": [
+        {
+          "deliverable_id": "D6-01",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        },
+        {
+          "deliverable_id": "D6-02",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        },
+        {
+          "deliverable_id": "D6-03",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "workstream": "step_7",
+      "title": "Continuous and physical acceptance",
+      "deliverables": [
+        {
+          "deliverable_id": "D7-01",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        },
+        {
+          "deliverable_id": "D7-02",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        },
+        {
+          "deliverable_id": "D7-03",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "workstream": "performance",
+      "title": "Performance and resource acceptance",
+      "deliverables": [
+        {
+          "deliverable_id": "DP-01",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        },
+        {
+          "deliverable_id": "DP-02",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        },
+        {
+          "deliverable_id": "DP-03",
+          "status": "not_started",
+          "artifact_links": [],
+          "owner": null,
+          "reviewer": null
+        }
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "test_id": "T1-01",
+      "workstream": "step_1",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "A newcomer chooses a path for a preinstalled unit, own Pi with browser, own Pi with local raw output, and remote application.",
+      "expected_result": "Each scenario reaches the appropriate path; minimal omissions are visible before installation.",
+      "required_evidence": "Navigation checklist and screenshots.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T1-02",
+      "workstream": "step_1",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Follow full setup on a freshly flashed supported Pi using only the user guide; include one reboot and a depth/validity reader.",
+      "expected_result": "Console loads, readiness is explained, fresh paired output advances, and the frame metadata identifies the actual profile and authority.",
+      "required_evidence": "Screen recording, sanitized transcript, frame metadata.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T1-03",
+      "workstream": "step_1",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Follow minimal setup from an SSH-ready supported Pi and capture a float-depth frame.",
+      "expected_result": "Depth, validity, and metadata files are created with documented dimensions/units; the guide never asks for a browser or network SDK.",
+      "required_evidence": "Transcript, file checksums, decoded metadata.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T1-04",
+      "workstream": "step_1",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Disable mDNS resolution, then follow the documented IP fallback and certificate instructions.",
+      "expected_result": "The user reaches the correct device and verifies its identity; any certificate hostname mismatch has a supported resolution without disabling TLS checks in SDK code.",
+      "required_evidence": "Browser and client verification record.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T1-05",
+      "workstream": "step_1",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Begin from an unsupported OS/kernel, one missing camera, and an interrupted install in separate trials.",
+      "expected_result": "Instructions identify the condition, state a specific recovery step, and never report successful capture or metric accuracy.",
+      "required_evidence": "Error screenshots and recovery transcript.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T1-06",
+      "workstream": "step_1",
+      "execution_class": "newcomer",
+      "required_for_final_acceptance": true,
+      "procedure": "Observe five first-time users: two preinstalled, two own-Pi full, and one SDK integration. Supply working supported hardware, approved OS where applicable, internet, and trusted setup material.",
+      "expected_result": "All five finish their assigned first-frame task without maintainer hints. Active task-time targets: 15 minutes preinstalled, 30 minutes own-Pi full, 15 minutes SDK. Report total time separately; physical assembly, OS flashing, and new calibration acquisition are outside these timed tasks.",
+      "required_evidence": "Individual task forms, timings, interventions, observed frame identity.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T2-01",
+      "workstream": "step_2",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Render/check current instructions for full and minimal using the approved public-install metadata.",
+      "expected_result": "Every current install command names the approved published tag and the correct signed profile asset; source-checkout instructions still require an explicit release where appropriate.",
+      "required_evidence": "Generated diff and consistency report.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T2-02",
+      "workstream": "step_2",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Add a future unpublished development version to a fixture without changing public-install metadata.",
+      "expected_result": "Current user commands remain pinned to the approved public preview. Missing/invalid public metadata causes an actionable check failure.",
+      "required_evidence": "Fixture check results.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T2-03",
+      "workstream": "step_2",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Compare OS/kernel and starting-profile instructions with platform metadata and the authoritative profile catalog.",
+      "expected_result": "Values agree; all rate claims retain their qualification labels and targets remain labeled as targets.",
+      "required_evidence": "Consistency report.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T2-04",
+      "workstream": "step_2",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Walk through current browser and SDK connection guidance.",
+      "expected_result": "Browser users are not asked to claim/login; SDK token exchange remains documented and functional; terminology distinguishes hotspot, SSH, and SDK credentials.",
+      "required_evidence": "Copy review and SDK connection smoke result.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T2-05",
+      "workstream": "step_2",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Compare historical reports before and after rendering/checking current documentation.",
+      "expected_result": "Historical version references, evidence, commands, and measurements remain unchanged.",
+      "required_evidence": "Scoped diff/hash report.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T2-06",
+      "workstream": "step_2",
+      "execution_class": "published_documentation",
+      "required_for_final_acceptance": true,
+      "procedure": "Open published wiki pages and their linked current instructions after update; exercise documentation-only CI.",
+      "expected_result": "The served pages agree with the repository and links resolve. Only lightweight checks run; ARM64 packaging/signing is not dispatched.",
+      "required_evidence": "Live-page review and workflow run.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T3-01",
+      "workstream": "step_3",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Exercise accepted, preview, needed, unavailable, malformed, and stale state fixtures.",
+      "expected_result": "Every interface derives the correct state/reason/action; unknown/error never becomes accepted or silently provisional.",
+      "required_evidence": "State/API/CLI/browser results.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T3-02",
+      "workstream": "step_3",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Install full with accepted calibration, explicit preview, deferred calibration, and custom hardware; reinstall existing units.",
+      "expected_result": "Capture policy matches the selection; preview is opt-in; existing identities/configuration are preserved; custom hardware stays deferred.",
+      "required_evidence": "Installer tests and configuration hashes.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T3-03",
+      "workstream": "step_3",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Import a valid matching user bundle on full and minimal with a real reader subscribed.",
+      "expected_result": "The active daemon and fresh frame identify the expected bundle/hash and authority; state survives restart.",
+      "required_evidence": "Activation receipt, frame metadata, status.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T3-04",
+      "workstream": "step_3",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Dry-run a valid bundle and invalid identity, camera, profile, geometry, hash, missing-file, and path/symlink fixtures.",
+      "expected_result": "Valid dry-run makes no persistent/runtime change; incompatible or unsafe input is rejected before activation with a specific reason.",
+      "required_evidence": "Validation results and before/after hashes.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T3-05",
+      "workstream": "step_3",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Test trusted, unknown-key, invalid-signature, and unsigned factory bundles, plus valid user bundles.",
+      "expected_result": "Factory authority requires the existing factory trust rules; no invalid bundle is accepted or silently relabeled as user validated.",
+      "required_evidence": "Signature/namespace results.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T3-06",
+      "workstream": "step_3",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Interrupt activation at durable transaction boundaries; run concurrent import/rollback attempts.",
+      "expected_result": "Locking prevents mixed state; restart/recovery loads the last committed valid selection and records a clear failure or pending result.",
+      "required_evidence": "Fault-injection log and recovered selections.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T3-07",
+      "workstream": "step_3",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Force daemon startup failure or expected-hash mismatch after staging; invoke rollback after a successful import.",
+      "expected_result": "Failed activation restores the previous selection; explicit rollback loads that selection and its matching frame identity when hardware is available.",
+      "required_evidence": "Transaction receipts and frame hashes.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T3-08",
+      "workstream": "step_3",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Import/activate while capture is idle, then connect a reader; separately disconnect a camera.",
+      "expected_result": "Demand-driven idleness is explained, fresh output verifies activation on request, and camera failure remains distinct from calibration status.",
+      "required_evidence": "Status transitions and stream trace.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T3-09",
+      "workstream": "step_3",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Upgrade/reinstall existing full and minimal fixtures and inspect minimal package dependencies/payload.",
+      "expected_result": "Existing CLI/bundle formats work; configuration and identity persist; minimal adds no web, SDK, Wi-Fi onboarding, solver, NumPy, or Python OpenCV.",
+      "required_evidence": "Compatibility and package-isolation report.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T3-10",
+      "workstream": "step_3",
+      "execution_class": "newcomer",
+      "required_for_final_acceptance": true,
+      "procedure": "Review calibration wording and perform a newcomer calibration-readiness task.",
+      "expected_result": "The user identifies preview versus accepted calibration and its next action; no label claims independent metric accuracy without the corresponding evidence.",
+      "required_evidence": "Copy review and observed task result.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T4-01",
+      "workstream": "step_4",
+      "execution_class": "client_environment",
+      "required_for_final_acceptance": true,
+      "procedure": "Follow the quickstart in clean Linux and Windows client environments using Python 3.11 and one newer recorded supported version.",
+      "expected_result": "The documented installation/import and first frame succeed with only declared dependencies and trusted device access.",
+      "required_evidence": "Environment manifests and transcripts.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T4-02",
+      "workstream": "step_4",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Connect to real TLS fixtures using the correct certificate, unknown certificate, wrong hostname, and changed device fingerprint.",
+      "expected_result": "Valid identity succeeds; untrusted/mismatched identity fails with useful guidance; no example bypasses verification.",
+      "required_evidence": "TLS integration results.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T4-03",
+      "workstream": "step_4",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Try valid, invalid, absent, and expired SDK credentials; compare automatic browser connection.",
+      "expected_result": "Authentication failures explain the correct SDK recovery; browser instructions remain accurate; errors and logs contain no token.",
+      "required_evidence": "Auth/session integration and redaction checks.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T4-04",
+      "workstream": "step_4",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Run every Python example against the matching device and replay fixture. Include valid and invalid pixels and product format variants.",
+      "expected_result": "Examples handle units, masks, NaNs, dimensions, and authority correctly; recorded expected results match within declared tolerances.",
+      "required_evidence": "Example outputs and decoded fixture checks.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T4-05",
+      "workstream": "step_4",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Record a finite stream; inject disconnect, timeout, early peer close, and interruption. Replay the completed portion.",
+      "expected_result": "Finite shortfall fails clearly; complete records remain readable; no silent gap-filling or reconnection changes the recording contract.",
+      "required_evidence": "Exit codes, recording/replay report.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T4-06",
+      "workstream": "step_4",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Request disabled raw output, disabled monitoring output, and a subscription exceeding the available link budget.",
+      "expected_result": "The error names the cause and supported action; the bounded client does not hang or accumulate an unbounded queue.",
+      "required_evidence": "Endpoint and client traces.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T4-07",
+      "workstream": "step_4",
+      "execution_class": "client_environment",
+      "required_for_final_acceptance": true,
+      "procedure": "Compile/run the C example against installed headers/libraries; read public API/status instructions.",
+      "expected_result": "No private headers or repository-relative build paths are required; ROS 2 maturity is explicit.",
+      "required_evidence": "Compiler transcript and sample output.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T4-08",
+      "workstream": "step_4",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Exercise documented previous-compatible SDK calls and older supported recordings against the candidate.",
+      "expected_result": "Existing signatures, frame interpretation, bounded reads, and explicit close/error behavior remain compatible; supported version combinations are recorded.",
+      "required_evidence": "SDK/recording compatibility results.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T5-01",
+      "workstream": "step_5",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Inject missing camera, unsupported kernel, unavailable trigger, failed service, missing calibration, and unavailable network in isolated fixtures.",
+      "expected_result": "Each condition gets the correct check/reason/action; unavailable data is unknown rather than pass.",
+      "required_evidence": "Diagnostic fixture results.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T5-02",
+      "workstream": "step_5",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Check healthy idle capture, image-only consumers, disabled optional encoder, and minimal installation.",
+      "expected_result": "Intentional inactivity/omissions are explained without false faults or suggestions to use absent features.",
+      "required_evidence": "CLI/console snapshots.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T5-03",
+      "workstream": "step_5",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Run diagnostics and export on a configured device while hashing persistent configuration, identities, network state, and active selection.",
+      "expected_result": "Read-only operations leave persistent settings and active service policy unchanged.",
+      "required_evidence": "Before/after state report.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T5-04",
+      "workstream": "step_5",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Seed all known secret classes into diagnostic inputs and failure paths; export through CLI/browser and inspect errors.",
+      "expected_result": "Secret values and private fields are absent; supported allowlisted fields remain usable; output matches the declared schema.",
+      "required_evidence": "Redaction tests and inspected sample export.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T5-05",
+      "workstream": "step_5",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Reinstall and upgrade an explicitly supported previous signed cohort to the candidate on full and minimal.",
+      "expected_result": "Identity, calibration, user settings, network choice, and recordings persist; dpkg audit is clean and fresh output returns.",
+      "required_evidence": "Lifecycle transcript and preservation hashes.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T5-06",
+      "workstream": "step_5",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Select tampered signatures, corrupted assets, mixed cohorts, full/minimal conflicts, and an implicit downgrade.",
+      "expected_result": "The operation rejects the unsupported transition before replacing the working Nuvo cohort; actionable guidance is shown.",
+      "required_evidence": "Rejection results and protected-file hashes.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T5-07",
+      "workstream": "step_5",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Interrupt download and package/service work at supported recovery points; follow the documented retry procedure.",
+      "expected_result": "Partial downloads are not accepted; retry preserves unit state and restores a working supported installation or names the exact unresolved OS/package repair.",
+      "required_evidence": "Recovery transcript and final audit.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T5-08",
+      "workstream": "step_5",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Open Software update on a device with/without reachable release information and follow its terminal procedure.",
+      "expected_result": "Installed version remains accurate, unverified availability is labeled, commands are pinned, and the page never implies an implemented browser updater or untested rollback.",
+      "required_evidence": "Browser walkthrough and upgrade report.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T6-01",
+      "workstream": "step_6",
+      "execution_class": "clean_environment",
+      "required_for_final_acceptance": true,
+      "procedure": "Start a clean supported Linux environment, run only the documented minimal bootstrap and build/test commands.",
+      "expected_result": "Configure, build, and every applicable registered test pass without hidden local dependencies.",
+      "required_evidence": "Provisioning transcript and CTest output.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T6-02",
+      "workstream": "step_6",
+      "execution_class": "clean_environment",
+      "required_for_final_acceptance": true,
+      "procedure": "Repeat using the full host environment, including Boost.System, OpenSSL, OpenCV, yaml-cpp, and FFmpeg dependencies.",
+      "expected_result": "development-full configures/builds/tests successfully; optional omissions and skips are explicit.",
+      "required_evidence": "Dependency manifest and full test report.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T6-03",
+      "workstream": "step_6",
+      "execution_class": "clean_environment",
+      "required_for_final_acceptance": true,
+      "procedure": "Run the documented minimum CMake and one newer supported version; try a version below minimum.",
+      "expected_result": "Supported versions parse/build correctly; unsupported versions fail with a clear requirement.",
+      "required_evidence": "Toolchain matrix results.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T6-04",
+      "workstream": "step_6",
+      "execution_class": "clean_environment",
+      "required_for_final_acceptance": true,
+      "procedure": "Follow supported WSL instructions from a clean documented distribution.",
+      "expected_result": "Host builds and fixtures work; native Windows/client guidance and physical Pi tasks are clearly distinguished.",
+      "required_evidence": "WSL environment and test transcript.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T6-05",
+      "workstream": "step_6",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Launch the deterministic gateway/frame fixture, then run browser and SDK integration tests.",
+      "expected_result": "The actual wire/API contracts are exercised with reproducible identities and labeled fixture output.",
+      "required_evidence": "Fixture manifest and integration results.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T6-06",
+      "workstream": "step_6",
+      "execution_class": "clean_environment",
+      "required_for_final_acceptance": true,
+      "procedure": "Rebuild the environment from declared inputs on another clean runner.",
+      "expected_result": "Dependency resolution is reproducible to the declared version policy; no credentials, private datasets, or developer-local paths are required.",
+      "required_evidence": "Second-run manifest and results.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T7-01",
+      "workstream": "step_7",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Exercise the PR workflow with deliberate native, SDK, and UI regressions in disposable fixtures.",
+      "expected_result": "The relevant required job fails; logs identify the failure; skipped/missing required jobs cannot look green.",
+      "required_evidence": "Workflow runs and retained logs.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T7-02",
+      "workstream": "step_7",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Change only user documentation, then change runtime/UI code in separate trials.",
+      "expected_result": "Docs run lightweight consistency/link checks only; code runs relevant host/browser coverage. ARM64 packaging/signing remains deliberately dispatched.",
+      "required_evidence": "Workflow routing results.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T7-03",
+      "workstream": "step_7",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Run rendered-browser scenarios for connect, calibration states, stale/unavailable health, form validation, revision conflicts, output selection, restart/reconnect, and diagnostics.",
+      "expected_result": "Correct actions/messages appear, pending edits are protected, and no unhandled error blocks the task; screenshots/traces are retained on failure.",
+      "required_evidence": "Browser test report and traces.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T7-04",
+      "workstream": "step_7",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Install each profile from frozen candidate artifacts on a newly flashed supported image using physical cameras.",
+      "expected_result": "Signed-path verification succeeds where applicable; fresh output and correct authority return after required reboot; exact environment/artifact identity is retained.",
+      "required_evidence": "Physical install, frame, and package reports.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T7-05",
+      "workstream": "step_7",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Perform ten graceful reboot cycles and five physical power-cycle tests per profile; include a controlled interrupted activation/recovery case on a recoverable test device.",
+      "expected_result": "Identity/configuration/committed calibration survive; services recover according to policy; fresh frames return with a new run identity; no mixed committed state.",
+      "required_evidence": "Cycle records, state hashes, recovery evidence.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T7-06",
+      "workstream": "step_7",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Exercise Ethernet and twenty setup Wi-Fi handoffs covering success, wrong credentials, missed confirmation, reboot during handoff, and outage after confirmed setup.",
+      "expected_result": "Confirmed setup persists; failed/unconfirmed setup returns to the protected hotspot with the same secret; an ordinary confirmed-network outage does not reopen it.",
+      "required_evidence": "Network transition/status records.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T7-07",
+      "workstream": "step_7",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Run the retained advertised workload on every claimed physical Pi RAM SKU/profile combination.",
+      "expected_result": "Each retained claim has physical evidence; unsupported combinations are removed or clearly marked unqualified before completion.",
+      "required_evidence": "Physical SKU matrix, memory/thermal/frame reports.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "T7-08",
+      "workstream": "step_7",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Assemble the final candidate report and compare every artifact/hash with the tested manifest.",
+      "expected_result": "Every required test has valid candidate evidence; failure, blocked, skipped, or not-run cases remain visible and prevent the affected completion gate.",
+      "required_evidence": "Signed/reviewed completion report and evidence index.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "TP-01",
+      "workstream": "performance",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Subscribe to image-only, depth/validity, preview-only, combined, and zero-consumer cases.",
+      "expected_result": "Only demanded stages run; idle matcher/encoder work remains idle as appropriate; selected products share capture identity.",
+      "required_evidence": "Stage counters, CPU and frame trace.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "TP-02",
+      "workstream": "performance",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Measure full/minimal core depth, mixed preview, and multiple bounded clients against the frozen baseline.",
+      "expected_result": "Regression budgets pass without changing matcher quality, calibration, geometry, or consumer demands to hide cost.",
+      "required_evidence": "Three-run distributions and configuration hashes.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "TP-03",
+      "workstream": "performance",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Sweep admitted and excessive product/cadence requests across measured Ethernet/Wi-Fi budgets.",
+      "expected_result": "Requests are admitted/rejected according to policy; exact requests are not silently degraded; best-effort gaps/cadence are explained accurately.",
+      "required_evidence": "Admission decisions and measured bytes/rates.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "TP-04",
+      "workstream": "performance",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Run slow/stalled clients, disconnect/reconnect, and retained-frame consumers through the 60-minute soak.",
+      "expected_result": "Queues/ownership remain bounded; retained data stays immutable; no sustained RSS growth, swapping, crash, or new core error occurs.",
+      "required_evidence": "RSS/CPU/thermal series and frame/lease results.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "TP-05",
+      "workstream": "performance",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Compare displayed capture, depth completion, receive rate, freshness, and latency with independent observations.",
+      "expected_result": "Labels correspond to their actual measurement boundaries and tolerances; no stale or image-only output inflates depth performance.",
+      "required_evidence": "Independent trace and UI/API comparisons.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "TP-06",
+      "workstream": "performance",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Process a fixed recorded stereo fixture with identical algorithms/controls before and after the changes.",
+      "expected_result": "Disparity/depth/validity and calibration interpretation meet the frozen equivalence tolerances; user-experience work introduces no hidden quality change.",
+      "required_evidence": "Golden comparison, dependency versions, tolerances.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "TP-07",
+      "workstream": "performance",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Review every retained rate/accuracy/range/RAM claim against candidate evidence; independently measure accuracy if new metric claims are proposed.",
+      "expected_result": "Claims stay within measured scope. New accuracy claims require predeclared distance/scene/coverage, bias, and RMSE limits and independent ground truth; otherwise existing provisional labels remain.",
+      "required_evidence": "Claim-to-evidence table and applicable accuracy report.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "TR-01",
+      "workstream": "cross_step_regression",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Run all applicable existing and new native/Python/JavaScript tests for minimal-host, development-full, and both ARM64 package profiles.",
+      "expected_result": "All required registered tests pass. Any removed test has a reviewed replacement/rationale; optional skips name the missing capability and cannot satisfy a required gate.",
+      "required_evidence": "CTest/test-runner inventories and results.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "TR-02",
+      "workstream": "cross_step_regression",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Exercise local IPC, C ABI, HTTPS snapshot, WebSocket, NUV/NVE decoding, and NVR recording/replay with current and documented compatible clients.",
+      "expected_result": "Public structures/formats and supported old recordings remain compatible; malformed/bounded input checks continue to reject invalid data.",
+      "required_evidence": "Protocol/ABI/recording compatibility report.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "TR-03",
+      "workstream": "cross_step_regression",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Inspect associated frames across concurrency, overload, reconnect, and daemon restart.",
+      "expected_result": "Products share the expected device/run/capture identity; streamed frames have no unintended duplicate or reversed identity within a run; whole-frame gaps are reported where best effort permits them. Repeated latest snapshots retain their existing allowed semantics.",
+      "required_evidence": "Identity/immutability trace.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "TR-04",
+      "workstream": "cross_step_regression",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Apply valid/invalid exposure, stereo, and encoding settings, including simultaneous edits and formatting-only rewrites.",
+      "expected_result": "Revision preconditions protect newer edits; atomic writes retain the last valid config; requested/saved/applied are distinct and frame epochs remain correct.",
+      "required_evidence": "API/CLI receipts and frame metadata.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "TR-05",
+      "workstream": "cross_step_regression",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Exercise TLS, origin/CSRF/session, permissions, calibration trust, and command allowlists around changed paths.",
+      "expected_result": "Existing protections remain effective; the gateway gains no general root/camera access; diagnostic and error paths expose no secrets.",
+      "required_evidence": "Boundary and permission tests.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "TR-06",
+      "workstream": "cross_step_regression",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Install/reinstall/upgrade/remove the packages in disposable supported environments and inspect artifacts.",
+      "expected_result": "Package metadata/cohorts are consistent, dependency isolation holds, identity/calibration/recordings are preserved by supported operations, and dpkg audit is clean.",
+      "required_evidence": "Lifecycle and payload reports.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "TR-07",
+      "workstream": "cross_step_regression",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Test protected hotspot, new-path confirmation/rollback, confirmed outages, and existing SSH/network preservation.",
+      "expected_result": "Existing network policy and recovery behavior remain compatible; no repair/check silently replaces network configuration.",
+      "required_evidence": "Network state and preservation report.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "TR-08",
+      "workstream": "cross_step_regression",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Exercise interrupt/crash/low-space/malformed-state cases in durable configuration, calibration, and recording operations.",
+      "expected_result": "The last committed valid state survives, incomplete output is handled by the existing contract, and failure is explicit without false success.",
+      "required_evidence": "Fault-injection/recovery report.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "TR-09",
+      "workstream": "cross_step_regression",
+      "execution_class": "software",
+      "required_for_final_acceptance": true,
+      "procedure": "Run browser tasks at desktop and 390-pixel mobile widths, keyboard-only navigation, and light/dark themes in recorded supported browser versions.",
+      "expected_result": "Required controls/actions remain reachable, focus and error messages are usable, text is readable, and no blocker/uncaught error prevents completion.",
+      "required_evidence": "Browser screenshots and accessibility task checklist.",
+      "status": "not_run",
+      "runs": []
+    },
+    {
+      "test_id": "TR-10",
+      "workstream": "cross_step_regression",
+      "execution_class": "physical",
+      "required_for_final_acceptance": true,
+      "procedure": "Verify repository/export hygiene, workflow permissions, release routing, and protected test-device restoration.",
+      "expected_result": "No private/generated junk enters source bundles; docs do not trigger signing/builds; test changes restore protected host state; public release actions follow repository policy.",
+      "required_evidence": "Hygiene/workflow results and restoration hashes.",
+      "status": "not_run",
+      "runs": []
+    }
+  ],
+  "completion_review": {
+    "owner": null,
+    "reviewer": null,
+    "reviewed_at": null,
+    "report_links": [],
+    "unresolved_issues": []
+  },
+  "specification_sha256": "7969bcc879a887cc1b9c9d1cbb0e809503c366210210bbb723a297aba055d0b2"
+}

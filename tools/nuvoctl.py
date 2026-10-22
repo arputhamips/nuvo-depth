@@ -474,6 +474,8 @@ def parse() -> argparse.Namespace:
     parser=argparse.ArgumentParser(prog="nuvoctl",description="Manage a Nuvo Depth appliance")
     parser.add_argument("--root",default="/",help=argparse.SUPPRESS)
     commands=parser.add_subparsers(dest="command",required=True)
+    import nuvo_diagnostics
+    nuvo_diagnostics.add_command(commands)
     commands.add_parser('status')
     import nuvo_calibration_control
     nuvo_calibration_control.add_commands(commands)
@@ -517,6 +519,9 @@ def parse() -> argparse.Namespace:
 
 def main() -> None:
     args=parse(); root=Path(args.root)
+    if args.command=='diagnostics':
+        import nuvo_diagnostics
+        return nuvo_diagnostics.dispatch(args,root,'appliance')
     if args.command=="status":
         import nuvo_calibration_control as calibration_control
         result=calibration_control.status(root)

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nuvo-depth"
-version = "0.1.1b7"
+version = "0.1.1b8"
 description = "Bounded Nuvo Depth camera client and recorder"
 requires-python = ">=3.11"
 license = {text = "GPL-3.0-or-later"}

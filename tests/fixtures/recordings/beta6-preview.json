@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "file": "beta6-preview.nvr.gz",
+  "sha256": "de01926d3170f235ea4ce305069104b1aa623e37ad573827da265913ed0a0bdb",
+  "uncompressed_sha256": "96978ae4d479fea537beefd6f6d57e625f9cb19705f82923a633f9191756db41",
+  "uncompressed_bytes": 1981121,
+  "license": "GPL-3.0-or-later, repository LICENSE",
+  "origin": "Physical cleaned-system GitHub beta 6 minimal installation on nuvomow.local, 2026-10-22; numeric depth and validity only. No camera images, credentials or private keys.",
+  "release": "v0.1.1-beta.6",
+  "scope": "Previous-release recording compatibility; saved provisional preview, never current freshness or metric-accuracy evidence. Candidate uses preserved beta 5 geometry rather than this older beta 6 seed.",
+  "frame_count": 1,
+  "metadata": {
+    "schema_version": 1,
+    "capture_epoch": 2,
+    "capture_sequence": 960,
+    "capture_time_ns": 106523291500,
+    "capture_clock": "boottime",
+    "configuration_epoch": 1,
+    "stereo_configuration_generation": 1,
+    "stereo_requested_revision": "2a57270936dd4969f1a4f1c49f65bf64ca2b9876b704698dac3f6bced6564cb8",
+    "stereo_applied_revision": "2a57270936dd4969f1a4f1c49f65bf64ca2b9876b704698dac3f6bced6564cb8",
+    "stereo_configuration_error": "",
+    "device_uuid": "9a4fec289ae142bdabaeecdc4b085fc7",
+    "run_uuid": "e611f83b68744c6093f82311ffc62025",
+    "calibration_sha256": "d0ade4d6821d9fd0c4d47ab3a1154dd11a27947df51eab5ff7bb2e180ffba4b0",
+    "calibration_authority": 0,
+    "available_products": 40,
+    "selected_products": 40,
+    "depth_unit": "metres",
+    "depth_convention": "optical_axis_z",
+    "products": [
+      {
+        "kind": "depth",
+        "format": "float32_le",
+        "offset": 0,
+        "length": 1584128,
+        "width": 728,
+        "height": 544
+      },
+      {
+        "kind": "validity",
+        "format": "uint8",
+        "offset": 1584128,
+        "length": 396032,
+        "width": 728,
+        "height": 544
+      }
+    ]
+  },
+  "expected": {
+    "width": 728,
+    "height": 544,
+    "valid_pixels": 208729
+  }
+}

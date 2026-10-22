@@ -1701,6 +1701,15 @@ void await_clients(const std::atomic_size_t& active) noexcept {
                            "{\"error\":\"setup status unavailable\"}\n", request.version());
     }
   }
+  if (request.method() == http::verb::get && target == "/api/v1/diagnostics") {
+    try {
+      return response(http::status::ok, "application/json",
+                      system_agent(options, "{\"operation\":\"diagnostics.status\"}", 30), request.version());
+    } catch (const std::exception&) {
+      return text_response(http::status::service_unavailable, "application/json",
+                           "{\"error\":\"Diagnostics unavailable; inspect nuvoctl diagnostics --json\"}\n", request.version());
+    }
+  }
   if (request.method() != http::verb::get &&
       request.method() != http::verb::head && !valid_csrf(request, sessions)) {
     return text_response(http::status::forbidden, "application/json",

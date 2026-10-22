@@ -20,7 +20,7 @@ The installer retains your existing network and SSH configuration.
 The approved public preview is recorded in `deployment/public-release.json`
 (currently `v0.1.1-beta.6`). Its minimal bundle and installer are separate from
 the full appliance downloads. The readiness/import commands below describe the
-beta 7 candidate/current source, pending public approval.
+beta 8 candidate/current source, pending public approval.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/arputhamips/nuvo-depth/main/install-nuvo-depth-minimal.sh | sudo bash
@@ -29,10 +29,13 @@ curl -fsSL https://raw.githubusercontent.com/arputhamips/nuvo-depth/main/install
 An initial install can require a reboot for camera overlays. Reconnect over SSH
 after reboot and capture depth to finish the camera check. The package itself
 does not change boot configuration or start capture until the installer is run.
-On beta 7/current source, choose an existing compatible bundle with
-`--calibration-bundle /path/to/bundle`, deliberately enable unverified preview
-with `--allow-provisional-preview`, or leave capture disabled. Reinstalls preserve
-existing calibration. See [readiness and import](calibration-readiness.md).
+Fresh beta 8 minimal installs on the supported head enable provisional preview,
+with an explicit unverified-distance notice. Upgrades preserve the previous
+capture policy, including beta 6's implicit preview and an existing deliberately
+disabled policy. Use `--calibration-bundle /path/to/bundle` for a compatible
+per-unit bundle or `--defer-capture` to leave a fresh installation disabled.
+`--allow-provisional-preview` remains available as an explicit selection.
+Reinstalls preserve existing calibration. See [readiness and import](calibration-readiness.md).
 
 ## Test with Actions artifacts
 
@@ -102,7 +105,7 @@ length. Its provenance and file hashes are recorded in
 `provisional_recalibration_required` authority; these files do not establish
 metric accuracy for a different assembled rig. Published beta 6 packages
 predate this default change and still contain the earlier seed. There is no
-calibration capture or solving workflow in this package. Beta 7/current source
+calibration capture or solving workflow in this package. Beta 8/current source
 supports existing-bundle import without editing service files:
 
 ```bash

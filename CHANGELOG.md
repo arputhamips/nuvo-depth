@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [v0.1.1-beta.8] - 2026-10-22
+
+### Fixed
+
+- Verify supplied calibration through the shared activation transaction and restore the previous selection on startup failure.
+- Report malformed calibration/status state with an actionable unavailable result.
+- Preserve minimal preview and validated calibration policies during upgrades, including stopped services.
+- Keep the two-thread CPU baseline and shared seed authority provisional.
+
+### Added
+
+- Export allowlisted read-only diagnostics from the console and terminal, with installed-version and supported upgrade guidance.
+- Run Python depth, pixel, display, stream, recording and replay examples and a public C decoder example.
+- Reproduce host dependencies and exercise native, SDK and rendered-browser checks continuously.
+
 ## [v0.1.1-beta.7] - 2026-10-22
 
 ### Added

@@ -32,6 +32,21 @@ def read_transaction(path: Path) -> dict:
         if info.st_size > 4*1024*1024:
             raise ValueError('Oversized calibration transaction')
         value = json.load(source)
+        if not isinstance(value, dict):
+            raise ValueError('Calibration transaction must be a JSON object')
+        if value.get('schema_version', 1) != SCHEMA:
+            raise ValueError('Unsupported calibration transaction schema')
+        if value.get('state') not in ('staging', 'awaiting_restart', 'restoring', 'committed', 'aborted'):
+            raise ValueError('Calibration transaction state is invalid')
+        if value.get('namespace') not in ('user', 'factory'):
+            raise ValueError('Calibration transaction namespace is invalid')
+        for key in ('bundle_id', 'previous'):
+            identity = value.get(key)
+            if identity is not None and (not isinstance(identity, str) or not re.fullmatch('[a-f0-9]{64}', identity)):
+                raise ValueError('Calibration transaction identity is invalid')
+        for key in ('policy_before', 'policy_after'):
+            if key in value and (not isinstance(value[key], dict) or not isinstance(value[key].get('files'), dict)):
+                raise ValueError('Calibration transaction capture policy is malformed')
         if 'policy_before' in value and os.geteuid() == 0 and (info.st_uid != 0 or info.st_mode & 0o022):
             raise ValueError('Capture-policy recovery requires a root-owned, protected journal')
     return value
@@ -115,7 +130,9 @@ def try_lock(path: Path, *, create: bool = False) -> Iterator[bool]:
 def verify_factory_signature(manifest: dict, material: bytes,
                              trusted_keys: Path | None) -> None:
     signature = manifest.get("signature")
-    if not isinstance(signature, dict) or signature.get("algorithm") != "ed25519" or not signature.get("key_id") or not signature.get("value"):
+    if (not isinstance(signature, dict) or signature.get("algorithm") != "ed25519"
+            or not isinstance(signature.get('key_id'), str) or not signature['key_id']
+            or not isinstance(signature.get('value'), str) or not signature['value']):
         raise ValueError("factory calibration requires an Ed25519 signature")
     if trusted_keys is None or not trusted_keys.is_file():
         raise ValueError("factory calibration trust store is unavailable")
@@ -146,7 +163,7 @@ def validate_bundle(bundle: Path, *, require_factory_signature: bool = False,
     manifest = bounded_json(manifest_path)
     if manifest.get("schema_version") != SCHEMA:
         raise ValueError("unsupported calibration bundle schema")
-    if manifest.get("authority") not in {"user_validated", "factory_validated"}:
+    if not isinstance(manifest.get('authority'),str) or manifest.get("authority") not in {"user_validated", "factory_validated"}:
         raise ValueError("bundle authority is not activatable")
     if not all(isinstance(manifest.get(key), str) and manifest[key].strip() for key in ("bundle_id", "unit_id", "left_camera_id", "right_camera_id", "preset_id")):
         raise ValueError("bundle identity is incomplete")

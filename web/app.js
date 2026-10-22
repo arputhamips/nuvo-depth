@@ -47,6 +47,7 @@ let selectedPage = '';
 let lastHealth = null, calibrationSession = null, calibrationOriginalEncoding = null;
 let firstDepth = {};
 let calibrationReadiness = null;
+let supportReport = null;
 let depthOutputRate = null, rawGeneration = 0;
 const formControllers = new Map();
 const restoredDraftForms = new Set();
@@ -175,6 +176,7 @@ function openPage(id) {
   window.scrollTo(0, 0);
   requestAnimationFrame(() => window.scrollTo(0, 0));
   restartStreams();
+  if(id==='diagnostics'||id==='recovery')queueMicrotask(refreshDiagnostics);
 }
 function navigateToPage(id){
   if(location.hash!==`#${id}`)history.pushState(null,'',`#${id}`);
@@ -661,7 +663,6 @@ async function refreshHealth() {
     renderCalibrationReadiness();
     $('calibrationHash').textContent = health.calibration_sha256 ? health.calibration_sha256.slice(0,16)+'…' : 'Not loaded';
     $('calibrationHash').title=health.calibration_sha256 || '';
-    $('diagnosticJson').textContent = JSON.stringify(health,null,2);
   } catch (_) {
     if(await refreshSetupStatus()){
       updateViewerAvailability(true);
@@ -1043,7 +1044,34 @@ async function restoreCalibrationSession(){
   }catch(_){localStorage.removeItem(CALIBRATION_SESSION_KEY);}
 }
 
+async function refreshDiagnostics(){
+  $('downloadDiagnostics').disabled=true;
+  try{
+    const payload=await(await api('/api/v1/diagnostics')).json();
+    if(payload.result?.schema_version!==1||payload.result?.report_type!=='nuvo-depth-support')throw new Error('Unavailable report');
+    supportReport=payload.result;
+    $('diagnosticJson').textContent=JSON.stringify(supportReport,null,2);
+    $('installedVersions').textContent=Object.entries(supportReport.versions||{}).map(([name,version])=>`${name}: ${version}`).join('\n')||'Installed versions unavailable; inspect dpkg-query.';
+    $('upgradeNotice').textContent=supportReport.upgrade?.notice||'Release availability has not been checked.';
+    $('upgradeCommand').textContent=supportReport.upgrade?.command||'Approved installation reference is unavailable; inspect the release guide.';
+    $('downloadDiagnostics').disabled=false;
+  }catch(_){
+    supportReport=null;
+    $('diagnosticJson').textContent='Diagnostics unavailable. Reconnect, or run sudo nuvoctl diagnostics --json in the Pi terminal.';
+    $('installedVersions').textContent='Installed versions unavailable.';
+    $('upgradeCommand').textContent='Read the approved release guide; no verified command was obtained.';
+  }
+}
+$('refreshDiagnostics').addEventListener('click',refreshDiagnostics);
+$('downloadDiagnostics').addEventListener('click',()=>{
+  if(!supportReport)return;
+  const url=URL.createObjectURL(new Blob([JSON.stringify(supportReport,null,2)+'\n'],{type:'application/json'}));
+  const link=document.createElement('a');link.href=url;link.download='nuvo-depth-support.json';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
 $('copyDiagnostics').addEventListener('click',async()=>{
+  if(!supportReport)await refreshDiagnostics();
+  if(!supportReport)return;
   try{await navigator.clipboard.writeText($('diagnosticJson').textContent);$('copyDiagnosticsState').textContent='Copied';}
   catch(error){$('copyDiagnosticsState').textContent=`Copy unavailable: ${error.message}`;}
 });

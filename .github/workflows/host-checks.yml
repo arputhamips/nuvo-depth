@@ -1,0 +1,169 @@
+name: Required host and browser checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      inject_failure:
+        description: Disposable workflow qualification; each injected regression MUST make this run fail
+        type: choice
+        options: [none, native, sdk, browser]
+        default: none
+permissions:
+  contents: read
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      native: ${{ steps.route.outputs.native }}
+      browser: ${{ steps.route.outputs.browser }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {fetch-depth: 0, persist-credentials: false}
+      - id: route
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python3 tools/ci/required_checks.py --base "$BASE_SHA" >> "$GITHUB_OUTPUT"
+      - run: python3 tools/check_setup_consistency.py
+  host:
+    needs: plan
+    if: needs.plan.outputs.native == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: {preset: [minimal-host, development-full]}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - env:
+          PRESET: ${{ matrix.preset }}
+        run: bash tools/dev/bootstrap-host.sh "$([ "$PRESET" = development-full ] && echo --full || echo --minimal)"
+      - name: Inject an explicitly requested disposable regression
+        env:
+          PROBE: ${{ inputs.inject_failure || 'none' }}
+        run: |
+          if [ "$PROBE" = native ]; then echo '#error deliberate-native-CI-qualification' >> src/contract.cpp; fi
+          if [ "$PROBE" = sdk ]; then sed -i '1i raise RuntimeError("deliberate SDK CI qualification")' tests/python_sdk_test.py; fi
+      - run: cmake --preset ${{ matrix.preset }}
+      - run: cmake --build --preset ${{ matrix.preset }} -j 2
+      - run: ctest --preset ${{ matrix.preset }} --output-on-failure
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: host-${{ matrix.preset }}-${{ github.run_id }}
+          path: |
+            build/${{ matrix.preset }}/Testing/
+            output/dev-environment/
+          if-no-files-found: error
+  browser:
+    needs: plan
+    if: needs.plan.outputs.browser == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - run: bash tools/dev/bootstrap-host.sh --full
+      - run: cmake --preset development-full && cmake --build --preset development-full --target nuvo-gateway -j 2
+      - run: npm --prefix tools/dev/browser ci && npm --prefix tools/dev/browser exec -- playwright install --with-deps chromium
+      - name: Render console fixtures and actual gateway journeys
+        env:
+          NUVO_PLAYWRIGHT_MODULE: ${{ github.workspace }}/tools/dev/browser/node_modules/playwright
+          NUVO_BROWSER_INJECT_FAILURE: ${{ inputs.inject_failure == 'browser' && '1' || '0' }}
+        run: |
+          node tests/first_use_browser_test.cjs
+          python3 tools/dev/gateway_fixture.py --binary build/development-full/nuvo-gateway --manifest output/gateway-fixture/manifest.json --control output/gateway-fixture/control.json &
+          fixture_pid=$!
+          trap 'kill "$fixture_pid" 2>/dev/null || true; wait "$fixture_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 60); do test -f output/gateway-fixture/manifest.json && break; sleep 1; done
+          test -f output/gateway-fixture/manifest.json
+          node tests/gateway_browser_test.cjs output/gateway-fixture/manifest.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: rendered-browser-${{ github.run_id }}
+          path: |
+            output/first-use-browser/
+            output/gateway-browser/
+          if-no-files-found: error
+  minimum-cmake:
+    needs: plan
+    if: needs.plan.outputs.native == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - run: bash tools/dev/bootstrap-host.sh --minimal
+      - name: Build with the declared minimum; reject an older version clearly
+        run: |
+          python3 -m venv "$RUNNER_TEMP/cmake325"
+          "$RUNNER_TEMP/cmake325/bin/pip" install cmake==3.25.2
+          "$RUNNER_TEMP/cmake325/bin/cmake" --preset minimal-host
+          "$RUNNER_TEMP/cmake325/bin/cmake" --build --preset minimal-host -j 2
+          "$RUNNER_TEMP/cmake325/bin/ctest" --preset minimal-host --output-on-failure
+          python3 -m venv "$RUNNER_TEMP/cmake324"
+          "$RUNNER_TEMP/cmake324/bin/pip" install cmake==3.24.3
+          if "$RUNNER_TEMP/cmake324/bin/cmake" -S . -B "$RUNNER_TEMP/below-minimum" > below-minimum.txt 2>&1; then exit 1; fi
+          grep '3.25 or higher is required' below-minimum.txt
+  debian-clean:
+    needs: plan
+    if: needs.plan.outputs.native == 'true'
+    runs-on: ubuntu-24.04
+    container: debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
+    timeout-minutes: 30
+    steps:
+      - run: apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - run: bash tools/dev/bootstrap-host.sh --full
+      - run: cmake --preset development-full && cmake --build --preset development-full -j 2 && ctest --preset development-full --output-on-failure
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: clean-debian-${{ github.run_id }}
+          path: |
+            output/dev-environment/
+            build/development-full/Testing/
+          if-no-files-found: error
+  sdk:
+    needs: plan
+    if: needs.plan.outputs.native == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+        python: ['3.11', '3.13']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with: {python-version: '${{ matrix.python }}'}
+      - run: python -m pip install ./sdk/python "cryptography>=42"
+      - run: python -m nuvo_depth.examples --help
+      - run: python tests/python_sdk_test.py
+      - run: python tests/first_use_test.py
+      - run: python tests/sdk_tls_test.py
+  required:
+    if: always()
+    needs: [plan, host, browser, sdk, minimum-cmake, debian-clean]
+    runs-on: ubuntu-24.04
+    steps:
+      - env:
+          PLAN: ${{ needs.plan.result }}
+          NATIVE_NEEDED: ${{ needs.plan.outputs.native }}
+          HOST: ${{ needs.host.result }}
+          BROWSER_NEEDED: ${{ needs.plan.outputs.browser }}
+          BROWSER: ${{ needs.browser.result }}
+          SDK: ${{ needs.sdk.result }}
+          MINIMUM: ${{ needs.minimum-cmake.result }}
+          DEBIAN: ${{ needs.debian-clean.result }}
+        run: |
+          test "$PLAN" = success
+          if [ "$NATIVE_NEEDED" = true ]; then test "$HOST" = success; else test "$HOST" = skipped; fi
+          if [ "$BROWSER_NEEDED" = true ]; then test "$BROWSER" = success; else test "$BROWSER" = skipped; fi
+          if [ "$NATIVE_NEEDED" = true ]; then test "$SDK" = success; else test "$SDK" = skipped; fi
+          if [ "$NATIVE_NEEDED" = true ]; then test "$MINIMUM" = success && test "$DEBIAN" = success; else test "$MINIMUM" = skipped && test "$DEBIAN" = skipped; fi

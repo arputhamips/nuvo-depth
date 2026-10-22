@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.25)
 if(POLICY CMP0167)
   cmake_policy(SET CMP0167 NEW)
 endif()
@@ -512,8 +512,10 @@ if(DEPTHD_MINIMAL_PACKAGE AND NOT TARGET depthd_runtime_factory)
   message(FATAL_ERROR "Minimal packages require the native OpenCV depth pipeline")
 endif()
 
-install(FILES tools/nuvo_calibration_store.py tools/nuvo_calibration_control.py
+install(FILES tools/nuvo_calibration_store.py tools/nuvo_calibration_control.py tools/nuvo_diagnostics.py
   DESTINATION "lib/nuvo-depth")
+install(FILES deployment/public-release.json deployment/release-platform.json
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/installation")
 install(FILES config/calibration/nuvo_depth_100mm/profile.json
   DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/calibration")
 if(TARGET nuvo-depth-read)
@@ -552,23 +554,29 @@ if(TARGET nuvo-gateway)
   )
 endif()
 install(TARGETS nuvo_depth_sdk
-  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT public-sdk
   RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+  COMPONENT public-sdk
 )
 install(FILES include/nuvo/depth.h include/nuvo/stream_decoder.hpp
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/nuvo"
+  COMPONENT public-sdk
 )
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/nuvo-depth.pc"
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
+  COMPONENT public-sdk
 )
+install(FILES sdk/c/decode_frame.c DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/libnuvo-depth-dev/examples" COMPONENT public-sdk)
 install(FILES
   sdk/python/nuvo_depth/__init__.py
+  sdk/python/nuvo_depth/_version.py
   sdk/python/nuvo_depth/client.py
   sdk/python/nuvo_depth/encoded.py
   sdk/python/nuvo_depth/frame.py
   sdk/python/nuvo_depth/first_use.py
   sdk/python/nuvo_depth/recorder.py
   sdk/python/nuvo_depth/recording.py
+  sdk/python/nuvo_depth/examples.py
   sdk/python/nuvo_depth/replay.py
   DESTINATION "lib/python3/dist-packages/nuvo_depth"
   COMPONENT python-sdk
@@ -718,6 +726,14 @@ if(BUILD_TESTING)
   endif()
   find_package(Python3 COMPONENTS Interpreter QUIET)
   if(Python3_Interpreter_FOUND)
+    foreach(NUVO_HOST_TEST minimal_migration diagnostics ci_routing sdk_tls acceptance)
+      add_test(NAME depthd_${NUVO_HOST_TEST}_test COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/${NUVO_HOST_TEST}_test.py)
+    endforeach()
+    if(NOT DEPTHD_MINIMAL_PACKAGE)
+      add_test(NAME depthd_sdk_examples_test COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/sdk_examples_test.py ${CMAKE_CURRENT_BINARY_DIR})
+    endif()
     add_test(NAME depthd_latest_release_test COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/latest_release_test.py)
     add_test(NAME depthd_first_use_test COMMAND ${Python3_EXECUTABLE}

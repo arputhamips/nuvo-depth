@@ -56,5 +56,37 @@ class ReadinessTest(unittest.TestCase):
     def test_profile_or_native_geometry_failure_is_not_accepted(self):
         bundle(self.root,preset_id='incompatible')
         self.assertIn('capture profile',self.status()['problem'])
+    def test_malformed_health_and_transaction_shapes_stay_unavailable(self):
+        for value in (None,'invalid',[],True,99):
+            with self.subTest(authority=value):
+                write_json(self.root/'run/nuvo-depth/status.json',{'status':'running','calibration_authority':value})
+                ready=self.status()
+                self.assertEqual(ready['state'],'unavailable')
+                self.assertEqual(ready['reason'],'daemon_status_malformed')
+        (self.root/'run/nuvo-depth/status.json').unlink()
+        for value in (None,[],1,{'state':[]}, {'state':'staging','namespace':[]}):
+            with self.subTest(transaction=value):
+                write_json(self.root/control.STATE/'transactions/calibration-invalid.json',value)
+                ready=self.status()
+                self.assertEqual(ready['state'],'unavailable')
+                self.assertIn('transaction',ready['problem'].lower())
+    def test_accepted_bindings_and_loaded_observation_remain_distinct(self):
+        target,value=bundle(self.root)
+        ready=self.status()
+        self.assertEqual(ready['bindings']['unit_id'],'unit-1')
+        self.assertEqual(ready['authority'],'user_validated')
+        self.assertEqual(ready['calibration_sha256'],value['bundle_id'])
+        self.assertIsNone(ready['loaded'])
+        self.assertEqual(ready['runtime_verification']['state'],'unverified')
+        self.assertFalse(ready['runtime_verification']['fresh_frames_verified'])
+        (self.root/control.MARKER).write_text('enabled\n')
+        health={'status':'running','run_uuid':'current-run','calibration_sha256':value['bundle_id'],'calibration_authority':1}
+        write_json(self.root/'run/nuvo-depth/status.json',health)
+        receipt={'schema_version':1,'bundle_id':value['bundle_id'],'authority':1,'run_uuid':'current-run','capture_sequences':[10,11],'verified_at_unix_ns':123}
+        write_json(self.root/control.STATE/'calibration-verification.json',receipt)
+        self.assertTrue(self.status()['runtime_verification']['fresh_frames_verified'])
+        for key,replacement in (('run_uuid','old-run'),('authority',2),('bundle_id','f'*64)):
+            write_json(self.root/control.STATE/'calibration-verification.json',{**receipt,key:replacement})
+            self.assertFalse(self.status()['runtime_verification']['fresh_frames_verified'])
 
 if __name__=='__main__':unittest.main()

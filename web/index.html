@@ -936,13 +936,21 @@
         <div class="page-header">
           <h1>Diagnostics</h1>
         </div>
-        <p class="lede">Live health from the device. Copy this snapshot when reporting an issue; no credentials are included.</p>
+        <p class="lede">Read-only checks explain readiness and recovery. Download an allowlisted support report; it excludes credentials and raw logs.</p>
         <div id="diagnosticsPerformanceSlot"></div>
-        <button id="copyDiagnostics" class="primary" type="button">Copy health JSON</button>
+        <button id="refreshDiagnostics" class="secondary" type="button">Run diagnostics</button>
+        <button id="copyDiagnostics" class="primary" type="button">Copy support JSON</button>
+        <button id="downloadDiagnostics" class="secondary" type="button" disabled>Download support report</button>
         <span id="copyDiagnosticsState" role="status"></span>
         <pre id="diagnosticJson">Waiting for device health data…</pre>
       </section>
-      <section id="recovery" class="page"><div class="page-header"><h1>Software update</h1></div><div class="settings"><article><h2>Package channel</h2><p>Signed APT repository support is prepared; publishing keys and an arm64 release cohort are release inputs.</p></article><article><h2>Calibration protection</h2><p>Package removal preserves per-unit identity, factory calibration, and recordings.</p></article></div></section>
+      <section id="recovery" class="page">
+        <div class="page-header"><h1>Software update</h1></div>
+        <p class="lede">Review your installed cohort and run the supported terminal installer. Keep your existing identity and validated calibration.</p>
+        <div class="settings"><article><h2>Installed versions</h2><pre id="installedVersions">Reading installed package versions…</pre></article>
+        <article><h2>Approved public reference</h2><p id="upgradeNotice">Release availability has not been checked.</p><pre id="upgradeCommand">Read diagnostics to obtain the approved pinned command.</pre><p>Review release prerequisites first. This command runs in your Pi terminal; the browser does not install updates. Candidates can be newer than the public reference, and implicit downgrades are refused.</p></article>
+        <article><h2>Preservation and recovery</h2><p>Use one complete supported cohort. Rerunning its installer preserves per-unit identity and calibration. An upgrade alone does not require recalibration. If installation was interrupted, inspect <code>sudo dpkg --audit</code> and the installer error before retrying. Do not mix individual package versions or assume a previous cohort is a tested downgrade.</p><p><a href="https://docs.nuvohardware.com/vision-one/operations/troubleshooting" target="_blank" rel="noopener">Upgrade and recovery guide</a></p></article></div>
+      </section>
     </main>
   </div>
 

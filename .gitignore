@@ -89,6 +89,7 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 *.egg-info/
+/sdk/python/build/
 /dist/
 
 # Local SDK and onboarding research

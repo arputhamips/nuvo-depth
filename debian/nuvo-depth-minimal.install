@@ -7,5 +7,6 @@ usr/lib/systemd/system/nuvo-trigger-prepare.service
 usr/lib/sysusers.d/nuvo-depth.conf
 usr/lib/tmpfiles.d/nuvo-depth.conf
 usr/share/nuvo-depth/calibration/
+usr/share/nuvo-depth/installation/
 usr/share/doc/nuvo-depth/
 usr/share/doc/nuvo-depth-minimal/

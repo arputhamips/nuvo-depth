@@ -290,27 +290,34 @@ def apply_configuration(root, plan, run=command):
     # Browser access uses automatic HTTPS sessions. Preserve existing legacy
     # credentials, but new installations do not need an enrollment code.
     # Bundle activation validates signatures/bindings; do not rewrite unit IDs.
-    if plan.get("calibration_bundle"):
+    supplied_bundle = plan.get("calibration_bundle")
+    if supplied_bundle and plan['hardware'] != 'nuvo':
+        raise ValueError('Custom/incomplete hardware must defer capture; do not import an assumed Nuvo geometry')
+    if supplied_bundle:
         run(["nuvoctl", "calibration", "import", plan["calibration_bundle"], "--dry-run"])
-        run(["/usr/lib/nuvo-depth/nuvo-calibration", "activate", plan["calibration_bundle"], "--namespace", plan["calibration_namespace"]])
     run(["depthd", "--check-config", "/etc/nuvo-depth/daemon.yaml"])
     calibration = json.loads(run(["/usr/lib/nuvo-depth/nuvo-calibration", "provisioning-status"]).stdout)
-    if calibration['accepted']:
+    if calibration['accepted'] and not supplied_bundle:
         # Read the active package configuration, not an installer cache.
         selected = root/'var/lib/nuvo-depth/calibrations'/('factory' if (root/'var/lib/nuvo-depth/calibrations/factory/active').exists() else 'user')/'active'
         run(['nuvoctl','calibration','import',str(selected.resolve()),'--dry-run'])
     capture = plan["hardware"] == "nuvo" and (plan["engineering"] or calibration["accepted"] or preserve_legacy)
     marker = root / "etc/nuvo-depth/capture-enabled"
-    if capture:
-        admin.atomic_write(marker, "engineering-preview\n" if plan["engineering"] else "accepted-calibration\n", 0o600)
-    else:
-        marker.unlink(missing_ok=True)
-        run(["systemctl", "stop", "nuvo-depthd-native.service"])
+    if not supplied_bundle:
+        if capture:
+            admin.atomic_write(marker, "engineering-preview\n" if plan["engineering"] else "accepted-calibration\n", 0o600)
+        else:
+            marker.unlink(missing_ok=True)
+            run(["systemctl", "stop", "nuvo-depthd-native.service"])
     # Provisional beta output requires an explicit terminal choice.
     command_line = "/usr/bin/depthd --run /etc/nuvo-depth/daemon.yaml --status /run/nuvo-depth/status.json --encoding-config /etc/nuvo-depth/encoding.json --stereo-control /etc/nuvo-depth/stereo.json --exposure-control /etc/nuvo-depth/exposure.json --device-identity /var/lib/nuvo-depth/identity/device.uuid"
-    admin.atomic_write(root / "etc/systemd/system/nuvo-depthd-native.service.d/30-authority.conf",
-                       "[Service]\nExecStart=\nExecStart=" + command_line + (" --allow-provisional-depth" if plan["engineering"] else "") + "\n", 0o644)
-    (root / calibration_control.POLICY_OVERRIDE).unlink(missing_ok=True)
+    # A supplied bundle owns selection and capture policy in one verified
+    # transaction below. Do not replace its previous policy before taking the
+    # transaction snapshot or overwrite that policy after activation.
+    if not supplied_bundle:
+        admin.atomic_write(root / "etc/systemd/system/nuvo-depthd-native.service.d/30-authority.conf",
+                           "[Service]\nExecStart=\nExecStart=" + command_line + (" --allow-provisional-depth" if plan["engineering"] else "") + "\n", 0o644)
+        (root / calibration_control.POLICY_OVERRIDE).unlink(missing_ok=True)
     if plan["access_policy"] == "setup_ap":
         admin.atomic_write(root / AP_ENABLED, "enabled\n", 0o600)
     else:
@@ -320,7 +327,7 @@ def apply_configuration(root, plan, run=command):
     services = ["nuvo-gateway.service", "nuvo-system-agent.socket"]
     if plan["access_policy"] == "setup_ap":
         services.append("nuvo-setup.service")
-    if capture:
+    if capture or supplied_bundle:
         services.append("nuvo-depthd-native.service")
     if plan["startup"]:
         run(["systemctl", "enable", "nuvo-depth.target", *services])
@@ -328,13 +335,23 @@ def apply_configuration(root, plan, run=command):
         run(["systemctl", "disable", "nuvo-depth.target", "nuvo-gateway.service", "nuvo-depthd-native.service", "nuvo-setup.service", "nuvo-system-agent.socket"])
     with setup_lock(root):
         state = read(root, STATE)
-        state.update(phase="installed", calibration_state="accepted" if calibration["accepted"] else "pending")
+        state.update(phase="installed", calibration_state="accepted" if calibration["accepted"] else "pending",
+                     calibration_import_pending=supplied_bundle if supplied_bundle and state['reboot_required'] else None)
         save(root, STATE, state)
     run(["systemctl", "start", "nuvo-system-agent.socket"])
     # An upgrade must replace running binaries and apply the new unit overrides.
     # `start` alone leaves an already-active daemon/gateway on the old code.
     run(["systemctl", "restart", *[s for s in services if s not in {"nuvo-depthd-native.service", "nuvo-system-agent.socket"}]])
-    if capture and not state["reboot_required"]:
+    if supplied_bundle and not state['reboot_required']:
+        try:
+            run(['nuvoctl', 'calibration', 'import', supplied_bundle])
+        except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+            with setup_lock(root):
+                failed = read(root, STATE)
+                failed['capture_error'] = 'Calibration import failed; previous selection/policy recovery was attempted. Inspect nuvoctl calibration status. Console remains available.'
+                save(root, STATE, failed)
+            raise RuntimeError('Calibration import was not verified; inspect capture status and retry. ' + str(error)) from error
+    elif capture and not state["reboot_required"]:
         started = run(["systemctl", "restart", "nuvo-depthd-native.service"], check=False)
         if started.returncode:
             with setup_lock(root):

@@ -1,0 +1,1 @@
+{"name":"nuvo-depth-browser-checks","private":true,"version":"1.0.0","devDependencies":{"playwright":"1.63.0"},"engines":{"node":">=20"}}

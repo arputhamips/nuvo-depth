@@ -52,7 +52,7 @@ PRODUCTS = (("left_rectified", "gray8", 1), ("right_rectified", "gray8", 1),
             ("rectified_stereo", "gray8", 2), ("rectified_stereo_rgb", "rgb8", 6))
 
 
-def raw_frame(sequence, run=2, configuration_epoch=1, width=1, height=1, mask=63, capture_time_ns=None):
+def raw_frame(sequence, run=2, configuration_epoch=1, width=1, height=1, mask=63, capture_time_ns=None, authority=1):
     pixels = width * height
     payload = bytearray()
     products = []
@@ -74,7 +74,7 @@ def raw_frame(sequence, run=2, configuration_epoch=1, width=1, height=1, mask=63
         configuration_epoch=configuration_epoch, capture_time_ns=time.clock_gettime_ns(time.CLOCK_BOOTTIME) if capture_time_ns is None else capture_time_ns, capture_clock="boottime",
         stereo_configuration_generation=1, stereo_applied_revision="ab" * 32,
         stereo_requested_revision="ab" * 32, stereo_configuration_error="",
-        calibration_sha256="01" + "00" * 31, calibration_authority=1,
+        calibration_sha256="01" + "00" * 31, calibration_authority=authority,
         depth_unit="metres", depth_convention="optical_axis_z", available_products=mask,
         selected_products=mask, products=products)).encode()
     return struct.pack(">4sHHHHIQQ", b"NUV1", 1, 0, 5, 0, len(metadata), len(payload), sequence) + metadata + payload
@@ -119,6 +119,7 @@ class LocalFrames:
         self.encoded_deliveries = 0
         self.encoded_delivery_peers = []
         self.serve_frames = True
+        self.authority = 1
         self.stale_frames = False
         self.stale_deliveries = 0
         self.listener = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
@@ -204,7 +205,7 @@ class LocalFrames:
                                                     timeout=struct.unpack_from(">I", request, 8)[0] / 1000)
                             parameters, cursor = self.parameters, self.cursor
                             captured = time.clock_gettime_ns(time.CLOCK_BOOTTIME)
-                        value = raw_frame(*parameters, mask=mask, capture_time_ns=1 if self.stale_frames else captured)
+                        value = raw_frame(*parameters, mask=mask, capture_time_ns=1 if self.stale_frames else captured, authority=self.authority)
                     if request[16:] == cursor or self.stopping or (not encoded and not self.serve_frames):
                         connection.send(b"NVN2"); continue
                     if encoded:
@@ -274,6 +275,9 @@ class ConfigurationAgent:
                         result=self.setup.set_owner_password(self.root,request["password"])
                     elif request["operation"]=="setup.status":
                         result=self.setup.status(self.root)
+                    elif request['operation']=='diagnostics.status':
+                        import nuvo_diagnostics
+                        result=nuvo_diagnostics.build_report({'profile':'appliance','versions':{'nuvo-depth-core':'0.1.1~beta.8'}})
                     else:
                         result=getattr(self.module,"set_"+kind)(
                             self.root,request["configuration"],request["expected_revision"])

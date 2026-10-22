@@ -1,0 +1,30 @@
+{
+  "source_commit": null,
+  "artifact_manifest": null,
+  "signing_identity": null,
+  "os_image_url": null,
+  "os_image_sha256": null,
+  "kernel": null,
+  "dependency_manifest": null,
+  "physical_board_model": null,
+  "physical_ram_bytes": null,
+  "camera_ids": null,
+  "device_uuid": null,
+  "calibration_sha256": null,
+  "calibration_authority": null,
+  "controls_sha256": null,
+  "scene_description": null,
+  "network_interface": null,
+  "network_budget_measurement": null,
+  "clients": null,
+  "started_at": null,
+  "finished_at": null,
+  "reviewer": null,
+  "schema_version": 1,
+  "installation_class": "fresh_flash | cleaned_existing_os | upgrade | host_fixture",
+  "prohibited_substitutions": [
+    "memory cap is not physical smaller SKU",
+    "Debian userspace is not a physical kernel boot",
+    "agent trial is not a first-time human"
+  ]
+}

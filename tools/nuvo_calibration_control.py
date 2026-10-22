@@ -15,7 +15,7 @@ import struct
 import tempfile
 import time
 
-from nuvo_calibration_store import CalibrationStore, REQUIRED_ASSETS, atomic_bytes, exclusive_lock, fsync_directory, read_transaction, validate_bundle
+from nuvo_calibration_store import CalibrationStore, REQUIRED_ASSETS, atomic_bytes, atomic_json, exclusive_lock, fsync_directory, read_transaction, validate_bundle
 
 STATE = Path('var/lib/nuvo-depth')
 CONFIG = Path('etc/nuvo-depth/daemon.yaml')
@@ -37,11 +37,22 @@ def daemon_health(root):
     path = root / 'run/nuvo-depth/status.json'
     try:
         health = read_json(path)
+        if not isinstance(health.get('status'), str):
+            raise ValueError('Daemon status needs a status string')
+        authority = health.get('calibration_authority', 0)
+        if type(authority) is not int or authority not in (0, 1, 2):
+            raise ValueError('Daemon calibration authority must be 0, 1 or 2')
+        for key in ('run_uuid', 'device_uuid', 'calibration_sha256'):
+            if key in health and not isinstance(health[key], str):
+                raise ValueError('Daemon calibration/identity metadata is malformed')
+        if 'capture_sequence' in health and (type(health['capture_sequence']) is not int or health['capture_sequence'] < 0):
+            raise ValueError('Daemon capture sequence is malformed')
         if time.time() - path.stat().st_mtime > 15:
-            raise ValueError('Daemon status is stale')
+            return {'status': 'unavailable', 'error': 'Daemon status is stale', 'error_code': 'daemon_status_stale'}
         return health
     except (OSError, ValueError) as error:
-        return {'status': 'unavailable', 'error': str(error)}
+        return {'status': 'unavailable', 'error': str(error),
+                'error_code': 'daemon_status_missing' if not path.exists() else 'daemon_status_malformed'}
 
 
 def service_configuration(root, run=subprocess.run):
@@ -137,11 +148,19 @@ def readiness(root=Path('/'), run=subprocess.run):
               'next_action': 'Inspect the specific problem and repair the configuration or service.',
               'accepted': False, 'preview_enabled': False, 'capture_enabled': False,
               'bundle_id': None, 'loaded': None,
+              'authority': None, 'source': None, 'calibration_sha256': None,
+              'bindings': None, 'reason': 'readiness_unavailable',
+              'runtime_verification': {'state': 'unverified', 'run_uuid': health.get('run_uuid'),
+                                       'fresh_frames_verified': False},
               'camera_service': {key: health.get(key) for key in
-                                 ['status', 'run_uuid', 'capture_sequence', 'error']}}
+                                 ['status', 'run_uuid', 'capture_sequence', 'error', 'error_code']}}
     try:
+        if health.get('error_code') == 'daemon_status_malformed':
+            result['reason'] = 'daemon_status_malformed'
+            raise ValueError('Daemon status is malformed; inspect the capture service and its status file. ' + health['error'])
         for journal in (root/STATE/'transactions').glob('calibration-*.json'):
             if read_transaction(journal).get('state') in {'staging','awaiting_restart','restoring'}:
+                result['reason'] = 'activation_pending'
                 raise ValueError('Calibration activation or recovery is pending. Wait for the active command; if it was interrupted, retry import to restore the previous selection, then retry the requested change.')
         policy = service_configuration(root, run)
         result.update(preview_enabled=policy['preview_enabled'],
@@ -150,12 +169,31 @@ def readiness(root=Path('/'), run=subprocess.run):
         manifest = selected_calibration(root, run, cfg)
         if manifest:
             result['bundle_id'] = manifest['bundle_id']
+            result.update(authority=manifest['authority'], source='factory_bundle' if manifest['authority'] == 'factory_validated' else 'user_bundle',
+                          calibration_sha256=manifest['bundle_id'],
+                          bindings={key: manifest.get(key) for key in
+                                    ('unit_id', 'left_camera_id', 'right_camera_id', 'preset_id', 'profile')})
             if health.get('status') == 'running':
                 result['loaded'] = health.get('calibration_sha256') == manifest['bundle_id']
                 expected_authority = 2 if manifest['authority'] == 'factory_validated' else 1
                 if not result['loaded'] or health.get('calibration_authority') != expected_authority:
+                    result['reason'] = 'loaded_calibration_mismatch'
                     raise ValueError('The selected accepted bundle is not the calibration loaded by the daemon')
+                result['runtime_verification']['state'] = 'daemon_loaded'
+                receipt_path = root/STATE/'calibration-verification.json'
+                if receipt_path.exists() and result['capture_enabled']:
+                    receipt = read_json(receipt_path)
+                    sequences = receipt.get('capture_sequences')
+                    if (receipt.get('schema_version') != 1 or not isinstance(sequences,list) or len(sequences)!=2
+                            or any(type(value) is not int or value<0 for value in sequences) or sequences[0]>=sequences[1]):
+                        raise ValueError('Calibration verification receipt is malformed; verify fresh output again')
+                    if (receipt.get('bundle_id') == manifest['bundle_id'] and receipt.get('run_uuid') == health.get('run_uuid')
+                            and receipt.get('authority') == expected_authority):
+                        result['runtime_verification'].update(state='fresh_frames_verified', fresh_frames_verified=True,
+                                                              verified_at_unix_ns=receipt.get('verified_at_unix_ns'),
+                                                              capture_sequences=sequences)
             result.update(state='calibration_accepted', label='Calibration accepted', accepted=True,
+                          reason='matching_bundle_validated',
                           message='A matching per-unit calibration passed its declared validation. This is not independent metric-accuracy or production qualification.',
                           next_action='Inspect calibration details and verify fresh output; check camera/service health separately.')
             if not result['capture_enabled']:
@@ -165,12 +203,15 @@ def readiness(root=Path('/'), run=subprocess.run):
             raise ValueError('Existing validated calibration files are preserved, but a matching per-unit bundle cannot be verified. Import the original compatible bundle; a software upgrade alone does not require recalibration.')
         elif policy['preview_enabled'] and policy['capture_policy_enabled']:
             result.update(state='preview_enabled', label='Preview enabled',
+                          authority='provisional_recalibration_required', source='provisional_seed',
+                          reason='preview_policy_enabled', calibration_sha256=health.get('calibration_sha256'),
                           message='Provisional output is enabled; distance accuracy remains unverified. Camera/service health is separate.',
                           next_action='Continue engineering evaluation or import an accepted calibration bundle.')
         elif policy['capture_policy_enabled']:
             raise ValueError('Capture policy is enabled without a verifiable active bundle or explicit preview. Existing calibration files are preserved; inspect the service override and import the original compatible bundle. A software upgrade alone does not require recalibration.')
         else:
             result.update(state='calibration_needed', label='Calibration needed', capture_enabled=False,
+                          reason='calibration_or_preview_required',
                           message='Capture is waiting for calibration or an explicit provisional-preview selection.',
                           next_action='Import a compatible accepted bundle, or deliberately enable provisional preview.')
     except (OSError, ValueError, RuntimeError, KeyError, subprocess.SubprocessError) as error:
@@ -292,7 +333,11 @@ def restart_and_verify(root, policy, expected_bundle, run=subprocess.run):
             expected, authority = health.get('calibration_sha256'), 0
     if not expected or health.get('calibration_sha256') != expected or health.get('calibration_authority') != authority:
         raise RuntimeError('Capture loaded a different calibration than the requested selection')
-    return fresh_frame(root, expected, authority, health['run_uuid'], run)
+    sequences = fresh_frame(root, expected, authority, health['run_uuid'], run)
+    atomic_json(root/STATE/'calibration-verification.json',
+                {'schema_version':1,'bundle_id':expected,'authority':authority,'run_uuid':health['run_uuid'],
+                 'capture_sequences':sequences,'verified_at_unix_ns':time.time_ns()})
+    return sequences
 
 
 def import_bundle(root, source, dry_run=False, run=subprocess.run):

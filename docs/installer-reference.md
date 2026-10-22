@@ -202,7 +202,7 @@ Wi-Fi profiles use the documented
 
 After installation follow [Get your first depth frame](https://docs.nuvohardware.com/vision-one/guide/getting-started) through sample capture.
 
-## Calibration readiness in beta 7/current source
+## Calibration readiness in beta 8/current source
 
 The installer explains compatible existing calibration, explicit provisional
 preview and disabled capture before asking for a choice. Completion reports

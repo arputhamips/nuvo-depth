@@ -1,0 +1,1448 @@
+{
+  "schema_version": 1,
+  "specification_sha256": "7969bcc879a887cc1b9c9d1cbb0e809503c366210210bbb723a297aba055d0b2",
+  "procedures": [
+    {
+      "test_id": "T1-01",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "node tests/first_use_browser_test.cjs"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "A newcomer chooses a path for a preinstalled unit, own Pi with browser, own Pi with local raw output, and remote application.",
+      "expected_result": "Each scenario reaches the appropriate path; minimal omissions are visible before installation.",
+      "retain": "Navigation checklist and screenshots.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T1-02",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "node tests/first_use_browser_test.cjs"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Follow full setup on a freshly flashed supported Pi using only the user guide; include one reboot and a depth/validity reader.",
+      "expected_result": "Console loads, readiness is explained, fresh paired output advances, and the frame metadata identifies the actual profile and authority.",
+      "retain": "Screen recording, sanitized transcript, frame metadata.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "T1-03",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "node tests/first_use_browser_test.cjs"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Follow minimal setup from an SSH-ready supported Pi and capture a float-depth frame.",
+      "expected_result": "Depth, validity, and metadata files are created with documented dimensions/units; the guide never asks for a browser or network SDK.",
+      "retain": "Transcript, file checksums, decoded metadata.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "T1-04",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "node tests/first_use_browser_test.cjs"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Disable mDNS resolution, then follow the documented IP fallback and certificate instructions.",
+      "expected_result": "The user reaches the correct device and verifies its identity; any certificate hostname mismatch has a supported resolution without disabling TLS checks in SDK code.",
+      "retain": "Browser and client verification record.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "T1-05",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "node tests/first_use_browser_test.cjs"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Begin from an unsupported OS/kernel, one missing camera, and an interrupted install in separate trials.",
+      "expected_result": "Instructions identify the condition, state a specific recovery step, and never report successful capture or metric accuracy.",
+      "retain": "Error screenshots and recovery transcript.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "T1-06",
+      "procedure_version": 1,
+      "execution_class": "newcomer",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "node tests/first_use_browser_test.cjs"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Observe five first-time users: two preinstalled, two own-Pi full, and one SDK integration. Supply working supported hardware, approved OS where applicable, internet, and trusted setup material.",
+      "expected_result": "All five finish their assigned first-frame task without maintainer hints. Active task-time targets: 15 minutes preinstalled, 30 minutes own-Pi full, 15 minutes SDK. Report total time separately; physical assembly, OS flashing, and new calibration acquisition are outside these timed tasks.",
+      "retain": "Individual task forms, timings, interventions, observed frame identity.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Use newcomer-walkthrough.md with real first-time participants; agent simulations cannot pass this case."
+    },
+    {
+      "test_id": "T2-01",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tools/check_setup_consistency.py",
+          "python3 tests/latest_release_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Render/check current instructions for full and minimal using the approved public-install metadata.",
+      "expected_result": "Every current install command names the approved published tag and the correct signed profile asset; source-checkout instructions still require an explicit release where appropriate.",
+      "retain": "Generated diff and consistency report.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T2-02",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tools/check_setup_consistency.py",
+          "python3 tests/latest_release_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Add a future unpublished development version to a fixture without changing public-install metadata.",
+      "expected_result": "Current user commands remain pinned to the approved public preview. Missing/invalid public metadata causes an actionable check failure.",
+      "retain": "Fixture check results.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T2-03",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tools/check_setup_consistency.py",
+          "python3 tests/latest_release_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Compare OS/kernel and starting-profile instructions with platform metadata and the authoritative profile catalog.",
+      "expected_result": "Values agree; all rate claims retain their qualification labels and targets remain labeled as targets.",
+      "retain": "Consistency report.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T2-04",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tools/check_setup_consistency.py",
+          "python3 tests/latest_release_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Walk through current browser and SDK connection guidance.",
+      "expected_result": "Browser users are not asked to claim/login; SDK token exchange remains documented and functional; terminology distinguishes hotspot, SSH, and SDK credentials.",
+      "retain": "Copy review and SDK connection smoke result.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T2-05",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tools/check_setup_consistency.py",
+          "python3 tests/latest_release_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Compare historical reports before and after rendering/checking current documentation.",
+      "expected_result": "Historical version references, evidence, commands, and measurements remain unchanged.",
+      "retain": "Scoped diff/hash report.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T2-06",
+      "procedure_version": 1,
+      "execution_class": "published_documentation",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tools/check_setup_consistency.py",
+          "python3 tests/latest_release_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Open published wiki pages and their linked current instructions after update; exercise documentation-only CI.",
+      "expected_result": "The served pages agree with the repository and links resolve. Only lightweight checks run; ARM64 packaging/signing is not dispatched.",
+      "retain": "Live-page review and workflow run.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T3-01",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/calibration_readiness_test.py",
+          "python3 tests/calibration_import_test.py",
+          "python3 tests/minimal_migration_test.py",
+          "python3 tests/calibration_session_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Exercise accepted, preview, needed, unavailable, malformed, and stale state fixtures.",
+      "expected_result": "Every interface derives the correct state/reason/action; unknown/error never becomes accepted or silently provisional.",
+      "retain": "State/API/CLI/browser results.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T3-02",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/calibration_readiness_test.py",
+          "python3 tests/calibration_import_test.py",
+          "python3 tests/minimal_migration_test.py",
+          "python3 tests/calibration_session_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Install full with accepted calibration, explicit preview, deferred calibration, and custom hardware; reinstall existing units.",
+      "expected_result": "Capture policy matches the selection; preview is opt-in; existing identities/configuration are preserved; custom hardware stays deferred.",
+      "retain": "Installer tests and configuration hashes.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T3-03",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/calibration_readiness_test.py",
+          "python3 tests/calibration_import_test.py",
+          "python3 tests/minimal_migration_test.py",
+          "python3 tests/calibration_session_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Import a valid matching user bundle on full and minimal with a real reader subscribed.",
+      "expected_result": "The active daemon and fresh frame identify the expected bundle/hash and authority; state survives restart.",
+      "retain": "Activation receipt, frame metadata, status.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "T3-04",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/calibration_readiness_test.py",
+          "python3 tests/calibration_import_test.py",
+          "python3 tests/minimal_migration_test.py",
+          "python3 tests/calibration_session_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Dry-run a valid bundle and invalid identity, camera, profile, geometry, hash, missing-file, and path/symlink fixtures.",
+      "expected_result": "Valid dry-run makes no persistent/runtime change; incompatible or unsafe input is rejected before activation with a specific reason.",
+      "retain": "Validation results and before/after hashes.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T3-05",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/calibration_readiness_test.py",
+          "python3 tests/calibration_import_test.py",
+          "python3 tests/minimal_migration_test.py",
+          "python3 tests/calibration_session_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Test trusted, unknown-key, invalid-signature, and unsigned factory bundles, plus valid user bundles.",
+      "expected_result": "Factory authority requires the existing factory trust rules; no invalid bundle is accepted or silently relabeled as user validated.",
+      "retain": "Signature/namespace results.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T3-06",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/calibration_readiness_test.py",
+          "python3 tests/calibration_import_test.py",
+          "python3 tests/minimal_migration_test.py",
+          "python3 tests/calibration_session_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Interrupt activation at durable transaction boundaries; run concurrent import/rollback attempts.",
+      "expected_result": "Locking prevents mixed state; restart/recovery loads the last committed valid selection and records a clear failure or pending result.",
+      "retain": "Fault-injection log and recovered selections.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T3-07",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/calibration_readiness_test.py",
+          "python3 tests/calibration_import_test.py",
+          "python3 tests/minimal_migration_test.py",
+          "python3 tests/calibration_session_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Force daemon startup failure or expected-hash mismatch after staging; invoke rollback after a successful import.",
+      "expected_result": "Failed activation restores the previous selection; explicit rollback loads that selection and its matching frame identity when hardware is available.",
+      "retain": "Transaction receipts and frame hashes.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "T3-08",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/calibration_readiness_test.py",
+          "python3 tests/calibration_import_test.py",
+          "python3 tests/minimal_migration_test.py",
+          "python3 tests/calibration_session_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Import/activate while capture is idle, then connect a reader; separately disconnect a camera.",
+      "expected_result": "Demand-driven idleness is explained, fresh output verifies activation on request, and camera failure remains distinct from calibration status.",
+      "retain": "Status transitions and stream trace.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "T3-09",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/calibration_readiness_test.py",
+          "python3 tests/calibration_import_test.py",
+          "python3 tests/minimal_migration_test.py",
+          "python3 tests/calibration_session_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Upgrade/reinstall existing full and minimal fixtures and inspect minimal package dependencies/payload.",
+      "expected_result": "Existing CLI/bundle formats work; configuration and identity persist; minimal adds no web, SDK, Wi-Fi onboarding, solver, NumPy, or Python OpenCV.",
+      "retain": "Compatibility and package-isolation report.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T3-10",
+      "procedure_version": 1,
+      "execution_class": "newcomer",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/calibration_readiness_test.py",
+          "python3 tests/calibration_import_test.py",
+          "python3 tests/minimal_migration_test.py",
+          "python3 tests/calibration_session_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Review calibration wording and perform a newcomer calibration-readiness task.",
+      "expected_result": "The user identifies preview versus accepted calibration and its next action; no label claims independent metric accuracy without the corresponding evidence.",
+      "retain": "Copy review and observed task result.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Use newcomer-walkthrough.md with real first-time participants; agent simulations cannot pass this case."
+    },
+    {
+      "test_id": "T4-01",
+      "procedure_version": 1,
+      "execution_class": "client_environment",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/python_sdk_test.py",
+          "python3 tests/sdk_tls_test.py",
+          "python3 tests/sdk_examples_test.py build/development-full"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Follow the quickstart in clean Linux and Windows client environments using Python 3.11 and one newer recorded supported version.",
+      "expected_result": "The documented installation/import and first frame succeed with only declared dependencies and trusted device access.",
+      "retain": "Environment manifests and transcripts.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T4-02",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/python_sdk_test.py",
+          "python3 tests/sdk_tls_test.py",
+          "python3 tests/sdk_examples_test.py build/development-full"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Connect to real TLS fixtures using the correct certificate, unknown certificate, wrong hostname, and changed device fingerprint.",
+      "expected_result": "Valid identity succeeds; untrusted/mismatched identity fails with useful guidance; no example bypasses verification.",
+      "retain": "TLS integration results.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T4-03",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/python_sdk_test.py",
+          "python3 tests/sdk_tls_test.py",
+          "python3 tests/sdk_examples_test.py build/development-full"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Try valid, invalid, absent, and expired SDK credentials; compare automatic browser connection.",
+      "expected_result": "Authentication failures explain the correct SDK recovery; browser instructions remain accurate; errors and logs contain no token.",
+      "retain": "Auth/session integration and redaction checks.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T4-04",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/python_sdk_test.py",
+          "python3 tests/sdk_tls_test.py",
+          "python3 tests/sdk_examples_test.py build/development-full"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Run every Python example against the matching device and replay fixture. Include valid and invalid pixels and product format variants.",
+      "expected_result": "Examples handle units, masks, NaNs, dimensions, and authority correctly; recorded expected results match within declared tolerances.",
+      "retain": "Example outputs and decoded fixture checks.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "T4-05",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/python_sdk_test.py",
+          "python3 tests/sdk_tls_test.py",
+          "python3 tests/sdk_examples_test.py build/development-full"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Record a finite stream; inject disconnect, timeout, early peer close, and interruption. Replay the completed portion.",
+      "expected_result": "Finite shortfall fails clearly; complete records remain readable; no silent gap-filling or reconnection changes the recording contract.",
+      "retain": "Exit codes, recording/replay report.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T4-06",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/python_sdk_test.py",
+          "python3 tests/sdk_tls_test.py",
+          "python3 tests/sdk_examples_test.py build/development-full"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Request disabled raw output, disabled monitoring output, and a subscription exceeding the available link budget.",
+      "expected_result": "The error names the cause and supported action; the bounded client does not hang or accumulate an unbounded queue.",
+      "retain": "Endpoint and client traces.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T4-07",
+      "procedure_version": 1,
+      "execution_class": "client_environment",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/python_sdk_test.py",
+          "python3 tests/sdk_tls_test.py",
+          "python3 tests/sdk_examples_test.py build/development-full"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Compile/run the C example against installed headers/libraries; read public API/status instructions.",
+      "expected_result": "No private headers or repository-relative build paths are required; ROS 2 maturity is explicit.",
+      "retain": "Compiler transcript and sample output.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T4-08",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/python_sdk_test.py",
+          "python3 tests/sdk_tls_test.py",
+          "python3 tests/sdk_examples_test.py build/development-full"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Exercise documented previous-compatible SDK calls and older supported recordings against the candidate.",
+      "expected_result": "Existing signatures, frame interpretation, bounded reads, and explicit close/error behavior remain compatible; supported version combinations are recorded.",
+      "retain": "SDK/recording compatibility results.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T5-01",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/diagnostics_test.py",
+          "python3 tests/install_release_test.py",
+          "python3 tests/system_agent_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Inject missing camera, unsupported kernel, unavailable trigger, failed service, missing calibration, and unavailable network in isolated fixtures.",
+      "expected_result": "Each condition gets the correct check/reason/action; unavailable data is unknown rather than pass.",
+      "retain": "Diagnostic fixture results.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T5-02",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/diagnostics_test.py",
+          "python3 tests/install_release_test.py",
+          "python3 tests/system_agent_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Check healthy idle capture, image-only consumers, disabled optional encoder, and minimal installation.",
+      "expected_result": "Intentional inactivity/omissions are explained without false faults or suggestions to use absent features.",
+      "retain": "CLI/console snapshots.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T5-03",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/diagnostics_test.py",
+          "python3 tests/install_release_test.py",
+          "python3 tests/system_agent_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Run diagnostics and export on a configured device while hashing persistent configuration, identities, network state, and active selection.",
+      "expected_result": "Read-only operations leave persistent settings and active service policy unchanged.",
+      "retain": "Before/after state report.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "T5-04",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/diagnostics_test.py",
+          "python3 tests/install_release_test.py",
+          "python3 tests/system_agent_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Seed all known secret classes into diagnostic inputs and failure paths; export through CLI/browser and inspect errors.",
+      "expected_result": "Secret values and private fields are absent; supported allowlisted fields remain usable; output matches the declared schema.",
+      "retain": "Redaction tests and inspected sample export.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T5-05",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/diagnostics_test.py",
+          "python3 tests/install_release_test.py",
+          "python3 tests/system_agent_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Reinstall and upgrade an explicitly supported previous signed cohort to the candidate on full and minimal.",
+      "expected_result": "Identity, calibration, user settings, network choice, and recordings persist; dpkg audit is clean and fresh output returns.",
+      "retain": "Lifecycle transcript and preservation hashes.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "T5-06",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/diagnostics_test.py",
+          "python3 tests/install_release_test.py",
+          "python3 tests/system_agent_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Select tampered signatures, corrupted assets, mixed cohorts, full/minimal conflicts, and an implicit downgrade.",
+      "expected_result": "The operation rejects the unsupported transition before replacing the working Nuvo cohort; actionable guidance is shown.",
+      "retain": "Rejection results and protected-file hashes.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T5-07",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/diagnostics_test.py",
+          "python3 tests/install_release_test.py",
+          "python3 tests/system_agent_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Interrupt download and package/service work at supported recovery points; follow the documented retry procedure.",
+      "expected_result": "Partial downloads are not accepted; retry preserves unit state and restores a working supported installation or names the exact unresolved OS/package repair.",
+      "retain": "Recovery transcript and final audit.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "T5-08",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/diagnostics_test.py",
+          "python3 tests/install_release_test.py",
+          "python3 tests/system_agent_test.py"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Open Software update on a device with/without reachable release information and follow its terminal procedure.",
+      "expected_result": "Installed version remains accurate, unverified availability is labeled, commands are pinned, and the page never implies an implemented browser updater or untested rollback.",
+      "retain": "Browser walkthrough and upgrade report.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "T6-01",
+      "procedure_version": 1,
+      "execution_class": "clean_environment",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "bash tools/dev/bootstrap-host.sh --full",
+          "cmake --preset development-full",
+          "cmake --build --preset development-full -j 2",
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Start a clean supported Linux environment, run only the documented minimal bootstrap and build/test commands.",
+      "expected_result": "Configure, build, and every applicable registered test pass without hidden local dependencies.",
+      "retain": "Provisioning transcript and CTest output.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T6-02",
+      "procedure_version": 1,
+      "execution_class": "clean_environment",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "bash tools/dev/bootstrap-host.sh --full",
+          "cmake --preset development-full",
+          "cmake --build --preset development-full -j 2",
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Repeat using the full host environment, including Boost.System, OpenSSL, OpenCV, yaml-cpp, and FFmpeg dependencies.",
+      "expected_result": "development-full configures/builds/tests successfully; optional omissions and skips are explicit.",
+      "retain": "Dependency manifest and full test report.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T6-03",
+      "procedure_version": 1,
+      "execution_class": "clean_environment",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "bash tools/dev/bootstrap-host.sh --full",
+          "cmake --preset development-full",
+          "cmake --build --preset development-full -j 2",
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Run the documented minimum CMake and one newer supported version; try a version below minimum.",
+      "expected_result": "Supported versions parse/build correctly; unsupported versions fail with a clear requirement.",
+      "retain": "Toolchain matrix results.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T6-04",
+      "procedure_version": 1,
+      "execution_class": "clean_environment",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "bash tools/dev/bootstrap-host.sh --full",
+          "cmake --preset development-full",
+          "cmake --build --preset development-full -j 2",
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Follow supported WSL instructions from a clean documented distribution.",
+      "expected_result": "Host builds and fixtures work; native Windows/client guidance and physical Pi tasks are clearly distinguished.",
+      "retain": "WSL environment and test transcript.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T6-05",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "bash tools/dev/bootstrap-host.sh --full",
+          "cmake --preset development-full",
+          "cmake --build --preset development-full -j 2",
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Launch the deterministic gateway/frame fixture, then run browser and SDK integration tests.",
+      "expected_result": "The actual wire/API contracts are exercised with reproducible identities and labeled fixture output.",
+      "retain": "Fixture manifest and integration results.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T6-06",
+      "procedure_version": 1,
+      "execution_class": "clean_environment",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "bash tools/dev/bootstrap-host.sh --full",
+          "cmake --preset development-full",
+          "cmake --build --preset development-full -j 2",
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Rebuild the environment from declared inputs on another clean runner.",
+      "expected_result": "Dependency resolution is reproducible to the declared version policy; no credentials, private datasets, or developer-local paths are required.",
+      "retain": "Second-run manifest and results.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T7-01",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/ci_routing_test.py",
+          "node tests/gateway_browser_test.cjs output/gateway-fixture/manifest.json"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Exercise the PR workflow with deliberate native, SDK, and UI regressions in disposable fixtures.",
+      "expected_result": "The relevant required job fails; logs identify the failure; skipped/missing required jobs cannot look green.",
+      "retain": "Workflow runs and retained logs.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T7-02",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/ci_routing_test.py",
+          "node tests/gateway_browser_test.cjs output/gateway-fixture/manifest.json"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Change only user documentation, then change runtime/UI code in separate trials.",
+      "expected_result": "Docs run lightweight consistency/link checks only; code runs relevant host/browser coverage. ARM64 packaging/signing remains deliberately dispatched.",
+      "retain": "Workflow routing results.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T7-03",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/ci_routing_test.py",
+          "node tests/gateway_browser_test.cjs output/gateway-fixture/manifest.json"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Run rendered-browser scenarios for connect, calibration states, stale/unavailable health, form validation, revision conflicts, output selection, restart/reconnect, and diagnostics.",
+      "expected_result": "Correct actions/messages appear, pending edits are protected, and no unhandled error blocks the task; screenshots/traces are retained on failure.",
+      "retain": "Browser test report and traces.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "T7-04",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/ci_routing_test.py",
+          "node tests/gateway_browser_test.cjs output/gateway-fixture/manifest.json"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Install each profile from frozen candidate artifacts on a newly flashed supported image using physical cameras.",
+      "expected_result": "Signed-path verification succeeds where applicable; fresh output and correct authority return after required reboot; exact environment/artifact identity is retained.",
+      "retain": "Physical install, frame, and package reports.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "T7-05",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/ci_routing_test.py",
+          "node tests/gateway_browser_test.cjs output/gateway-fixture/manifest.json"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Perform ten graceful reboot cycles and five physical power-cycle tests per profile; include a controlled interrupted activation/recovery case on a recoverable test device.",
+      "expected_result": "Identity/configuration/committed calibration survive; services recover according to policy; fresh frames return with a new run identity; no mixed committed state.",
+      "retain": "Cycle records, state hashes, recovery evidence.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "T7-06",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/ci_routing_test.py",
+          "node tests/gateway_browser_test.cjs output/gateway-fixture/manifest.json"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Exercise Ethernet and twenty setup Wi-Fi handoffs covering success, wrong credentials, missed confirmation, reboot during handoff, and outage after confirmed setup.",
+      "expected_result": "Confirmed setup persists; failed/unconfirmed setup returns to the protected hotspot with the same secret; an ordinary confirmed-network outage does not reopen it.",
+      "retain": "Network transition/status records.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "T7-07",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/ci_routing_test.py",
+          "node tests/gateway_browser_test.cjs output/gateway-fixture/manifest.json"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Run the retained advertised workload on every claimed physical Pi RAM SKU/profile combination.",
+      "expected_result": "Each retained claim has physical evidence; unsupported combinations are removed or clearly marked unqualified before completion.",
+      "retain": "Physical SKU matrix, memory/thermal/frame reports.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "T7-08",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "python3 tests/ci_routing_test.py",
+          "node tests/gateway_browser_test.cjs output/gateway-fixture/manifest.json"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 300,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Assemble the final candidate report and compare every artifact/hash with the tested manifest.",
+      "expected_result": "Every required test has valid candidate evidence; failure, blocked, skipped, or not-run cases remain visible and prevent the affected completion gate.",
+      "retain": "Signed/reviewed completion report and evidence index.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "TP-01",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Subscribe to image-only, depth/validity, preview-only, combined, and zero-consumer cases.",
+      "expected_result": "Only demanded stages run; idle matcher/encoder work remains idle as appropriate; selected products share capture identity.",
+      "retain": "Stage counters, CPU and frame trace.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "TP-02",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Measure full/minimal core depth, mixed preview, and multiple bounded clients against the frozen baseline.",
+      "expected_result": "Regression budgets pass without changing matcher quality, calibration, geometry, or consumer demands to hide cost.",
+      "retain": "Three-run distributions and configuration hashes.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "TP-03",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Sweep admitted and excessive product/cadence requests across measured Ethernet/Wi-Fi budgets.",
+      "expected_result": "Requests are admitted/rejected according to policy; exact requests are not silently degraded; best-effort gaps/cadence are explained accurately.",
+      "retain": "Admission decisions and measured bytes/rates.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "TP-04",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Run slow/stalled clients, disconnect/reconnect, and retained-frame consumers through the 60-minute soak.",
+      "expected_result": "Queues/ownership remain bounded; retained data stays immutable; no sustained RSS growth, swapping, crash, or new core error occurs.",
+      "retain": "RSS/CPU/thermal series and frame/lease results.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "TP-05",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Compare displayed capture, depth completion, receive rate, freshness, and latency with independent observations.",
+      "expected_result": "Labels correspond to their actual measurement boundaries and tolerances; no stale or image-only output inflates depth performance.",
+      "retain": "Independent trace and UI/API comparisons.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "TP-06",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Process a fixed recorded stereo fixture with identical algorithms/controls before and after the changes.",
+      "expected_result": "Disparity/depth/validity and calibration interpretation meet the frozen equivalence tolerances; user-experience work introduces no hidden quality change.",
+      "retain": "Golden comparison, dependency versions, tolerances.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "TP-07",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Review every retained rate/accuracy/range/RAM claim against candidate evidence; independently measure accuracy if new metric claims are proposed.",
+      "expected_result": "Claims stay within measured scope. New accuracy claims require predeclared distance/scene/coverage, bias, and RMSE limits and independent ground truth; otherwise existing provisional labels remain.",
+      "retain": "Claim-to-evidence table and applicable accuracy report.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "TR-01",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "ctest --preset minimal-host --output-on-failure",
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Run all applicable existing and new native/Python/JavaScript tests for minimal-host, development-full, and both ARM64 package profiles.",
+      "expected_result": "All required registered tests pass. Any removed test has a reviewed replacement/rationale; optional skips name the missing capability and cannot satisfy a required gate.",
+      "retain": "CTest/test-runner inventories and results.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "TR-02",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "ctest --preset minimal-host --output-on-failure",
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Exercise local IPC, C ABI, HTTPS snapshot, WebSocket, NUV/NVE decoding, and NVR recording/replay with current and documented compatible clients.",
+      "expected_result": "Public structures/formats and supported old recordings remain compatible; malformed/bounded input checks continue to reject invalid data.",
+      "retain": "Protocol/ABI/recording compatibility report.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "TR-03",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "ctest --preset minimal-host --output-on-failure",
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Inspect associated frames across concurrency, overload, reconnect, and daemon restart.",
+      "expected_result": "Products share the expected device/run/capture identity; streamed frames have no unintended duplicate or reversed identity within a run; whole-frame gaps are reported where best effort permits them. Repeated latest snapshots retain their existing allowed semantics.",
+      "retain": "Identity/immutability trace.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "TR-04",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "ctest --preset minimal-host --output-on-failure",
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Apply valid/invalid exposure, stereo, and encoding settings, including simultaneous edits and formatting-only rewrites.",
+      "expected_result": "Revision preconditions protect newer edits; atomic writes retain the last valid config; requested/saved/applied are distinct and frame epochs remain correct.",
+      "retain": "API/CLI receipts and frame metadata.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "TR-05",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "ctest --preset minimal-host --output-on-failure",
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Exercise TLS, origin/CSRF/session, permissions, calibration trust, and command allowlists around changed paths.",
+      "expected_result": "Existing protections remain effective; the gateway gains no general root/camera access; diagnostic and error paths expose no secrets.",
+      "retain": "Boundary and permission tests.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "TR-06",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "ctest --preset minimal-host --output-on-failure",
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Install/reinstall/upgrade/remove the packages in disposable supported environments and inspect artifacts.",
+      "expected_result": "Package metadata/cohorts are consistent, dependency isolation holds, identity/calibration/recordings are preserved by supported operations, and dpkg audit is clean.",
+      "retain": "Lifecycle and payload reports.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "TR-07",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "ctest --preset minimal-host --output-on-failure",
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Test protected hotspot, new-path confirmation/rollback, confirmed outages, and existing SSH/network preservation.",
+      "expected_result": "Existing network policy and recovery behavior remain compatible; no repair/check silently replaces network configuration.",
+      "retain": "Network state and preservation report.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    },
+    {
+      "test_id": "TR-08",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "ctest --preset minimal-host --output-on-failure",
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Exercise interrupt/crash/low-space/malformed-state cases in durable configuration, calibration, and recording operations.",
+      "expected_result": "The last committed valid state survives, incomplete output is handled by the existing contract, and failure is explicit without false success.",
+      "retain": "Fault-injection/recovery report.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "TR-09",
+      "procedure_version": 1,
+      "execution_class": "software",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "ctest --preset minimal-host --output-on-failure",
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Run browser tasks at desktop and 390-pixel mobile widths, keyboard-only navigation, and light/dark themes in recorded supported browser versions.",
+      "expected_result": "Required controls/actions remain reachable, focus and error messages are usable, text is readable, and no blocker/uncaught error prevents completion.",
+      "retain": "Browser screenshots and accessibility task checklist.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass."
+    },
+    {
+      "test_id": "TR-10",
+      "procedure_version": 1,
+      "execution_class": "physical",
+      "automated_coverage": {
+        "scope": "Supporting coverage only; all required manual subcases/cohorts must also have evidence.",
+        "commands": [
+          "ctest --preset minimal-host --output-on-failure",
+          "ctest --preset development-full --output-on-failure"
+        ],
+        "cwd": "repository root",
+        "environment": "Debian 13 or Ubuntu 24.04 host after documented bootstrap; browser commands require fixture and pinned Playwright. SDK client matrix additionally Windows Python 3.11/3.13. Never run host bootstrap on the Pi.",
+        "timeout_seconds": 1800,
+        "expected_exit_status": 0
+      },
+      "operator_procedure": "Verify repository/export hygiene, workflow permissions, release routing, and protected test-device restoration.",
+      "expected_result": "No private/generated junk enters source bundles; docs do not trigger signing/builds; test changes restore protected host state; public release actions follow repository policy.",
+      "retain": "Hygiene/workflow results and restoration hashes.",
+      "completion_rule": "All subcases and applicable cohorts; partial supporting tests never set aggregate pass.",
+      "operator_setup": "Designated recoverable physical Pi/cameras, frozen manifest, Ethernet access and restoration checklist in README. Fresh-flash cases require actual freshly imaged storage. Reboot and physical power-cycle events recorded separately."
+    }
+  ]
+}

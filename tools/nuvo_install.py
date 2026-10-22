@@ -13,6 +13,7 @@ import re
 import shutil
 import socket
 import subprocess
+import shlex
 import sys
 import tempfile
 import time
@@ -264,6 +265,8 @@ def print_access(root):
     readiness = setup.status(root)['calibration_readiness']
     print(readiness['label'] + ': ' + readiness['message'])
     print('Next: ' + readiness['next_action'])
+    if state.get('calibration_import_pending'):
+        print('Calibration import is pending the required reboot; no new activation was claimed. After reboot run: sudo nuvoctl calibration import ' + shlex.quote(state['calibration_import_pending']))
     print("Verify the self-signed device certificate using its fingerprint before using the console.")
 
 

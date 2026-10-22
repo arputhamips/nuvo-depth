@@ -1,3 +1,12 @@
+nuvo-depth (0.1.1~beta.8) unstable; urgency=medium
+
+  * Verify calibration activation across installer, CLI and console routes.
+  * Preserve provisional minimal capture policy during unattended upgrades.
+  * Provide read-only diagnostics and allowlisted support exports.
+  * Add runnable integration examples and reproducible host/browser checks.
+
+ -- Nirmal <nml@meridian.cv>  Thu, 22 Oct 2026 18:10:00 -0500
+
 nuvo-depth (0.1.1~beta.7) unstable; urgency=medium
 
   * Align installation guidance with the explicitly approved public release.

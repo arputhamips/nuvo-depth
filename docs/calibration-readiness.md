@@ -1,6 +1,6 @@
 # Calibration readiness and existing-bundle import
 
-This reference describes the beta 7 candidate/current source. The approved public
+This reference describes the beta 8 candidate/current source. The approved public
 installer still selects beta 6 until a candidate is explicitly approved. Beta 6
 does not include these `nuvoctl calibration` commands.
 
@@ -25,10 +25,23 @@ and authority; stale/unavailable daemon health remains visible separately.
 
 ## Choose before enabling capture
 
+The additive readiness object retains `schema_version`, `state`, `label`,
+`message`, `next_action`, `accepted`, `preview_enabled`, `capture_enabled`,
+`bundle_id` and `loaded`. It additionally exposes `authority`, `source`,
+`calibration_sha256`, device/camera/profile `bindings`, stable `reason`,
+`runtime_verification` and separate `camera_service`. Null means unobserved.
+`runtime_verification.state` distinguishes unverified, daemon_loaded and
+fresh_frames_verified. A verification receipt applies only to the same active
+daemon run/hash with capture enabled; stale health cannot establish new output.
+Clients must tolerate additive fields and use `state` rather than parsing labels.
+
 The installer explains three choices: preserve/use compatible existing
 calibration, deliberately enable provisional preview, or leave capture disabled.
-A fresh minimal installation waits unless you import a bundle or pass
-`--allow-provisional-preview` to its installer. In either profile you can choose:
+Fresh beta 8 minimal installations on the supported head enable provisional
+preview, with an unverified-distance notice. `--defer-capture` leaves a new minimal
+installation disabled; upgrades preserve the existing policy, including implicit
+older preview. Full appliance preview remains an explicit opt-in. In either
+profile you can later choose:
 
 ```bash
 sudo nuvoctl calibration status

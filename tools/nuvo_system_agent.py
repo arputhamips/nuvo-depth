@@ -31,9 +31,13 @@ def execute(request: dict) -> dict:
     # APT/provisioning owns configuration while installing. Read-only status and
     # authentication remain available; no competing web mutation may run.
     state=Path("/var/lib/nuvo-depth-setup/state.json")
-    if state.is_file() and json.loads(state.read_text()).get("phase") in {"installing","configuring"} and operation not in {"setup.authenticate","setup.status","calibration.status"}:
+    if state.is_file() and json.loads(state.read_text()).get("phase") in {"installing","configuring"} and operation not in {"setup.authenticate","setup.status","calibration.status","diagnostics.status"}:
         raise ValueError("installation in progress; wait before changing configuration")
-    if operation in {"setup.authenticate","setup.owner","setup.status"}:
+    if operation == 'diagnostics.status':
+        if set(request) != {'operation'}:
+            raise ValueError('Diagnostics takes no paths, commands or arbitrary fields')
+        command = ['/usr/bin/nuvoctl','diagnostics','--json']
+    elif operation in {"setup.authenticate","setup.owner","setup.status"}:
         field="secret" if operation=="setup.authenticate" else "password"
         expected={"operation"} if operation=="setup.status" else {"operation",field}
         if set(request)!=expected or operation!="setup.status" and (not isinstance(request[field],str) or not 1<=len(request[field])<=256):

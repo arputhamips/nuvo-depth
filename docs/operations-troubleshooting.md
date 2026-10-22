@@ -93,7 +93,8 @@ sudo systemctl --no-pager --full status nuvo-depthd-native.service \
 ```
 
 Configuration updates are atomic. If a newly selected connection path fails,
-use the Connections page rollback within 60 seconds. Package rollback must use
-the previous signed Debian/APT cohort; do not overwrite individual files on a
-customer system. Per-unit identity and calibration live under
+use the Connections page rollback within 60 seconds. For package failure, retry
+the same verified signed cohort and inspect `sudo dpkg --audit`. A package
+downgrade is not a tested recovery procedure; do not overwrite individual files
+or mix versions. Per-unit identity and calibration live under
 `/var/lib/nuvo-depth` and are preserved by package removal.

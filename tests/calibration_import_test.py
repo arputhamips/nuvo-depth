@@ -125,5 +125,33 @@ class ImportTest(unittest.TestCase):
         ready=control.preview(self.root,False,self.native)
         self.assertEqual(ready['state'],'calibration_needed')
         self.assertFalse((self.root/control.MARKER).exists())
+    def test_full_installer_uses_verified_import_and_restores_on_startup_failure(self):
+        import nuvo_setup as setup
+        from unittest.mock import patch
+        (self.root/'etc/hostname').write_text('test-unit\n')
+        plan={'factory':False,'access_policy':'keep_current','display_name':'Test','hardware':'nuvo',
+              'startup':True,'engineering':False,'wifi_interface':'wlan0','wifi_country':'US',
+              'ap_address':'192.168.4.1/24','calibration_bundle':str(self.source),'calibration_namespace':'user'}
+        calls=[]
+        def runner(args,**kwargs):
+            calls.append(args)
+            if args[:3]==['nuvoctl','calibration','import']:
+                result=control.import_bundle(self.root,Path(args[3]),'--dry-run' in args,self.native)
+                return subprocess.CompletedProcess(args,0,json.dumps(result),'')
+            if 'provisioning-status' in args:
+                return subprocess.CompletedProcess(args,0,'{"accepted":false}','')
+            return subprocess.CompletedProcess(args,0,'','')
+        self.fail_restart=True
+        with patch.object(setup.admin,'provision_identity',return_value={'device_uuid':'unit-1'}), \
+             patch.object(setup.admin,'platform_prepare',return_value={'reboot_required':False}):
+            with self.assertRaisesRegex(RuntimeError,'not verified'):
+                setup.apply_configuration(self.root,plan,runner)
+            self.assertFalse((self.source.parent/'active').exists())
+            self.assertFalse((self.root/control.MARKER).exists())
+            result=setup.apply_configuration(self.root,plan,runner)
+        self.assertTrue((self.root/control.MARKER).exists())
+        self.assertEqual(control.readiness(self.root,self.native)['state'],'calibration_accepted')
+        self.assertFalse(any(args[0].endswith('/nuvo-calibration') and 'activate' in args for args in calls))
+        self.assertGreaterEqual(self.restarts,2)
 
 if __name__=='__main__':unittest.main()
