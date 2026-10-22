@@ -33,6 +33,7 @@ class ReadinessTest(unittest.TestCase):
     def test_accepted_does_not_depend_on_a_connected_camera(self):
         target,value=bundle(self.root)
         ready=self.status();self.assertEqual(ready['state'],'calibration_accepted');self.assertTrue(ready['accepted'])
+        self.assertIn('disabled by policy',ready['message'])
         self.assertEqual(ready['camera_service']['status'],'unavailable')
         write_json(self.root/'run/nuvo-depth/status.json',{'status':'running','run_uuid':'new-run','calibration_sha256':value['bundle_id'],'calibration_authority':1})
         self.assertTrue(self.status()['loaded'])

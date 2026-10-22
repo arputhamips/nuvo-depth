@@ -158,12 +158,17 @@ def readiness(root=Path('/'), run=subprocess.run):
             result.update(state='calibration_accepted', label='Calibration accepted', accepted=True,
                           message='A matching per-unit calibration passed its declared validation. This is not independent metric-accuracy or production qualification.',
                           next_action='Inspect calibration details and verify fresh output; check camera/service health separately.')
+            if not result['capture_enabled']:
+                result['message'] += ' Capture is disabled by policy.'
+                result['next_action'] = 'Import this compatible bundle to enable capture and verify fresh output; camera/service health is separate.'
         elif health.get('status') == 'running' and health.get('calibration_authority', 0) > 0:
             raise ValueError('Existing validated calibration files are preserved, but a matching per-unit bundle cannot be verified. Import the original compatible bundle; a software upgrade alone does not require recalibration.')
         elif policy['preview_enabled'] and policy['capture_policy_enabled']:
             result.update(state='preview_enabled', label='Preview enabled',
                           message='Provisional output is enabled; distance accuracy remains unverified. Camera/service health is separate.',
                           next_action='Continue engineering evaluation or import an accepted calibration bundle.')
+        elif policy['capture_policy_enabled']:
+            raise ValueError('Capture policy is enabled without a verifiable active bundle or explicit preview. Existing calibration files are preserved; inspect the service override and import the original compatible bundle. A software upgrade alone does not require recalibration.')
         else:
             result.update(state='calibration_needed', label='Calibration needed', capture_enabled=False,
                           message='Capture is waiting for calibration or an explicit provisional-preview selection.',
