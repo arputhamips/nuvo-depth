@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 NuvoHardware. See LICENSE for terms and warranty notice.
-# The release builder pins DEFAULT_RELEASE in each published installer.
+# Rolling source installer resolves the latest public signed bundle.
+# Release artifacts retain an exact default; --release latest opts into updates.
 DEFAULT_REPOSITORY="arputhamips/nuvo-depth"
-DEFAULT_RELEASE=""
+DEFAULT_RELEASE="latest"
 # SHA-256 of DER public key: 6cd440dd00741e095a4dc436001463506eab7e295dcf608a156311e46344ee15
 RELEASE_PUBLIC_KEY_PEM='-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAQ0zwQ1yw+Tu532eeDs+iBZpSfVBCobIrCbJzlHaGRWk=
@@ -37,7 +38,7 @@ Nuvo Depth minimal raw-depth installer
   --package PATH         Install a local Actions artifact .deb
   --platform PATH        Matching artifact release-platform.json (with --package)
   --bundle DIRECTORY     Extracted signed minimal bundle
-  --release TAG          Exact published tag
+  --release TAG          latest public release, or an exact published tag
   --repository OWNER/REPO Override arputhamips/nuvo-depth
   --public-key PATH      Independently trusted release key
   --dry-run             Validate without installing
@@ -65,8 +66,8 @@ HELP
   [[ "$repository" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || {
     echo 'Pass --repository OWNER/REPO.' >&2; exit 2;
   }
-  [[ "$release" =~ ^[A-Za-z0-9][A-Za-z0-9_.+-]*$ && "$release" != latest && "$release" != main && "$release" != master ]] || {
-    echo 'Pass --release with the exact published tag when running from source.' >&2; exit 2;
+  [[ "$release" =~ ^[A-Za-z0-9][A-Za-z0-9_.+-]*$ && "$release" != main && "$release" != master ]] || {
+    echo 'Pass --release latest or an exact published tag.' >&2; exit 2;
   }
   for program in python3 curl openssl; do
     command -v "$program" >/dev/null || { echo "Required tool missing: $program" >&2; exit 2; }
@@ -98,6 +99,83 @@ for name, limit in (('manifest.json', 1048576), ('manifest.sig', 64), ('nuvo-ins
 PY
     package_source="$bundle"
   else
+    if [[ "$release" == latest ]]; then
+      release="$(python3 - "$repository" "minimal" <<'PY'
+import sys
+# BEGIN PUBLIC RELEASE RESOLVER
+def latest_release(repository, profile='appliance'):
+    """Resolve public metadata once; signatures still authorize the selected bytes.
+
+    This self-contained function is also embedded in the two standalone shells.
+    Keep it dependency-free so the rolling bootstrap works with older signed pyz.
+    """
+    import datetime
+    import json
+    import re
+    import urllib.request
+
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*', repository):
+        raise ValueError('invalid release repository')
+    if profile not in {'appliance', 'minimal'}:
+        raise ValueError('invalid installation profile')
+    archive = 'nuvo-depth-minimal-pi5-arm64.tar.gz' if profile == 'minimal' else 'nuvo-depth-pi5-arm64.tar.gz'
+
+    class HTTPSOnly(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, request, fp, code, msg, headers, newurl):
+            if not newurl.startswith('https://'):
+                raise ValueError('refusing non-HTTPS release metadata redirect')
+            return super().redirect_request(request, fp, code, msg, headers, newurl)
+
+    opener = urllib.request.build_opener(HTTPSOnly())
+    candidates = []
+    for page in range(1, 11):
+        url = f'https://api.github.com/repos/{repository}/releases?per_page=100&page={page}'
+        request = urllib.request.Request(url, headers={
+            'User-Agent': 'Nuvo-Depth-Installer/1', 'Accept': 'application/vnd.github+json'})
+        with opener.open(request, timeout=30) as response:
+            data = response.read(2 * 1024**2 + 1)
+        if len(data) > 2 * 1024**2:
+            raise ValueError('release metadata exceeds size limit')
+        releases = json.loads(data)
+        if not isinstance(releases, list) or len(releases) > 100:
+            raise ValueError('invalid public release metadata')
+        for item in releases:
+            if not isinstance(item, dict) or item.get('draft') is not False:
+                continue
+            tag, published, assets = item.get('tag_name'), item.get('published_at'), item.get('assets')
+            if (not isinstance(tag, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.+-]{0,127}', tag)
+                    or tag in {'latest', 'main', 'master'} or not isinstance(published, str)
+                    or not isinstance(assets, list)):
+                continue
+            try:
+                stamp = datetime.datetime.strptime(published, '%Y-%m-%dT%H:%M:%SZ')
+            except ValueError:
+                continue
+            complete = True
+            for name, limit in ((archive, 256 * 1024**2), (archive + '.sig', 64)):
+                matches = [asset for asset in assets if isinstance(asset, dict) and asset.get('name') == name]
+                if (len(matches) != 1 or matches[0].get('state') != 'uploaded'
+                        or type(matches[0].get('size')) is not int or not 0 < matches[0]['size'] <= limit
+                        or name.endswith('.sig') and matches[0]['size'] != 64):
+                    complete = False
+            if complete:
+                candidates.append((stamp, tag))
+        if len(releases) < 100:
+            break
+    else:
+        raise ValueError('too many release pages; select an exact --release TAG')
+    if not candidates:
+        raise ValueError(f'no public {profile} release with a complete signed bundle; select --release TAG')
+    return max(candidates)[1]
+# END PUBLIC RELEASE RESOLVER
+try:
+    print(latest_release(sys.argv[1], sys.argv[2]))
+except Exception as error:
+    raise SystemExit('Cannot resolve latest public release: ' + str(error) + '; retry or pass --release TAG')
+PY
+)"
+      echo "Selected public minimal release: $release (signature verification follows)"
+    fi
     base="https://github.com/$repository/releases/download/$release"
     archive="nuvo-depth-minimal-pi5-arm64.tar.gz"
     echo "Downloading Nuvo Depth $release for Raspberry Pi 5..."
@@ -131,18 +209,25 @@ PY
     -in "$payload/manifest.json" -sigfile "$payload/manifest.sig" >/dev/null 2>&1 || {
     echo 'Release manifest signature verification failed; nothing executed.' >&2; exit 1;
   }
-  python3 - "$payload" "$repository" "$release" <<'PY'
+  release="$(python3 - "$payload" "$repository" "$release" <<'PY'
 import hashlib, json, pathlib, sys
 p = pathlib.Path(sys.argv[1]); manifest = json.loads((p/'manifest.json').read_text())
-if manifest.get('schema_version') != 1 or manifest.get('repository') != sys.argv[2] or manifest.get('tag') != sys.argv[3]:
+if manifest.get('schema_version') != 1 or manifest.get('repository') != sys.argv[2] or (sys.argv[3] != 'latest' and manifest.get('tag') != sys.argv[3]):
     raise SystemExit('Signed manifest does not match the requested release')
+if manifest.get('format') != 'nuvo-depth-release' or manifest.get('profile', 'appliance') != 'minimal':
+    raise SystemExit('Signed bundle installation profile mismatch')
+import re
+if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.+-]{0,127}', manifest.get('tag', '')) or manifest['tag'] in {'latest', 'main', 'master'}:
+    raise SystemExit('Signed bundle must contain an exact release tag')
 files = [f for f in manifest.get('files', []) if f.get('name') == 'nuvo-install.pyz']
 if len(files) != 1 or not isinstance(files[0].get('size'), int) or not 0 < files[0]['size'] <= 4194304:
     raise SystemExit('Signed release is missing its bounded installer')
 data = (p/'nuvo-install.pyz').read_bytes()
 if len(data) != files[0]['size'] or hashlib.sha256(data).hexdigest() != files[0]['sha256']:
     raise SystemExit('Installer checksum mismatch; nothing executed')
+print(manifest['tag'])
 PY
+)"
   python3 "$payload/nuvo-install.pyz" "${arguments[@]}" \
     --repository "$repository" --release "$release" --public-key "$public_key" --bundle "$package_source"
   # Never resume parsing Bash commands from the reattached terminal.

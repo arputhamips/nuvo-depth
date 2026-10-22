@@ -7,6 +7,9 @@ specifications, and qualification evidence.
 
 ## Use the camera
 
+- [First-use journey validation](first-use-validation-20261022.md) — rolling
+  signed install selection, first-depth/sample checks, browser fixtures and limits.
+
 - [Set up a bundled unit](https://docs.nuvohardware.com/vision-one/install/bundled-pi).
 - [Install on your own Pi or SD card](https://docs.nuvohardware.com/vision-one/install/byo-pi).
 - [First browser connection](https://docs.nuvohardware.com/vision-one/guide/getting-started).

@@ -587,7 +587,7 @@ install(PROGRAMS tools/calibration/nuvo_calibration.py
 )
 install(FILES
   web/index.html web/app.js web/styles.css
-  web/device-settings.js web/frame-codec.js web/depth-profiles.json
+  web/device-settings.js web/frame-codec.js web/first-use.js web/depth-profiles.json
   DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/web"
   COMPONENT device-web
 )
@@ -711,6 +711,10 @@ if(BUILD_TESTING)
   endif()
   find_package(Python3 COMPONENTS Interpreter QUIET)
   if(Python3_Interpreter_FOUND)
+    add_test(NAME depthd_latest_release_test COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/latest_release_test.py)
+    add_test(NAME depthd_first_use_test COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/first_use_test.py)
     add_test(NAME depthd_minimal_cli_test COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/minimal_cli_test.py)
     add_test(NAME depthd_minimal_install_test COMMAND ${Python3_EXECUTABLE}

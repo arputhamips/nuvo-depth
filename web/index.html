@@ -214,7 +214,7 @@
                 <span id="flowConnectionState" class="flow-state waiting">Waiting</span>
               </div>
               <h3>Connection</h3>
-              <p>Claim the device and confirm both synchronized cameras, calibration, and depth processing are healthy.</p>
+              <p>Open the HTTPS console and verify its certificate. Connection is automatic; no Nuvo login is required.</p>
               <button class="secondary" type="button" data-open="diagnostics">Open diagnostics</button>
             </li>
             <li>
@@ -232,7 +232,7 @@
                 <span id="flowQualityState" class="flow-state waiting">Waiting</span>
               </div>
               <h3>Depth profile</h3>
-              <p>Start with Quality. Use Balanced only when measured latency matters, and keep advanced controls optional.</p>
+              <p>Start with the default Balanced profile. Confirm the calibration status before interpreting distances.</p>
               <button class="secondary" type="button" data-open="presets">Choose a depth profile</button>
             </li>
             <li>
@@ -241,7 +241,7 @@
                 <span id="flowDeliveryState" class="flow-state waiting">Waiting</span>
               </div>
               <h3>Outputs</h3>
-              <p>Visually confirm depth, then enable only the raw products and monitoring stream your application needs.</p>
+              <p>Request both camera images, depth and validity. Confirm fresh frames, then save a raw sample with its calibration metadata.</p>
               <div class="button-row">
                 <button class="secondary" type="button" data-open="viewer">Open live view</button>
                 <button class="secondary" type="button" data-open="network">Choose outputs</button>
@@ -253,6 +253,15 @@
 
       <section id="viewer" class="page">
         <div class="page-header"><h1>Live view</h1></div>
+        <div class="panel">
+          <h2>Your first depth frame</h2>
+          <p>Select a textured, well-lit scene visible to both cameras. Show both rectified images, depth and validity at a 1 Hz best-effort cadence.</p>
+          <div class="button-row"><button id="firstDepthStart" class="primary" type="button">Show first depth</button><button id="firstDepthSave" type="button" disabled>Save depth sample</button></div>
+          <p id="firstDepthStatus" role="status">Waiting for two fresh associated depth and validity frames.</p>
+          <p id="firstDepthAuthority" class="support-text">Calibration status will be read from the received sample.</p>
+          <p id="firstDepthError" class="error" role="alert"></p>
+          <p class="support-text">The .nuv download contains numeric depth in metres, validity and original frame metadata. Validity preview: white is valid; black is invalid. A colour preview alone is not a depth measurement.</p>
+        </div>
         <div id="viewerModeNotice" class="notice compact" hidden>Raw products are disabled in encoded-only mode. Select Raw + encoded or Raw only on the Streaming page to view all four products.</div>
         <div id="viewerEmptyState" class="notice compact" role="status">Waiting for selected live products.</div>
         <div id="viewerLiveGrid" class="viewer-grid selected-output-grid" hidden>
@@ -932,6 +941,7 @@
   <template id="tuningPreviewTemplate"><div class="card-heading"><h2><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-scan"></use></svg>Camera &amp; depth</h2><span class="chip chip-neutral" data-preview-state>Waiting for live frames</span></div><div class="tuning-preview-grid"><figure><figcaption>Left rectified <span class="chip chip-cyan">Image</span></figcaption><div class="sample-canvas"><canvas data-tuning-product="left_rectified" width="728" height="544" aria-label="Live left rectified camera image"></canvas><div class="sample-overlay preview-empty"><span>Waiting for camera image</span></div></div></figure><figure><figcaption>Depth <span class="chip chip-violet">Metric depth</span></figcaption><div class="sample-canvas"><canvas data-tuning-product="depth" width="728" height="544" aria-label="Live optical-axis depth in metres"></canvas><div class="sample-overlay preview-empty"><span>Waiting for depth output</span></div></div></figure></div><div class="preview-metrics"><span data-live-metric="capture">Capture target · —</span><span data-live-metric="depth">Depth output · —</span><span data-live-metric="compute">Compute · —</span></div><div class="preview-metrics"><span data-live-resolution>Depth grid · —</span><span>Black pixels: invalid depth</span></div><p class="preview-validity" data-live-calibration>Waiting for calibration status</p><p class="preview-unavailable" hidden>Raw products are disabled. Enable raw delivery on Streaming to preview camera and depth.</p></template>
   <script src="/frame-codec.js" defer></script>
   <script src="/device-settings.js" defer></script>
+  <script src="/first-use.js" defer></script>
   <script src="/app.js" defer></script>
 
 </body>

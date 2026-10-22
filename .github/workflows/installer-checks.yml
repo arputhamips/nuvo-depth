@@ -6,10 +6,15 @@ on:
       - 'install-nuvo-depth-minimal.sh'
       - 'tests/minimal*'
       - 'tools/**'
+      - 'web/**'
+      - 'sdk/python/**'
+      - 'tests/first_use*'
+      - 'tests/web*'
       - 'deployment/**'
       - 'debian/**'
       - 'tests/install*'
       - 'tests/release_policy_test.py'
+      - 'tests/latest_release_test.py'
       - 'tests/nuvoctl_test.py'
       - 'tests/system_agent_test.py'
       - 'CHANGELOG.md'
@@ -21,10 +26,15 @@ on:
       - 'install-nuvo-depth-minimal.sh'
       - 'tests/minimal*'
       - 'tools/**'
+      - 'web/**'
+      - 'sdk/python/**'
+      - 'tests/first_use*'
+      - 'tests/web*'
       - 'deployment/**'
       - 'debian/**'
       - 'tests/install*'
       - 'tests/release_policy_test.py'
+      - 'tests/latest_release_test.py'
       - 'tests/nuvoctl_test.py'
       - 'tests/system_agent_test.py'
       - 'CHANGELOG.md'
@@ -46,6 +56,10 @@ jobs:
           python3 tests/minimal_install_test.py
           python3 tests/install_provisioning_test.py
           python3 tests/install_release_test.py
+          python3 tests/latest_release_test.py
+          python3 tests/first_use_test.py
+          python3 tests/python_sdk_test.py
+          python3 tests/web_ui_static_test.py
           python3 tests/release_policy_test.py
           python3 tests/nuvoctl_test.py
           python3 tests/system_agent_test.py

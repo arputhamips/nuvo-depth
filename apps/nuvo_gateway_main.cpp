@@ -2020,7 +2020,7 @@ void await_clients(const std::atomic_size_t& active) noexcept {
     file = options.web_root / "index.html";
     type = "text/html; charset=utf-8";
   } else if (target == "/app.js" || target == "/device-settings.js" ||
-             target == "/frame-codec.js") {
+             target == "/frame-codec.js" || target == "/first-use.js") {
     file = options.web_root / std::string(target.substr(1));
     type = "text/javascript; charset=utf-8";
   } else if (target == "/styles.css") {

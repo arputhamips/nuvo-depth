@@ -15,18 +15,18 @@ Customer install releases require the platform qualification recorded in their
 signed manifest. Use only an explicitly published release. The public source and
 release repository is [arputhamips/nuvo-depth](https://github.com/arputhamips/nuvo-depth).
 
-The installation version described by these commands is
-[v0.1.1-beta.5](https://github.com/arputhamips/nuvo-depth/releases/tag/v0.1.1-beta.5).
-Use that exact published tag in the commands below. The
-[October 19 qualification record](release-qualification-20261019.md#uf-01-and-uf-02-physical-setup-acceptance)
-describes the earlier release cohorts' physical first-use/hotspot tests. It is
-not beta 5 fresh-SD, first-user or manufacturing acceptance. The
-[beta 5 qualification record](release-qualification-beta5-20261021.md) covers
-the signed cohort's interactive upgrade, public pinned installer reinstall,
-direct-session API and short Pi-local performance checks, verified public
-downloads, and the blocked rendered-browser inspection separately.
-Physical Pi acceptance, USB power/data qualification and shipping approval
-remain separate gates.
+The maintained source bootstrap selects the most recently published public
+release with the requested signed bundle. Public previews are eligible; drafts
+and incomplete uploads are excluded. Discovery resolves an exact tag once,
+then all existing signature, checksum, platform and package checks apply.
+Failure to reach public metadata stops installation; retry or specify a tag.
+No GitHub authentication is needed for the public bootstrap.
+
+Release-specific installer assets retain their exact default for reproducible
+installation. `--release latest` explicitly requests an update from such an
+installer; `--release TAG` pins a maintained bootstrap. The public beta 6
+[qualification record](release-qualification-beta6-20261021.md) describes the
+published package cohort; newer source UI/helper changes are not in that cohort.
 
 ## Supported machine
 
@@ -50,13 +50,12 @@ available when deliberately switching a Wi-Fi SSH connection to a hotspot.
 Open a terminal on the Pi (locally or in an interactive SSH session) and run:
 
 ```bash
-curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.5/install-nuvo-depth.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/arputhamips/nuvo-depth/main/install-nuvo-depth.sh | sudo bash
 ```
 
-The same command is documented in the product wiki. To use a future release,
-update the version in the URL after its qualification and publication.
+The same maintained command is documented in the product wiki and needs no version edit for a newly published package.
 
-For a reviewed source checkout, explicitly select the release:
+For a reviewed source checkout, optionally select an exact release:
 
 ```bash
 # Replace vX.Y.Z with an exact published, qualified release tag.
@@ -66,9 +65,9 @@ sudo bash ./install-nuvo-depth.sh --release vX.Y.Z
 To inspect the script before running it:
 
 ```bash
-VERSION=v0.1.1-beta.5
+VERSION=latest
 curl --proto '=https' --proto-redir '=https' -fL \
-  "https://github.com/arputhamips/nuvo-depth/releases/download/$VERSION/install-nuvo-depth.sh" \
+  "https://raw.githubusercontent.com/arputhamips/nuvo-depth/main/install-nuvo-depth.sh" \
   -o install-nuvo-depth.sh
 less install-nuvo-depth.sh
 sudo bash ./install-nuvo-depth.sh
@@ -78,8 +77,7 @@ The script downloads one installer bundle and checks its Ed25519 signature
 before extracting it. It then verifies the inner manifest and installer archive;
 the installer checks all package hashes and metadata before APT installs them.
 Piped normal setup reconnects input to the controlling terminal; an unattended
-session without a terminal receives an explicit error. The signed payload still
-names an exact release and refuses moving aliases such as `latest`/`main`.
+session without a terminal receives an explicit error. The signed payload names an exact release; `latest` is resolved before payload execution. `main` is never a package release tag.
 The initial script and public-key fingerprint
 must come through a trusted distribution channel; a key fetched alongside an
 untrusted installer does not establish trust.
@@ -195,3 +193,5 @@ using an owner's own release key and `--public-key` / `--bundle`.
 
 Wi-Fi profiles use the documented
 [NetworkManager keyfile format](https://networkmanager.dev/docs/api/latest/nm-settings-keyfile.html).
+
+After installation follow [Get your first depth frame](https://docs.nuvohardware.com/vision-one/guide/getting-started) through sample capture.

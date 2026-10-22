@@ -28,6 +28,72 @@ BUNDLE_NAME = "nuvo-depth-pi5-arm64.tar.gz"
 BUNDLE_LIMIT = 256 * 1024**2
 
 
+def latest_release(repository, profile='appliance'):
+    """Resolve public metadata once; signatures still authorize the selected bytes.
+
+    This self-contained function is also embedded in the two standalone shells.
+    Keep it dependency-free so the rolling bootstrap works with older signed pyz.
+    """
+    import datetime
+    import json
+    import re
+    import urllib.request
+
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*', repository):
+        raise ValueError('invalid release repository')
+    if profile not in {'appliance', 'minimal'}:
+        raise ValueError('invalid installation profile')
+    archive = 'nuvo-depth-minimal-pi5-arm64.tar.gz' if profile == 'minimal' else 'nuvo-depth-pi5-arm64.tar.gz'
+
+    class HTTPSOnly(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, request, fp, code, msg, headers, newurl):
+            if not newurl.startswith('https://'):
+                raise ValueError('refusing non-HTTPS release metadata redirect')
+            return super().redirect_request(request, fp, code, msg, headers, newurl)
+
+    opener = urllib.request.build_opener(HTTPSOnly())
+    candidates = []
+    for page in range(1, 11):
+        url = f'https://api.github.com/repos/{repository}/releases?per_page=100&page={page}'
+        request = urllib.request.Request(url, headers={
+            'User-Agent': 'Nuvo-Depth-Installer/1', 'Accept': 'application/vnd.github+json'})
+        with opener.open(request, timeout=30) as response:
+            data = response.read(2 * 1024**2 + 1)
+        if len(data) > 2 * 1024**2:
+            raise ValueError('release metadata exceeds size limit')
+        releases = json.loads(data)
+        if not isinstance(releases, list) or len(releases) > 100:
+            raise ValueError('invalid public release metadata')
+        for item in releases:
+            if not isinstance(item, dict) or item.get('draft') is not False:
+                continue
+            tag, published, assets = item.get('tag_name'), item.get('published_at'), item.get('assets')
+            if (not isinstance(tag, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.+-]{0,127}', tag)
+                    or tag in {'latest', 'main', 'master'} or not isinstance(published, str)
+                    or not isinstance(assets, list)):
+                continue
+            try:
+                stamp = datetime.datetime.strptime(published, '%Y-%m-%dT%H:%M:%SZ')
+            except ValueError:
+                continue
+            complete = True
+            for name, limit in ((archive, 256 * 1024**2), (archive + '.sig', 64)):
+                matches = [asset for asset in assets if isinstance(asset, dict) and asset.get('name') == name]
+                if (len(matches) != 1 or matches[0].get('state') != 'uploaded'
+                        or type(matches[0].get('size')) is not int or not 0 < matches[0]['size'] <= limit
+                        or name.endswith('.sig') and matches[0]['size'] != 64):
+                    complete = False
+            if complete:
+                candidates.append((stamp, tag))
+        if len(releases) < 100:
+            break
+    else:
+        raise ValueError('too many release pages; select an exact --release TAG')
+    if not candidates:
+        raise ValueError(f'no public {profile} release with a complete signed bundle; select --release TAG')
+    return max(candidates)[1]
+
+
 def unpack_bundle(archive: Path, destination: Path):
     """Unpack an authenticated, flat release without links or special files."""
     destination.mkdir(parents=True, exist_ok=True)
@@ -163,8 +229,11 @@ def acquire_release(destination: Path, public_key: Path, repository=None, tag=No
     else:
         if not repository or not REPOSITORY.fullmatch(repository):
             raise ValueError("configure a GitHub release repository or pass --repository OWNER/REPO")
+        if tag is None or tag == 'latest':
+            tag = latest_release(repository, profile)
+            print(f'Selected public {profile} release: {tag} (signature verification follows)', flush=True)
         if not tag or not TAG.fullmatch(tag) or tag in {"latest", "main", "master"}:
-            raise ValueError("pass an exact --release tag (not latest/main)")
+            raise ValueError("pass --release latest or an exact published tag")
         directory = destination
         directory.mkdir(parents=True, exist_ok=True)
         base = f"https://github.com/{repository}/releases/download/{tag}"
@@ -184,7 +253,7 @@ def acquire_release(destination: Path, public_key: Path, repository=None, tag=No
             unpack_bundle(archive, directory)
             bundle = directory
     verify_signature(directory / "manifest.json", directory / "manifest.sig", public_key)
-    manifest = validate_manifest(load_json(directory / "manifest.json"), repository, tag)
+    manifest = validate_manifest(load_json(directory / "manifest.json"), repository, None if tag == 'latest' else tag)
     if manifest.get('profile', 'appliance') != profile:
         raise ValueError('bundle installation profile does not match the requested profile')
     if not bundle:

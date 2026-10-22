@@ -45,6 +45,7 @@ let csrf = '';
 const configurationRevisions = new Map(), latestConfigurationRevisions = new Map();
 let selectedPage = '';
 let lastHealth = null, calibrationSession = null, calibrationOriginalEncoding = null;
+let firstDepth = {};
 let depthOutputRate = null, rawGeneration = 0;
 const formControllers = new Map();
 const restoredDraftForms = new Set();
@@ -223,7 +224,7 @@ async function refreshSetupStatus(){
     const note=$('setupState');note.hidden=false;
     note.textContent=`${state.display_name||'Nuvo'} · ${state.phase||'Setup pending'}`+
       (state.reboot_required?' · Camera changes require a reboot':'')+
-      (state.calibration_state==='pending'?' · Calibration required':'')+
+      (state.calibration_state==='pending'?(state.engineering?' · Engineering preview; accuracy unverified':' · Capture waiting for calibration'):'')+
       (state.capture_error?` · ${state.capture_error}`:'')+
       (state.error?` · ${state.error}`:'');
   }catch(_){}
@@ -313,7 +314,7 @@ async function refreshEncoding() {
     if(changed){encodingPreviewPending=encoding.mode!=='raw';restartStreams();}
     $('encodingError').textContent='';
     const delivery = encoding.mode === 'both' ? 'Raw + monitor' : encoding.mode === 'raw' ? 'Raw products' : 'Monitor only';
-    setFlowState('flowDeliveryState', delivery, encoding.mode === 'encoded' ? 'attention' : 'complete');
+    setFlowState('flowDeliveryState', delivery, encoding.mode === 'encoded' ? 'attention' : 'waiting');
   } catch (error) { $('encodingError').textContent=error.message; setFlowState('flowDeliveryState','Waiting'); }
 }
 
@@ -400,7 +401,7 @@ async function refreshStereo(){
     $('algorithmError').textContent='';
     const mode=stereo.sgbm_mode||'3way';
     const profile = stereo.algorithm === 'bm' ? 'StereoBM' : mode === 'hh' ? 'Quality · HH' : `SGBM · ${mode.toUpperCase()}`;
-    setFlowState('flowQualityState', profile, stereo.algorithm === 'sgbm' && mode === '3way' ? 'attention' : 'complete');
+    setFlowState('flowQualityState', profile, 'complete');
   }catch(error){$('algorithmError').textContent=error.message;setFlowState('flowQualityState','Waiting');}
 }
 $('algorithmType').addEventListener('change',updateAlgorithmFields);
@@ -658,6 +659,7 @@ function setSampleCanvasLive(id, live) {
   $(id).closest('.sample-canvas')?.classList.toggle('live', live);
 }
 function updateViewerAvailability(disconnected=false) {
+  if(disconnected){firstDepth={};refreshFirstDepth();}
   const empty=$('viewerEmptyState');
   empty.hidden=!disconnected&&!!lastFrameAt;
   empty.textContent=disconnected?(lastFrameAt?'Disconnected · showing last received products':'Disconnected · waiting for device'):
@@ -683,6 +685,8 @@ function drawVisibleProduct(canvas,frame,descriptor) {
   else drawGray(canvas,frame,descriptor);
 }
 function renderFrame(frame) {
+  window.NuvoFirstUse.observe(firstDepth,frame,Date.now());
+  refreshFirstDepth();
   const identity=`${frame.metadata.run_uuid}:${frame.metadata.capture_epoch}:${frame.metadata.capture_sequence}:${frame.metadata.products.map(p=>p.kind).join(',')}`;
   if(identity===lastIdentity)return;
   const left=product(frame,'left_rectified'),right=product(frame,'right_rectified');
@@ -719,6 +723,30 @@ function renderFrame(frame) {
   $('sequence').textContent=`Frame ${frame.metadata.capture_sequence}`; $('age').textContent='Updated now';$('frameError').textContent='';
 }
 function rawPreviewPage(){return !document.hidden&&outputSettings.enabled&&['overview','viewer','exposure','algorithm','network'].includes(selectedPage);}
+function refreshFirstDepth(){
+  const live=window.NuvoFirstUse.ready(firstDepth,Date.now())&&encoding?.mode!=='encoded';
+  $('firstDepthSave').disabled=!live;
+  setFlowState('flowDeliveryState',live?'Fresh depth ready':'Waiting for fresh depth',live?'complete':'waiting');
+  if(firstDepth.error)$('firstDepthError').textContent=firstDepth.error;
+  $('firstDepthStatus').textContent=live?`Fresh depth confirmed · frame ${firstDepth.sequence} · ready to save`:
+    firstDepth.frame?'Waiting for fresh depth · keep Live view open and check capture status.':'Waiting for two fresh associated depth and validity frames.';
+  if(firstDepth.frame){const authority=window.NuvoFirstUse.calibration(firstDepth.frame.metadata);$('firstDepthAuthority').textContent=`${authority.label}. ${authority.detail}`;}
+}
+$('firstDepthStart').addEventListener('click',()=>{
+  $('firstDepthError').textContent='';
+  try{
+    if(encoding?.mode==='encoded')throw new Error('Enable Raw product delivery on Streaming, apply settings, then try again.');
+    commitOutputSelection({...outputSettings,enabled:true,products:['left_rectified','right_rectified','depth','validity'],cadence_hz:1,delivery:'best_effort'});
+    firstDepth={};refreshFirstDepth();
+  }catch(error){$('firstDepthError').textContent=error.message;}
+});
+$('firstDepthSave').addEventListener('click',()=>{
+  refreshFirstDepth();if($('firstDepthSave').disabled)return;
+  const frame=firstDepth.frame,m=frame.metadata,url=URL.createObjectURL(new Blob([frame.buffer],{type:'application/octet-stream'}));
+  const link=document.createElement('a');link.href=url;link.download=`nuvo-depth-${m.run_uuid}-${m.capture_epoch}-${m.capture_sequence}.nuv`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  $('firstDepthStatus').textContent=`Saved frame ${m.capture_sequence} with depth, validity and calibration metadata.`;
+});
+setInterval(refreshFirstDepth,500);
 async function pollFrame(generation) {
   if (!rawPolling||generation!==rawGeneration||!rawPreviewPage()) return;
   try { const buffer=await (await api(outputSubscriptionPath('/api/v1/frame/latest'))).arrayBuffer();if(generation!==rawGeneration||!rawPolling)return;renderFrame(parseFrame(buffer)); }

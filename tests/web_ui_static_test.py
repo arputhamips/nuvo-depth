@@ -117,7 +117,8 @@ def main() -> None:
         subprocess.run([node,str(ROOT/"tests/web_output_selection_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_shared_settings_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_calibration_status_test.js")],check=True)
-        for asset in ("app.js","device-settings.js","frame-codec.js"):
+        subprocess.run([node,str(ROOT/"tests/web_first_use_test.js")],check=True)
+        for asset in ("app.js","device-settings.js","frame-codec.js","first-use.js"):
             subprocess.run([node,"--check",str(ROOT/"web"/asset)],check=True)
     print(f"UI contract OK: {len(parser.pages)} pages, {len(parser.ids)} unique IDs")
 

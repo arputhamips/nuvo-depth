@@ -21,7 +21,7 @@ The current public preview is `v0.1.1-beta.6`. Its minimal bundle and installer
 are separate from the full appliance downloads.
 
 ```bash
-curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.6/install-nuvo-depth-minimal.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/arputhamips/nuvo-depth/main/install-nuvo-depth-minimal.sh | sudo bash
 ```
 
 An initial install can require a reboot for camera overlays. Reconnect over SSH
@@ -118,3 +118,15 @@ NUVO_PACKAGE_PROFILE=minimal dpkg-buildpackage -b -us -uc
 The default packaging command continues to build the full appliance packages.
 For the minimal CMake variant use the `pi5-minimal` preset. No runtime capture,
 matcher, rectification, depth conversion or IPC source is forked.
+
+## Finish first use
+
+The maintained bootstrap resolves the latest published public signed bundle for
+this profile (including public previews, excluding drafts). It prints and binds
+the exact tag before verifying the bundle, manifest and package cohort. Pass
+`--release TAG` for a reproducible version, or use a release-specific installer.
+Signature or discovery failures stop installation. Reruns preserve valid
+per-unit calibration; an upgrade alone does not require recalibration.
+
+Continue with the [complete first-depth journey](https://docs.nuvohardware.com/vision-one/guide/getting-started)
+or [minimal terminal journey](https://docs.nuvohardware.com/vision-one/install/minimal).

@@ -178,6 +178,31 @@ class ReleaseTest(unittest.TestCase):
         self.assertIn("checksum mismatch",result.stderr)
         self.assertNotIn("verified fixture installer executed",result.stdout)
 
+    def test_latest_bootstrap_resolves_then_executes_only_the_exact_signed_release(self):
+        directory,assets,publication,shell,env=self.bootstrap_fixture('latest-bootstrap')
+        fixture=directory/'python-fixture';fixture.mkdir()
+        archive=release.BUNDLE_NAME
+        metadata=[dict(tag_name='v99.0.0',draft=True,published_at='2026-10-22T00:00:00Z',assets=[]),
+                  dict(tag_name='v1.2.3',draft=False,published_at='2026-10-21T00:00:00Z',assets=[
+                      dict(name=archive,state='uploaded',size=(publication/archive).stat().st_size),
+                      dict(name=archive+'.sig',state='uploaded',size=64)])]
+        (fixture/'sitecustomize.py').write_text('import io,json,urllib.request\n'
+            'class FixtureOpener:\n'
+            ' def open(self,request,timeout):\n'
+            '  assert request.full_url == "https://api.github.com/repos/test-owner/nuvo/releases?per_page=100&page=1"\n'
+            '  return io.BytesIO('+repr(json.dumps(metadata).encode())+')\n'
+            'urllib.request.build_opener=lambda *args: FixtureOpener()\n')
+        result=subprocess.run(['bash',str(shell),'--release','latest','--factory'],
+            env=env|{'PYTHONPATH':str(fixture)},capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('Selected public appliance release: v1.2.3',result.stdout)
+        self.assertIn('verified fixture installer executed',result.stdout)
+        unpacked=directory/'offline';release.unpack_bundle(publication/archive,unpacked)
+        result=subprocess.run(['bash',str(shell),'--release','latest','--bundle',str(unpacked),'--factory'],
+            env=env,capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertNotIn('Selected public',result.stdout)
+
     def test_three_downloads_include_all_signed_source_and_package_files(self):
         directory,assets,publication,shell,env=self.bootstrap_fixture("three-files")
         self.assertEqual({p.name for p in publication.iterdir()},{"install-nuvo-depth.sh",release.BUNDLE_NAME,release.BUNDLE_NAME+".sig"})

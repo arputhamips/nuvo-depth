@@ -1,0 +1,20 @@
+const assert=require('node:assert/strict');
+const first=require('../web/first-use.js');
+const codec=require('../web/frame-codec.js');
+function frame(sequence,run='a'.repeat(32),products=['depth','validity']){const buffer=new ArrayBuffer(10);new DataView(buffer).setFloat32(0,1.25,true);new Uint8Array(buffer)[8]=1;return {buffer,payloadOffset:0,metadata:{device_uuid:'b'.repeat(32),run_uuid:run,capture_epoch:1,capture_sequence:sequence,capture_time_ns:sequence*1000,calibration_authority:0,calibration_sha256:'c'.repeat(64),products:products.map(kind=>({kind,format:kind==='depth'?'float32_le':kind==='validity'?'uint8':'gray8',width:2,height:1,offset:kind==='validity'?8:0,length:kind==='validity'?2:8}))}};}
+const state={};
+first.observe(state,frame(1,undefined,['left_rectified']),100);assert(!first.ready(state,100),'a camera image alone is insufficient');
+first.observe(state,frame(1),100);assert(!first.ready(state,100));
+first.observe(state,frame(1),200);assert(!first.ready(state,200),'duplicates are not fresh depth');
+first.observe(state,frame(2),300);assert(first.ready(state,300));
+assert(!first.ready(state,5301),'stale frames cannot be saved as fresh');
+first.observe(state,frame(1,'d'.repeat(32)),6000);assert(!first.ready(state,6000),'a restarted daemon needs new observations');
+first.observe(state,frame(2,'d'.repeat(32)),6100);assert(first.ready(state,6100));
+assert.match(first.calibration(frame(2).metadata).label,/unverified/);
+assert.match(first.calibration({...frame(2).metadata,calibration_authority:1}).label,/Accepted/);
+assert.match(first.calibration({...frame(2).metadata,calibration_authority:99}).label,/unverified/);
+let image;const canvas={width:0,height:0,style:{},getContext:()=>({createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),putImageData:result=>image=result})};
+const mask=frame(1);codec.drawGray(canvas,mask,mask.metadata.products.find(p=>p.kind==='validity'));
+assert.deepEqual(Array.from(image.data),[255,255,255,255,0,0,0,255],'validity code 1 is white; invalid pixels are black');
+const invalid=frame(3,'d'.repeat(32));new Uint8Array(invalid.buffer)[8]=0;first.observe(state,invalid,6200);assert(!first.ready(state,6200));assert.match(state.error,/No valid depth/);
+console.log('First-use camera-only, duplicate, restart, stale and authority checks passed');

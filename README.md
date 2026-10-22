@@ -42,23 +42,37 @@ Or [order Vision One from NuvoHardware](https://nuvohardware.com/).
 - **Installation and maintenance:** terminal setup, protected Wi-Fi setup
   hotspot, system services, signed Debian packages, and GitHub release builds.
 
-## Get started
+## Get your first depth frame
 
-- **Preinstalled Vision One:** [Connect and set up the device](https://docs.nuvohardware.com/vision-one/install/bundled-pi).
-- **Your own Pi or SD card:** use a Raspberry Pi 5 with Raspberry Pi OS Lite
-  64-bit Trixie (`arm64`), kernel `6.12.75+rpt-rpi-2712`, internet access and
-  administrator access.
-- [Supported OS image](https://docs.nuvohardware.com/vision-one/install/byo-pi).
-- **Current public preview:** `v0.1.1-beta.6`. Choose one installation; the minimal
-  profile requires SSH and an existing network connection.
+Choose one complete journey:
+
+- **[Preinstalled Vision One](https://docs.nuvohardware.com/vision-one/install/bundled-pi):** connect, verify the device certificate, inspect both cameras and save depth.
+- **[My own Raspberry Pi](https://docs.nuvohardware.com/vision-one/install/byo-pi):** prepare supported hardware/OS, install, reboot and complete the same first-depth checks.
+- **[Application integration](https://docs.nuvohardware.com/vision-one/sdk/python):** verify certificate/token access, consume depth and validity, and save an NVR1 recording.
+
+The [complete walkthrough](https://docs.nuvohardware.com/vision-one/guide/getting-started)
+explains calibration status and recovery at each step. For SSH-only local
+output, use the [minimal terminal journey](https://docs.nuvohardware.com/vision-one/install/minimal).
+
+Use a Raspberry Pi 5 with the supported dual-IMX296 head, Raspberry Pi OS Lite
+64-bit Trixie (`arm64`), kernel `6.12.75+rpt-rpi-2712`, internet and administrator
+access. Choose one installation:
 
 ```bash
 # Full appliance with browser interface
-curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.6/install-nuvo-depth.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/arputhamips/nuvo-depth/main/install-nuvo-depth.sh | sudo bash
 
-# Minimal raw depth with terminal configuration over SSH
-curl -fsSL https://github.com/arputhamips/nuvo-depth/releases/download/v0.1.1-beta.6/install-nuvo-depth-minimal.sh | sudo bash
+# Minimal local raw depth; SSH and an existing network are required
+curl -fsSL https://raw.githubusercontent.com/arputhamips/nuvo-depth/main/install-nuvo-depth-minimal.sh | sudo bash
 ```
+
+These maintained bootstraps resolve the most recently published public release
+with a complete signed bundle for the selected profile, including public
+previews. Drafts are excluded. The selected exact tag is printed and signatures,
+manifest, installer and package cohort are verified before installation.
+Use `--release TAG` for an exact version; release-page commands remain pinned.
+Updates preserve identity, network state and existing validated per-unit
+calibration. Shared seed authority remains provisional.
 
 ## Current status
 

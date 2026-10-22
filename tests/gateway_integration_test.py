@@ -549,7 +549,7 @@ class GatewayIntegrationTest(unittest.TestCase):
         return cls.client.open(request,timeout=5)
 
     def test_local_ui_assets(self):
-        for asset in ("app.js", "device-settings.js", "frame-codec.js"):
+        for asset in ("app.js", "device-settings.js", "frame-codec.js", "first-use.js"):
             with self.open("/" + asset) as response:
                 self.assertEqual(response.headers.get_content_type(), "text/javascript")
                 self.assertEqual(response.read(), (self.web / asset).read_bytes())

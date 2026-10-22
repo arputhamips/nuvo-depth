@@ -80,6 +80,7 @@ assert(!source.includes("socketUrl('/api/v1/stream')"),'browser must not request
 const emptyElements={viewerEmptyState:{},encodedEmptyState:{}};
 let encodedLive=true;
 const availability={$:id=>emptyElements[id],lastFrameAt:0,outputSettings:{enabled:true},encoding:{mode:'both'},
+  refreshFirstDepth:()=>{},firstDepth:{count:2},
   setSampleCanvasLive:(id,live)=>{assert.equal(id,'encodedCanvas');encodedLive=live}};
 vm.createContext(availability);
 vm.runInContext(source.slice(source.indexOf('function updateViewerAvailability('),source.indexOf('function drawGray(')),availability);
@@ -92,6 +93,7 @@ availability.updateViewerAvailability(true);
 assert.equal(emptyElements.viewerEmptyState.hidden,false);
 assert.match(emptyElements.viewerEmptyState.textContent,/Disconnected.*last received/);
 assert.equal(encodedLive,false,'disconnected encoded output must expose its empty state');
+assert.equal(availability.firstDepth.count,undefined,'disconnect invalidates first-depth completion');
 availability.lastFrameAt=0;availability.outputSettings.enabled=false;
 availability.updateViewerAvailability();assert.match(emptyElements.viewerEmptyState.textContent,/Select raw outputs/);
 availability.outputSettings.enabled=true;availability.encoding.mode='encoded';

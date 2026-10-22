@@ -4,6 +4,29 @@
 [SDK user guide](https://docs.nuvohardware.com/vision-one/sdk/python) ·
 [Install on your Pi](https://docs.nuvohardware.com/vision-one/install/byo-pi)
 
+## First successful use
+
+Follow the complete [Python first-depth quickstart](https://docs.nuvohardware.com/vision-one/sdk/python)
+for virtual environments, matching SDK installation, certificate acquisition and
+fingerprint verification, the private administrative token, and recovery.
+
+With this source SDK installed:
+
+```bash
+python -m nuvo_depth.first_use https://YOUR-PI-HOSTNAME.local:7443 --ca-file device-ca.pem --output first-depth.nvr
+python -m nuvo_depth.first_use --replay first-depth.nvr
+python -m nuvo_depth.first_use --input-nuv browser-sample.nuv
+```
+
+The hidden prompt accepts the long device administrator token. The live example
+requests depth and validity at 1 Hz best effort, checks advancing captures,
+prints a valid distance in metres and calibration authority, then saves the
+original NVR1 record. It refuses an existing output file or all-invalid depth.
+Offline inspection does not claim live freshness. The helper is also executable
+as a standalone script against the beta 6 SDK. It does not change calibration.
+
+## API reference and examples
+
 The dependency-light SDK reads associated NUV1 raw frame sets, optional NVE1
 encoded monitoring frames, and device configuration through the authenticated
 TLS gateway shared by Ethernet and approved USB Ethernet.

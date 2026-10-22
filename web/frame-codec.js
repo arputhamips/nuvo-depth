@@ -79,6 +79,7 @@ function fillProduct(image, frame, descriptor, maximum) {
   const color=descriptor.format==='rgb8'||descriptor.format==='bgr8',bgr=descriptor.format==='bgr8';
   for(let pixel=0;pixel<descriptor.width*descriptor.height;pixel++){
     const i=pixel*(color?3:1),j=pixel*4;
+    if(descriptor.kind==='validity'){const value=source[i]===1?255:0;image.data[j]=image.data[j+1]=image.data[j+2]=value;image.data[j+3]=255;continue;}
     image.data[j]=source[i+(color&&bgr?2:0)];image.data[j+1]=source[i+(color?1:0)];
     image.data[j+2]=source[i+(color?(bgr?0:2):0)];image.data[j+3]=255;
   }
