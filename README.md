@@ -1,5 +1,13 @@
 # Nuvo Depth
 
+<!-- BEGIN APPROVED SETUP -->
+Approved public release: **`v0.1.1-beta.6`**. Start with **Balanced**.
+Use Raspberry Pi OS Lite 64-bit Trixie (`arm64`), kernel `6.12.75+rpt-rpi-2712`.
+The rolling command follows this approved reference; development builds and
+draft candidates are never selected automatically. Quality is an optional
+profile with greater processing cost.
+<!-- END APPROVED SETUP -->
+
 Nuvo Depth is the software that powers **Nuvo Vision One**, NuvoHardware's
 stereo vision camera. It captures synchronized images from two cameras,
 computes depth, and provides a web console and APIs for robotic applications.
@@ -66,9 +74,8 @@ curl -fsSL https://raw.githubusercontent.com/arputhamips/nuvo-depth/main/install
 curl -fsSL https://raw.githubusercontent.com/arputhamips/nuvo-depth/main/install-nuvo-depth-minimal.sh | sudo bash
 ```
 
-These maintained bootstraps resolve the most recently published public release
-with a complete signed bundle for the selected profile, including public
-previews. Drafts are excluded. The selected exact tag is printed and signatures,
+These maintained bootstraps resolve the approved public release
+with a complete signed bundle for the selected profile, as recorded in `deployment/public-release.json`. Drafts are excluded. The selected exact tag is printed and signatures,
 manifest, installer and package cohort are verified before installation.
 Use `--release TAG` for an exact version; release-page commands remain pinned.
 Updates preserve identity, network state and existing validated per-unit

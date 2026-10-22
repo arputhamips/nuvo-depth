@@ -29,21 +29,18 @@ BUNDLE_LIMIT = 256 * 1024**2
 
 
 def latest_release(repository, profile='appliance'):
-    """Resolve public metadata once; signatures still authorize the selected bytes.
+    """Resolve the approved public pointer, never the development version/feed.
 
-    This self-contained function is also embedded in the two standalone shells.
-    Keep it dependency-free so the rolling bootstrap works with older signed pyz.
+    Embedded verbatim in both standalone bootstraps. Signed bytes remain the
+    installation authority after the selected tag is bound exactly once.
     """
-    import datetime
     import json
     import re
     import urllib.request
-
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*', repository):
         raise ValueError('invalid release repository')
     if profile not in {'appliance', 'minimal'}:
         raise ValueError('invalid installation profile')
-    archive = 'nuvo-depth-minimal-pi5-arm64.tar.gz' if profile == 'minimal' else 'nuvo-depth-pi5-arm64.tar.gz'
 
     class HTTPSOnly(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, request, fp, code, msg, headers, newurl):
@@ -52,46 +49,40 @@ def latest_release(repository, profile='appliance'):
             return super().redirect_request(request, fp, code, msg, headers, newurl)
 
     opener = urllib.request.build_opener(HTTPSOnly())
-    candidates = []
-    for page in range(1, 11):
-        url = f'https://api.github.com/repos/{repository}/releases?per_page=100&page={page}'
-        request = urllib.request.Request(url, headers={
-            'User-Agent': 'Nuvo-Depth-Installer/1', 'Accept': 'application/vnd.github+json'})
+    def fetch(url, limit):
+        request = urllib.request.Request(url, headers={'User-Agent': 'Nuvo-Depth-Installer/1', 'Accept': 'application/vnd.github+json'})
         with opener.open(request, timeout=30) as response:
-            data = response.read(2 * 1024**2 + 1)
-        if len(data) > 2 * 1024**2:
+            data = response.read(limit + 1)
+        if len(data) > limit:
             raise ValueError('release metadata exceeds size limit')
-        releases = json.loads(data)
-        if not isinstance(releases, list) or len(releases) > 100:
-            raise ValueError('invalid public release metadata')
-        for item in releases:
-            if not isinstance(item, dict) or item.get('draft') is not False:
-                continue
-            tag, published, assets = item.get('tag_name'), item.get('published_at'), item.get('assets')
-            if (not isinstance(tag, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.+-]{0,127}', tag)
-                    or tag in {'latest', 'main', 'master'} or not isinstance(published, str)
-                    or not isinstance(assets, list)):
-                continue
-            try:
-                stamp = datetime.datetime.strptime(published, '%Y-%m-%dT%H:%M:%SZ')
-            except ValueError:
-                continue
-            complete = True
-            for name, limit in ((archive, 256 * 1024**2), (archive + '.sig', 64)):
-                matches = [asset for asset in assets if isinstance(asset, dict) and asset.get('name') == name]
-                if (len(matches) != 1 or matches[0].get('state') != 'uploaded'
-                        or type(matches[0].get('size')) is not int or not 0 < matches[0]['size'] <= limit
-                        or name.endswith('.sig') and matches[0]['size'] != 64):
-                    complete = False
-            if complete:
-                candidates.append((stamp, tag))
-        if len(releases) < 100:
-            break
-    else:
-        raise ValueError('too many release pages; select an exact --release TAG')
-    if not candidates:
-        raise ValueError(f'no public {profile} release with a complete signed bundle; select --release TAG')
-    return max(candidates)[1]
+        return json.loads(data)
+    reference = fetch(f'https://raw.githubusercontent.com/{repository}/main/deployment/public-release.json', 65536)
+    if (not isinstance(reference, dict) or reference.get('schema_version') != 1
+            or reference.get('repository') != repository or reference.get('approved') is not True
+            or reference.get('channel') not in {'stable', 'preview'}
+            or not isinstance(reference.get('profiles'), list)
+            or profile not in reference.get('profiles', [])):
+        raise ValueError('no approved public release for the requested profile')
+    tag = reference.get('tag', '')
+    if (not isinstance(tag, str) or not re.fullmatch(r'v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-beta\.[1-9][0-9]*)?', tag)
+            or ('-beta.' in tag) != (reference['channel'] == 'preview')):
+        raise ValueError('invalid approved public release tag/channel')
+    published = fetch(f'https://api.github.com/repos/{repository}/releases/tags/{tag}', 2 * 1024**2)
+    if (not isinstance(published, dict) or published.get('draft') is not False
+            or published.get('tag_name') != tag or not published.get('published_at')
+            or published.get('prerelease') is not (reference['channel'] == 'preview')):
+        raise ValueError('approved release is not published in the expected channel')
+    archive = 'nuvo-depth-minimal-pi5-arm64.tar.gz' if profile == 'minimal' else 'nuvo-depth-pi5-arm64.tar.gz'
+    assets = published.get('assets', [])
+    if not isinstance(assets, list):
+        raise ValueError('invalid public release assets')
+    for name, limit in ((archive, 256 * 1024**2), (archive + '.sig', 64)):
+        matches = [asset for asset in assets if isinstance(asset, dict) and asset.get('name') == name]
+        if (len(matches) != 1 or matches[0].get('state') != 'uploaded'
+                or type(matches[0].get('size')) is not int or not 0 < matches[0]['size'] <= limit
+                or name.endswith('.sig') and matches[0]['size'] != 64):
+            raise ValueError('approved public release has no complete signed bundle for this profile')
+    return tag
 
 
 def unpack_bundle(archive: Path, destination: Path):

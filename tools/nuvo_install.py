@@ -266,7 +266,7 @@ def parse():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--factory", action="store_true", help="manufacturing preset, no selection prompts; never reset an owned device")
     parser.add_argument("--repository", default=release.DEFAULT_REPOSITORY, help="GitHub release repository (default: arputhamips/nuvo-depth)")
-    parser.add_argument("--release", help="latest public release (default), or an exact published tag")
+    parser.add_argument("--release", help="approved public release (default/latest), or an exact published tag")
     parser.add_argument("--public-key", type=Path, help="independently trusted Ed25519 release public key")
     parser.add_argument("--bundle", type=Path, help="extracted signed release; OS dependencies still require APT/cache")
     parser.add_argument("--calibration-bundle", help="existing matching calibration bundle directory")

@@ -1,0 +1,14 @@
+name: Setup documentation consistency
+on:
+  push:
+    paths: ['README.md', 'docs/install.md', 'docs/installer-reference.md', 'docs/minimal-install.md', 'deployment/public-release.json', 'deployment/release-platform.json', 'web/depth-profiles.json', 'web/index.html', 'config/stereo.json', 'tools/check_setup_consistency.py', 'tools/nuvo_release.py', 'install-nuvo-depth*.sh', '.github/workflows/setup-consistency.yml']
+  pull_request:
+    paths: ['README.md', 'docs/install.md', 'docs/installer-reference.md', 'docs/minimal-install.md', 'deployment/public-release.json', 'deployment/release-platform.json', 'web/depth-profiles.json', 'web/index.html', 'config/stereo.json', 'tools/check_setup_consistency.py', 'tools/nuvo_release.py', 'install-nuvo-depth*.sh', '.github/workflows/setup-consistency.yml']
+permissions:
+  contents: read
+jobs:
+  consistency:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - run: python3 tools/check_setup_consistency.py

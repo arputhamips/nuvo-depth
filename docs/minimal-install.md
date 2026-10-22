@@ -121,8 +121,8 @@ matcher, rectification, depth conversion or IPC source is forked.
 
 ## Finish first use
 
-The maintained bootstrap resolves the latest published public signed bundle for
-this profile (including public previews, excluding drafts). It prints and binds
+The maintained bootstrap resolves the approved public signed bundle for
+this profile (as recorded in `deployment/public-release.json`, excluding drafts). It prints and binds
 the exact tag before verifying the bundle, manifest and package cohort. Pass
 `--release TAG` for a reproducible version, or use a release-specific installer.
 Signature or discovery failures stop installation. Reruns preserve valid

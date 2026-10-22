@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "repository": "arputhamips/nuvo-depth",
+  "approved": true,
+  "channel": "preview",
+  "tag": "v0.1.1-beta.6",
+  "profiles": [
+    "appliance",
+    "minimal"
+  ],
+  "platform_sha256": "ed44e824bb1aea7468cf38be59a7e71f1fa25a3fff52230ef6846090d992a595",
+  "profiles_sha256": "e69a9354b4f127779f1b8d62cb633afce328d556d42e3584859af6c00206f2bc"
+}

@@ -66,8 +66,12 @@ gh workflow run install-release.yml --ref main \
 - Promote the reviewed draft; do not rebuild or silently replace its assets.
 - Update the website's `Wiki/release-catalog.json` only for an approved public
   release. Set `public: true` and choose `stable` or `preview`.
-- Update the installation command in the wiki and repository when the approved
-  installation version changes. Verify its download URL before deploying.
+- After public approval and publication, update `deployment/public-release.json`
+  with the approved tag/channel and exact approved-tag platform/profile SHA-256
+  values. Development versions and draft candidates never update this pointer.
+- Run `python3 tools/check_setup_consistency.py --write --wiki "../Nuvo Depth Web/Wiki"`
+  and the wiki's `npm run sync:setup` / `npm run test:setup`. The rolling commands
+  remain unchanged; release-specific commands remain pinned for reproducibility.
 - Retain historical engineering files for evidence links, outside the customer
   release list and search content.
 

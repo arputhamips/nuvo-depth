@@ -1,5 +1,13 @@
 # Installer reference
 
+<!-- BEGIN APPROVED SETUP -->
+Approved public release: **`v0.1.1-beta.6`**. Start with **Balanced**.
+Use Raspberry Pi OS Lite 64-bit Trixie (`arm64`), kernel `6.12.75+rpt-rpi-2712`.
+The rolling command follows this approved reference; development builds and
+draft candidates are never selected automatically. Quality is an optional
+profile with greater processing cost.
+<!-- END APPROVED SETUP -->
+
 The main user documentation is the [Nuvo Hardware wiki](https://docs.nuvohardware.com/vision-one/),
 including [first-use setup](https://docs.nuvohardware.com/vision-one/guide/getting-started)
 and [terminal installation](https://docs.nuvohardware.com/vision-one/install/byo-pi).
@@ -15,12 +23,11 @@ Customer install releases require the platform qualification recorded in their
 signed manifest. Use only an explicitly published release. The public source and
 release repository is [arputhamips/nuvo-depth](https://github.com/arputhamips/nuvo-depth).
 
-The maintained source bootstrap selects the most recently published public
-release with the requested signed bundle. Public previews are eligible; drafts
-and incomplete uploads are excluded. Discovery resolves an exact tag once,
+The maintained source bootstrap selects the approved public
+release with the requested signed bundle. The approved pointer is separate from development versions. Drafts and unapproved public uploads are excluded. Discovery resolves an exact tag once,
 then all existing signature, checksum, platform and package checks apply.
 Failure to reach public metadata stops installation; retry or specify a tag.
-No GitHub authentication is needed for the public bootstrap.
+
 
 Release-specific installer assets retain their exact default for reproducible
 installation. `--release latest` explicitly requests an update from such an
@@ -65,7 +72,6 @@ sudo bash ./install-nuvo-depth.sh --release vX.Y.Z
 To inspect the script before running it:
 
 ```bash
-VERSION=latest
 curl --proto '=https' --proto-redir '=https' -fL \
   "https://raw.githubusercontent.com/arputhamips/nuvo-depth/main/install-nuvo-depth.sh" \
   -o install-nuvo-depth.sh

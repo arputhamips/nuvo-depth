@@ -182,14 +182,15 @@ class ReleaseTest(unittest.TestCase):
         directory,assets,publication,shell,env=self.bootstrap_fixture('latest-bootstrap')
         fixture=directory/'python-fixture';fixture.mkdir()
         archive=release.BUNDLE_NAME
-        metadata=[dict(tag_name='v99.0.0',draft=True,published_at='2026-10-22T00:00:00Z',assets=[]),
-                  dict(tag_name='v1.2.3',draft=False,published_at='2026-10-21T00:00:00Z',assets=[
+        metadata=dict(tag_name='v1.2.3',draft=False,prerelease=False,published_at='2026-10-21T00:00:00Z',assets=[
                       dict(name=archive,state='uploaded',size=(publication/archive).stat().st_size),
-                      dict(name=archive+'.sig',state='uploaded',size=64)])]
+                      dict(name=archive+'.sig',state='uploaded',size=64)])
+        approval=dict(schema_version=1,repository='test-owner/nuvo',approved=True,channel='stable',tag='v1.2.3',profiles=['appliance'])
         (fixture/'sitecustomize.py').write_text('import io,json,urllib.request\n'
             'class FixtureOpener:\n'
             ' def open(self,request,timeout):\n'
-            '  assert request.full_url == "https://api.github.com/repos/test-owner/nuvo/releases?per_page=100&page=1"\n'
+            '  if request.full_url == "https://raw.githubusercontent.com/test-owner/nuvo/main/deployment/public-release.json": return io.BytesIO('+repr(json.dumps(approval).encode())+')\n'
+            '  assert request.full_url == "https://api.github.com/repos/test-owner/nuvo/releases/tags/v1.2.3"\n'
             '  return io.BytesIO('+repr(json.dumps(metadata).encode())+')\n'
             'urllib.request.build_opener=lambda *args: FixtureOpener()\n')
         result=subprocess.run(['bash',str(shell),'--release','latest','--factory'],
