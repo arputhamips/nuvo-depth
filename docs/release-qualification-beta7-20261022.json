@@ -1,0 +1,1181 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-22",
+  "source_commit": "6957a472965893723f882f821c03e3b8f45ec0d3",
+  "tag": "v0.1.1-beta.7",
+  "release_state": {
+    "draft": true,
+    "prerelease": true,
+    "published": false,
+    "approved_public_tag": "v0.1.1-beta.6"
+  },
+  "workflow": "https://github.com/arputhamips/nuvo-depth/actions/runs/39860685754",
+  "automated": {
+    "host_ctest_passed": 61,
+    "appliance_arm64_ctest_passed": 61,
+    "minimal_arm64_ctest_passed": 59,
+    "browser_fixture_checks": 10,
+    "wiki_html_pages": 31,
+    "wiki_built_files": 162,
+    "wiki_a11y_page_viewport_checks": 12,
+    "clean_runtime_install_and_minimal_dependency_exclusions": true
+  },
+  "testing_environment": {
+    "physical_host": "nuvomow.local",
+    "kernel": "6.12.75+rpt-rpi-2712",
+    "hardware_os": "Copy-on-write Pi OS Trixie roots using host OS libraries; separate package databases, configuration, identity and systemd; private network namespace. Clean dependency isolation was checked separately in hosted ARM64 CI.",
+    "host_kernel_rebooted": false,
+    "absolute_metric_accuracy_qualified": false,
+    "electrical_trigger_timing_qualified": false,
+    "one_gib_pi_qualified": false
+  },
+  "assets": {
+    "schema_version": 1,
+    "tag": "v0.1.1-beta.7",
+    "source_commit": "6957a472965893723f882f821c03e3b8f45ec0d3",
+    "draft": true,
+    "prerelease": true,
+    "published": false,
+    "assets": [
+      {
+        "apiUrl": "https://api.github.com/repos/arputhamips/nuvo-depth/releases/assets/667202902",
+        "contentType": "application/x-shellscript",
+        "createdAt": "2026-10-22T21:57:15Z",
+        "digest": "sha256:b8f5ee397c0a1621bc9d81bb805c80e95d3aef0d0378240a0f5e9e36dd32ba06",
+        "downloadCount": 0,
+        "id": "RA_kwDOVQBHWs4nxLVW",
+        "label": "",
+        "name": "install-nuvo-depth-minimal.sh",
+        "size": 11537,
+        "state": "uploaded",
+        "updatedAt": "2026-10-22T21:57:15Z",
+        "url": "https://github.com/arputhamips/nuvo-depth/releases/download/untagged-8fb78f1bd4cca478bb7f/install-nuvo-depth-minimal.sh"
+      },
+      {
+        "apiUrl": "https://api.github.com/repos/arputhamips/nuvo-depth/releases/assets/667202906",
+        "contentType": "application/x-shellscript",
+        "createdAt": "2026-10-22T21:57:15Z",
+        "digest": "sha256:597fdd1ce8234c85add4697776117d09a711c005c960dd53e15fe460a32dde80",
+        "downloadCount": 0,
+        "id": "RA_kwDOVQBHWs4nxLVa",
+        "label": "",
+        "name": "install-nuvo-depth.sh",
+        "size": 11616,
+        "state": "uploaded",
+        "updatedAt": "2026-10-22T21:57:15Z",
+        "url": "https://github.com/arputhamips/nuvo-depth/releases/download/untagged-8fb78f1bd4cca478bb7f/install-nuvo-depth.sh"
+      },
+      {
+        "apiUrl": "https://api.github.com/repos/arputhamips/nuvo-depth/releases/assets/667202905",
+        "contentType": "application/x-gtar",
+        "createdAt": "2026-10-22T21:57:15Z",
+        "digest": "sha256:07638357223f712a009183862c3c985f3da99da99c30bdc76f09875ce2842b17",
+        "downloadCount": 0,
+        "id": "RA_kwDOVQBHWs4nxLVZ",
+        "label": "",
+        "name": "nuvo-depth-minimal-pi5-arm64.tar.gz",
+        "size": 1720192,
+        "state": "uploaded",
+        "updatedAt": "2026-10-22T21:57:16Z",
+        "url": "https://github.com/arputhamips/nuvo-depth/releases/download/untagged-8fb78f1bd4cca478bb7f/nuvo-depth-minimal-pi5-arm64.tar.gz"
+      },
+      {
+        "apiUrl": "https://api.github.com/repos/arputhamips/nuvo-depth/releases/assets/667202901",
+        "contentType": "application/pgp-signature",
+        "createdAt": "2026-10-22T21:57:15Z",
+        "digest": "sha256:7f2bd94f16f1b4197f3fc966b95a3c3ced3c87da3cce38b897a9c1ec3ad6b589",
+        "downloadCount": 0,
+        "id": "RA_kwDOVQBHWs4nxLVV",
+        "label": "",
+        "name": "nuvo-depth-minimal-pi5-arm64.tar.gz.sig",
+        "size": 64,
+        "state": "uploaded",
+        "updatedAt": "2026-10-22T21:57:15Z",
+        "url": "https://github.com/arputhamips/nuvo-depth/releases/download/untagged-8fb78f1bd4cca478bb7f/nuvo-depth-minimal-pi5-arm64.tar.gz.sig"
+      },
+      {
+        "apiUrl": "https://api.github.com/repos/arputhamips/nuvo-depth/releases/assets/667202903",
+        "contentType": "application/x-gtar",
+        "createdAt": "2026-10-22T21:57:15Z",
+        "digest": "sha256:e1491bf3bd4590a57e181d8811982f81e290e014043cb16aa32a9faf76c042b4",
+        "downloadCount": 0,
+        "id": "RA_kwDOVQBHWs4nxLVX",
+        "label": "",
+        "name": "nuvo-depth-pi5-arm64.tar.gz",
+        "size": 2501575,
+        "state": "uploaded",
+        "updatedAt": "2026-10-22T21:57:16Z",
+        "url": "https://github.com/arputhamips/nuvo-depth/releases/download/untagged-8fb78f1bd4cca478bb7f/nuvo-depth-pi5-arm64.tar.gz"
+      },
+      {
+        "apiUrl": "https://api.github.com/repos/arputhamips/nuvo-depth/releases/assets/667202920",
+        "contentType": "application/pgp-signature",
+        "createdAt": "2026-10-22T21:57:16Z",
+        "digest": "sha256:b0dbc3746c7d79e125de2ab7076c32e6410f7a1522f32984fac8b0f3b3f82be6",
+        "downloadCount": 0,
+        "id": "RA_kwDOVQBHWs4nxLVo",
+        "label": "",
+        "name": "nuvo-depth-pi5-arm64.tar.gz.sig",
+        "size": 64,
+        "state": "uploaded",
+        "updatedAt": "2026-10-22T21:57:16Z",
+        "url": "https://github.com/arputhamips/nuvo-depth/releases/download/untagged-8fb78f1bd4cca478bb7f/nuvo-depth-pi5-arm64.tar.gz.sig"
+      }
+    ],
+    "profiles": {
+      "appliance": {
+        "signed_bundle_sha256": "e1491bf3bd4590a57e181d8811982f81e290e014043cb16aa32a9faf76c042b4",
+        "manifest": {
+          "files": [
+            {
+              "architecture": "arm64",
+              "name": "libnuvo-depth1_0.1.1.beta.7_arm64.deb",
+              "package": "libnuvo-depth1",
+              "sha256": "70b23fd743d4c7ed611c4e3695cb4ded077f1cc5395632e032e9160049bbd3fa",
+              "size": 12008,
+              "version": "0.1.1~beta.7"
+            },
+            {
+              "architecture": "all",
+              "name": "nuvo-depth-calibration_0.1.1.beta.7_all.deb",
+              "package": "nuvo-depth-calibration",
+              "sha256": "f7a5bcd9fccf2769928d696e8e640ad4e238558bab1de766171aacdcb2e1bf35",
+              "size": 36420,
+              "version": "0.1.1~beta.7"
+            },
+            {
+              "architecture": "arm64",
+              "name": "nuvo-depth-core_0.1.1.beta.7_arm64.deb",
+              "package": "nuvo-depth-core",
+              "sha256": "3d873fbacf8b968705c9e03f8874b24bfe892baf84bba0bee2126dac08824290",
+              "size": 447044,
+              "version": "0.1.1~beta.7"
+            },
+            {
+              "architecture": "arm64",
+              "name": "nuvo-depth-gateway_0.1.1.beta.7_arm64.deb",
+              "package": "nuvo-depth-gateway",
+              "sha256": "99934c0a314cbf9ae7d5be7c31a75d65cbf077beae82f2d21891bde50bbdbef1",
+              "size": 563556,
+              "version": "0.1.1~beta.7"
+            },
+            {
+              "architecture": "arm64",
+              "name": "nuvo-depth-platform-pi5_0.1.1.beta.7_arm64.deb",
+              "package": "nuvo-depth-platform-pi5",
+              "sha256": "23538299614c185103a7b85bbff1dfe8419e14210b2162774008208bacdb34c0",
+              "size": 7312,
+              "version": "0.1.1~beta.7"
+            },
+            {
+              "architecture": "all",
+              "name": "nuvo-depth-tools_0.1.1.beta.7_all.deb",
+              "package": "nuvo-depth-tools",
+              "sha256": "e35865dab3857200e178c8f913b736e51273a00f3daf947165219b2cd1edd791",
+              "size": 34244,
+              "version": "0.1.1~beta.7"
+            },
+            {
+              "architecture": "arm64",
+              "name": "nuvo-depth_0.1.1.beta.7_arm64.deb",
+              "package": "nuvo-depth",
+              "sha256": "74c9334d91b266d3f91377261bdd5ee12b209a451407b0a87da1715d393eeda6",
+              "size": 5808,
+              "version": "0.1.1~beta.7"
+            },
+            {
+              "architecture": "all",
+              "name": "python3-nuvo-depth_0.1.1.beta.7_all.deb",
+              "package": "python3-nuvo-depth",
+              "sha256": "9ffb9b0c9ac194a848812c15511a7c8379cea0053a16753ec378b5acc8066ca1",
+              "size": 16052,
+              "version": "0.1.1~beta.7"
+            },
+            {
+              "name": "nuvo-install.pyz",
+              "sha256": "f162973dff1a61f86e371706b6167682e0c2ab203126a96f563b4bd9976bb3f8",
+              "size": 56829
+            },
+            {
+              "name": "install-nuvo-depth.sh",
+              "sha256": "597fdd1ce8234c85add4697776117d09a711c005c960dd53e15fe460a32dde80",
+              "size": 11616
+            },
+            {
+              "name": "release.pub",
+              "sha256": "99afe61f8e1314c60da4a63961e3bb1d4cd49563b7ec98255069a5a027d292bd",
+              "size": 113
+            },
+            {
+              "name": "LICENSE",
+              "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+              "size": 35149
+            },
+            {
+              "name": "NOTICE",
+              "sha256": "9fd1aa10add6263dac3e5be372a513be0f82476362df0b499a4410eff4c135b9",
+              "size": 1172
+            },
+            {
+              "name": "README.txt",
+              "sha256": "8503f0436c2cf7978a964167ff7bede4c34bb9651c6c27af223672d71706de06",
+              "size": 715
+            },
+            {
+              "name": "nuvo-depth-source.tar.gz",
+              "sha256": "1fa33900582dee9ee277db6d5670b0dabed11640156097c8ae7dc59b01b19c9a",
+              "size": 1281031
+            },
+            {
+              "name": "build-record.json",
+              "sha256": "cf5866bcf1762ce5f64fc85da17e9c6b5841609ba36719cf1c2f5576bb5ebd25",
+              "size": 354
+            },
+            {
+              "name": "build-packages.txt",
+              "sha256": "60c7458265c2e63f6f161e77aea8f50c54f31bcbd87b02d26ad29d5814c5232c",
+              "size": 22882
+            },
+            {
+              "name": "ctest.log",
+              "sha256": "c212590d9197768bfb85a65bee493e2c2d6de91b6028e31b41b09a87fabe4551",
+              "size": 61592
+            },
+            {
+              "name": "nuvo-depth_0.1.1.beta.7_arm64.buildinfo",
+              "sha256": "b53bf7b8dfea27ac769c34ecafd52cbe7e65daad658460e496fcd5c71f63b3b7",
+              "size": 23741
+            }
+          ],
+          "format": "nuvo-depth-release",
+          "platform": {
+            "architecture": "arm64",
+            "base_image": {
+              "sha256": "4cd31df026fd82243805a326dc0cafd7383f7e3d30c9413e7044d507aae281e2",
+              "url": "https://downloads.raspberrypi.com/raspios_lite_arm64/images/raspios_lite_arm64-2026-04-21/2026-04-21-raspios-trixie-arm64-lite.img.xz"
+            },
+            "camera_packages": {
+              "libcamera-ipa": "0.7.2+rpt20261009-1",
+              "libcamera0.7": "0.7.2+rpt20261009-1",
+              "rpicam-apps-core": "1.14.0-1"
+            },
+            "codename": "trixie",
+            "kernels": [
+              "6.12.75+rpt-rpi-2712"
+            ],
+            "notes": "Raspberry Pi OS Lite image origin matches the qualification Pi /etc/rpi-issue (pi-gen 4ad56cc850fa60adcc7f07dc15879bc95cc1d281). Userspace has received Trixie/Raspberry Pi updates since flashing. Exact dependency versions and package acceptance scope are recorded in docs/release-qualification-20261019.md; no kernel upgrade is performed by the installer."
+          },
+          "repository": "arputhamips/nuvo-depth",
+          "schema_version": 1,
+          "tag": "v0.1.1-beta.7",
+          "version": "0.1.1~beta.7"
+        },
+        "build_record": {
+          "schema_version": 1,
+          "source_commit": "6957a472965893723f882f821c03e3b8f45ec0d3",
+          "version": "0.1.1~beta.7",
+          "architecture": "arm64",
+          "codename": "trixie",
+          "profile": "appliance",
+          "workflow_run": "https://github.com/arputhamips/nuvo-depth/actions/runs/39860685754",
+          "hardware_tests": "not run: hosted ARM64 builder has no Pi cameras"
+        },
+        "packages": [
+          {
+            "name": "libnuvo-depth1_0.1.1.beta.7_arm64.deb",
+            "sha256": "70b23fd743d4c7ed611c4e3695cb4ded077f1cc5395632e032e9160049bbd3fa"
+          },
+          {
+            "name": "nuvo-depth-calibration_0.1.1.beta.7_all.deb",
+            "sha256": "f7a5bcd9fccf2769928d696e8e640ad4e238558bab1de766171aacdcb2e1bf35"
+          },
+          {
+            "name": "nuvo-depth-core_0.1.1.beta.7_arm64.deb",
+            "sha256": "3d873fbacf8b968705c9e03f8874b24bfe892baf84bba0bee2126dac08824290"
+          },
+          {
+            "name": "nuvo-depth-gateway_0.1.1.beta.7_arm64.deb",
+            "sha256": "99934c0a314cbf9ae7d5be7c31a75d65cbf077beae82f2d21891bde50bbdbef1"
+          },
+          {
+            "name": "nuvo-depth-platform-pi5_0.1.1.beta.7_arm64.deb",
+            "sha256": "23538299614c185103a7b85bbff1dfe8419e14210b2162774008208bacdb34c0"
+          },
+          {
+            "name": "nuvo-depth-tools_0.1.1.beta.7_all.deb",
+            "sha256": "e35865dab3857200e178c8f913b736e51273a00f3daf947165219b2cd1edd791"
+          },
+          {
+            "name": "nuvo-depth_0.1.1.beta.7_arm64.deb",
+            "sha256": "74c9334d91b266d3f91377261bdd5ee12b209a451407b0a87da1715d393eeda6"
+          },
+          {
+            "name": "python3-nuvo-depth_0.1.1.beta.7_all.deb",
+            "sha256": "9ffb9b0c9ac194a848812c15511a7c8379cea0053a16753ec378b5acc8066ca1"
+          }
+        ]
+      },
+      "minimal": {
+        "signed_bundle_sha256": "07638357223f712a009183862c3c985f3da99da99c30bdc76f09875ce2842b17",
+        "manifest": {
+          "files": [
+            {
+              "architecture": "arm64",
+              "name": "nuvo-depth-minimal_0.1.1.beta.7_arm64.deb",
+              "package": "nuvo-depth-minimal",
+              "sha256": "3b0a2342625f3d087ea779fd4455b5008f762768105b27bb0c3df08c2f5db052",
+              "size": 355968,
+              "version": "0.1.1~beta.7"
+            },
+            {
+              "name": "nuvo-install.pyz",
+              "sha256": "751b0aeba5cf4941c816b3cc6e1c30c8f54cbd6cf1f479e50aecebf0ecd2c9d2",
+              "size": 44977
+            },
+            {
+              "name": "install-nuvo-depth-minimal.sh",
+              "sha256": "b8f5ee397c0a1621bc9d81bb805c80e95d3aef0d0378240a0f5e9e36dd32ba06",
+              "size": 11537
+            },
+            {
+              "name": "release.pub",
+              "sha256": "99afe61f8e1314c60da4a63961e3bb1d4cd49563b7ec98255069a5a027d292bd",
+              "size": 113
+            },
+            {
+              "name": "LICENSE",
+              "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+              "size": 35149
+            },
+            {
+              "name": "NOTICE",
+              "sha256": "9fd1aa10add6263dac3e5be372a513be0f82476362df0b499a4410eff4c135b9",
+              "size": 1172
+            },
+            {
+              "name": "README.txt",
+              "sha256": "35f097fdf8712515f4c8ea7c797d39e386d7f209a02f9353549227d77a96cf88",
+              "size": 731
+            },
+            {
+              "name": "nuvo-depth-source.tar.gz",
+              "sha256": "1fa33900582dee9ee277db6d5670b0dabed11640156097c8ae7dc59b01b19c9a",
+              "size": 1281031
+            },
+            {
+              "name": "build-record.json",
+              "sha256": "6d87619ba9ae35028fe749b703045ac00b0027c331143f0e2ae792f0328f1319",
+              "size": 352
+            },
+            {
+              "name": "build-packages.txt",
+              "sha256": "60c7458265c2e63f6f161e77aea8f50c54f31bcbd87b02d26ad29d5814c5232c",
+              "size": 22882
+            },
+            {
+              "name": "ctest.log",
+              "sha256": "329d7beacbb8b578a73b8b0c1b1a66cb48021c59c6eaee07e8a27655aaf0c12f",
+              "size": 46213
+            },
+            {
+              "name": "nuvo-depth_0.1.1.beta.7_arm64.buildinfo",
+              "sha256": "2aa1d30c5b7576b79e510a5457ef9becb7ef03564d272fb1952089e60d142254",
+              "size": 20417
+            }
+          ],
+          "format": "nuvo-depth-release",
+          "platform": {
+            "architecture": "arm64",
+            "base_image": {
+              "sha256": "4cd31df026fd82243805a326dc0cafd7383f7e3d30c9413e7044d507aae281e2",
+              "url": "https://downloads.raspberrypi.com/raspios_lite_arm64/images/raspios_lite_arm64-2026-04-21/2026-04-21-raspios-trixie-arm64-lite.img.xz"
+            },
+            "camera_packages": {
+              "libcamera-ipa": "0.7.2+rpt20261009-1",
+              "libcamera0.7": "0.7.2+rpt20261009-1",
+              "rpicam-apps-core": "1.14.0-1"
+            },
+            "codename": "trixie",
+            "kernels": [
+              "6.12.75+rpt-rpi-2712"
+            ],
+            "notes": "Raspberry Pi OS Lite image origin matches the qualification Pi /etc/rpi-issue (pi-gen 4ad56cc850fa60adcc7f07dc15879bc95cc1d281). Userspace has received Trixie/Raspberry Pi updates since flashing. Exact dependency versions and package acceptance scope are recorded in docs/release-qualification-20261019.md; no kernel upgrade is performed by the installer."
+          },
+          "profile": "minimal",
+          "repository": "arputhamips/nuvo-depth",
+          "schema_version": 1,
+          "tag": "v0.1.1-beta.7",
+          "version": "0.1.1~beta.7"
+        },
+        "build_record": {
+          "schema_version": 1,
+          "source_commit": "6957a472965893723f882f821c03e3b8f45ec0d3",
+          "version": "0.1.1~beta.7",
+          "architecture": "arm64",
+          "codename": "trixie",
+          "profile": "minimal",
+          "workflow_run": "https://github.com/arputhamips/nuvo-depth/actions/runs/39860685754",
+          "hardware_tests": "not run: hosted ARM64 builder has no Pi cameras"
+        },
+        "packages": [
+          {
+            "name": "nuvo-depth-minimal_0.1.1.beta.7_arm64.deb",
+            "sha256": "3b0a2342625f3d087ea779fd4455b5008f762768105b27bb0c3df08c2f5db052"
+          }
+        ]
+      }
+    }
+  },
+  "hardware": {
+    "minimal": {
+      "profile": "minimal",
+      "scope": "Physical Pi cameras in disposable Trixie userspace; host identity/calibration/network preserved.",
+      "fresh_capture_disabled": true,
+      "wrong_unit_rejected": true,
+      "preview_frames": [
+        {
+          "sequence": 15,
+          "run_uuid": "0e36183779ef42188c7d81602059974f",
+          "hash": "fc78b88d66e26ab6291a7a1fb84dee768a5075d86ff763039824588955c4b833",
+          "authority": 0,
+          "time_ns": 86318356370500,
+          "valid_pixels": 230332
+        },
+        {
+          "sequence": 19,
+          "run_uuid": "0e36183779ef42188c7d81602059974f",
+          "hash": "fc78b88d66e26ab6291a7a1fb84dee768a5075d86ff763039824588955c4b833",
+          "authority": 0,
+          "time_ns": 86318756384500,
+          "valid_pixels": 233556
+        },
+        {
+          "sequence": 23,
+          "run_uuid": "0e36183779ef42188c7d81602059974f",
+          "hash": "fc78b88d66e26ab6291a7a1fb84dee768a5075d86ff763039824588955c4b833",
+          "authority": 0,
+          "time_ns": 86319156401000,
+          "valid_pixels": 236303
+        },
+        {
+          "sequence": 27,
+          "run_uuid": "0e36183779ef42188c7d81602059974f",
+          "hash": "fc78b88d66e26ab6291a7a1fb84dee768a5075d86ff763039824588955c4b833",
+          "authority": 0,
+          "time_ns": 86319556418500,
+          "valid_pixels": 234454
+        },
+        {
+          "sequence": 31,
+          "run_uuid": "0e36183779ef42188c7d81602059974f",
+          "hash": "fc78b88d66e26ab6291a7a1fb84dee768a5075d86ff763039824588955c4b833",
+          "authority": 0,
+          "time_ns": 86319956435500,
+          "valid_pixels": 231859
+        },
+        {
+          "sequence": 35,
+          "run_uuid": "0e36183779ef42188c7d81602059974f",
+          "hash": "fc78b88d66e26ab6291a7a1fb84dee768a5075d86ff763039824588955c4b833",
+          "authority": 0,
+          "time_ns": 86320356454000,
+          "valid_pixels": 232344
+        }
+      ],
+      "qualification_identity": "7a0d9183-007d-41e9-b5b4-20d59325eb4d",
+      "original_bundle_id": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+      "accepted_frames": [
+        {
+          "sequence": 20,
+          "run_uuid": "eda2329276f44f78a8e46ba813b1b4f8",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86326183430500,
+          "valid_pixels": 229406
+        },
+        {
+          "sequence": 24,
+          "run_uuid": "eda2329276f44f78a8e46ba813b1b4f8",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86326583443000,
+          "valid_pixels": 231141
+        },
+        {
+          "sequence": 28,
+          "run_uuid": "eda2329276f44f78a8e46ba813b1b4f8",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86326983461500,
+          "valid_pixels": 231219
+        },
+        {
+          "sequence": 32,
+          "run_uuid": "eda2329276f44f78a8e46ba813b1b4f8",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86327383481000,
+          "valid_pixels": 234375
+        },
+        {
+          "sequence": 36,
+          "run_uuid": "eda2329276f44f78a8e46ba813b1b4f8",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86327783495000,
+          "valid_pixels": 226225
+        },
+        {
+          "sequence": 40,
+          "run_uuid": "eda2329276f44f78a8e46ba813b1b4f8",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86328183512500,
+          "valid_pixels": 227820
+        }
+      ],
+      "corrupt_rejected_without_selection_change": true,
+      "restart_failure_restored": true,
+      "interrupted_activation_restored_disabled_policy": true,
+      "final_frames": [
+        {
+          "sequence": 20,
+          "run_uuid": "babf1e2e4d4244b38b52df09039169f9",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86343377574500,
+          "valid_pixels": 234245
+        },
+        {
+          "sequence": 24,
+          "run_uuid": "babf1e2e4d4244b38b52df09039169f9",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86343777587500,
+          "valid_pixels": 233308
+        },
+        {
+          "sequence": 28,
+          "run_uuid": "babf1e2e4d4244b38b52df09039169f9",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86344177603500,
+          "valid_pixels": 225921
+        },
+        {
+          "sequence": 32,
+          "run_uuid": "babf1e2e4d4244b38b52df09039169f9",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86344577620500,
+          "valid_pixels": 230444
+        },
+        {
+          "sequence": 36,
+          "run_uuid": "babf1e2e4d4244b38b52df09039169f9",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86344977639000,
+          "valid_pixels": 230053
+        },
+        {
+          "sequence": 40,
+          "run_uuid": "babf1e2e4d4244b38b52df09039169f9",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86345377656000,
+          "valid_pixels": 240242
+        },
+        {
+          "sequence": 44,
+          "run_uuid": "babf1e2e4d4244b38b52df09039169f9",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86345777673500,
+          "valid_pixels": 224386
+        },
+        {
+          "sequence": 48,
+          "run_uuid": "babf1e2e4d4244b38b52df09039169f9",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86346177695000,
+          "valid_pixels": 232377
+        },
+        {
+          "sequence": 52,
+          "run_uuid": "babf1e2e4d4244b38b52df09039169f9",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86346577706500,
+          "valid_pixels": 227905
+        },
+        {
+          "sequence": 56,
+          "run_uuid": "babf1e2e4d4244b38b52df09039169f9",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86346977723500,
+          "valid_pixels": 233523
+        }
+      ],
+      "status_agrees": true,
+      "health": {
+        "calibration_authority": 1,
+        "calibration_readiness": {
+          "accepted": true,
+          "bundle_id": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "camera_service": {
+            "capture_sequence": 79,
+            "error": null,
+            "run_uuid": "babf1e2e-4d42-44b3-8b52-df09039169f9",
+            "status": "running"
+          },
+          "capture_enabled": true,
+          "label": "Calibration accepted",
+          "loaded": true,
+          "message": "A matching per-unit calibration passed its declared validation. This is not independent metric-accuracy or production qualification.",
+          "next_action": "Inspect calibration details and verify fresh output; check camera/service health separately.",
+          "preview_enabled": false,
+          "schema_version": 1,
+          "state": "calibration_accepted"
+        },
+        "calibration_sha256": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+        "capacity_dropped": 0,
+        "capture_active": true,
+        "capture_epoch": 2,
+        "capture_sequence": 79,
+        "capture_sequence_gaps": 39,
+        "capture_target_hz": 10,
+        "captured_pairs": 79,
+        "configuration_epoch": 1,
+        "cpu_dmabuf_cached_bytes": 3342336,
+        "cpu_dmabuf_cached_mappings": 8,
+        "cpu_dmabuf_mapping_cache_hits": 18,
+        "cpu_dmabuf_mappings_started": 8,
+        "depth_conversion_active": false,
+        "depth_height": 544,
+        "depth_width": 728,
+        "device_uuid": "7a0d9183-007d-41e9-b5b4-20d59325eb4d",
+        "duplicate_sequence_rejected": 0,
+        "encoding_active": false,
+        "exposure_at_lower_limit": false,
+        "exposure_at_upper_limit": false,
+        "exposure_configuration_errors": 0,
+        "exposure_configuration_reloads": 0,
+        "exposure_confirmation_direction": "",
+        "exposure_confirmation_observations": 0,
+        "exposure_controller_state": "manual",
+        "exposure_frame_period_us": 100000,
+        "exposure_last_adjustment_factor": 1,
+        "exposure_last_error": "",
+        "exposure_last_reason": "startup",
+        "exposure_mode": "manual",
+        "exposure_safe_max_us": 8000,
+        "exposure_settle_frames_remaining": 0,
+        "exposure_trigger_guard_us": 250,
+        "exposure_updates": 0,
+        "frame_completion_errors": 0,
+        "idle_captures": 31,
+        "image_height": 544,
+        "image_width": 728,
+        "left_camera_id": "/base/axi/pcie@1000120000/rp1/i2c@80000/imx296@1a",
+        "left_reported_analogue_gain": 1.99526,
+        "left_reported_digital_gain": 1.00237,
+        "left_reported_exposure_us": 7999,
+        "left_submitted": 79,
+        "matched_frames": 13,
+        "matcher_active": false,
+        "matcher_statistics": {
+          "capture_sequence": 56,
+          "processing_ms": 77.8696,
+          "rectification_ms": 3.55919,
+          "stereo_match_ms": 71.1722,
+          "stereo_postprocess_ms": 0.973446,
+          "stereo_preprocess_ms": 0.001297
+        },
+        "maximum_pair_delta_ns": 30000,
+        "metered_clipped_fraction": null,
+        "metered_dark_fraction": null,
+        "metered_left_clipped_fraction": null,
+        "metered_left_median": null,
+        "metered_median": null,
+        "metered_median_difference": null,
+        "metered_right_clipped_fraction": null,
+        "metered_right_median": null,
+        "paired_captures": 79,
+        "payload_bytes": 0,
+        "preview_demand_cadence_hz": 0,
+        "processing_ms": 77.8696,
+        "processing_statistics_capture_sequence": 56,
+        "profile_id": "balanced_728x544_10",
+        "published_frames": 13,
+        "raw_cadence_skipped": 35,
+        "raw_demand_cadence_hz": 0,
+        "raw_processing_submissions": 13,
+        "raw_product_demand": 0,
+        "ready_pair_replacements": 4,
+        "rectification_active": false,
+        "rectification_backend": "not_requested",
+        "rectification_fallback_reason": "",
+        "rectification_ms": 0,
+        "request_requeue_failures": 0,
+        "requested_analogue_gain": 2,
+        "requested_control_scope": "before_pair_observation",
+        "requested_exposure_us": 8000,
+        "right_camera_id": "/base/axi/pcie@1000120000/rp1/i2c@88000/imx296@1a",
+        "right_reported_analogue_gain": 1.99526,
+        "right_reported_digital_gain": 1.00237,
+        "right_reported_exposure_us": 7999,
+        "right_submitted": 79,
+        "run_uuid": "babf1e2e-4d42-44b3-8b52-df09039169f9",
+        "scheduler_accepted": 13,
+        "scheduler_completed": 0,
+        "scheduler_completed_dropped": 0,
+        "scheduler_pending": 0,
+        "scheduler_pending_replaced": 0,
+        "scheduler_processed": 13,
+        "scheduler_processing_failures": 0,
+        "scheduler_protected_pending_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "schema_version": 1,
+        "searchable_valid_fraction": 0,
+        "stale_dropped": 0,
+        "status": "running",
+        "stereo_applied_revision": "2a57270936dd4969f1a4f1c49f65bf64ca2b9876b704698dac3f6bced6564cb8",
+        "stereo_backend": "not_requested",
+        "stereo_configuration_error": "",
+        "stereo_configuration_generation": 1,
+        "stereo_match_ms": 0,
+        "stereo_ms": 0,
+        "stereo_postprocess_ms": 0,
+        "stereo_preprocess_ms": 0,
+        "stereo_requested_revision": "2a57270936dd4969f1a4f1c49f65bf64ca2b9876b704698dac3f6bced6564cb8",
+        "trigger_attempts": 0,
+        "trigger_commanded_pulse_us": 8000,
+        "trigger_deadline_overruns": 0,
+        "trigger_errors": 0,
+        "trigger_hardware_timed": true,
+        "trigger_last_pulse_us": 0,
+        "trigger_max_pulse_overshoot_us": 0,
+        "trigger_max_pulse_us": 0,
+        "trigger_min_pulse_us": 0,
+        "trigger_period_ns": 100000000,
+        "trigger_pulse_guard_overruns": 0,
+        "trigger_pulse_timing_measured": false,
+        "trigger_source": "rp1-pio-pwm",
+        "valid_depth_pixels": 0,
+        "valid_fraction": 0
+      },
+      "installed_packages": {
+        "nuvo-depth-minimal": "0.1.1~beta.7"
+      },
+      "passed": true
+    },
+    "appliance": {
+      "profile": "appliance",
+      "scope": "Physical Pi cameras in disposable Trixie userspace; host identity/calibration/network preserved.",
+      "fresh_capture_disabled": true,
+      "wrong_unit_rejected": true,
+      "preview_frames": [
+        {
+          "sequence": 17,
+          "run_uuid": "f85dfeba32c54e2d9aa2e22f66b1a4ae",
+          "hash": "fc78b88d66e26ab6291a7a1fb84dee768a5075d86ff763039824588955c4b833",
+          "authority": 0,
+          "time_ns": 86416162597500,
+          "valid_pixels": 239512
+        },
+        {
+          "sequence": 21,
+          "run_uuid": "f85dfeba32c54e2d9aa2e22f66b1a4ae",
+          "hash": "fc78b88d66e26ab6291a7a1fb84dee768a5075d86ff763039824588955c4b833",
+          "authority": 0,
+          "time_ns": 86416562610000,
+          "valid_pixels": 231695
+        },
+        {
+          "sequence": 25,
+          "run_uuid": "f85dfeba32c54e2d9aa2e22f66b1a4ae",
+          "hash": "fc78b88d66e26ab6291a7a1fb84dee768a5075d86ff763039824588955c4b833",
+          "authority": 0,
+          "time_ns": 86416962626500,
+          "valid_pixels": 240361
+        },
+        {
+          "sequence": 29,
+          "run_uuid": "f85dfeba32c54e2d9aa2e22f66b1a4ae",
+          "hash": "fc78b88d66e26ab6291a7a1fb84dee768a5075d86ff763039824588955c4b833",
+          "authority": 0,
+          "time_ns": 86417362645500,
+          "valid_pixels": 228997
+        },
+        {
+          "sequence": 33,
+          "run_uuid": "f85dfeba32c54e2d9aa2e22f66b1a4ae",
+          "hash": "fc78b88d66e26ab6291a7a1fb84dee768a5075d86ff763039824588955c4b833",
+          "authority": 0,
+          "time_ns": 86417762661000,
+          "valid_pixels": 235433
+        },
+        {
+          "sequence": 37,
+          "run_uuid": "f85dfeba32c54e2d9aa2e22f66b1a4ae",
+          "hash": "fc78b88d66e26ab6291a7a1fb84dee768a5075d86ff763039824588955c4b833",
+          "authority": 0,
+          "time_ns": 86418162678000,
+          "valid_pixels": 233330
+        }
+      ],
+      "qualification_identity": "7a0d9183-007d-41e9-b5b4-20d59325eb4d",
+      "original_bundle_id": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+      "accepted_frames": [
+        {
+          "sequence": 25,
+          "run_uuid": "1ae1831bba6244aa92ba843eb65bcb0f",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86426343526000,
+          "valid_pixels": 235495
+        },
+        {
+          "sequence": 29,
+          "run_uuid": "1ae1831bba6244aa92ba843eb65bcb0f",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86426743539500,
+          "valid_pixels": 238993
+        },
+        {
+          "sequence": 33,
+          "run_uuid": "1ae1831bba6244aa92ba843eb65bcb0f",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86427143556000,
+          "valid_pixels": 232965
+        },
+        {
+          "sequence": 37,
+          "run_uuid": "1ae1831bba6244aa92ba843eb65bcb0f",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86427543571500,
+          "valid_pixels": 235085
+        },
+        {
+          "sequence": 41,
+          "run_uuid": "1ae1831bba6244aa92ba843eb65bcb0f",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86427943589500,
+          "valid_pixels": 234343
+        },
+        {
+          "sequence": 45,
+          "run_uuid": "1ae1831bba6244aa92ba843eb65bcb0f",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86428343605500,
+          "valid_pixels": 236866
+        }
+      ],
+      "corrupt_rejected_without_selection_change": true,
+      "restart_failure_restored": true,
+      "interrupted_activation_restored_disabled_policy": true,
+      "final_frames": [
+        {
+          "sequence": 25,
+          "run_uuid": "4ed04fb59b024d189a0c07f4f9877d23",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86447964681000,
+          "valid_pixels": 228339
+        },
+        {
+          "sequence": 29,
+          "run_uuid": "4ed04fb59b024d189a0c07f4f9877d23",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86448364696500,
+          "valid_pixels": 237335
+        },
+        {
+          "sequence": 33,
+          "run_uuid": "4ed04fb59b024d189a0c07f4f9877d23",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86448764712000,
+          "valid_pixels": 229901
+        },
+        {
+          "sequence": 37,
+          "run_uuid": "4ed04fb59b024d189a0c07f4f9877d23",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86449164729000,
+          "valid_pixels": 234019
+        },
+        {
+          "sequence": 41,
+          "run_uuid": "4ed04fb59b024d189a0c07f4f9877d23",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86449564747000,
+          "valid_pixels": 236517
+        },
+        {
+          "sequence": 45,
+          "run_uuid": "4ed04fb59b024d189a0c07f4f9877d23",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86449964763500,
+          "valid_pixels": 232703
+        },
+        {
+          "sequence": 49,
+          "run_uuid": "4ed04fb59b024d189a0c07f4f9877d23",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86450364781000,
+          "valid_pixels": 232582
+        },
+        {
+          "sequence": 53,
+          "run_uuid": "4ed04fb59b024d189a0c07f4f9877d23",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86450764799000,
+          "valid_pixels": 234547
+        },
+        {
+          "sequence": 57,
+          "run_uuid": "4ed04fb59b024d189a0c07f4f9877d23",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86451164815000,
+          "valid_pixels": 227103
+        },
+        {
+          "sequence": 61,
+          "run_uuid": "4ed04fb59b024d189a0c07f4f9877d23",
+          "hash": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "authority": 1,
+          "time_ns": 86451564832000,
+          "valid_pixels": 234700
+        }
+      ],
+      "status_agrees": true,
+      "health": {
+        "calibration_authority": 1,
+        "calibration_readiness": {
+          "accepted": true,
+          "bundle_id": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+          "camera_service": {
+            "capture_sequence": 24,
+            "error": null,
+            "run_uuid": "099ac289-625a-4c0a-bef7-2f3f1c5de0db",
+            "status": "running"
+          },
+          "capture_enabled": true,
+          "label": "Calibration accepted",
+          "loaded": true,
+          "message": "A matching per-unit calibration passed its declared validation. This is not independent metric-accuracy or production qualification.",
+          "next_action": "Inspect calibration details and verify fresh output; check camera/service health separately.",
+          "preview_enabled": false,
+          "schema_version": 1,
+          "state": "calibration_accepted"
+        },
+        "calibration_sha256": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+        "capacity_dropped": 0,
+        "capture_active": true,
+        "capture_epoch": 2,
+        "capture_sequence": 24,
+        "capture_sequence_gaps": 8,
+        "capture_target_hz": 10,
+        "captured_pairs": 24,
+        "configuration_epoch": 1,
+        "cpu_dmabuf_cached_bytes": 2506752,
+        "cpu_dmabuf_cached_mappings": 6,
+        "cpu_dmabuf_mapping_cache_hits": 0,
+        "cpu_dmabuf_mappings_started": 6,
+        "depth_conversion_active": false,
+        "depth_height": 544,
+        "depth_width": 728,
+        "device_uuid": "7a0d9183-007d-41e9-b5b4-20d59325eb4d",
+        "duplicate_sequence_rejected": 0,
+        "encode_failures": 0,
+        "encoded_cadence_limited": 0,
+        "encoded_frames": 0,
+        "encoding_active": false,
+        "encoding_applied_revision": "",
+        "encoding_configuration_error": "",
+        "encoding_configuration_generation": 2,
+        "encoding_image_admitted": 0,
+        "encoding_image_copies": 0,
+        "encoding_image_pool_dropped": 0,
+        "encoding_image_rectified": 0,
+        "encoding_numeric_admitted": 0,
+        "encoding_requested_revision": "888481c65790c1e90f7fcd4f1d9c44e8ca2644247aac4730f9b67117f2e902b7",
+        "exposure_at_lower_limit": false,
+        "exposure_at_upper_limit": false,
+        "exposure_configuration_errors": 0,
+        "exposure_configuration_reloads": 0,
+        "exposure_confirmation_direction": "",
+        "exposure_confirmation_observations": 0,
+        "exposure_controller_state": "manual",
+        "exposure_frame_period_us": 100000,
+        "exposure_last_adjustment_factor": 1,
+        "exposure_last_error": "",
+        "exposure_last_reason": "startup",
+        "exposure_mode": "manual",
+        "exposure_safe_max_us": 8000,
+        "exposure_settle_frames_remaining": 0,
+        "exposure_trigger_guard_us": 250,
+        "exposure_updates": 0,
+        "frame_completion_errors": 0,
+        "idle_captures": 13,
+        "image_height": 544,
+        "image_width": 728,
+        "left_camera_id": "/base/axi/pcie@1000120000/rp1/i2c@80000/imx296@1a",
+        "left_reported_analogue_gain": 1.99526,
+        "left_reported_digital_gain": 1.00237,
+        "left_reported_exposure_us": 7999,
+        "left_submitted": 24,
+        "matched_frames": 3,
+        "matcher_active": false,
+        "matcher_statistics": {
+          "capture_sequence": 18,
+          "processing_ms": 77.7171,
+          "rectification_ms": 3.52276,
+          "stereo_match_ms": 70.9886,
+          "stereo_postprocess_ms": 1.00374,
+          "stereo_preprocess_ms": 0.001648
+        },
+        "maximum_pair_delta_ns": 36000,
+        "metered_clipped_fraction": null,
+        "metered_dark_fraction": null,
+        "metered_left_clipped_fraction": null,
+        "metered_left_median": null,
+        "metered_median": null,
+        "metered_median_difference": null,
+        "metered_right_clipped_fraction": null,
+        "metered_right_median": null,
+        "paired_captures": 24,
+        "payload_bytes": 0,
+        "preview_demand_cadence_hz": 0,
+        "processing_ms": 77.7171,
+        "processing_statistics_capture_sequence": 18,
+        "profile_id": "balanced_728x544_10",
+        "published_frames": 3,
+        "raw_cadence_skipped": 8,
+        "raw_demand_cadence_hz": 0,
+        "raw_processing_submissions": 3,
+        "raw_product_demand": 0,
+        "ready_pair_replacements": 4,
+        "rectification_active": false,
+        "rectification_backend": "not_requested",
+        "rectification_fallback_reason": "",
+        "rectification_ms": 0,
+        "request_requeue_failures": 0,
+        "requested_analogue_gain": 2,
+        "requested_control_scope": "before_pair_observation",
+        "requested_exposure_us": 8000,
+        "right_camera_id": "/base/axi/pcie@1000120000/rp1/i2c@88000/imx296@1a",
+        "right_reported_analogue_gain": 1.99526,
+        "right_reported_digital_gain": 1.00237,
+        "right_reported_exposure_us": 7999,
+        "right_submitted": 24,
+        "run_uuid": "099ac289-625a-4c0a-bef7-2f3f1c5de0db",
+        "scheduler_accepted": 3,
+        "scheduler_completed": 0,
+        "scheduler_completed_dropped": 0,
+        "scheduler_pending": 0,
+        "scheduler_pending_replaced": 0,
+        "scheduler_processed": 3,
+        "scheduler_processing_failures": 0,
+        "scheduler_protected_pending_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "schema_version": 1,
+        "searchable_valid_fraction": 0,
+        "stale_dropped": 0,
+        "status": "running",
+        "stereo_applied_revision": "2a57270936dd4969f1a4f1c49f65bf64ca2b9876b704698dac3f6bced6564cb8",
+        "stereo_backend": "not_requested",
+        "stereo_configuration_error": "",
+        "stereo_configuration_generation": 1,
+        "stereo_match_ms": 0,
+        "stereo_ms": 0,
+        "stereo_postprocess_ms": 0,
+        "stereo_preprocess_ms": 0,
+        "stereo_requested_revision": "2a57270936dd4969f1a4f1c49f65bf64ca2b9876b704698dac3f6bced6564cb8",
+        "trigger_attempts": 0,
+        "trigger_commanded_pulse_us": 8000,
+        "trigger_deadline_overruns": 0,
+        "trigger_errors": 0,
+        "trigger_hardware_timed": true,
+        "trigger_last_pulse_us": 0,
+        "trigger_max_pulse_overshoot_us": 0,
+        "trigger_max_pulse_us": 0,
+        "trigger_min_pulse_us": 0,
+        "trigger_period_ns": 100000000,
+        "trigger_pulse_guard_overruns": 0,
+        "trigger_pulse_timing_measured": false,
+        "trigger_source": "rp1-pio-pwm",
+        "valid_depth_pixels": 0,
+        "valid_fraction": 0
+      },
+      "https_console_sdk_and_cli_agree": true,
+      "first_use_helper_installed": true,
+      "sdk_saved_sample_and_offline_replay": true,
+      "sandboxed_console_rollback_and_reimport": true,
+      "installed_packages": {
+        "libnuvo-depth1": "0.1.1~beta.7",
+        "nuvo-depth": "0.1.1~beta.7",
+        "nuvo-depth-calibration": "0.1.1~beta.7",
+        "nuvo-depth-core": "0.1.1~beta.7",
+        "nuvo-depth-gateway": "0.1.1~beta.7",
+        "nuvo-depth-platform-pi5": "0.1.1~beta.7",
+        "nuvo-depth-tools": "0.1.1~beta.7",
+        "python3-nuvo-depth": "0.1.1~beta.7"
+      },
+      "passed": true
+    }
+  },
+  "reinstall_preservation": {
+    "minimal": {
+      "signed_installer": true,
+      "same_version": true,
+      "protected_files_checked": 8,
+      "all_hashes_unchanged": true
+    },
+    "appliance": {
+      "signed_installer": true,
+      "same_version": true,
+      "protected_files_checked": 8,
+      "all_hashes_unchanged": true
+    }
+  },
+  "host_restoration": {
+    "protected_files_checked": 16,
+    "all_hashes_unchanged": true,
+    "host_minimal_version": "0.1.1~beta.6",
+    "original_calibration_sha256": "41f14f56036d34b0a972e5b72dd1fd9cc6783862ca1da42313e86cd776f61d10",
+    "new_pairs_in_one_second": 10,
+    "native_restored": true,
+    "zero_capture_processing_errors": true,
+    "host_kernel_rebooted": false,
+    "throttled": "throttled=0x0",
+    "disposable_roots_removed": true,
+    "test_helpers_removed": true,
+    "overlay_module_unloaded": true,
+    "original_package_versions_unchanged_except_removed_test_helpers": true,
+    "dpkg_audit_clean": true
+  },
+  "calibration_boundary": {
+    "shared_seed_authority": "provisional_recalibration_required",
+    "source_beta5_bundle": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+    "host_legacy_uuid_mismatch_preserved": true,
+    "accepted_path_identity_used_only_inside_guest": true,
+    "manifest_geometry_and_validation_not_rewritten": true
+  }
+}
