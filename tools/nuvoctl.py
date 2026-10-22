@@ -475,8 +475,8 @@ def parse() -> argparse.Namespace:
     parser.add_argument("--root",default="/",help=argparse.SUPPRESS)
     commands=parser.add_subparsers(dest="command",required=True)
     commands.add_parser('status')
-    calibration=commands.add_parser('calibration').add_subparsers(dest='operation',required=True)
-    calibration.add_parser('status')
+    import nuvo_calibration_control
+    nuvo_calibration_control.add_commands(commands)
     platform=commands.add_parser("platform").add_subparsers(dest="operation",required=True)
     platform.add_parser("preflight"); prepare=platform.add_parser("prepare"); prepare.add_argument("--platform",choices=["pi5"],required=True); prepare.add_argument("--apply",action="store_true")
     identity=commands.add_parser("identity").add_subparsers(dest="operation",required=True)
@@ -522,7 +522,7 @@ def main() -> None:
         result=calibration_control.status(root)
     elif args.command=="calibration":
         import nuvo_calibration_control as calibration_control
-        result=calibration_control.readiness(root)
+        result=calibration_control.dispatch(args,root)
     elif args.command=="platform" and args.operation=="preflight": result=platform_preflight(root)
     elif args.command=="platform": result=platform_prepare(root,args.apply)
     elif args.command=="identity": result=provision_identity(root,args.hostname)

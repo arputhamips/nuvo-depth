@@ -186,7 +186,8 @@ class ProductionDeploymentFilesTest(unittest.TestCase):
         ):
             self.assertIn(required, unit)
         self.assertIn("Wants=nuvo-depthd-native.service", target)
-        self.assertNotIn("/usr/bin/python3", unit)
+        self.assertIn("ExecStart=/usr/bin/depthd --run", unit)
+        self.assertIn("nuvo_calibration_control.py recover --startup", unit)
         self.assertNotIn("results.ring", unit)
         for required in ("role: standalone_depth_camera", "profile_id: balanced_728x544_10",
                          "baseline_m: 0.0996937500869897", "backend: cpu_opencv", "fallback_backend: egl_gl_dmabuf"):

@@ -220,6 +220,8 @@ def forwarding_rule(state, action, run=command):
 
 def apply_configuration(root, plan, run=command):
     """One path for interactive selections and factory defaults; packages exist."""
+    existing_health = calibration_control.daemon_health(root)
+    preserve_legacy = existing_health.get('calibration_authority',0) > 0 and not plan.get('calibration_bundle')
     with setup_lock(root):
         old = read(root, STATE, {})
         auth = read(root, AUTH, {})
@@ -289,10 +291,15 @@ def apply_configuration(root, plan, run=command):
     # credentials, but new installations do not need an enrollment code.
     # Bundle activation validates signatures/bindings; do not rewrite unit IDs.
     if plan.get("calibration_bundle"):
+        run(["nuvoctl", "calibration", "import", plan["calibration_bundle"], "--dry-run"])
         run(["/usr/lib/nuvo-depth/nuvo-calibration", "activate", plan["calibration_bundle"], "--namespace", plan["calibration_namespace"]])
     run(["depthd", "--check-config", "/etc/nuvo-depth/daemon.yaml"])
     calibration = json.loads(run(["/usr/lib/nuvo-depth/nuvo-calibration", "provisioning-status"]).stdout)
-    capture = plan["hardware"] == "nuvo" and (plan["engineering"] or calibration["accepted"])
+    if calibration['accepted']:
+        # Read the active package configuration, not an installer cache.
+        selected = root/'var/lib/nuvo-depth/calibrations'/('factory' if (root/'var/lib/nuvo-depth/calibrations/factory/active').exists() else 'user')/'active'
+        run(['nuvoctl','calibration','import',str(selected.resolve()),'--dry-run'])
+    capture = plan["hardware"] == "nuvo" and (plan["engineering"] or calibration["accepted"] or preserve_legacy)
     marker = root / "etc/nuvo-depth/capture-enabled"
     if capture:
         admin.atomic_write(marker, "engineering-preview\n" if plan["engineering"] else "accepted-calibration\n", 0o600)
@@ -303,6 +310,7 @@ def apply_configuration(root, plan, run=command):
     command_line = "/usr/bin/depthd --run /etc/nuvo-depth/daemon.yaml --status /run/nuvo-depth/status.json --encoding-config /etc/nuvo-depth/encoding.json --stereo-control /etc/nuvo-depth/stereo.json --exposure-control /etc/nuvo-depth/exposure.json --device-identity /var/lib/nuvo-depth/identity/device.uuid"
     admin.atomic_write(root / "etc/systemd/system/nuvo-depthd-native.service.d/30-authority.conf",
                        "[Service]\nExecStart=\nExecStart=" + command_line + (" --allow-provisional-depth" if plan["engineering"] else "") + "\n", 0o644)
+    (root / calibration_control.POLICY_OVERRIDE).unlink(missing_ok=True)
     if plan["access_policy"] == "setup_ap":
         admin.atomic_write(root / AP_ENABLED, "enabled\n", 0o600)
     else:

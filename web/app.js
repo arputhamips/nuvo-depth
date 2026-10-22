@@ -1030,7 +1030,7 @@ $('calibrationActivate').onclick=async()=>{
 };
 $('calibrationRollback').onclick=async()=>{
   $('calibrationActivationState').textContent='Rolling back and restarting depth processing…';
-  try{const result=await calibrationOperation('/api/v1/calibration/rollback',{});$('calibrationActivationState').textContent=`Restored ${result.active_bundle_id.slice(0,16)}…`;setTimeout(refreshHealth,2000);}
+  try{const result=await calibrationOperation('/api/v1/calibration/rollback',{});$('calibrationActivationState').textContent=result.active_bundle_id?`Restored ${result.active_bundle_id.slice(0,16)}…`:'Restored the previous calibration and capture policy';setTimeout(()=>{refreshHealth();refreshSetupStatus();},2000);}
   catch(error){$('calibrationActivationState').textContent=error.message;}
 };
 

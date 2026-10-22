@@ -1,3 +1,13 @@
+nuvo-depth (0.1.1~beta.7) unstable; urgency=medium
+
+  * Align installation guidance with the explicitly approved public release.
+  * Guide first depth capture and preserve original sample metadata.
+  * Share calibration readiness across installation, console and terminal.
+  * Import and roll back per-unit calibration in both package profiles.
+  * Preserve existing calibration and require explicit provisional preview.
+
+ -- Nirmal <nml@meridian.cv>  Thu, 22 Oct 2026 17:00:00 -0500
+
 nuvo-depth (0.1.1~beta.6) unstable; urgency=medium
 
   * Add a minimal Pi 5 raw depth package reusing the native pipeline.

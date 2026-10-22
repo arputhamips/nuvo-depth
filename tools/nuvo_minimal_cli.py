@@ -21,7 +21,7 @@ import nuvoctl as admin
 
 SERVICE = 'nuvo-depthd-native.service'
 HEADER = struct.Struct('>4sHHHHIQQ')
-CONFLICTS = ('nuvo-depth', 'nuvo-depth-core', 'nuvo-depth-platform-pi5', 'nuvo-depth-tools', 'nuvo-depthd')
+CONFLICTS = ('nuvo-depth', 'nuvo-depth-core', 'nuvo-depth-platform-pi5', 'nuvo-depth-tools', 'nuvo-depthd', 'nuvo-depth-calibration', 'nuvo-depth-factory')
 
 
 def configuration(root: Path) -> dict:
@@ -163,8 +163,8 @@ def cli_parser():
     parser = argparse.ArgumentParser(prog='nuvoctl', description=__doc__)
     parser.add_argument('--root', type=Path, default=Path('/'), help=argparse.SUPPRESS)
     commands = parser.add_subparsers(dest='command', required=True)
-    calibration = commands.add_parser('calibration').add_subparsers(dest='operation', required=True)
-    calibration.add_parser('status')
+    import nuvo_calibration_control
+    nuvo_calibration_control.add_commands(commands)
     commands.add_parser('configure', help='Guided exposure and stereo configuration')
     config = commands.add_parser('config').add_subparsers(dest='operation', required=True)
     config.add_parser('show')
@@ -198,7 +198,7 @@ def main(argv=None):
     if args.command == 'configure': result = configure(root)
     elif args.command in ('status', 'calibration'):
         import nuvo_calibration_control as calibration_control
-        result = calibration_control.status(root) if args.command == 'status' else calibration_control.readiness(root)
+        result = calibration_control.status(root) if args.command == 'status' else calibration_control.dispatch(args,root)
     elif args.operation == 'set': result = set_value(root, args.key, args.value)
     else:
         controls = configuration(root)
@@ -236,6 +236,8 @@ def install_main(argv=None):
     parser.add_argument('--release')
     parser.add_argument('--public-key', type=Path)
     parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--allow-provisional-preview', action='store_true', help='Explicitly enable preview with unverified distance accuracy')
+    parser.add_argument('--calibration-bundle', type=Path, help='Import an existing compatible per-unit calibration')
     parser.add_argument('--reboot', action='store_true')
     args = parser.parse_args(argv)
     if args.package and (args.bundle or not args.platform): parser.error('--package requires --platform and cannot be combined with --bundle')
@@ -286,14 +288,34 @@ def apply_install(command, preparation, args):
     subprocess.run(['depthd', '--check-config', '/etc/nuvo-depth/daemon.yaml'], check=True)
     subprocess.run(['systemctl', 'daemon-reload'], check=True)
     subprocess.run(['systemctl', 'enable', SERVICE], check=True)
+    import nuvo_calibration_control as calibration_control
+    print('Calibration choices: preserve existing calibration, import with --calibration-bundle, explicitly enable unverified preview with --allow-provisional-preview, or leave capture disabled.')
     if preparation['reboot_required'] or not admin.platform_preflight(Path('/'))['ready']:
-        print('Camera boot configuration prepared. Reboot, reconnect over SSH, then run sudo nuvoctl depth capture.')
+        if args.allow_provisional_preview:
+            policy = calibration_control.CapturePolicy(Path('/'))
+            policy.apply(calibration_control.preview_policy(Path('/'),True,policy.snapshot()))
+            subprocess.run(['systemctl','daemon-reload'],check=True)
+        if args.calibration_bundle:
+            calibration_control.import_bundle(Path('/'),args.calibration_bundle,True)
+            print('After reboot, import and verify: sudo nuvoctl calibration import '+str(args.calibration_bundle.resolve()))
+        print('Camera boot configuration prepared; capture verification is pending. Reboot, reconnect over SSH, inspect sudo nuvoctl calibration status, then capture depth after enabling calibration or preview.')
         if args.reboot: subprocess.run(['systemctl', 'reboot'], check=True)
         return
-    subprocess.run(['systemctl', 'restart', SERVICE], check=True)
+    if args.calibration_bundle:
+        calibration_control.import_bundle(Path('/'),args.calibration_bundle)
+    elif args.allow_provisional_preview:
+        calibration_control.preview(Path('/'),True)
+    elif not (Path('/')/calibration_control.MARKER).is_file():
+        ready = calibration_control.readiness()
+        print(ready['label']+': '+ready['message']+' Next: '+ready['next_action'])
+        return
+    else:
+        subprocess.run(['systemctl', 'restart', SERVICE], check=True)
     # Service readiness alone does not exercise the demand-driven matcher.
     subprocess.run(['/usr/lib/nuvo-depth/nuvo-depth-read', '--frames', '3', '--timeout-seconds', '30'], stdout=subprocess.DEVNULL, check=True)
     print('Minimal installation verified: three fresh raw depth frames. Configure with sudo nuvoctl configure.')
+    ready = calibration_control.readiness()
+    print(ready['label']+': '+ready['message']+' Next: '+ready['next_action'])
 
 
 if __name__ == '__main__':

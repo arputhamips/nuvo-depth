@@ -1454,9 +1454,13 @@ def _activate_web_session(state_root: Path, session_id: str, *,
     status = _session_status(directory)
     if status.get("state") not in {"passed", "active", "activating"}:
         raise ValueError("only a passing calibration can be activated")
-    bundle_id = CalibrationStore(state_root).activate(
-        directory / "bundle", "user",
-        restart=restart_depth_service if restart_depth else None)
+    if restart_depth and state_root == Path('/var/lib/nuvo-depth'):
+        from nuvo_calibration_control import import_bundle
+        bundle_id = import_bundle(Path('/'),directory/'bundle')['bundle_id']
+    else:
+        bundle_id = CalibrationStore(state_root).activate(
+            directory / "bundle", "user",
+            restart=restart_depth_service if restart_depth else None)
     status["state"] = "active" if restart_depth else "passed"
     status["active"] = restart_depth
     status["bundle_id"] = bundle_id
@@ -1543,10 +1547,14 @@ def main() -> None:
     elif args.command == "web-activate": print(json.dumps(activate_web_session(
         Path(args.state_root), args.session, restart_depth=args.restart_depth_service),
         separators=(",", ":")))
-    elif args.command == "web-rollback": print(json.dumps({
-        "active_bundle_id": CalibrationStore(Path(args.state_root)).rollback(
-            "user", restart=restart_depth_service if args.restart_depth_service else None),
-        "state": "rolled_back"}, separators=(",", ":")))
+    elif args.command == "web-rollback":
+        if args.restart_depth_service and Path(args.state_root) == Path('/var/lib/nuvo-depth'):
+            from nuvo_calibration_control import rollback
+            selected = rollback(Path('/'),'user')['bundle_id']
+        else:
+            selected = CalibrationStore(Path(args.state_root)).rollback(
+                "user",restart=restart_depth_service if args.restart_depth_service else None)
+        print(json.dumps({'active_bundle_id':selected,'state':'rolled_back'},separators=(',',':')))
 
 
 if __name__ == "__main__": main()

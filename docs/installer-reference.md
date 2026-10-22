@@ -201,3 +201,13 @@ Wi-Fi profiles use the documented
 [NetworkManager keyfile format](https://networkmanager.dev/docs/api/latest/nm-settings-keyfile.html).
 
 After installation follow [Get your first depth frame](https://docs.nuvohardware.com/vision-one/guide/getting-started) through sample capture.
+
+## Calibration readiness in beta 7/current source
+
+The installer explains compatible existing calibration, explicit provisional
+preview and disabled capture before asking for a choice. Completion reports
+the same active-bundle/effective-policy readiness as the console and CLI.
+See [readiness and supported import](calibration-readiness.md) for both package
+profiles, failure recovery and the boundary between declared validation and
+independent accuracy. The approved public installer remains beta 6 until approval.
+

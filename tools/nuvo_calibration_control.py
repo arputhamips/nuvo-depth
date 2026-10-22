@@ -1,19 +1,27 @@
 """Shared calibration readiness and device control, without image-solving imports."""
 from __future__ import annotations
 
+import base64
+import copy
 import json
+import os
 from pathlib import Path
 import re
 import shlex
 import subprocess
+import sys
+import shutil
+import struct
+import tempfile
 import time
 
-from nuvo_calibration_store import validate_bundle
+from nuvo_calibration_store import CalibrationStore, REQUIRED_ASSETS, atomic_bytes, exclusive_lock, fsync_directory, validate_bundle
 
 STATE = Path('var/lib/nuvo-depth')
 CONFIG = Path('etc/nuvo-depth/daemon.yaml')
 MARKER = Path('etc/nuvo-depth/capture-enabled')
 SERVICE = 'nuvo-depthd-native.service'
+POLICY_OVERRIDE = Path('etc/systemd/system') / (SERVICE + '.d/90-calibration-policy.conf')
 
 
 def read_json(path, limit=65536):
@@ -166,3 +174,244 @@ def readiness(root=Path('/'), run=subprocess.run):
 def status(root=Path('/'), run=subprocess.run):
     root = Path(root)
     return {**daemon_health(root), 'calibration_readiness': readiness(root, run)}
+
+
+class CapturePolicy:
+    """Only these two managed files may be restored from a transaction journal."""
+    def __init__(self, root):
+        self.root = Path(root)
+        self.applied = None
+
+    def snapshot(self):
+        files = {}
+        for relative in [MARKER, POLICY_OVERRIDE]:
+            path = self.root / relative
+            if path.is_symlink() or (path.exists() and (not path.is_file() or path.stat().st_size > 65536)):
+                raise ValueError(f'Unsupported capture policy file: {path}')
+            files[str(relative)] = base64.b64encode(path.read_bytes()).decode() if path.exists() else None
+        health = daemon_health(self.root)
+        return {'files': files, 'runtime': {key: health.get(key) for key in ['calibration_sha256', 'calibration_authority']}}
+
+    def accepted(self, snapshot):
+        target = copy.deepcopy(snapshot)
+        target['files'][str(MARKER)] = base64.b64encode(b'accepted-calibration\n').decode()
+        return target
+
+    def apply(self, snapshot):
+        if set(snapshot['files']) != {str(MARKER), str(POLICY_OVERRIDE)}:
+            raise ValueError('Unsafe capture-policy journal')
+        for relative, encoded in snapshot['files'].items():
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if encoded is None:
+                path.unlink(missing_ok=True)
+            else:
+                data = base64.b64decode(encoded, validate=True)
+                if len(data) > 65536:
+                    raise ValueError('Oversized capture-policy journal')
+                atomic_bytes(path, data)
+                os.chmod(path, 0o644 if relative == str(POLICY_OVERRIDE) else 0o600)
+            fsync_directory(path.parent)
+        self.applied = snapshot
+
+
+def fresh_frame(root, expected, authority, run_uuid, run=subprocess.run):
+    """Exercise demand-driven depth, then bind fresh NUV1 metadata to the loaded bundle."""
+    reader = root / 'usr/lib/nuvo-depth/nuvo-depth-read'
+    result = run([str(reader), '--socket', str(root / 'run/nuvo-depth/data.sock'),
+                  '--frames', '2', '--hz', '2', '--timeout-seconds', '30'],
+                 capture_output=True, timeout=40, check=False)
+    if result.returncode:
+        raise RuntimeError('Fresh depth verification failed: ' + result.stderr.decode(errors='replace').strip())
+    data = result.stdout
+    sequences = []
+    while data:
+        if len(data) < 32:
+            raise RuntimeError('Truncated depth record')
+        metadata_size = struct.unpack_from('>I', data, 12)[0]
+        payload_size = struct.unpack_from('>Q', data, 16)[0]
+        size = 32 + metadata_size + payload_size
+        if not 32 < size <= 64*1024*1024 or len(data) < size:
+            raise RuntimeError('Invalid depth record bounds')
+        frame, data = data[:size], data[size:]
+        magic, major, minor, kind, flags, metadata_size, payload_size, sequence = struct.unpack_from('>4sHHHHIQQ', frame)
+        if ((magic, major, minor, kind, flags) != (b'NUV1',1,0,5,0) or not 0 < metadata_size <= 65536
+                or len(frame) != 32+metadata_size+payload_size):
+            raise RuntimeError('Invalid depth frame header')
+        metadata = json.loads(frame[32:32+metadata_size])
+        if (metadata.get('calibration_sha256') != expected or metadata.get('calibration_authority') != authority
+                or metadata.get('run_uuid', '').replace('-', '') != run_uuid.replace('-', '')
+                or metadata.get('capture_sequence') != sequence or metadata.get('depth_unit') != 'metres'
+                or {item.get('kind') for item in metadata.get('products', [])} != {'depth','validity'}):
+            raise RuntimeError('Fresh depth metadata does not match the activated calibration and daemon run')
+        sequences.append(sequence)
+    if len(sequences) != 2 or sequences[0] >= sequences[1]:
+        raise RuntimeError('Depth frames did not advance')
+    return sequences
+
+
+def restart_and_verify(root, policy, expected_bundle, run=subprocess.run):
+    def systemctl(*args, timeout=70):
+        result = run(['systemctl', *args], capture_output=True, text=True, timeout=timeout, check=False)
+        if result.returncode:
+            raise RuntimeError(result.stderr.strip() or 'Capture service command failed: ' + ' '.join(args))
+    old_run = daemon_health(root).get('run_uuid')
+    systemctl('daemon-reload')
+    configuration_state = service_configuration(root, run)
+    if not configuration_state['capture_policy_enabled']:
+        systemctl('stop', SERVICE)
+        return
+    systemctl('restart', SERVICE)
+    systemctl('is-active', '--quiet', SERVICE, timeout=5)
+    health = daemon_health(root)
+    if health.get('status') != 'running' or not health.get('run_uuid') or health['run_uuid'] == old_run:
+        raise RuntimeError('Capture did not publish a new running daemon status')
+    expected = expected_bundle
+    authority = None
+    if expected:
+        manifest = selected_calibration(root, run)
+        if not manifest or manifest['bundle_id'] != expected:
+            raise RuntimeError('Selected calibration changed during activation')
+        authority = 2 if manifest['authority'] == 'factory_validated' else 1
+    else:
+        previous_runtime = (policy.applied or {}).get('runtime', {})
+        expected = previous_runtime.get('calibration_sha256')
+        authority = previous_runtime.get('calibration_authority')
+        # A previous disabled installation is stopped above. Existing preview
+        # or legacy geometry must be restored byte-for-byte when it was running.
+        if expected is None and configuration_state['preview_enabled']:
+            expected, authority = health.get('calibration_sha256'), 0
+    if not expected or health.get('calibration_sha256') != expected or health.get('calibration_authority') != authority:
+        raise RuntimeError('Capture loaded a different calibration than the requested selection')
+    return fresh_frame(root, expected, authority, health['run_uuid'], run)
+
+
+def import_bundle(root, source, dry_run=False, run=subprocess.run):
+    root, source = Path(root), Path(source)
+    if source.is_symlink() or not source.is_dir():
+        raise ValueError('Select an extracted calibration bundle directory, not a link or archive')
+    # Private copies prevent an unprivileged caller changing assets after the
+    # validation that authorizes privileged activation. Names and sizes are bounded.
+    with tempfile.TemporaryDirectory(prefix='nuvo-calibration-import-') as temporary:
+        staging = Path(temporary) / 'input'
+        staging.mkdir()
+        for name in ['manifest.json', *REQUIRED_ASSETS]:
+            path = source / name
+            if path.is_symlink() or not path.is_file() or path.stat().st_size > 4*1024*1024:
+                raise ValueError(f'Missing, linked or oversized calibration file: {name}')
+            with path.open('rb') as input_file:
+                data = input_file.read(4*1024*1024+1)
+            if len(data) > 4*1024*1024:
+                raise ValueError(f'Oversized calibration file: {name}')
+            (staging / name).write_bytes(data)
+        manifest = validate_bundle(staging, trusted_keys=root/'etc/nuvo-depth/factory-trust.json')
+        namespace = 'factory' if manifest['authority'] == 'factory_validated' else 'user'
+        canonical = staging.with_name(manifest['bundle_id'])
+        staging.rename(canonical)
+        validate_compatibility(root, canonical, namespace, run)
+        factory = root/STATE/'calibrations/factory/active'
+        if namespace == 'user' and (factory.exists() or factory.is_symlink()):
+            raise ValueError('Factory calibration has runtime precedence; user import cannot replace it')
+        active = root/STATE/'calibrations'/namespace/'active'
+        change = {'operation':'calibration_import','namespace':namespace,'previous':os.readlink(active) if active.is_symlink() else None,
+                  'bundle_id':manifest['bundle_id'],'authority':manifest['authority'],'unit_id':manifest['unit_id'],
+                  'capture':'Enable accepted calibration; verify a new daemon run and two advancing depth/validity frames.',
+                  'accuracy':'Declared bundle validation is not independent metric-accuracy or production qualification.', 'dry_run':dry_run}
+        if dry_run:
+            return change
+        print(json.dumps({'planned_change':change}, sort_keys=True), file=sys.stderr, flush=True)
+        policy = CapturePolicy(root)
+        store = CalibrationStore(root/STATE, root/'etc/nuvo-depth/factory-trust.json', policy)
+        sequences = []
+        def restart(expected):
+            sequences[:] = restart_and_verify(root, policy, expected, run) or []
+        store.activate(canonical, namespace, restart=restart)
+        return {**change,'activated':True,'verified_capture_sequences':sequences,'readiness':readiness(root,run)}
+
+
+def rollback(root, namespace=None, run=subprocess.run):
+    root = Path(root)
+    if namespace is None:
+        namespace = 'factory' if (root/STATE/'calibrations/factory/active').is_symlink() else 'user'
+    policy = CapturePolicy(root)
+    store = CalibrationStore(root/STATE, root/'etc/nuvo-depth/factory-trust.json', policy)
+    selected = store.rollback(namespace, restart=lambda expected: restart_and_verify(root,policy,expected,run))
+    return {'rolled_back':True,'bundle_id':selected,'readiness':readiness(root,run)}
+
+
+def preview_policy(root, enable, before, run=subprocess.run):
+    target = copy.deepcopy(before)
+    command = [arg for arg in service_configuration(root,run)['command'] if arg != '--allow-provisional-depth']
+    if enable:
+        command.append('--allow-provisional-depth')
+    content = '[Service]\nExecStart=\nExecStart=' + shlex.join(command) + '\n'
+    target['files'][str(POLICY_OVERRIDE)] = base64.b64encode(content.encode()).decode()
+    target['files'][str(MARKER)] = base64.b64encode(b'explicit-preview\n').decode() if enable else None
+    return target
+
+
+def preview(root, enable, run=subprocess.run):
+    root = Path(root)
+    with exclusive_lock(root/STATE/'.calibration.lock'):
+        policy = CapturePolicy(root)
+        store = CalibrationStore(root/STATE,root/'etc/nuvo-depth/factory-trust.json',policy)
+        if store._recover_pending(lambda expected: restart_and_verify(root,policy,expected,run)):
+            raise RuntimeError('Interrupted activation restored; retry the preview selection')
+        before = policy.snapshot()
+        target = preview_policy(root, enable, before, run)
+        namespace = 'factory' if (root/STATE/'calibrations/factory/active').is_symlink() else 'user'
+        active = root/STATE/'calibrations'/namespace/'active'
+        current = os.readlink(active) if active.is_symlink() else None
+        transaction = {'schema_version':1,'operation':'calibration_preview','namespace':namespace,
+                       'bundle_id':current,'previous':current,'policy_before':before,'policy_after':target,
+                       'state':'staging','started_unix_ns':time.time_ns()}
+        from nuvo_calibration_store import atomic_json
+        journal = store.transactions / f'calibration-{time.time_ns()}.json'
+        atomic_json(journal,transaction)
+        store._complete_transition(journal,transaction,lambda expected:restart_and_verify(root,policy,expected,run))
+    return readiness(root,run)
+
+
+def recover(root=Path('/'), startup=False):
+    root = Path(root)
+    recovered = CalibrationStore(root/STATE,root/'etc/nuvo-depth/factory-trust.json',CapturePolicy(root)).recover_before_start()
+    if startup and not (root/MARKER).is_file():
+        raise RuntimeError('Capture policy is disabled after interrupted-activation recovery')
+    return {'recovered':recovered}
+
+
+def add_commands(commands):
+    calibration = commands.add_parser('calibration', help='Calibration readiness, verified bundle import and rollback').add_subparsers(dest='operation',required=True)
+    calibration.add_parser('status')
+    load = calibration.add_parser('import')
+    load.add_argument('bundle',type=Path)
+    load.add_argument('--dry-run',action='store_true')
+    back = calibration.add_parser('rollback')
+    back.add_argument('--namespace',choices=['user','factory'])
+    choice = calibration.add_parser('preview',help='Explicitly enable provisional preview or disable capture')
+    flags = choice.add_mutually_exclusive_group(required=True)
+    flags.add_argument('--enable',action='store_true');flags.add_argument('--disable',action='store_true')
+
+
+def dispatch(args, root, run=subprocess.run):
+    if args.operation == 'status':
+        return readiness(root,run)
+    if os.geteuid() != 0 and not (args.operation == 'import' and args.dry_run):
+        raise ValueError('Run calibration changes with sudo')
+    if args.operation == 'import':
+        return import_bundle(root,args.bundle,args.dry_run,run)
+    if args.operation == 'rollback':
+        return rollback(root,args.namespace,run)
+    return preview(root,args.enable,run)
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('command',choices=['recover'])
+    parser.add_argument('--startup',action='store_true')
+    args = parser.parse_args()
+    try:
+        print(json.dumps(recover(startup=args.startup)))
+    except (ValueError,RuntimeError,OSError) as error:
+        parser.exit(2,str(error)+'\n')

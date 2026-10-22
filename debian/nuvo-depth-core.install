@@ -12,6 +12,7 @@ usr/lib/systemd/system/nuvo-depth.target
 usr/lib/systemd/system/nuvo-depthd-native.service
 usr/lib/systemd/system/nuvo-trigger-prepare.service
 usr/lib/nuvo-depth/nuvo-trigger-prepare
+usr/lib/nuvo-depth/nuvo-depth-read
 usr/lib/sysusers.d/nuvo-depth.conf
 usr/lib/tmpfiles.d/nuvo-depth.conf
 usr/share/doc/nuvo-depth/

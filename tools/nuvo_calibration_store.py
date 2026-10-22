@@ -1,12 +1,40 @@
 """Calibration validation and activation transactions; no image-solving imports."""
 from __future__ import annotations
-import base64,hashlib,json,os,re,shutil,subprocess,tempfile,time
+import base64,hashlib,json,math,os,re,shutil,subprocess,tempfile,time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable,Iterator
 SCHEMA=1
 MAX_PROFILE_RATE_HZ=240.0
 REQUIRED_ASSETS=("front_left.yaml","front_right.yaml","validation.json")
+
+def bounded_json(path: Path) -> dict:
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError(f'duplicate JSON key: {key}')
+            result[key] = value
+        return result
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 4 * 1024 * 1024:
+        raise ValueError(f'missing, linked or oversized calibration file: {path.name}')
+    result = json.loads(path.read_text(encoding='utf-8'), object_pairs_hook=pairs,
+                        parse_constant=lambda text: (_ for _ in ()).throw(ValueError('nonfinite JSON number')))
+    if not isinstance(result, dict):
+        raise ValueError(f'expected JSON object: {path.name}')
+    return result
+
+
+def read_transaction(path: Path) -> dict:
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0))
+    with os.fdopen(descriptor, 'r', encoding='utf-8') as source:
+        info = os.fstat(source.fileno())
+        if info.st_size > 4*1024*1024:
+            raise ValueError('Oversized calibration transaction')
+        value = json.load(source)
+        if 'policy_before' in value and os.geteuid() == 0 and (info.st_uid != 0 or info.st_mode & 0o022):
+            raise ValueError('Capture-policy recovery requires a root-owned, protected journal')
+    return value
 
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -115,12 +143,12 @@ def verify_factory_signature(manifest: dict, material: bytes,
 def validate_bundle(bundle: Path, *, require_factory_signature: bool = False,
                     trusted_keys: Path | None = None) -> dict:
     manifest_path = bundle / "manifest.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest = bounded_json(manifest_path)
     if manifest.get("schema_version") != SCHEMA:
         raise ValueError("unsupported calibration bundle schema")
     if manifest.get("authority") not in {"user_validated", "factory_validated"}:
         raise ValueError("bundle authority is not activatable")
-    if not all(manifest.get(key) for key in ("bundle_id", "unit_id", "left_camera_id", "right_camera_id", "preset_id")):
+    if not all(isinstance(manifest.get(key), str) and manifest[key].strip() for key in ("bundle_id", "unit_id", "left_camera_id", "right_camera_id", "preset_id")):
         raise ValueError("bundle identity is incomplete")
     if manifest["left_camera_id"] == manifest["right_camera_id"]:
         raise ValueError("logical cameras must have different stable identities")
@@ -136,7 +164,7 @@ def validate_bundle(bundle: Path, *, require_factory_signature: bool = False,
         rates = profile.get("frame_rates_hz")
         if (not isinstance(rates, list) or not rates or
                 any(not isinstance(rate, (int, float)) or isinstance(rate, bool)
-                    or rate <= 0 or rate > MAX_PROFILE_RATE_HZ for rate in rates)):
+                    or not math.isfinite(rate) or rate <= 0 or rate > MAX_PROFILE_RATE_HZ for rate in rates)):
             raise ValueError("calibration profile frame-rate set is malformed")
         if len(set(float(rate) for rate in rates)) != len(rates):
             raise ValueError("calibration profile repeats a frame rate")
@@ -145,7 +173,7 @@ def validate_bundle(bundle: Path, *, require_factory_signature: bool = False,
         raise ValueError("bundle asset manifest is incomplete")
     for name, expected in assets.items():
         path = bundle / name
-        if not path.is_file() or sha256(path) != expected:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 4*1024*1024 or sha256(path) != expected:
             raise ValueError(f"bundle asset hash mismatch: {name}")
     identity_material = json.dumps(
         {key: value for key, value in manifest.items() if key not in {"bundle_id", "signature"}},
@@ -155,7 +183,7 @@ def validate_bundle(bundle: Path, *, require_factory_signature: bool = False,
         raise ValueError("bundle content identity is invalid")
     if require_factory_signature or manifest["authority"] == "factory_validated":
         verify_factory_signature(manifest, identity_material, trusted_keys)
-    validation = json.loads((bundle / "validation.json").read_text(encoding="utf-8"))
+    validation = bounded_json(bundle / "validation.json")
     if validation.get("status") != "pass":
         raise ValueError("calibration validation did not pass")
     return manifest
@@ -169,7 +197,7 @@ def provisioning_status(state_root: Path, factory_trust: Path) -> dict:
     """
     for namespace in ("factory", "user"):
         active = state_root / "calibrations" / namespace / "active"
-        if not active.exists():
+        if not active.exists() and not active.is_symlink():
             continue
         manifest = validate_bundle(active, require_factory_signature=namespace == "factory", trusted_keys=factory_trust)
         unit_id = (state_root / "identity/device.uuid").read_text().strip()
@@ -182,11 +210,12 @@ def provisioning_status(state_root: Path, factory_trust: Path) -> dict:
 
 
 class CalibrationStore:
-    def __init__(self, root: Path, factory_trust: Path | None = None):
+    def __init__(self, root: Path, factory_trust: Path | None = None, policy=None):
         self.root = root
         self.factory_trust = factory_trust
         self.calibrations = root / "calibrations"
         self.transactions = root / "transactions"
+        self.policy = policy
 
     def recover_before_start(self) -> bool:
         # Activation holds this lock through systemctl restart. Its ExecStartPre
@@ -225,7 +254,7 @@ class CalibrationStore:
         # is inferred merely from an active symlink or a started service.
         recovered = False
         for journal in sorted(self.transactions.glob("calibration-*.json")):
-            transaction = json.loads(journal.read_text(encoding="utf-8"))
+            transaction = read_transaction(journal)
             if transaction.get("state") not in {"staging", "awaiting_restart", "restoring"}:
                 continue
             recovered = True
@@ -233,6 +262,10 @@ class CalibrationStore:
             self._replace_active(namespace, transaction.get("previous"))
             transaction["state"] = "restoring"
             atomic_json(journal, transaction)
+            if 'policy_before' in transaction:
+                if self.policy is None:
+                    raise RuntimeError('capture-policy recovery requires the shared calibration control')
+                self.policy.apply(transaction['policy_before'])
             if restart is not None:
                 restart(transaction.get("previous"))
             transaction["state"] = "aborted"
@@ -246,6 +279,8 @@ class CalibrationStore:
         atomic_json(journal, transaction)
         try:
             self._replace_active(transaction["namespace"], transaction["bundle_id"])
+            if self.policy is not None and 'policy_after' in transaction:
+                self.policy.apply(transaction['policy_after'])
             if restart is not None:
                 restart(transaction["bundle_id"])
             transaction["state"] = "committed"
@@ -257,6 +292,8 @@ class CalibrationStore:
             atomic_json(journal, transaction)
             self._replace_active(transaction["namespace"], transaction.get("previous"))
             try:
+                if self.policy is not None and 'policy_before' in transaction:
+                    self.policy.apply(transaction['policy_before'])
                 if restart is not None:
                     restart(transaction.get("previous"))
             except Exception as restore_error:
@@ -290,12 +327,20 @@ class CalibrationStore:
                     (self.calibrations / "factory" / "active" / "manifest.json").is_file()):
                 raise ValueError("factory calibration has runtime precedence; user activation would not load")
             self.transactions.mkdir(parents=True, exist_ok=True)
+            if self.policy is not None and os.geteuid() == 0:
+                if self.transactions.is_symlink():
+                    raise ValueError('Calibration transaction directory cannot be a symlink')
+                os.chown(self.transactions, 0, -1)
+                os.chmod(self.transactions, 0o750)
             transaction = {
                 "schema_version": 1, "operation": "calibration_activate",
                 "namespace": namespace, "bundle_id": bundle_id,
                 "previous": os.readlink(active) if active.is_symlink() else None,
                 "state": "staging", "started_unix_ns": time.time_ns(),
             }
+            if self.policy is not None:
+                transaction['policy_before'] = self.policy.snapshot()
+                transaction['policy_after'] = self.policy.accepted(transaction['policy_before'])
             journal = self.transactions / f"calibration-{time.time_ns()}.json"
             atomic_json(journal, transaction)
             if not destination.exists():
@@ -305,7 +350,16 @@ class CalibrationStore:
                     os.chmod(staging, 0o750)
                     for name in ("manifest.json", *REQUIRED_ASSETS):
                         shutil.copyfile(source / name, staging / name)
+                        os.chmod(staging / name, 0o640)
                         with (staging / name).open("rb") as copied: os.fsync(copied.fileno())
+                    if os.geteuid() == 0:
+                        import grp
+                        try:
+                            group = grp.getgrnam('nuvo-video').gr_gid
+                            for item in [destination.parent, staging, *staging.iterdir()]:
+                                os.chown(item, -1, group)
+                        except KeyError:
+                            pass  # Host fixtures have no appliance service account.
                     fsync_directory(staging)
                     os.replace(staging, destination); fsync_directory(destination.parent)
                 finally:
@@ -317,7 +371,7 @@ class CalibrationStore:
         return bundle_id
 
     def rollback(self, namespace: str = "user", *,
-                 restart: Callable[[str | None], None] | None = None) -> str:
+                 restart: Callable[[str | None], None] | None = None) -> str | None:
         if namespace not in {"user", "factory"}:
             raise ValueError("calibration namespace must be user or factory")
         with exclusive_lock(self.root / ".calibration.lock"):
@@ -330,21 +384,25 @@ class CalibrationStore:
             current = os.readlink(active) if active.is_symlink() else None
             journals = sorted(self.transactions.glob("calibration-*.json"), reverse=True)
             for path in journals:
-                record = json.loads(path.read_text(encoding="utf-8"))
+                record = read_transaction(path)
                 previous = record.get("previous")
                 if (record.get("namespace") == namespace and
-                        record.get("state") == "committed" and previous and
+                        record.get("state") == "committed" and (previous or 'policy_before' in record) and
                         record.get("bundle_id") == current and previous != current):
-                    destination = self.calibrations / namespace / previous
-                    validate_bundle(destination,
-                                    require_factory_signature=namespace == "factory",
-                                    trusted_keys=self.factory_trust)
+                    if previous:
+                        destination = self.calibrations / namespace / previous
+                        validate_bundle(destination,
+                                        require_factory_signature=namespace == "factory",
+                                        trusted_keys=self.factory_trust)
                     transaction = {
                         "schema_version":1, "operation":"calibration_rollback",
                         "namespace":namespace, "bundle_id":previous,
                         "previous":current, "state":"staging",
                         "started_unix_ns":time.time_ns(),
                     }
+                    if self.policy is not None:
+                        transaction['policy_before'] = self.policy.snapshot()
+                        transaction['policy_after'] = record.get('policy_before', self.policy.accepted(transaction['policy_before']))
                     journal = self.transactions / f"calibration-{time.time_ns()}.json"
                     atomic_json(journal, transaction)
                     self._complete_transition(journal, transaction, restart)

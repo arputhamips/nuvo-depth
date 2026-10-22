@@ -4,6 +4,7 @@ Documentation=file:///usr/share/doc/nuvo-depth-core/architecture.md
 After=local-fs.target systemd-udev-settle.service
 Before=nuvo-gateway.service
 ConditionPathExists=/etc/nuvo-depth/daemon.yaml
+ConditionPathExists=/etc/nuvo-depth/capture-enabled
 
 [Service]
 Type=notify
@@ -21,13 +22,12 @@ CacheDirectoryMode=0750
 # Run preparation in its own privileged unit, but count its failure as a daemon
 # startup failure so Restart=on-failure retries it after a cold-boot timeout.
 ExecStartPre=+/usr/bin/systemctl start nuvo-trigger-prepare.service
+ExecStartPre=+/usr/bin/python3 /usr/lib/nuvo-depth/nuvo_calibration_control.py recover --startup
 # Transactions and their coordination locks are owned by the privileged agent.
 ExecStartPre=+/usr/lib/nuvo-depth/nuvo-calibration recover --state-root /var/lib/nuvo-depth --factory-trust /etc/nuvo-depth/factory-trust.json
 ExecStartPre=/usr/bin/depthd --check-config /etc/nuvo-depth/daemon.yaml
-# The package seed is deliberately provisional. This explicit beta flag keeps
-# engineering depth visible and authority-tagged until per-unit calibration is
-# activated; production release images remove it after factory provisioning.
-ExecStart=/usr/bin/depthd --run /etc/nuvo-depth/daemon.yaml --status /run/nuvo-depth/status.json --encoding-config /etc/nuvo-depth/encoding.json --stereo-control /etc/nuvo-depth/stereo.json --exposure-control /etc/nuvo-depth/exposure.json --device-identity /var/lib/nuvo-depth/identity/device.uuid --allow-provisional-depth
+# The installer or nuvoctl must explicitly enable provisional preview.
+ExecStart=/usr/bin/depthd --run /etc/nuvo-depth/daemon.yaml --status /run/nuvo-depth/status.json --encoding-config /etc/nuvo-depth/encoding.json --stereo-control /etc/nuvo-depth/stereo.json --exposure-control /etc/nuvo-depth/exposure.json --device-identity /var/lib/nuvo-depth/identity/device.uuid
 ExecStopPost=+/usr/lib/nuvo-depth/nuvo-trigger-prepare --stop
 Restart=on-failure
 RestartSec=2s
@@ -46,6 +46,7 @@ RestrictSUIDSGID=yes
 LockPersonality=yes
 RestrictAddressFamilies=AF_UNIX
 ReadWritePaths=/run/nuvo-depth /var/lib/nuvo-depth /var/lib/nuvo-depthd /var/cache/nuvo-depth
+ReadWritePaths=-/etc/nuvo-depth -/etc/systemd/system/nuvo-depthd-native.service.d
 ReadWritePaths=-/run/nuvo-depth-trigger/pwm
 MemoryMax=512M
 TasksMax=128

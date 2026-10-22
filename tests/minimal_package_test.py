@@ -10,9 +10,11 @@ with tempfile.TemporaryDirectory() as directory:
     subprocess.run(['dpkg-deb', '-x', str(package), str(root)], check=True)
     required = ['usr/bin/depthd', 'usr/bin/nuvoctl', 'usr/lib/nuvo-depth/nuvo-depth-read',
                 'usr/lib/nuvo-depth/nuvoctl.py', 'usr/lib/nuvo-depth/nuvo-trigger-prepare',
+                'usr/lib/nuvo-depth/nuvo_calibration_control.py', 'usr/lib/nuvo-depth/nuvo_calibration_store.py',
                 'usr/lib/systemd/system/nuvo-depthd-native.service',
                 'usr/share/nuvo-depth/calibration/front_left.yaml',
                 'usr/share/nuvo-depth/calibration/front_right.yaml',
+                'usr/share/nuvo-depth/calibration/profile.json',
                 'etc/nuvo-depth/stereo.json', 'etc/nuvo-depth/exposure.json']
     assert all((root/name).is_file() for name in required)
     files = {str(p.relative_to(root)) for p in root.rglob('*') if p.is_file()}
@@ -31,6 +33,7 @@ with tempfile.TemporaryDirectory() as directory:
     assert 'WantedBy=multi-user.target' in service
     assert 'nuvo-calibration' not in service and 'nuvo-depth.target' not in service
     controls = subprocess.check_output(['dpkg-deb', '-f', str(package), 'Depends'], text=True)
-    for excluded in ('nuvo-depth-core', 'nuvo-depth-tools', 'nuvo-depth-calibration', 'python3-opencv', 'network-manager'):
+    for excluded in ('nuvo-depth-core', 'nuvo-depth-tools', 'nuvo-depth-calibration', 'python3-opencv', 'python3-numpy', 'network-manager'):
         assert excluded not in controls, controls
+    assert 'python3-cryptography' in controls
     print('Minimal package payload, services, direct ELF dependencies and linkage verified.')

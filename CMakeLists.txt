@@ -516,9 +516,11 @@ install(FILES tools/nuvo_calibration_store.py tools/nuvo_calibration_control.py
   DESTINATION "lib/nuvo-depth")
 install(FILES config/calibration/nuvo_depth_100mm/profile.json
   DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/calibration")
+if(TARGET nuvo-depth-read)
+  install(TARGETS nuvo-depth-read RUNTIME DESTINATION "lib/nuvo-depth")
+endif()
 if(DEPTHD_MINIMAL_PACKAGE)
   install(TARGETS depthd RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
-  install(TARGETS nuvo-depth-read RUNTIME DESTINATION "lib/nuvo-depth")
   install(PROGRAMS tools/nuvo_minimal_cli.py DESTINATION "${CMAKE_INSTALL_BINDIR}" RENAME nuvoctl)
   install(FILES tools/nuvoctl.py DESTINATION "lib/nuvo-depth")
   install(PROGRAMS tools/pi/nuvo_trigger_prepare.py DESTINATION "lib/nuvo-depth" RENAME nuvo-trigger-prepare)
@@ -722,6 +724,8 @@ if(BUILD_TESTING)
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/first_use_test.py)
     add_test(NAME depthd_calibration_readiness_test COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/calibration_readiness_test.py)
+    add_test(NAME depthd_calibration_import_test COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/calibration_import_test.py)
     if(TARGET depthd_runtime_factory)
       add_test(NAME depthd_native_calibration_check_test COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/native_calibration_check_test.py $<TARGET_FILE:depthd>)

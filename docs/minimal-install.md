@@ -17,8 +17,10 @@ The installer retains your existing network and SSH configuration.
 
 ## Install the public preview
 
-The current public preview is `v0.1.1-beta.6`. Its minimal bundle and installer
-are separate from the full appliance downloads.
+The approved public preview is recorded in `deployment/public-release.json`
+(currently `v0.1.1-beta.6`). Its minimal bundle and installer are separate from
+the full appliance downloads. The readiness/import commands below describe the
+beta 7 candidate/current source, pending public approval.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/arputhamips/nuvo-depth/main/install-nuvo-depth-minimal.sh | sudo bash
@@ -27,6 +29,10 @@ curl -fsSL https://raw.githubusercontent.com/arputhamips/nuvo-depth/main/install
 An initial install can require a reboot for camera overlays. Reconnect over SSH
 after reboot and capture depth to finish the camera check. The package itself
 does not change boot configuration or start capture until the installer is run.
+On beta 7/current source, choose an existing compatible bundle with
+`--calibration-bundle /path/to/bundle`, deliberately enable unverified preview
+with `--allow-provisional-preview`, or leave capture disabled. Reinstalls preserve
+existing calibration. See [readiness and import](calibration-readiness.md).
 
 ## Test with Actions artifacts
 
@@ -58,6 +64,7 @@ sudo nuvoctl config set exposure.manual_exposure_us 6000
 sudo nuvoctl config set stereo.uniqueness_ratio 5
 sudo nuvoctl config validate
 sudo nuvoctl status
+sudo nuvoctl calibration status
 sudo nuvoctl restart
 sudo nuvoctl depth capture --output depth.f32
 sudo nuvoctl depth stream --frames 30 --hz 5 --output depth.nuv
@@ -95,10 +102,19 @@ length. Its provenance and file hashes are recorded in
 `provisional_recalibration_required` authority; these files do not establish
 metric accuracy for a different assembled rig. Published beta 6 packages
 predate this default change and still contain the earlier seed. There is no
-calibration capture or solving workflow in this package. To use previously
-validated per-unit bundles, retain their state under `/var/lib/nuvo-depth` and
-override the service command to omit its explicit `--calibration-root` option.
-The daemon will then use its existing active-bundle selection and identity checks.
+calibration capture or solving workflow in this package. Beta 7/current source
+supports existing-bundle import without editing service files:
+
+```bash
+sudo nuvoctl calibration import /path/to/bundle --dry-run
+sudo nuvoctl calibration import /path/to/bundle
+sudo nuvoctl calibration rollback
+```
+
+Use the original complete compatible per-unit bundle, never a relabelled seed.
+Review the [validation, activation and recovery contract](calibration-readiness.md)
+before importing. Beta 6 lacks this command; use the reviewed candidate artifacts
+for testing or wait for an approved update.
 
 ```bash
 sudo systemctl status nuvo-depthd-native.service

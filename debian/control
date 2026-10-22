@@ -102,7 +102,7 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, python3 (>= 3.11), python3-cryptogr
  libcamera0.7 (= 0.7.2+rpt20261009-1), libcamera-ipa (= 0.7.2+rpt20261009-1),
  raspi-utils-dt
 Conflicts: nuvo-depth, nuvo-depth-core, nuvo-depth-platform-pi5,
- nuvo-depth-tools, nuvo-depthd
+ nuvo-depth-tools, nuvo-depthd, nuvo-depth-calibration, nuvo-depth-factory
 Description: Nuvo Depth minimal raw stereo depth runtime and terminal interface
  Reuses the native Pi 5 capture and depth pipeline with local Unix socket output.
  Includes terminal configuration and raw depth export without the web console,

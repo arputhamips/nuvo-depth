@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [v0.1.1-beta.7] - 2026-10-22
+
+### Added
+
+- Guide the first fresh depth sample in the console and Python quickstart, with original calibration and frame metadata retained in saved output.
+- Show the same calibration readiness, explanation and next action in installer completion, console and terminal status.
+- Import compatible existing calibration bundles in both full and minimal installations with dry-run validation, verified activation and rollback.
+- Require an explicit provisional-preview choice on fresh installations and keep advanced calibration parameters expandable.
+
+### Fixed
+
+- Resolve rolling installers through one explicitly approved public release, keeping unreleased candidates separate from installation recommendations.
+- Align supported-platform prerequisites, automatic HTTPS connection instructions and the Balanced starting recommendation.
+- Preserve validated per-unit calibration and the unchanged beta 5 geometry through reinstalls and upgrades; keep shared geometry provisional.
+- Restore the previous bundle and capture policy after failed or interrupted calibration activation.
+
 ## [v0.1.1-beta.6] - 2026-10-21
 
 ### Added

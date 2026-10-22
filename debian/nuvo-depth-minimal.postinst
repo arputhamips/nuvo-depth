@@ -8,13 +8,23 @@ if command -v systemd-tmpfiles >/dev/null 2>&1; then
 fi
 if [ "$1" = configure ]; then
     python3 - <<'PY'
-import grp, os, pathlib, uuid
+import grp, json, os, pathlib, sys, uuid
 path = pathlib.Path('/var/lib/nuvo-depth/identity/device.uuid')
 if not path.exists():
     with path.open('x') as output:
         output.write(str(uuid.uuid4()) + '\n')
     os.chown(path, 0, grp.getgrnam('nuvo-video').gr_gid)
     os.chmod(path, 0o640)
+# Preserve an existing running validated legacy selection during upgrades.
+# Fresh installs and implicit provisional output never create this choice.
+marker = pathlib.Path('/etc/nuvo-depth/capture-enabled')
+try:
+    status = json.loads(pathlib.Path('/run/nuvo-depth/status.json').read_text())
+    if status.get('calibration_authority', 0) > 0 and not marker.exists():
+        marker.write_text('preserved-validated-calibration\n')
+        marker.chmod(0o600)
+except (OSError, ValueError):
+    pass
 PY
 fi
 #DEBHELPER#
