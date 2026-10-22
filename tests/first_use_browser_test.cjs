@@ -2,7 +2,7 @@
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 const {chromium}=require(process.env.NUVO_PLAYWRIGHT_MODULE||'playwright-core');
 const root=path.resolve(__dirname,'..'),out=path.join(root,'output/first-use-browser');fs.mkdirSync(out,{recursive:true});
-let sequence=0,invalid=false,pending=false;
+let sequence=0,invalid=false,pending=false,readinessOverride=null;
 const encoding=JSON.parse(fs.readFileSync(path.join(root,'config/encoding.json')));encoding.mode='raw';
 const metadataBase={schema_version:1,device_uuid:'22'.repeat(16),run_uuid:'11'.repeat(16),capture_epoch:1,configuration_epoch:1,calibration_sha256:'ab'.repeat(32),calibration_authority:0};
 function packet(names){
@@ -18,7 +18,7 @@ function packet(names){
 const server=http.createServer((request,response)=>{
   const url=new URL(request.url,'http://localhost');const json=(value,status=200)=>{response.writeHead(status,{'content-type':'application/json',ETag:'"'+'a'.repeat(64)+'"'});response.end(JSON.stringify(value));};
   if(url.pathname==='/api/v1/session')return json({csrf:'f'.repeat(64)});
-  if(url.pathname==='/api/v1/setup/status')return json({result:{schema_version:1,display_name:'First-use test fixture',phase:'installed',calibration_state:'pending',engineering:!pending,calibration_readiness:{state:pending?'calibration_needed':'preview_enabled',label:pending?'Calibration needed':'Preview enabled',message:pending?'Capture is waiting for calibration or explicit preview.':'Distance accuracy remains unverified.',next_action:pending?'Import calibration or deliberately enable preview.':'Continue evaluation or import accepted calibration.',accepted:false}}});
+  if(url.pathname==='/api/v1/setup/status')return json({result:{schema_version:1,display_name:'First-use test fixture',phase:'installed',calibration_state:'pending',engineering:!pending,calibration_readiness:readinessOverride||{state:pending?'calibration_needed':'preview_enabled',label:pending?'Calibration needed':'Preview enabled',message:pending?'Capture is waiting for calibration or explicit preview.':'Distance accuracy remains unverified.',next_action:pending?'Import calibration or deliberately enable preview.':'Continue evaluation or import accepted calibration.',accepted:false}}});
   if(url.pathname==='/api/v1/health')return pending?json({error:'capture waiting for calibration'},503):json({...metadataBase,status:'running',capture_sequence:sequence,image_width:728,image_height:544,depth_width:728,depth_height:544,capture_target_hz:10,processing_ms:42,depth_published:sequence,exposure_mode:'manual',stereo_backend:'cpu_sgbm'});
   if(url.pathname==='/api/v1/capabilities')return json({products:['left_rectified','right_rectified','depth','validity','left_mono'],connection:{qualified_link:false,resource_budget_bytes_per_second:20000000}});
   if(url.pathname==='/api/v1/encoding')return json(encoding);
@@ -50,7 +50,14 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
     await context.setOffline(true);await page.waitForFunction(()=>document.querySelector('#firstDepthSave').disabled);await context.setOffline(false);
     await page.waitForFunction(()=>!document.querySelector('#firstDepthSave').disabled);
     pending=true;await page.reload();await page.waitForFunction(()=>document.querySelector('#setupState').textContent.includes('Calibration needed'));assert(await page.isDisabled('#firstDepthSave'));
-    assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'results.json'),JSON.stringify({fixture:true,checks:['mono is insufficient','fresh stereo/depth/validity','saved raw metadata','all-invalid rejection','disconnect','reconnect','pending calibration'],pageErrors:errors},null,2));
-    console.log('Browser first-use journeys: 7 fixture checks passed; raw metadata preserved; no page errors.');
+    readinessOverride={state:'calibration_accepted',label:'Calibration accepted',message:'Matching per-unit declared validation; camera disconnected.',next_action:'Inspect camera/service health and verify fresh output.',accepted:true};
+    await page.reload();await page.waitForFunction(()=>document.querySelector('#calibrationState').textContent==='Calibration accepted');assert(await page.isDisabled('#firstDepthSave'));
+    assert.equal(await page.textContent('#connection'),'Connected');
+    readinessOverride={state:'unavailable',label:'Status unavailable/error',message:'Calibration belongs to another device.',next_action:'Import the original compatible bundle.',accepted:false};
+    await page.reload();await page.waitForFunction(()=>document.querySelector('#calibrationState').textContent==='Status unavailable/error');
+    await page.click('[data-page="calibration"]');assert.match(await page.textContent('#calibrationReadinessMessage'),/another device/);assert.match(await page.textContent('#calibrationReadinessAction'),/original compatible bundle/);
+    const advanced=page.locator('details').filter({hasText:'Advanced geometry and qualification parameters'});assert.equal(await advanced.getAttribute('open'),null);
+    assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'results.json'),JSON.stringify({fixture:true,checks:['mono is insufficient','fresh stereo/depth/validity','saved raw metadata','all-invalid rejection','disconnect','reconnect','pending calibration','accepted with unavailable camera','specific readiness error and recovery','advanced calibration collapsed'],pageErrors:errors},null,2));
+    console.log('Browser first-use and readiness journeys: 10 fixture checks passed; raw metadata preserved; no page errors.');
   }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});
