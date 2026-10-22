@@ -772,10 +772,15 @@ if(BUILD_TESTING)
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/calibration_activation_test.py
     )
-    add_test(NAME depthd_calibration_session_test
-      COMMAND ${Python3_EXECUTABLE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/tests/calibration_session_test.py
-    )
+    if(DEPTHD_WITH_OPENCV)
+      # These solver/capture fixtures import Python OpenCV. They are required
+      # by development-full and ARM builds; minimal-host omits that capability.
+      add_test(NAME depthd_calibration_session_test
+        COMMAND ${Python3_EXECUTABLE}
+          ${CMAKE_CURRENT_SOURCE_DIR}/tests/calibration_session_test.py)
+    else()
+      message(STATUS "Calibration solver/session fixtures run in required development-full checks; minimal-host omits Python OpenCV")
+    endif()
     add_test(NAME depthd_calibration_charuco_synthetic_test
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/calibration_charuco_synthetic_test.py

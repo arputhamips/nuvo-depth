@@ -42,6 +42,9 @@ Nuvo Depth minimal raw-depth installer
   --repository OWNER/REPO Override arputhamips/nuvo-depth
   --public-key PATH      Independently trusted release key
   --dry-run             Validate without installing
+  --calibration-bundle PATH Import an existing compatible per-unit calibration
+  --allow-provisional-preview Explicitly enable preview (distance accuracy unverified)
+  --defer-capture        Leave capture disabled instead of fresh minimal preview
   --reboot              Permit a required camera-overlay reboot
 Run over existing SSH; internet access must already be configured.
 HELP

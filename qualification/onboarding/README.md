@@ -59,6 +59,12 @@ authority, package audit and protected-file hashes. The cleaned-system trial is
 additional evidence and cannot satisfy a fresh-flash case.
 
 Perform ten graceful reboots and five physical power removals per profile.
+
+The operator host can run `tools/qualification/pi_reboot_test.py --help` (install
+`paramiko` on that host). Supply verified known-hosts, host/address/user, profile,
+a new output directory and append-only command audit. It prompts privately,
+performs actual kernel reboots, checks new boot/run identities, advancing paired
+output, protected hashes and package audit. It cannot remove physical power.
 Each cycle needs pre/post state hashes, distinct daemon run, fresh reader output,
 service status and a timestamped operator power event. SSH reboot is not a power
 cycle. Never automate physical power removal without the appropriate switch.

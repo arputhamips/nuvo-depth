@@ -8,14 +8,14 @@ case "$ID:$VERSION_ID" in debian:13|ubuntu:24.04) ;; *) echo 'Supported clean ho
 elevate=()
 if [ "$(id -u)" != 0 ]; then elevate=(sudo); fi
 "${elevate[@]}" apt-get update
-packages=(build-essential cmake ninja-build pkg-config git ca-certificates curl xz-utils openssl python3 python3-venv python3-cryptography python3-yaml nodejs npm)
+packages=(build-essential cmake ninja-build pkg-config git ca-certificates curl xz-utils openssl python3 python3-venv python3-cryptography python3-yaml)
 if [ "$profile" = --full ]; then
   packages+=(libyaml-cpp-dev libopencv-dev libavcodec-dev libavutil-dev libswscale-dev libboost-system-dev libssl-dev python3-numpy python3-opencv)
 fi
 "${elevate[@]}" apt-get install -y --no-install-recommends "${packages[@]}"
 # Ubuntu 24.04's Node 18 cannot run the pinned browser tools. Use the official
 # archive only when the existing runtime is too old; verify the frozen digest.
-if ! node -e 'process.exit(Number(process.versions.node.split(".")[0]) < 20 ? 1 : 0)'; then
+if ! command -v node >/dev/null || ! command -v npm >/dev/null || ! node -e 'process.exit(Number(process.versions.node.split(".")[0]) < 20 ? 1 : 0)'; then
   case "$(uname -m)" in
     x86_64) architecture=x64; digest=9a6bc82f9b491279147219f6a18add1e18424dce90d41d2a5fcd69d4924ba3aa ;;
     aarch64) architecture=arm64; digest=0f3550d58d45e5d3cf7103d9e3f69937f09fe82fb5dd474c66a5d816fa58c9ee ;;

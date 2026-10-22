@@ -6,7 +6,8 @@ import subprocess
 
 def classify(paths):
     def documentation(path):
-        return (path.startswith('docs/') or PurePosixPath(path).suffix.lower() in ('.md','.rst')
+        suffix=PurePosixPath(path).suffix.lower()
+        return ((path.startswith('docs/') and suffix in ('.json','.png','.jpg','.svg','.csv')) or suffix in ('.md','.rst')
                 or path=='deployment/public-release.json')
     runtime = not paths or not all(documentation(path) for path in paths)
     return {'native':runtime,'browser':runtime,'docs_only':not runtime}

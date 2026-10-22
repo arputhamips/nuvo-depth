@@ -28,10 +28,17 @@ environment: `docker build -f tools/dev/Dockerfile -t nuvo-depth-dev .`, then
 Linux/WSL, not Windows PowerShell. Windows is also a supported Python SDK client;
 host fixtures do not qualify physical Pi capture or networking.
 
+Calibration solver/session fixtures require Python OpenCV and run in the required
+development-full and ARM package suites. They are excluded from minimal-host,
+which omits that capability; shared readiness/import/transaction tests still run.
+This does not remove solver coverage from the required full CI job or add Python
+OpenCV to the minimal runtime package.
+
 Browser tools require Node 20+. When the distribution supplies an older Node,
 the bootstrap installs official Node 22.22.1 using frozen x64/arm64 SHA-256
 digests in `/opt/nuvo-host-node-22.22.1` and links its executables in
-`/usr/local/bin`. Existing Node 20+ is retained and its version recorded.
+`/usr/local/bin`. Existing Node 20+ with npm is retained and its version recorded.
+It avoids installing an obsolete distro Node/npm dependency tree first.
 
 ## Real gateway fixture and rendered tests
 
