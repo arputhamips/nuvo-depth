@@ -1,0 +1,4221 @@
+{
+  "schema_version": 1,
+  "source_commit": "fa158f570ca513a3e878c552507872e9de509d11",
+  "artifact_manifest": {
+    "minimal": {
+      "build": {
+        "schema_version": 1,
+        "source_commit": "fa158f570ca513a3e878c552507872e9de509d11",
+        "version": "0.1.1~beta.6",
+        "architecture": "arm64",
+        "codename": "trixie",
+        "profile": "minimal",
+        "workflow_run": "https://github.com/arputhamips/nuvo-depth/actions/runs/39686442512",
+        "hardware_tests": "not run: hosted ARM64 builder has no Pi cameras"
+      },
+      "packages": [
+        {
+          "name": "nuvo-depth-minimal_0.1.1~beta.6_arm64.deb",
+          "package": "nuvo-depth-minimal",
+          "sha256": "40e06e9b17c319aa2a8b9efc48a01e4704243ed4bfd64e8dc52e0df6d9289987",
+          "bytes": 344096
+        }
+      ],
+      "depthd_sha256": "d1efee507a768446fc8d314062ad579d1badf589c52d3a51b01dd048b7c512ab"
+    },
+    "full": {
+      "build": {
+        "schema_version": 1,
+        "source_commit": "fa158f570ca513a3e878c552507872e9de509d11",
+        "version": "0.1.1~beta.6",
+        "architecture": "arm64",
+        "codename": "trixie",
+        "profile": "appliance",
+        "workflow_run": "https://github.com/arputhamips/nuvo-depth/actions/runs/39686445958",
+        "hardware_tests": "not run: hosted ARM64 builder has no Pi cameras"
+      },
+      "packages": [
+        {
+          "name": "libnuvo-depth1_0.1.1~beta.6_arm64.deb",
+          "package": "libnuvo-depth1",
+          "sha256": "00957e452531294827ec387755d0677710512e56dbb6d05563b27018b9c1ccb2",
+          "bytes": 11820
+        },
+        {
+          "name": "nuvo-depth-calibration_0.1.1~beta.6_all.deb",
+          "package": "nuvo-depth-calibration",
+          "sha256": "b62c15dd36725cb1b9837a2efde2b3e0efe1d7f1c1a6814d8ce4b0f6085c37a1",
+          "bytes": 29256
+        },
+        {
+          "name": "nuvo-depth-core_0.1.1~beta.6_arm64.deb",
+          "package": "nuvo-depth-core",
+          "sha256": "e88466ee099b90cba75652ce6b715b17d3c768efea008dcba8120c54ceb11982",
+          "bytes": 421108
+        },
+        {
+          "name": "nuvo-depth-gateway_0.1.1~beta.6_arm64.deb",
+          "package": "nuvo-depth-gateway",
+          "sha256": "82e765f84a10e36a2c2507b2d587818fe0db8e14da185156d71dd6f31c106c07",
+          "bytes": 561220
+        },
+        {
+          "name": "nuvo-depth-platform-pi5_0.1.1~beta.6_arm64.deb",
+          "package": "nuvo-depth-platform-pi5",
+          "sha256": "19b93dc0788e1712834637e15a06a7a951f1eb613f1991f2e48c8ab8f7303437",
+          "bytes": 7140
+        },
+        {
+          "name": "nuvo-depth-tools_0.1.1~beta.6_all.deb",
+          "package": "nuvo-depth-tools",
+          "sha256": "e6219ce494380a82fb18e5fea74c7b366e86ced84b28356c762fac858e815bc0",
+          "bytes": 32812
+        },
+        {
+          "name": "nuvo-depth_0.1.1~beta.6_arm64.deb",
+          "package": "nuvo-depth",
+          "sha256": "22f8624e930afd8c954a1912d000725ea5d539231b968fc0e2022f38d936c4f1",
+          "bytes": 5640
+        },
+        {
+          "name": "python3-nuvo-depth_0.1.1~beta.6_all.deb",
+          "package": "python3-nuvo-depth",
+          "sha256": "b8081a37dac806c6a068ee5f308ed4d4acef5e0657c67d7919be6c4a21209267",
+          "bytes": 14376
+        }
+      ],
+      "depthd_sha256": "3848639c5b9395192842bbb867da6e32801386819a47c47c91a9bde2ca7d9ceb"
+    }
+  },
+  "settings": {
+    "calibration_sha256": "41f14f56036d34b0a972e5b72dd1fd9cc6783862ca1da42313e86cd776f61d10",
+    "calibration_authority": 1,
+    "calibration_source_bundle": "8adf4c8103f1fb7f2811a7d483669cc99c8c7132902700ebb3fd464d19158cf2",
+    "stereo": {
+      "algorithm": "sgbm",
+      "block_size": 5,
+      "bm_pre_filter_size": 9,
+      "bm_texture_threshold": 10,
+      "disparity_12_max_diff": 1,
+      "max_disparity": 128,
+      "median_filter_size": 0,
+      "min_disparity": 0,
+      "opencv_threads": 2,
+      "pre_filter_cap": 31,
+      "schema_version": 1,
+      "search_range": 128,
+      "sgbm_mode": "3way",
+      "speckle_range": 2,
+      "speckle_window_size": 30,
+      "specular_threshold": 256,
+      "uniqueness_ratio": 0
+    },
+    "exposure": {
+      "auto_max_analogue_gain": 3.0,
+      "auto_max_exposure_us": 8000,
+      "auto_max_median": 85,
+      "auto_min_analogue_gain": 1.0,
+      "auto_min_exposure_us": 250,
+      "auto_min_median": 65,
+      "auto_settle_frames_after_update": 4,
+      "auto_target_median": 75,
+      "auto_update_interval_frames": 2,
+      "blue_gain": 2.3425,
+      "manual_analogue_gain": 2.0,
+      "manual_exposure_us": 8000,
+      "mode": "manual",
+      "red_gain": 2.4771,
+      "schema_version": 1
+    },
+    "raw_request_hz": 60,
+    "capture_rates_tested_hz": [
+      12,
+      14,
+      16,
+      20,
+      30,
+      60
+    ],
+    "resolution": [
+      728,
+      544
+    ],
+    "products": [
+      "depth",
+      "validity",
+      "left_mono"
+    ],
+    "full_preview_request_hz": 5,
+    "full_encoder": {
+      "schema_version": 1,
+      "mode": "both",
+      "codec": "h264",
+      "source": "left_color",
+      "width": 728,
+      "height": 544,
+      "cadence_hz": 10,
+      "bitrate_bps": 4000000,
+      "jpeg_quality": 80,
+      "keyframe_interval": 1,
+      "threads": 1,
+      "low_latency": true,
+      "preset": "veryfast"
+    }
+  },
+  "selected_operating_points": {
+    "minimal": {
+      "method": "Highest observed delivery FPS among six 30-second sweeps",
+      "hz": 20,
+      "coarse_fps": 12.458645541469663
+    },
+    "full": {
+      "method": "Highest observed delivery FPS among six 30-second sweeps",
+      "hz": 14,
+      "coarse_fps": 12.089106485871282
+    }
+  },
+  "summary": {
+    "minimal": {
+      "delivery_fps": {
+        "median": 12.340688942134973,
+        "min": 12.329826654804274,
+        "max": 12.367618835793886,
+        "trials": [
+          12.329826654804274,
+          12.340688942134973,
+          12.367618835793886
+        ]
+      },
+      "latency_p50_ms": {
+        "median": 129.9629135,
+        "min": 129.6976195,
+        "max": 130.014723,
+        "trials": [
+          130.014723,
+          129.9629135,
+          129.6976195
+        ]
+      },
+      "latency_p95_ms": {
+        "median": 151.925269,
+        "min": 151.55268,
+        "max": 152.105941,
+        "trials": [
+          152.105941,
+          151.55268,
+          151.925269
+        ]
+      },
+      "nuvo_cpu_four_core_percent": {
+        "median": 49.35112844609518,
+        "min": 49.34173556130343,
+        "max": 49.37224481901517,
+        "trials": [
+          49.37224481901517,
+          49.35112844609518,
+          49.34173556130343
+        ]
+      },
+      "whole_pi_cpu_percent": {
+        "median": 50.36334781156031,
+        "min": 50.24871462609204,
+        "max": 50.373461297725854,
+        "trials": [
+          50.373461297725854,
+          50.24871462609204,
+          50.36334781156031
+        ]
+      },
+      "median_pss_mib": {
+        "median": 129.89453125,
+        "min": 129.6875,
+        "max": 129.89453125,
+        "trials": [
+          129.6875,
+          129.89453125,
+          129.89453125
+        ]
+      },
+      "median_rss_mib": {
+        "median": 138.625,
+        "min": 138.359375,
+        "max": 138.625,
+        "trials": [
+          138.359375,
+          138.625,
+          138.625
+        ]
+      }
+    },
+    "full": {
+      "delivery_fps": {
+        "median": 12.138224492426287,
+        "min": 12.11067142368967,
+        "max": 12.15885973329844,
+        "trials": [
+          12.11067142368967,
+          12.15885973329844,
+          12.138224492426287
+        ]
+      },
+      "latency_p50_ms": {
+        "median": 141.266777,
+        "min": 140.81977999999998,
+        "max": 141.44374299999998,
+        "trials": [
+          141.266777,
+          140.81977999999998,
+          141.44374299999998
+        ]
+      },
+      "latency_p95_ms": {
+        "median": 175.386662,
+        "min": 175.106926,
+        "max": 176.030629,
+        "trials": [
+          175.106926,
+          175.386662,
+          176.030629
+        ]
+      },
+      "nuvo_cpu_four_core_percent": {
+        "median": 50.721666109568275,
+        "min": 50.67405723215133,
+        "max": 50.778003303620224,
+        "trials": [
+          50.778003303620224,
+          50.721666109568275,
+          50.67405723215133
+        ]
+      },
+      "whole_pi_cpu_percent": {
+        "median": 51.8375889493512,
+        "min": 51.82438942650079,
+        "max": 51.985257162003684,
+        "trials": [
+          51.985257162003684,
+          51.82438942650079,
+          51.8375889493512
+        ]
+      },
+      "median_pss_mib": {
+        "median": 164.166015625,
+        "min": 164.0693359375,
+        "max": 164.212890625,
+        "trials": [
+          164.0693359375,
+          164.166015625,
+          164.212890625
+        ]
+      },
+      "median_rss_mib": {
+        "median": 196.296875,
+        "min": 196.03125,
+        "max": 196.34375,
+        "trials": [
+          196.03125,
+          196.296875,
+          196.34375
+        ]
+      }
+    }
+  },
+  "trials": [
+    {
+      "selection": {
+        "profile": "full",
+        "label": "full-max-1",
+        "capture": "nuvo-sgbm-max-full-max-1-capture.service",
+        "gateway": "nuvo-sgbm-max-full-browser-setup-gateway.service",
+        "binary_sha256": "3848639c5b9395192842bbb867da6e32801386819a47c47c91a9bde2ca7d9ceb",
+        "selected_boot_ns": 17230186574721,
+        "hz": 14,
+        "daemon_configuration_sha256": "c85e72473b09d31d9fb92cd7c4c14cb05d2494a40a1c5b21b5762f4989428e1a"
+      },
+      "duration_seconds": 60.018014233,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 727,
+      "delivery_fps": 12.11067142368967,
+      "capture_timestamp_fps": 12.099560382639432,
+      "frame_age_ms": {
+        "count": 727,
+        "p50": 141.266777,
+        "p95": 175.106926,
+        "max": 185.927574,
+        "mean": 141.81595206740027
+      },
+      "interframe_ms": {
+        "count": 726,
+        "p50": 81.3259805,
+        "p95": 86.531834,
+        "max": 92.549547,
+        "mean": 82.57180506473829
+      },
+      "delivered_capture_skips": 114,
+      "cpu_one_core_percent": {
+        "daemon": 201.82995313663028,
+        "gateway": 1.282060077850626
+      },
+      "nuvo_cpu_four_core_percent": 50.778003303620224,
+      "whole_pi_cpu_percent": 51.985257162003684,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 59,
+            "p50": 160.921875,
+            "p95": 160.921875,
+            "max": 160.921875,
+            "mean": 160.85990466101694
+          },
+          "pss_mib": {
+            "count": 59,
+            "p50": 143.39453125,
+            "p95": 143.39453125,
+            "max": 143.39453125,
+            "mean": 143.33256091101694
+          },
+          "private_mib": {
+            "count": 59,
+            "p50": 130.9375,
+            "p95": 130.9375,
+            "max": 130.9375,
+            "mean": 130.87552966101694
+          }
+        },
+        "gateway": {
+          "rss_mib": {
+            "count": 59,
+            "p50": 35.109375,
+            "p95": 35.140625,
+            "max": 35.140625,
+            "mean": 35.112552966101696
+          },
+          "pss_mib": {
+            "count": 59,
+            "p50": 20.6748046875,
+            "p95": 20.7060546875,
+            "max": 20.7060546875,
+            "mean": 20.677982653601696
+          },
+          "private_mib": {
+            "count": 59,
+            "p50": 12.375,
+            "p95": 12.40625,
+            "max": 12.40625,
+            "mean": 12.378177966101696
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 59,
+          "p50": 196.03125,
+          "p95": 196.0625,
+          "max": 196.0625,
+          "mean": 195.97245762711864
+        },
+        "pss_mib": {
+          "count": 59,
+          "p50": 164.0693359375,
+          "p95": 164.1005859375,
+          "max": 164.1005859375,
+          "mean": 164.01054356461864
+        },
+        "private_mib": {
+          "count": 59,
+          "p50": 143.3125,
+          "p95": 143.34375,
+          "max": 143.34375,
+          "mean": 143.25370762711864
+        }
+      },
+      "temperature_c": {
+        "count": 59,
+        "p50": 71.05,
+        "p95": 71.6,
+        "max": 72.15,
+        "mean": 70.81694915254238
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 841,
+        "capture_sequence": 841,
+        "capture_sequence_gaps": 114,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 841,
+        "scheduler_completed": 0,
+        "scheduler_processed": 727,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 114,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 727,
+        "published_frames": 727,
+        "raw_processing_submissions": 841,
+        "encoded_frames": 280,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0,
+        "encode_failures": 0,
+        "encoding_image_pool_dropped": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 727,
+          "p50": 81.2206,
+          "p95": 86.419,
+          "max": 92.784,
+          "mean": 82.56676836313618
+        },
+        "rectification_ms": {
+          "count": 727,
+          "p50": 4.00734,
+          "p95": 4.56277,
+          "max": 5.84755,
+          "mean": 4.086729064649243
+        },
+        "stereo_match_ms": {
+          "count": 727,
+          "p50": 73.2574,
+          "p95": 78.4237,
+          "max": 84.3018,
+          "mean": 74.59554181568087
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 1.990933993,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 17230397112044,
+          "capture_sequence": 4,
+          "sha256": "6dd93d27079499f8538db70659b79529798e760c3e8a96411d83fca9ee3f3a01"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 17250029200857,
+          "capture_sequence": 279,
+          "sha256": "633f26a5782377c1af31b03d4d9ed34218f9081c3550435ccfb1017053efc89a"
+        },
+        {
+          "file": "scene-2.pgm",
+          "boot_ns": 17280009499822,
+          "capture_sequence": 698,
+          "sha256": "18a88d463f61687d021473ab83ad31bed48c88892789154d6c7c1b6052e1fbdf"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          12.122454445401882,
+          12.117922886081358,
+          12.083815710571256,
+          12.125380974165354,
+          12.118700816702768,
+          12.100199710075403
+        ],
+        "frame_age_linear_slope_ms_per_second": 0.02889342688155765,
+        "first_third_median_age_ms": 141.074143,
+        "last_third_median_age_ms": 142.83558349999998
+      },
+      "captured_pairs_per_second": 14.012459604796268,
+      "encoded_frames_per_second": 4.665265980193763
+    },
+    {
+      "selection": {
+        "profile": "full",
+        "label": "full-max-2",
+        "capture": "nuvo-sgbm-max-full-max-1-capture.service",
+        "gateway": "nuvo-sgbm-max-full-browser-setup-gateway.service",
+        "binary_sha256": "3848639c5b9395192842bbb867da6e32801386819a47c47c91a9bde2ca7d9ceb",
+        "selected_boot_ns": 17230186574721,
+        "hz": 14,
+        "daemon_configuration_sha256": "c85e72473b09d31d9fb92cd7c4c14cb05d2494a40a1c5b21b5762f4989428e1a"
+      },
+      "duration_seconds": 60.017928895,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 730,
+      "delivery_fps": 12.15885973329844,
+      "capture_timestamp_fps": 12.149558059825575,
+      "frame_age_ms": {
+        "count": 730,
+        "p50": 140.81977999999998,
+        "p95": 175.386662,
+        "max": 180.036287,
+        "mean": 141.43510912328767
+      },
+      "interframe_ms": {
+        "count": 729,
+        "p50": 80.963631,
+        "p95": 86.193862,
+        "max": 90.539772,
+        "mean": 82.24455433607682
+      },
+      "delivered_capture_skips": 111,
+      "cpu_one_core_percent": {
+        "daemon": 201.63720779455596,
+        "gateway": 1.249456643717129
+      },
+      "nuvo_cpu_four_core_percent": 50.721666109568275,
+      "whole_pi_cpu_percent": 51.82438942650079,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 59,
+            "p50": 161.1875,
+            "p95": 161.1875,
+            "max": 161.25,
+            "mean": 161.1885593220339
+          },
+          "pss_mib": {
+            "count": 59,
+            "p50": 143.5458984375,
+            "p95": 143.5458984375,
+            "max": 143.6083984375,
+            "mean": 143.5469577595339
+          },
+          "private_mib": {
+            "count": 59,
+            "p50": 131.03125,
+            "p95": 131.03125,
+            "max": 131.09375,
+            "mean": 131.0323093220339
+          }
+        },
+        "gateway": {
+          "rss_mib": {
+            "count": 59,
+            "p50": 35.109375,
+            "p95": 35.140625,
+            "max": 35.15625,
+            "mean": 35.110699152542374
+          },
+          "pss_mib": {
+            "count": 59,
+            "p50": 20.6201171875,
+            "p95": 20.6513671875,
+            "max": 20.6669921875,
+            "mean": 20.621441340042374
+          },
+          "private_mib": {
+            "count": 59,
+            "p50": 12.265625,
+            "p95": 12.296875,
+            "max": 12.3125,
+            "mean": 12.266949152542374
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 59,
+          "p50": 196.296875,
+          "p95": 196.328125,
+          "max": 196.359375,
+          "mean": 196.29925847457628
+        },
+        "pss_mib": {
+          "count": 59,
+          "p50": 164.166015625,
+          "p95": 164.197265625,
+          "max": 164.228515625,
+          "mean": 164.16839909957628
+        },
+        "private_mib": {
+          "count": 59,
+          "p50": 143.296875,
+          "p95": 143.328125,
+          "max": 143.359375,
+          "mean": 143.29925847457628
+        }
+      },
+      "temperature_c": {
+        "count": 59,
+        "p50": 71.6,
+        "p95": 72.7,
+        "max": 73.25,
+        "mean": 71.64661016949152
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 841,
+        "capture_sequence": 841,
+        "capture_sequence_gaps": 111,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 841,
+        "scheduler_completed": 0,
+        "scheduler_processed": 730,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 111,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 730,
+        "published_frames": 730,
+        "raw_processing_submissions": 841,
+        "encoded_frames": 281,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0,
+        "encode_failures": 0,
+        "encoding_image_pool_dropped": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 729,
+          "p50": 80.9782,
+          "p95": 86.0229,
+          "max": 101.302,
+          "mean": 82.24999176954732
+        },
+        "rectification_ms": {
+          "count": 729,
+          "p50": 4.09221,
+          "p95": 4.73051,
+          "max": 5.00386,
+          "mean": 4.156825144032922
+        },
+        "stereo_match_ms": {
+          "count": 729,
+          "p50": 73.0599,
+          "p95": 78.1244,
+          "max": 93.4966,
+          "mean": 74.39526968449931
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 1.8204439049999999,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 17305365314591,
+          "capture_sequence": 1053,
+          "sha256": "0656a6749ca0784ab6e75b7a362b019b9d5075bd5a7ad4e91600a65b08580527"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 17310005078017,
+          "capture_sequence": 1118,
+          "sha256": "38002333f952189500b790e357f162426a3e84c2488b656b6be9db3afcff3d3f"
+        },
+        {
+          "file": "scene-2.pgm",
+          "boot_ns": 17340046218548,
+          "capture_sequence": 1539,
+          "sha256": "2448e4824fb88aa05afd75f5784b420be9d9e207a0f8ec3536e37e5408df67cb"
+        },
+        {
+          "file": "scene-3.pgm",
+          "boot_ns": 17370032764728,
+          "capture_sequence": 1959,
+          "sha256": "037a5e9e121503ec7d6f45395668350fce979a04eef856387ceb98ad8d5ad2b0"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          12.138867417734884,
+          12.161016221797524,
+          12.192377341646933,
+          12.174643706010798,
+          12.158026867718519,
+          12.13538315850884
+        ],
+        "frame_age_linear_slope_ms_per_second": -0.04079136614081062,
+        "first_third_median_age_ms": 141.04513,
+        "last_third_median_age_ms": 140.442387
+      },
+      "captured_pairs_per_second": 14.012479528763986,
+      "encoded_frames_per_second": 4.681934301525184
+    },
+    {
+      "selection": {
+        "profile": "full",
+        "label": "full-max-3",
+        "capture": "nuvo-sgbm-max-full-max-1-capture.service",
+        "gateway": "nuvo-sgbm-max-full-browser-setup-gateway.service",
+        "binary_sha256": "3848639c5b9395192842bbb867da6e32801386819a47c47c91a9bde2ca7d9ceb",
+        "selected_boot_ns": 17230186574721,
+        "hz": 14,
+        "daemon_configuration_sha256": "c85e72473b09d31d9fb92cd7c4c14cb05d2494a40a1c5b21b5762f4989428e1a"
+      },
+      "duration_seconds": 60.015087919,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 728,
+      "delivery_fps": 12.138224492426287,
+      "capture_timestamp_fps": 12.145134558443294,
+      "frame_age_ms": {
+        "count": 728,
+        "p50": 141.44374299999998,
+        "p95": 176.030629,
+        "max": 180.645351,
+        "mean": 141.84419835576924
+      },
+      "interframe_ms": {
+        "count": 727,
+        "p50": 81.162542,
+        "p95": 86.319259,
+        "max": 93.455527,
+        "mean": 82.38437183493811
+      },
+      "delivered_capture_skips": 111,
+      "cpu_one_core_percent": {
+        "daemon": 201.51223832784333,
+        "gateway": 1.1839906007619811
+      },
+      "nuvo_cpu_four_core_percent": 50.67405723215133,
+      "whole_pi_cpu_percent": 51.8375889493512,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 59,
+            "p50": 161.203125,
+            "p95": 161.203125,
+            "max": 161.203125,
+            "mean": 161.203125
+          },
+          "pss_mib": {
+            "count": 59,
+            "p50": 143.5615234375,
+            "p95": 143.5615234375,
+            "max": 143.5615234375,
+            "mean": 143.5615234375
+          },
+          "private_mib": {
+            "count": 59,
+            "p50": 131.046875,
+            "p95": 131.046875,
+            "max": 131.046875,
+            "mean": 131.046875
+          }
+        },
+        "gateway": {
+          "rss_mib": {
+            "count": 59,
+            "p50": 35.140625,
+            "p95": 35.15625,
+            "max": 35.15625,
+            "mean": 35.11599576271186
+          },
+          "pss_mib": {
+            "count": 59,
+            "p50": 20.6513671875,
+            "p95": 20.6669921875,
+            "max": 20.6669921875,
+            "mean": 20.626737950211865
+          },
+          "private_mib": {
+            "count": 59,
+            "p50": 12.296875,
+            "p95": 12.3125,
+            "max": 12.3125,
+            "mean": 12.272245762711865
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 59,
+          "p50": 196.34375,
+          "p95": 196.359375,
+          "max": 196.359375,
+          "mean": 196.31912076271186
+        },
+        "pss_mib": {
+          "count": 59,
+          "p50": 164.212890625,
+          "p95": 164.228515625,
+          "max": 164.228515625,
+          "mean": 164.18826138771186
+        },
+        "private_mib": {
+          "count": 59,
+          "p50": 143.34375,
+          "p95": 143.359375,
+          "max": 143.359375,
+          "mean": 143.31912076271186
+        }
+      },
+      "temperature_c": {
+        "count": 59,
+        "p50": 72.15,
+        "p95": 72.7,
+        "max": 73.25,
+        "mean": 72.22457627118645
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 841,
+        "capture_sequence": 841,
+        "capture_sequence_gaps": 111,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 841,
+        "scheduler_completed": 0,
+        "scheduler_processed": 729,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 112,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 729,
+        "published_frames": 729,
+        "raw_processing_submissions": 841,
+        "encoded_frames": 280,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0,
+        "encode_failures": 0,
+        "encoding_image_pool_dropped": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 728,
+          "p50": 81.17115000000001,
+          "p95": 85.9799,
+          "max": 93.1798,
+          "mean": 82.37760137362638
+        },
+        "rectification_ms": {
+          "count": 728,
+          "p50": 3.933645,
+          "p95": 4.59186,
+          "max": 4.92906,
+          "mean": 4.019823502747252
+        },
+        "stereo_match_ms": {
+          "count": 728,
+          "p50": 73.2031,
+          "p95": 78.0615,
+          "max": 85.2707,
+          "mean": 74.45625494505495
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 1.9027822099999998,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 17380418961769,
+          "capture_sequence": 2104,
+          "sha256": "31f6b5f3b8ab65555b036959195d3dd737f5f02bfbd56d8b87fe951e6d8e0684"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 17400005223186,
+          "capture_sequence": 2378,
+          "sha256": "cf049c38657603aa4631dec90678a523878017088e3f8dfc70b4163a3850880f"
+        },
+        {
+          "file": "scene-2.pgm",
+          "boot_ns": 17430061424286,
+          "capture_sequence": 2799,
+          "sha256": "bf2d5ef3b08212a584b9f5830d82646b78d5e657dbba2f56e0e87725a504edbd"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          12.156364013825407,
+          12.150388619053839,
+          12.154336066881969,
+          12.121104482131258,
+          12.112080295774662,
+          12.12708688602713
+        ],
+        "frame_age_linear_slope_ms_per_second": -0.0119997951381643,
+        "first_third_median_age_ms": 141.752099,
+        "last_third_median_age_ms": 140.6074165
+      },
+      "captured_pairs_per_second": 14.013142847263083,
+      "encoded_frames_per_second": 4.665493456877127
+    },
+    {
+      "selection": {
+        "profile": "full",
+        "label": "full-sweep-12",
+        "capture": "nuvo-sgbm-max-full-sweep-12-capture.service",
+        "gateway": "nuvo-sgbm-max-full-browser-setup-gateway.service",
+        "binary_sha256": "3848639c5b9395192842bbb867da6e32801386819a47c47c91a9bde2ca7d9ceb",
+        "selected_boot_ns": 17180645770935,
+        "hz": 12,
+        "daemon_configuration_sha256": "5016aab0f4261377813634c633ec3ef8e741e66fab594ee5d596bb6b3d17e2d7"
+      },
+      "duration_seconds": 30.018595392,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 361,
+      "delivery_fps": 12.00475991811975,
+      "capture_timestamp_fps": 11.999521819055511,
+      "frame_age_ms": {
+        "count": 361,
+        "p50": 104.003404,
+        "p95": 107.433588,
+        "max": 117.851524,
+        "mean": 104.57185635457064
+      },
+      "interframe_ms": {
+        "count": 360,
+        "p50": 82.5927845,
+        "p95": 87.275492,
+        "max": 89.737627,
+        "mean": 83.30029145277778
+      },
+      "delivered_capture_skips": 0,
+      "cpu_one_core_percent": {
+        "daemon": 192.70285382978386,
+        "gateway": 1.067731503804533
+      },
+      "nuvo_cpu_four_core_percent": 48.4426463333971,
+      "whole_pi_cpu_percent": 49.581869877906,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 162.109375,
+            "p95": 162.109375,
+            "max": 162.109375,
+            "mean": 162.059375
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 144.58203125,
+            "p95": 144.58203125,
+            "max": 144.61328125,
+            "mean": 144.53307291666667
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 132.125,
+            "p95": 132.125,
+            "max": 132.1875,
+            "mean": 132.07708333333332
+          }
+        },
+        "gateway": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 35.125,
+            "p95": 35.125,
+            "max": 35.125,
+            "mean": 35.11666666666667
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 20.6904296875,
+            "p95": 20.6904296875,
+            "max": 20.6904296875,
+            "mean": 20.682096354166667
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 12.390625,
+            "p95": 12.390625,
+            "max": 12.390625,
+            "mean": 12.382291666666667
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 30,
+          "p50": 197.234375,
+          "p95": 197.234375,
+          "max": 197.234375,
+          "mean": 197.17604166666666
+        },
+        "pss_mib": {
+          "count": 30,
+          "p50": 165.2724609375,
+          "p95": 165.2724609375,
+          "max": 165.3037109375,
+          "mean": 165.21516927083334
+        },
+        "private_mib": {
+          "count": 30,
+          "p50": 144.515625,
+          "p95": 144.515625,
+          "max": 144.578125,
+          "mean": 144.459375
+        }
+      },
+      "temperature_c": {
+        "count": 30,
+        "p50": 69.95,
+        "p95": 70.5,
+        "max": 71.6,
+        "mean": 69.96833333333333
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 360,
+        "capture_sequence": 360,
+        "capture_sequence_gaps": 0,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 360,
+        "scheduler_completed": 0,
+        "scheduler_processed": 361,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 0,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 361,
+        "published_frames": 361,
+        "raw_processing_submissions": 360,
+        "encoded_frames": 120,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0,
+        "encode_failures": 0,
+        "encoding_image_pool_dropped": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 360,
+          "p50": 79.98935,
+          "p95": 83.2099,
+          "max": 92.9882,
+          "mean": 80.59175638888888
+        },
+        "rectification_ms": {
+          "count": 360,
+          "p50": 3.553525,
+          "p95": 4.25065,
+          "max": 4.3575,
+          "mean": 3.797559833333333
+        },
+        "stereo_match_ms": {
+          "count": 360,
+          "p50": 72.46674999999999,
+          "p95": 75.1874,
+          "max": 85.1609,
+          "mean": 73.01845944444445
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 0.9575150209999999,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 17180876710935,
+          "capture_sequence": 4,
+          "sha256": "7994af781b8dc17e9bb434b677c323a43d64b9e9468327a94aafafae16257ea0"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 17190038615524,
+          "capture_sequence": 114,
+          "sha256": "13475f6e8ccc73417585001d07bac98ef562b71240c19a47abf5475896cbc19d"
+        },
+        {
+          "file": "scene-2.pgm",
+          "boot_ns": 17220040269139,
+          "capture_sequence": 474,
+          "sha256": "62c4a97d6792410b16d102bec9fedd7ee5a4ab98693b0d1d20ad7b034664027c"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          12.016603089341539,
+          11.99897311457107,
+          11.997410414815453
+        ],
+        "frame_age_linear_slope_ms_per_second": -0.01490401406587476,
+        "first_third_median_age_ms": 104.015182,
+        "last_third_median_age_ms": 104.103647
+      },
+      "captured_pairs_per_second": 11.992566450858673,
+      "encoded_frames_per_second": 3.997522150286225
+    },
+    {
+      "selection": {
+        "profile": "full",
+        "label": "full-sweep-14-retry",
+        "capture": "nuvo-sgbm-max-full-sweep-14-retry-capture.service",
+        "gateway": "nuvo-sgbm-max-full-browser-setup-gateway.service",
+        "binary_sha256": "3848639c5b9395192842bbb867da6e32801386819a47c47c91a9bde2ca7d9ceb",
+        "selected_boot_ns": 16897510169685,
+        "hz": 14,
+        "daemon_configuration_sha256": "c85e72473b09d31d9fb92cd7c4c14cb05d2494a40a1c5b21b5762f4989428e1a"
+      },
+      "duration_seconds": 30.029845558,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 363,
+      "delivery_fps": 12.089106485871282,
+      "capture_timestamp_fps": 12.09504325080549,
+      "frame_age_ms": {
+        "count": 363,
+        "p50": 141.715156,
+        "p95": 175.013037,
+        "max": 214.918114,
+        "mean": 142.1406385922865
+      },
+      "interframe_ms": {
+        "count": 362,
+        "p50": 81.125195,
+        "p95": 86.824421,
+        "max": 122.157767,
+        "mean": 82.7190993121547
+      },
+      "delivered_capture_skips": 57,
+      "cpu_one_core_percent": {
+        "daemon": 201.89236032833546,
+        "gateway": 1.2564267081269946
+      },
+      "nuvo_cpu_four_core_percent": 50.787196759115616,
+      "whole_pi_cpu_percent": 52.31090681153364,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 160.859375,
+            "p95": 160.859375,
+            "max": 160.859375,
+            "mean": 160.85208333333333
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 143.3466796875,
+            "p95": 143.3466796875,
+            "max": 143.3466796875,
+            "mean": 143.33938802083333
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 130.890625,
+            "p95": 130.890625,
+            "max": 130.890625,
+            "mean": 130.88333333333333
+          }
+        },
+        "gateway": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 35.125,
+            "p95": 35.125,
+            "max": 35.125,
+            "mean": 35.109375
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 20.6904296875,
+            "p95": 20.6904296875,
+            "max": 20.6904296875,
+            "mean": 20.6748046875
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 12.390625,
+            "p95": 12.390625,
+            "max": 12.390625,
+            "mean": 12.375
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 30,
+          "p50": 195.984375,
+          "p95": 195.984375,
+          "max": 195.984375,
+          "mean": 195.96145833333333
+        },
+        "pss_mib": {
+          "count": 30,
+          "p50": 164.037109375,
+          "p95": 164.037109375,
+          "max": 164.037109375,
+          "mean": 164.01419270833333
+        },
+        "private_mib": {
+          "count": 30,
+          "p50": 143.28125,
+          "p95": 143.28125,
+          "max": 143.28125,
+          "mean": 143.25833333333333
+        }
+      },
+      "temperature_c": {
+        "count": 30,
+        "p50": 67.2,
+        "p95": 68.3,
+        "max": 68.3,
+        "mean": 67.31
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 421,
+        "capture_sequence": 421,
+        "capture_sequence_gaps": 57,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 421,
+        "scheduler_completed": 0,
+        "scheduler_processed": 363,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 58,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 363,
+        "published_frames": 363,
+        "raw_processing_submissions": 421,
+        "encoded_frames": 140,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0,
+        "encode_failures": 0,
+        "encoding_image_pool_dropped": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 362,
+          "p50": 81.11975000000001,
+          "p95": 86.6283,
+          "max": 121.211,
+          "mean": 82.74027651933702
+        },
+        "rectification_ms": {
+          "count": 362,
+          "p50": 4.16264,
+          "p95": 4.61926,
+          "max": 5.30882,
+          "mean": 4.162991243093923
+        },
+        "stereo_match_ms": {
+          "count": 362,
+          "p50": 72.89345,
+          "p95": 78.7194,
+          "max": 113.103,
+          "mean": 74.66766436464088
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 0.921470212,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 16897703653678,
+          "capture_sequence": 3,
+          "sha256": "3fc21e553ffa97df75704fcfc7d664dc86f118f56b254ce19c7e1ab3311efe6a"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 16920037442483,
+          "capture_sequence": 315,
+          "sha256": "e596a9fc0506463f51c8918237eecd02a633bc89bb781f4c79ab9444397dde48"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          12.131135076172464,
+          11.938306384956897,
+          12.196329087869328
+        ],
+        "frame_age_linear_slope_ms_per_second": 0.01071879239982072,
+        "first_third_median_age_ms": 141.494036,
+        "last_third_median_age_ms": 141.270893
+      },
+      "captured_pairs_per_second": 14.019386119947756,
+      "encoded_frames_per_second": 4.662028638462437
+    },
+    {
+      "selection": {
+        "profile": "full",
+        "label": "full-sweep-16",
+        "capture": "nuvo-sgbm-max-full-sweep-16-capture.service",
+        "gateway": "nuvo-sgbm-max-full-browser-setup-gateway.service",
+        "binary_sha256": "3848639c5b9395192842bbb867da6e32801386819a47c47c91a9bde2ca7d9ceb",
+        "selected_boot_ns": 16944015684775,
+        "hz": 16,
+        "daemon_configuration_sha256": "0283e88090372dc9ebf789209cc61e16a1ecde375c9f3b7dcaaf1f7f690ff857"
+      },
+      "duration_seconds": 30.030425897,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 362,
+      "delivery_fps": 12.06549370611761,
+      "capture_timestamp_fps": 12.05793433289044,
+      "frame_age_ms": {
+        "count": 362,
+        "p50": 139.3167115,
+        "p95": 168.080344,
+        "max": 171.526913,
+        "mean": 139.0223994116022
+      },
+      "interframe_ms": {
+        "count": 361,
+        "p50": 81.750742,
+        "p95": 87.083934,
+        "max": 92.028661,
+        "mean": 82.88098476177285
+      },
+      "delivered_capture_skips": 118,
+      "cpu_one_core_percent": {
+        "daemon": 202.57120964134288,
+        "gateway": 1.1385819207917314
+      },
+      "nuvo_cpu_four_core_percent": 50.92744789053365,
+      "whole_pi_cpu_percent": 52.01474407305018,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 160.171875,
+            "p95": 160.171875,
+            "max": 160.171875,
+            "mean": 160.16927083333334
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 143.34765625,
+            "p95": 143.34765625,
+            "max": 143.34765625,
+            "mean": 143.34505208333334
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 131.5,
+            "p95": 131.5,
+            "max": 131.5,
+            "mean": 131.49739583333334
+          }
+        },
+        "gateway": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 35.109375,
+            "p95": 35.109375,
+            "max": 35.109375,
+            "mean": 35.08958333333333
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 20.6748046875,
+            "p95": 20.6748046875,
+            "max": 20.6748046875,
+            "mean": 20.655013020833334
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 12.375,
+            "p95": 12.375,
+            "max": 12.375,
+            "mean": 12.355208333333334
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 30,
+          "p50": 195.28125,
+          "p95": 195.28125,
+          "max": 195.28125,
+          "mean": 195.25885416666668
+        },
+        "pss_mib": {
+          "count": 30,
+          "p50": 164.0224609375,
+          "p95": 164.0224609375,
+          "max": 164.0224609375,
+          "mean": 164.00006510416668
+        },
+        "private_mib": {
+          "count": 30,
+          "p50": 143.875,
+          "p95": 143.875,
+          "max": 143.875,
+          "mean": 143.85260416666668
+        }
+      },
+      "temperature_c": {
+        "count": 30,
+        "p50": 67.75,
+        "p95": 68.3,
+        "max": 68.85,
+        "mean": 67.97
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 482,
+        "capture_sequence": 482,
+        "capture_sequence_gaps": 119,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 482,
+        "scheduler_completed": 0,
+        "scheduler_processed": 363,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 119,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 363,
+        "published_frames": 363,
+        "raw_processing_submissions": 482,
+        "encoded_frames": 120,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0,
+        "encode_failures": 0,
+        "encoding_image_pool_dropped": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 361,
+          "p50": 81.5228,
+          "p95": 87.3158,
+          "max": 90.5047,
+          "mean": 82.87035457063712
+        },
+        "rectification_ms": {
+          "count": 361,
+          "p50": 4.04428,
+          "p95": 4.86888,
+          "max": 5.35504,
+          "mean": 4.16716163434903
+        },
+        "stereo_match_ms": {
+          "count": 361,
+          "p50": 73.3645,
+          "p95": 78.9694,
+          "max": 82.4744,
+          "mean": 74.76145429362882
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 1.0296045509999998,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 16944202867047,
+          "capture_sequence": 4,
+          "sha256": "c753fad3778019e8a3df6a98612c75404007d9bbb9fce3b559fb6fca674e961f"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 16950037001905,
+          "capture_sequence": 97,
+          "sha256": "c1fa44328712b8c41208f5fd5fbbecd228328ab430369aa84eef938f4b6306ef"
+        },
+        {
+          "file": "scene-2.pgm",
+          "boot_ns": 16980050024172,
+          "capture_sequence": 577,
+          "sha256": "cb9b4ca08b25221ebce7706214fabdaa6dcfac8cd7f75a79d7ebb1091df88139"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          12.066926354403307,
+          12.032955439611158,
+          12.107847259264668
+        ],
+        "frame_age_linear_slope_ms_per_second": -0.06402024286687114,
+        "first_third_median_age_ms": 139.208147,
+        "last_third_median_age_ms": 137.796075
+      },
+      "captured_pairs_per_second": 16.050388417839628,
+      "encoded_frames_per_second": 3.9959473239434757
+    },
+    {
+      "selection": {
+        "profile": "full",
+        "label": "full-sweep-20",
+        "capture": "nuvo-sgbm-max-full-sweep-20-capture.service",
+        "gateway": "nuvo-sgbm-max-full-browser-setup-gateway.service",
+        "binary_sha256": "3848639c5b9395192842bbb867da6e32801386819a47c47c91a9bde2ca7d9ceb",
+        "selected_boot_ns": 16990434921526,
+        "hz": 20,
+        "daemon_configuration_sha256": "c56f9bc96f60c4b04ab14e5a5c12130abc11eaf53b22849eb48b0d1c059242a9"
+      },
+      "duration_seconds": 30.004726384,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 361,
+      "delivery_fps": 12.01993047951407,
+      "capture_timestamp_fps": 12.019513078507302,
+      "frame_age_ms": {
+        "count": 361,
+        "p50": 135.660619,
+        "p95": 154.993064,
+        "max": 158.543044,
+        "mean": 133.15230171745154
+      },
+      "interframe_ms": {
+        "count": 360,
+        "p50": 82.5127425,
+        "p95": 86.309852,
+        "max": 91.100706,
+        "mean": 83.19515671944444
+      },
+      "delivered_capture_skips": 239,
+      "cpu_one_core_percent": {
+        "daemon": 205.00603542514207,
+        "gateway": 1.289500177566425
+      },
+      "nuvo_cpu_four_core_percent": 51.573883900677124,
+      "whole_pi_cpu_percent": 52.85463512496865,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 160.21875,
+            "p95": 160.21875,
+            "max": 160.21875,
+            "mean": 160.21822916666667
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 143.39453125,
+            "p95": 143.39453125,
+            "max": 143.42578125,
+            "mean": 143.39505208333333
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 131.546875,
+            "p95": 131.546875,
+            "max": 131.609375,
+            "mean": 131.5484375
+          }
+        },
+        "gateway": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 35.109375,
+            "p95": 35.140625,
+            "max": 35.140625,
+            "mean": 35.09583333333333
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 20.6748046875,
+            "p95": 20.7060546875,
+            "max": 20.7373046875,
+            "mean": 20.6623046875
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 12.375,
+            "p95": 12.40625,
+            "max": 12.46875,
+            "mean": 12.363541666666666
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 30,
+          "p50": 195.328125,
+          "p95": 195.359375,
+          "max": 195.359375,
+          "mean": 195.3140625
+        },
+        "pss_mib": {
+          "count": 30,
+          "p50": 164.0693359375,
+          "p95": 164.1005859375,
+          "max": 164.1630859375,
+          "mean": 164.05735677083334
+        },
+        "private_mib": {
+          "count": 30,
+          "p50": 143.921875,
+          "p95": 143.953125,
+          "max": 144.078125,
+          "mean": 143.91197916666667
+        }
+      },
+      "temperature_c": {
+        "count": 30,
+        "p50": 68.3,
+        "p95": 69.4,
+        "max": 69.4,
+        "mean": 68.575
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 601,
+        "capture_sequence": 601,
+        "capture_sequence_gaps": 240,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 601,
+        "scheduler_completed": 0,
+        "scheduler_processed": 361,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 240,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 361,
+        "published_frames": 361,
+        "raw_processing_submissions": 601,
+        "encoded_frames": 150,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0,
+        "encode_failures": 0,
+        "encoding_image_pool_dropped": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 360,
+          "p50": 82.34755,
+          "p95": 86.3144,
+          "max": 96.0216,
+          "mean": 83.21053277777777
+        },
+        "rectification_ms": {
+          "count": 360,
+          "p50": 4.197005000000001,
+          "p95": 4.88699,
+          "max": 5.22045,
+          "mean": 4.290172916666666
+        },
+        "stereo_match_ms": {
+          "count": 360,
+          "p50": 74.23975,
+          "p95": 78.1172,
+          "max": 88.0483,
+          "mean": 75.00281277777778
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 0.988449578,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 16990627336732,
+          "capture_sequence": 4,
+          "sha256": "77a131c208fcd9d02a14c8f4a04532a86a27839c2aeddff53d646298ccd67bb1"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 17010019730780,
+          "capture_sequence": 392,
+          "sha256": "87fa55eaced321b185b417b3b824099ad4f835ccb7229804898e05cf7312ed86"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          12.022700334619362,
+          11.99893547541755,
+          12.04171150548467
+        ],
+        "frame_age_linear_slope_ms_per_second": -0.08991921691729617,
+        "first_third_median_age_ms": 136.115341,
+        "last_third_median_age_ms": 131.827286
+      },
+      "captured_pairs_per_second": 20.030177656293603,
+      "encoded_frames_per_second": 4.999212393417705
+    },
+    {
+      "selection": {
+        "profile": "full",
+        "label": "full-sweep-30",
+        "capture": "nuvo-sgbm-max-full-sweep-30-capture.service",
+        "gateway": "nuvo-sgbm-max-full-browser-setup-gateway.service",
+        "binary_sha256": "3848639c5b9395192842bbb867da6e32801386819a47c47c91a9bde2ca7d9ceb",
+        "selected_boot_ns": 17087561051698,
+        "hz": 30,
+        "daemon_configuration_sha256": "4cb8149136b398b102e628c7ee575de00f69ef1fc719aefeff9f529aed7b4911"
+      },
+      "duration_seconds": 30.043632892,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 358,
+      "delivery_fps": 11.887559417053794,
+      "capture_timestamp_fps": 11.886397998556985,
+      "frame_age_ms": {
+        "count": 358,
+        "p50": 124.6313615,
+        "p95": 138.831632,
+        "max": 143.835511,
+        "mean": 123.71344915642459
+      },
+      "interframe_ms": {
+        "count": 357,
+        "p50": 83.45838,
+        "p95": 87.401183,
+        "max": 93.605377,
+        "mean": 84.12155640336134
+      },
+      "delivered_capture_skips": 544,
+      "cpu_one_core_percent": {
+        "daemon": 209.1565564853261,
+        "gateway": 1.2494394447881654
+      },
+      "nuvo_cpu_four_core_percent": 52.60149898252856,
+      "whole_pi_cpu_percent": 54.02692983189763,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 160.4375,
+            "p95": 160.4375,
+            "max": 160.4375,
+            "mean": 160.40729166666668
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 143.37890625,
+            "p95": 143.37890625,
+            "max": 143.37890625,
+            "mean": 143.34869791666668
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 131.328125,
+            "p95": 131.328125,
+            "max": 131.328125,
+            "mean": 131.29791666666668
+          }
+        },
+        "gateway": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 35.109375,
+            "p95": 35.109375,
+            "max": 35.109375,
+            "mean": 35.0921875
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 20.6748046875,
+            "p95": 20.6748046875,
+            "max": 20.6748046875,
+            "mean": 20.6576171875
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 12.375,
+            "p95": 12.375,
+            "max": 12.375,
+            "mean": 12.3578125
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 30,
+          "p50": 195.546875,
+          "p95": 195.546875,
+          "max": 195.546875,
+          "mean": 195.49947916666667
+        },
+        "pss_mib": {
+          "count": 30,
+          "p50": 164.0537109375,
+          "p95": 164.0537109375,
+          "max": 164.0537109375,
+          "mean": 164.00631510416667
+        },
+        "private_mib": {
+          "count": 30,
+          "p50": 143.703125,
+          "p95": 143.703125,
+          "max": 143.703125,
+          "mean": 143.65572916666667
+        }
+      },
+      "temperature_c": {
+        "count": 30,
+        "p50": 68.3,
+        "p95": 69.4,
+        "max": 69.4,
+        "mean": 68.37333333333333
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 904,
+        "capture_sequence": 904,
+        "capture_sequence_gaps": 546,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 904,
+        "scheduler_completed": 0,
+        "scheduler_processed": 358,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 546,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 358,
+        "published_frames": 358,
+        "raw_processing_submissions": 904,
+        "encoded_frames": 150,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0,
+        "encode_failures": 0,
+        "encoding_image_pool_dropped": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 357,
+          "p50": 83.468,
+          "p95": 87.4424,
+          "max": 93.2973,
+          "mean": 84.12698907563025
+        },
+        "rectification_ms": {
+          "count": 357,
+          "p50": 4.02636,
+          "p95": 4.68117,
+          "max": 5.06175,
+          "mean": 4.097372156862745
+        },
+        "stereo_match_ms": {
+          "count": 357,
+          "p50": 75.2692,
+          "p95": 79.5214,
+          "max": 85.335,
+          "mean": 76.0873299719888
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 1.091584676,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 17087755517931,
+          "capture_sequence": 6,
+          "sha256": "1e06c12f94e908fcb0021d30689b72693c0d36a0234ef92dddf9123573e145b7"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 17100026321962,
+          "capture_sequence": 374,
+          "sha256": "363452814865261525785b1650a74fc3f89f39777156f85f04b9e8f41a3b5d9d"
+        },
+        {
+          "file": "scene-2.pgm",
+          "boot_ns": 17130052978277,
+          "capture_sequence": 1275,
+          "sha256": "c731dddea61b5d5dee6624198cc19330e464ba1411c07339a6b74f9ac2d03bc3"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          11.890316368762281,
+          11.898503254837028,
+          11.87016509905018
+        ],
+        "frame_age_linear_slope_ms_per_second": -0.014200378648826235,
+        "first_third_median_age_ms": 123.821278,
+        "last_third_median_age_ms": 125.276085
+      },
+      "captured_pairs_per_second": 30.08957016781804,
+      "encoded_frames_per_second": 4.992738412801666
+    },
+    {
+      "selection": {
+        "profile": "full",
+        "label": "full-sweep-60",
+        "capture": "nuvo-sgbm-max-full-sweep-60-capture.service",
+        "gateway": "nuvo-sgbm-max-full-browser-setup-gateway.service",
+        "binary_sha256": "3848639c5b9395192842bbb867da6e32801386819a47c47c91a9bde2ca7d9ceb",
+        "selected_boot_ns": 17133934089239,
+        "hz": 60,
+        "daemon_configuration_sha256": "ad02001dce3813962c316c1edc1217f347efc235e47a8d9620dbb19c41b57a71"
+      },
+      "duration_seconds": 30.017951143,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 339,
+      "delivery_fps": 11.289166000847743,
+      "capture_timestamp_fps": 11.285418141269595,
+      "frame_age_ms": {
+        "count": 339,
+        "p50": 121.389047,
+        "p95": 129.229632,
+        "max": 137.375233,
+        "mean": 121.10089726843658
+      },
+      "interframe_ms": {
+        "count": 338,
+        "p50": 88.049729,
+        "p95": 92.114771,
+        "max": 101.797135,
+        "mean": 88.58050275147929
+      },
+      "delivered_capture_skips": 1459,
+      "cpu_one_core_percent": {
+        "daemon": 219.78704904177008,
+        "gateway": 1.5095367363394074
+      },
+      "nuvo_cpu_four_core_percent": 55.32414644452737,
+      "whole_pi_cpu_percent": 56.932227527854565,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 160.234375,
+            "p95": 160.25,
+            "max": 160.25,
+            "mean": 160.228125
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 143.41015625,
+            "p95": 143.42578125,
+            "max": 143.42578125,
+            "mean": 143.40390625
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 131.5625,
+            "p95": 131.578125,
+            "max": 131.578125,
+            "mean": 131.55625
+          }
+        },
+        "gateway": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 35.109375,
+            "p95": 35.140625,
+            "max": 35.140625,
+            "mean": 35.104166666666664
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 20.6748046875,
+            "p95": 20.7060546875,
+            "max": 20.7060546875,
+            "mean": 20.669596354166668
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 12.375,
+            "p95": 12.40625,
+            "max": 12.40625,
+            "mean": 12.369791666666666
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 30,
+          "p50": 195.34375,
+          "p95": 195.390625,
+          "max": 195.390625,
+          "mean": 195.33229166666666
+        },
+        "pss_mib": {
+          "count": 30,
+          "p50": 164.0849609375,
+          "p95": 164.1318359375,
+          "max": 164.1318359375,
+          "mean": 164.07350260416666
+        },
+        "private_mib": {
+          "count": 30,
+          "p50": 143.9375,
+          "p95": 143.984375,
+          "max": 143.984375,
+          "mean": 143.92604166666666
+        }
+      },
+      "temperature_c": {
+        "count": 30,
+        "p50": 69.95,
+        "p95": 70.5,
+        "max": 70.5,
+        "mean": 69.93166666666667
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 1808,
+        "capture_sequence": 1808,
+        "capture_sequence_gaps": 1467,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 1808,
+        "scheduler_completed": 0,
+        "scheduler_processed": 340,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 1468,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 340,
+        "published_frames": 340,
+        "raw_processing_submissions": 1808,
+        "encoded_frames": 150,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0,
+        "encode_failures": 0,
+        "encoding_image_pool_dropped": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 338,
+          "p50": 87.98595,
+          "p95": 91.9667,
+          "max": 99.0479,
+          "mean": 88.5885526627219
+        },
+        "rectification_ms": {
+          "count": 338,
+          "p50": 4.290134999999999,
+          "p95": 4.94578,
+          "max": 5.2581,
+          "mean": 4.425907218934912
+        },
+        "stereo_match_ms": {
+          "count": 338,
+          "p50": 79.6932,
+          "p95": 83.6876,
+          "max": 90.4844,
+          "mean": 80.27333786982248
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 1.073177885,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 17134131049991,
+          "capture_sequence": 13,
+          "sha256": "d5906bfbb41a419b96a92e85f2de20d5b61381843dffb84b4ef2ca2298f1cf9a"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 17160080081836,
+          "capture_sequence": 1570,
+          "sha256": "16271d1dbd4e372643961c605e4704a375b9158c6b898be905eb6658428e025c"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          11.380705370785057,
+          11.232925719346987,
+          11.252971338338025
+        ],
+        "frame_age_linear_slope_ms_per_second": 0.01783953376260429,
+        "first_third_median_age_ms": 120.93633249999999,
+        "last_third_median_age_ms": 121.638027
+      },
+      "captured_pairs_per_second": 60.230626380428845,
+      "encoded_frames_per_second": 4.997009932004605
+    },
+    {
+      "selection": {
+        "profile": "minimal",
+        "label": "minimal-max-1",
+        "capture": "nuvo-sgbm-max-minimal-max-1-capture.service",
+        "gateway": null,
+        "binary_sha256": "d1efee507a768446fc8d314062ad579d1badf589c52d3a51b01dd048b7c512ab",
+        "selected_boot_ns": 17478608067728,
+        "hz": 20,
+        "daemon_configuration_sha256": "c56f9bc96f60c4b04ab14e5a5c12130abc11eaf53b22849eb48b0d1c059242a9"
+      },
+      "duration_seconds": 60.033518546,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 741,
+      "delivery_fps": 12.329826654804274,
+      "capture_timestamp_fps": 12.332783188429936,
+      "frame_age_ms": {
+        "count": 741,
+        "p50": 130.014723,
+        "p95": 152.105941,
+        "max": 155.152182,
+        "mean": 129.88901848852902
+      },
+      "interframe_ms": {
+        "count": 740,
+        "p50": 81.0447005,
+        "p95": 82.193241,
+        "max": 84.222203,
+        "mean": 81.10414103918919
+      },
+      "delivered_capture_skips": 460,
+      "cpu_one_core_percent": {
+        "daemon": 197.4889792760607
+      },
+      "nuvo_cpu_four_core_percent": 49.37224481901517,
+      "whole_pi_cpu_percent": 50.373461297725854,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 59,
+            "p50": 138.359375,
+            "p95": 138.359375,
+            "max": 138.359375,
+            "mean": 138.23675847457628
+          },
+          "pss_mib": {
+            "count": 59,
+            "p50": 129.6875,
+            "p95": 129.6875,
+            "max": 129.6875,
+            "mean": 129.56488347457628
+          },
+          "private_mib": {
+            "count": 59,
+            "p50": 124.265625,
+            "p95": 124.265625,
+            "max": 124.265625,
+            "mean": 124.14300847457628
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 59,
+          "p50": 138.359375,
+          "p95": 138.359375,
+          "max": 138.359375,
+          "mean": 138.23675847457628
+        },
+        "pss_mib": {
+          "count": 59,
+          "p50": 129.6875,
+          "p95": 129.6875,
+          "max": 129.6875,
+          "mean": 129.56488347457628
+        },
+        "private_mib": {
+          "count": 59,
+          "p50": 124.265625,
+          "p95": 124.265625,
+          "max": 124.265625,
+          "mean": 124.14300847457628
+        }
+      },
+      "temperature_c": {
+        "count": 59,
+        "p50": 71.05,
+        "p95": 72.15,
+        "max": 72.7,
+        "mean": 71.16186440677966
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 1202,
+        "capture_sequence": 1202,
+        "capture_sequence_gaps": 460,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 1202,
+        "scheduler_completed": 0,
+        "scheduler_processed": 741,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 461,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 741,
+        "published_frames": 741,
+        "raw_processing_submissions": 1202,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 740,
+          "p50": 81.04724999999999,
+          "p95": 82.2072,
+          "max": 84.3639,
+          "mean": 81.0870718918919
+        },
+        "rectification_ms": {
+          "count": 740,
+          "p50": 4.17459,
+          "p95": 4.8029,
+          "max": 5.24018,
+          "mean": 4.242043824324324
+        },
+        "stereo_match_ms": {
+          "count": 740,
+          "p50": 72.9114,
+          "p95": 74.2174,
+          "max": 75.9893,
+          "mean": 73.03062837837838
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 1.663056886,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 17478791646345,
+          "capture_sequence": 4,
+          "sha256": "308d76bd58882a9f7d911f02a9f09629d904950870284b45fdfe22e13ff3a962"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 17490020571177,
+          "capture_sequence": 229,
+          "sha256": "5423861f00b2c7a80a411d77debc1e71f6a01f74a7e366893b15d34f1b474f63"
+        },
+        {
+          "file": "scene-2.pgm",
+          "boot_ns": 17520022933516,
+          "capture_sequence": 829,
+          "sha256": "92fab7c117ecce1634fd49533c38d0809a26f9dc443bdadbecc614f6dcbc17c9"
+        },
+        {
+          "file": "scene-3.pgm",
+          "boot_ns": 17550013841204,
+          "capture_sequence": 1428,
+          "sha256": "1a16179d408d815e7a1f58c52eab5942a96002d533227e5d5359a34c6ef06cf4"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          12.308312981662068,
+          12.328644709092886,
+          12.327718713792335,
+          12.34063664282945,
+          12.337384176469229,
+          12.336379190074195
+        ],
+        "frame_age_linear_slope_ms_per_second": 0.0028132655545924402,
+        "first_third_median_age_ms": 129.902936,
+        "last_third_median_age_ms": 129.630831
+      },
+      "captured_pairs_per_second": 20.0221481117916,
+      "encoded_frames_per_second": null
+    },
+    {
+      "selection": {
+        "profile": "minimal",
+        "label": "minimal-max-2",
+        "capture": "nuvo-sgbm-max-minimal-max-1-capture.service",
+        "gateway": null,
+        "binary_sha256": "d1efee507a768446fc8d314062ad579d1badf589c52d3a51b01dd048b7c512ab",
+        "selected_boot_ns": 17478608067728,
+        "hz": 20,
+        "daemon_configuration_sha256": "c56f9bc96f60c4b04ab14e5a5c12130abc11eaf53b22849eb48b0d1c059242a9"
+      },
+      "duration_seconds": 60.02569887,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 740,
+      "delivery_fps": 12.340688942134973,
+      "capture_timestamp_fps": 12.33667552069368,
+      "frame_age_ms": {
+        "count": 740,
+        "p50": 129.9629135,
+        "p95": 151.55268,
+        "max": 154.831372,
+        "mean": 129.41887622027028
+      },
+      "interframe_ms": {
+        "count": 739,
+        "p50": 81.011593,
+        "p95": 82.100745,
+        "max": 83.258358,
+        "mean": 81.03275308930988
+      },
+      "delivered_capture_skips": 459,
+      "cpu_one_core_percent": {
+        "daemon": 197.40451378438073
+      },
+      "nuvo_cpu_four_core_percent": 49.35112844609518,
+      "whole_pi_cpu_percent": 50.24871462609204,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 59,
+            "p50": 138.625,
+            "p95": 138.625,
+            "max": 138.625,
+            "mean": 138.625
+          },
+          "pss_mib": {
+            "count": 59,
+            "p50": 129.89453125,
+            "p95": 129.89453125,
+            "max": 129.89453125,
+            "mean": 129.89453125
+          },
+          "private_mib": {
+            "count": 59,
+            "p50": 124.46875,
+            "p95": 124.46875,
+            "max": 124.46875,
+            "mean": 124.46875
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 59,
+          "p50": 138.625,
+          "p95": 138.625,
+          "max": 138.625,
+          "mean": 138.625
+        },
+        "pss_mib": {
+          "count": 59,
+          "p50": 129.89453125,
+          "p95": 129.89453125,
+          "max": 129.89453125,
+          "mean": 129.89453125
+        },
+        "private_mib": {
+          "count": 59,
+          "p50": 124.46875,
+          "p95": 124.46875,
+          "max": 124.46875,
+          "mean": 124.46875
+        }
+      },
+      "temperature_c": {
+        "count": 59,
+        "p50": 72.15,
+        "p95": 73.25,
+        "max": 73.8,
+        "mean": 72.40169491525424
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 1201,
+        "capture_sequence": 1201,
+        "capture_sequence_gaps": 460,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 1201,
+        "scheduler_completed": 0,
+        "scheduler_processed": 741,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 460,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 741,
+        "published_frames": 741,
+        "raw_processing_submissions": 1201,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 740,
+          "p50": 80.9587,
+          "p95": 82.0782,
+          "max": 87.2098,
+          "mean": 80.99505743243243
+        },
+        "rectification_ms": {
+          "count": 740,
+          "p50": 4.17317,
+          "p95": 4.82362,
+          "max": 5.19703,
+          "mean": 4.233326743243243
+        },
+        "stereo_match_ms": {
+          "count": 740,
+          "p50": 72.87440000000001,
+          "p95": 74.0699,
+          "max": 78.9577,
+          "mean": 73.00276432432432
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 1.662342945,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 17553753180386,
+          "capture_sequence": 1503,
+          "sha256": "6fd8cbcfbc778a45f2ec5f23bf9db6b9e24eaa4cd6a754a3ca09515c4bdcee33"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 17580057887038,
+          "capture_sequence": 2029,
+          "sha256": "bce17dea5c5fb1eededa53d09eaceb31a964205b2f0877bc8b4158e733219bd4"
+        },
+        {
+          "file": "scene-2.pgm",
+          "boot_ns": 17610039103504,
+          "capture_sequence": 2629,
+          "sha256": "68e2205df1584184739b780fc8c3fe0cc121bfff17a1ec675b6470ad15f7655a"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          12.350996214771211,
+          12.348754302030429,
+          12.34896960433557,
+          12.33101757345519,
+          12.328293299977881,
+          12.334353123786203
+        ],
+        "frame_age_linear_slope_ms_per_second": 0.001746484500702931,
+        "first_third_median_age_ms": 130.043053,
+        "last_third_median_age_ms": 130.032375
+      },
+      "captured_pairs_per_second": 20.00809690864329,
+      "encoded_frames_per_second": null
+    },
+    {
+      "selection": {
+        "profile": "minimal",
+        "label": "minimal-max-3",
+        "capture": "nuvo-sgbm-max-minimal-max-1-capture.service",
+        "gateway": null,
+        "binary_sha256": "d1efee507a768446fc8d314062ad579d1badf589c52d3a51b01dd048b7c512ab",
+        "selected_boot_ns": 17478608067728,
+        "hz": 20,
+        "daemon_configuration_sha256": "c56f9bc96f60c4b04ab14e5a5c12130abc11eaf53b22849eb48b0d1c059242a9"
+      },
+      "duration_seconds": 60.018757778,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 742,
+      "delivery_fps": 12.367618835793886,
+      "capture_timestamp_fps": 12.370060836910739,
+      "frame_age_ms": {
+        "count": 742,
+        "p50": 129.6976195,
+        "p95": 151.925269,
+        "max": 153.913725,
+        "mean": 129.3934243787062
+      },
+      "interframe_ms": {
+        "count": 741,
+        "p50": 80.812467,
+        "p95": 81.87821,
+        "max": 86.384293,
+        "mean": 80.85630817678812
+      },
+      "delivered_capture_skips": 457,
+      "cpu_one_core_percent": {
+        "daemon": 197.36694224521372
+      },
+      "nuvo_cpu_four_core_percent": 49.34173556130343,
+      "whole_pi_cpu_percent": 50.36334781156031,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 59,
+            "p50": 138.625,
+            "p95": 138.625,
+            "max": 138.625,
+            "mean": 138.5863347457627
+          },
+          "pss_mib": {
+            "count": 59,
+            "p50": 129.89453125,
+            "p95": 129.89453125,
+            "max": 129.89453125,
+            "mean": 129.8558659957627
+          },
+          "private_mib": {
+            "count": 59,
+            "p50": 124.46875,
+            "p95": 124.46875,
+            "max": 124.46875,
+            "mean": 124.43008474576271
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 59,
+          "p50": 138.625,
+          "p95": 138.625,
+          "max": 138.625,
+          "mean": 138.5863347457627
+        },
+        "pss_mib": {
+          "count": 59,
+          "p50": 129.89453125,
+          "p95": 129.89453125,
+          "max": 129.89453125,
+          "mean": 129.8558659957627
+        },
+        "private_mib": {
+          "count": 59,
+          "p50": 124.46875,
+          "p95": 124.46875,
+          "max": 124.46875,
+          "mean": 124.43008474576271
+        }
+      },
+      "temperature_c": {
+        "count": 59,
+        "p50": 73.25,
+        "p95": 73.8,
+        "max": 74.35,
+        "mean": 73.0449152542373
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 1202,
+        "capture_sequence": 1202,
+        "capture_sequence_gaps": 459,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 1202,
+        "scheduler_completed": 0,
+        "scheduler_processed": 743,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 459,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 743,
+        "published_frames": 743,
+        "raw_processing_submissions": 1202,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 741,
+          "p50": 80.7971,
+          "p95": 81.8815,
+          "max": 85.3904,
+          "mean": 80.8419085020243
+        },
+        "rectification_ms": {
+          "count": 741,
+          "p50": 4.1319,
+          "p95": 4.76782,
+          "max": 5.10131,
+          "mean": 4.192333873144399
+        },
+        "stereo_match_ms": {
+          "count": 741,
+          "p50": 72.7833,
+          "p95": 73.9325,
+          "max": 77.5251,
+          "mean": 72.89879176788124
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 1.636768339,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 17628856505540,
+          "capture_sequence": 3005,
+          "sha256": "da4cd3f5cea6f61d452653719b3c5ea7136a55f6154b95b8ef14f0ecfcf64e62"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 17640025754909,
+          "capture_sequence": 3229,
+          "sha256": "e8d4c890d43e6178dd188b45882cdcd3b4707b378ce06fa116f0d3a8de25503e"
+        },
+        {
+          "file": "scene-2.pgm",
+          "boot_ns": 17670008468181,
+          "capture_sequence": 3828,
+          "sha256": "34ef9432b9e38a19c56681e81a6b5648102371268324f275def145feb6a99293"
+        },
+        {
+          "file": "scene-3.pgm",
+          "boot_ns": 17700004419427,
+          "capture_sequence": 4428,
+          "sha256": "4f301b42ad3b19b3e06ec695a4be1e35f5e48d394e93942d723d177d06a8e106"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          12.364016411093917,
+          12.36525075308132,
+          12.367522127689027,
+          12.366493505280387,
+          12.360724573639382,
+          12.3808416701324
+        ],
+        "frame_age_linear_slope_ms_per_second": -0.00550603164288481,
+        "first_third_median_age_ms": 128.986137,
+        "last_third_median_age_ms": 129.54058600000002
+      },
+      "captured_pairs_per_second": 20.027072277070612,
+      "encoded_frames_per_second": null
+    },
+    {
+      "selection": {
+        "profile": "minimal",
+        "label": "minimal-sweep-12",
+        "capture": "nuvo-sgbm-max-minimal-sweep-12-capture.service",
+        "gateway": null,
+        "binary_sha256": "d1efee507a768446fc8d314062ad579d1badf589c52d3a51b01dd048b7c512ab",
+        "selected_boot_ns": 16638581048504,
+        "hz": 12,
+        "daemon_configuration_sha256": "5016aab0f4261377813634c633ec3ef8e741e66fab594ee5d596bb6b3d17e2d7"
+      },
+      "duration_seconds": 30.013739582,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 360,
+      "delivery_fps": 12.002131624579125,
+      "capture_timestamp_fps": 11.999543415701787,
+      "frame_age_ms": {
+        "count": 360,
+        "p50": 100.52556000000001,
+        "p95": 102.058282,
+        "max": 107.293429,
+        "mean": 100.703432575
+      },
+      "interframe_ms": {
+        "count": 359,
+        "p50": 83.274652,
+        "p95": 84.610715,
+        "max": 86.327061,
+        "mean": 83.31853301392758
+      },
+      "delivered_capture_skips": 0,
+      "cpu_one_core_percent": {
+        "daemon": 182.9796178845249
+      },
+      "nuvo_cpu_four_core_percent": 45.74490447113123,
+      "whole_pi_cpu_percent": 46.558772003003256,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 139.5,
+            "p95": 139.5,
+            "max": 139.5,
+            "mean": 139.35729166666667
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 130.828125,
+            "p95": 130.828125,
+            "max": 130.828125,
+            "mean": 130.68541666666667
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 125.40625,
+            "p95": 125.40625,
+            "max": 125.40625,
+            "mean": 125.26354166666667
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 30,
+          "p50": 139.5,
+          "p95": 139.5,
+          "max": 139.5,
+          "mean": 139.35729166666667
+        },
+        "pss_mib": {
+          "count": 30,
+          "p50": 130.828125,
+          "p95": 130.828125,
+          "max": 130.828125,
+          "mean": 130.68541666666667
+        },
+        "private_mib": {
+          "count": 30,
+          "p50": 125.40625,
+          "p95": 125.40625,
+          "max": 125.40625,
+          "mean": 125.26354166666667
+        }
+      },
+      "temperature_c": {
+        "count": 30,
+        "p50": 65.55,
+        "p95": 66.1,
+        "max": 66.65,
+        "mean": 65.44
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 360,
+        "capture_sequence": 360,
+        "capture_sequence_gaps": 0,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 360,
+        "scheduler_completed": 0,
+        "scheduler_processed": 360,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 0,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 360,
+        "published_frames": 360,
+        "raw_processing_submissions": 360,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 360,
+          "p50": 78.44415000000001,
+          "p95": 79.549,
+          "max": 84.6401,
+          "mean": 78.56030444444444
+        },
+        "rectification_ms": {
+          "count": 360,
+          "p50": 3.57851,
+          "p95": 3.68293,
+          "max": 3.98072,
+          "mean": 3.5931806666666666
+        },
+        "stereo_match_ms": {
+          "count": 360,
+          "p50": 71.34735,
+          "p95": 72.2057,
+          "max": 77.6552,
+          "mean": 71.42233138888889
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 0.771247366,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 16638820848739,
+          "capture_sequence": 4,
+          "sha256": "30d0f2eb00cebd11e33640273cff4b7a09b79326ebbf169f26bdd709f87a5134"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 16650069975575,
+          "capture_sequence": 139,
+          "sha256": "c2950d48fc085e9ff9dcf349cc063971fb346da6bf5f120b71e892c2d85b725e"
+        },
+        {
+          "file": "scene-2.pgm",
+          "boot_ns": 16680072292855,
+          "capture_sequence": 499,
+          "sha256": "62d87f32337858e06242d8a094d7d9c9bb902a9683e1de13754f5558ae142126"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          12.00867002318594,
+          11.998234544681821,
+          12.000034544641817
+        ],
+        "frame_age_linear_slope_ms_per_second": 0.012671219118091081,
+        "first_third_median_age_ms": 100.314297,
+        "last_third_median_age_ms": 100.78500199999999
+      },
+      "captured_pairs_per_second": 11.994506683062617,
+      "encoded_frames_per_second": null
+    },
+    {
+      "selection": {
+        "profile": "minimal",
+        "label": "minimal-sweep-14",
+        "capture": "nuvo-sgbm-max-minimal-sweep-14-capture.service",
+        "gateway": null,
+        "binary_sha256": "d1efee507a768446fc8d314062ad579d1badf589c52d3a51b01dd048b7c512ab",
+        "selected_boot_ns": 16684805923377,
+        "hz": 14,
+        "daemon_configuration_sha256": "c85e72473b09d31d9fb92cd7c4c14cb05d2494a40a1c5b21b5762f4989428e1a"
+      },
+      "duration_seconds": 30.00224243,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 371,
+      "delivery_fps": 12.369602658019321,
+      "capture_timestamp_fps": 12.36234218739316,
+      "frame_age_ms": {
+        "count": 371,
+        "p50": 139.766886,
+        "p95": 172.901686,
+        "max": 198.45082,
+        "mean": 140.18987830997304
+      },
+      "interframe_ms": {
+        "count": 370,
+        "p50": 80.481922,
+        "p95": 81.683087,
+        "max": 128.493916,
+        "mean": 80.84334053783783
+      },
+      "delivered_capture_skips": 49,
+      "cpu_one_core_percent": {
+        "daemon": 195.28505289796104
+      },
+      "nuvo_cpu_four_core_percent": 48.82126322449026,
+      "whole_pi_cpu_percent": 50.008354218880534,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 138.328125,
+            "p95": 138.34375,
+            "max": 138.34375,
+            "mean": 138.32708333333332
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 129.6708984375,
+            "p95": 129.6865234375,
+            "max": 129.6865234375,
+            "mean": 129.66985677083332
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 124.25,
+            "p95": 124.265625,
+            "max": 124.265625,
+            "mean": 124.24895833333333
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 30,
+          "p50": 138.328125,
+          "p95": 138.34375,
+          "max": 138.34375,
+          "mean": 138.32708333333332
+        },
+        "pss_mib": {
+          "count": 30,
+          "p50": 129.6708984375,
+          "p95": 129.6865234375,
+          "max": 129.6865234375,
+          "mean": 129.66985677083332
+        },
+        "private_mib": {
+          "count": 30,
+          "p50": 124.25,
+          "p95": 124.265625,
+          "max": 124.265625,
+          "mean": 124.24895833333333
+        }
+      },
+      "temperature_c": {
+        "count": 30,
+        "p50": 66.65,
+        "p95": 66.65,
+        "max": 67.2,
+        "mean": 66.265
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 420,
+        "capture_sequence": 420,
+        "capture_sequence_gaps": 49,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 420,
+        "scheduler_completed": 0,
+        "scheduler_processed": 371,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 49,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 371,
+        "published_frames": 371,
+        "raw_processing_submissions": 420,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 370,
+          "p50": 80.45765,
+          "p95": 81.6759,
+          "max": 128.492,
+          "mean": 80.8454827027027
+        },
+        "rectification_ms": {
+          "count": 370,
+          "p50": 3.96062,
+          "p95": 4.51315,
+          "max": 5.1137,
+          "mean": 4.017488081081081
+        },
+        "stereo_match_ms": {
+          "count": 370,
+          "p50": 72.62944999999999,
+          "p95": 73.6862,
+          "max": 120.702,
+          "mean": 72.99937675675676
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 0.8674239129999999,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 16685020786313,
+          "capture_sequence": 4,
+          "sha256": "798d04113d05225e7429ea41bcf8ccbda2dcb6489afbfd3c00637cce9738317e"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 16710000856834,
+          "capture_sequence": 353,
+          "sha256": "782fecd8821be40cc30105314668f46d0b4471f2d0abb31fbc5e54469bd6157a"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          12.279746873040239,
+          12.418032738052238,
+          12.415671780667136
+        ],
+        "frame_age_linear_slope_ms_per_second": -0.054692765827807556,
+        "first_third_median_age_ms": 141.404904,
+        "last_third_median_age_ms": 139.384445
+      },
+      "captured_pairs_per_second": 13.998953610881813,
+      "encoded_frames_per_second": null
+    },
+    {
+      "selection": {
+        "profile": "minimal",
+        "label": "minimal-sweep-16",
+        "capture": "nuvo-sgbm-max-minimal-sweep-16-capture.service",
+        "gateway": null,
+        "binary_sha256": "d1efee507a768446fc8d314062ad579d1badf589c52d3a51b01dd048b7c512ab",
+        "selected_boot_ns": 16731011423886,
+        "hz": 16,
+        "daemon_configuration_sha256": "0283e88090372dc9ebf789209cc61e16a1ecde375c9f3b7dcaaf1f7f690ff857"
+      },
+      "duration_seconds": 30.002501179,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 373,
+      "delivery_fps": 12.422972071317378,
+      "capture_timestamp_fps": 12.399473642343883,
+      "frame_age_ms": {
+        "count": 373,
+        "p50": 136.088289,
+        "p95": 164.869936,
+        "max": 166.663041,
+        "mean": 135.58159977479892
+      },
+      "interframe_ms": {
+        "count": 372,
+        "p50": 80.38861349999999,
+        "p95": 81.631059,
+        "max": 83.970377,
+        "mean": 80.49603543010753
+      },
+      "delivered_capture_skips": 108,
+      "cpu_one_core_percent": {
+        "daemon": 195.03652595790135
+      },
+      "nuvo_cpu_four_core_percent": 48.75913148947534,
+      "whole_pi_cpu_percent": 49.594718810061,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 138.328125,
+            "p95": 138.328125,
+            "max": 138.328125,
+            "mean": 138.31302083333333
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 129.6708984375,
+            "p95": 129.6708984375,
+            "max": 129.6708984375,
+            "mean": 129.65579427083333
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 124.25,
+            "p95": 124.25,
+            "max": 124.25,
+            "mean": 124.23489583333334
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 30,
+          "p50": 138.328125,
+          "p95": 138.328125,
+          "max": 138.328125,
+          "mean": 138.31302083333333
+        },
+        "pss_mib": {
+          "count": 30,
+          "p50": 129.6708984375,
+          "p95": 129.6708984375,
+          "max": 129.6708984375,
+          "mean": 129.65579427083333
+        },
+        "private_mib": {
+          "count": 30,
+          "p50": 124.25,
+          "p95": 124.25,
+          "max": 124.25,
+          "mean": 124.23489583333334
+        }
+      },
+      "temperature_c": {
+        "count": 30,
+        "p50": 66.65,
+        "p95": 67.75,
+        "max": 67.75,
+        "mean": 66.87
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 481,
+        "capture_sequence": 481,
+        "capture_sequence_gaps": 108,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 481,
+        "scheduler_completed": 0,
+        "scheduler_processed": 373,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 108,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 373,
+        "published_frames": 373,
+        "raw_processing_submissions": 481,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 372,
+          "p50": 80.36605,
+          "p95": 81.6056,
+          "max": 87.6695,
+          "mean": 80.49617849462365
+        },
+        "rectification_ms": {
+          "count": 372,
+          "p50": 4.05054,
+          "p95": 4.41515,
+          "max": 4.76346,
+          "mean": 4.098061209677419
+        },
+        "stereo_match_ms": {
+          "count": 372,
+          "p50": 72.38024999999999,
+          "p95": 73.4767,
+          "max": 79.509,
+          "mean": 72.49533413978494
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 0.8816882340000001,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 16731208070065,
+          "capture_sequence": 3,
+          "sha256": "7cec9c8a9810a2abc4323ab25b990f240634ad5b9e6d8c857f86e3b52ac20007"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 16740036153196,
+          "capture_sequence": 144,
+          "sha256": "abba9008dd9ff55cbe942af5aabab6f514eccf40331e95d7551549b041446bff"
+        },
+        {
+          "file": "scene-2.pgm",
+          "boot_ns": 16770044223408,
+          "capture_sequence": 624,
+          "sha256": "962a327fdc78562fb9541018acede7d2a94aa325cef211a0d206071853080eb1"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          12.430840441520392,
+          12.421955949943523,
+          12.416753411182789
+        ],
+        "frame_age_linear_slope_ms_per_second": -0.030741291266806046,
+        "first_third_median_age_ms": 137.595307,
+        "last_third_median_age_ms": 135.560071
+      },
+      "captured_pairs_per_second": 16.03199670355057,
+      "encoded_frames_per_second": null
+    },
+    {
+      "selection": {
+        "profile": "minimal",
+        "label": "minimal-sweep-20",
+        "capture": "nuvo-sgbm-max-minimal-sweep-20-capture.service",
+        "gateway": null,
+        "binary_sha256": "d1efee507a768446fc8d314062ad579d1badf589c52d3a51b01dd048b7c512ab",
+        "selected_boot_ns": 16490742666367,
+        "hz": 20,
+        "daemon_configuration_sha256": "c56f9bc96f60c4b04ab14e5a5c12130abc11eaf53b22849eb48b0d1c059242a9"
+      },
+      "duration_seconds": 30.02098067,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 374,
+      "delivery_fps": 12.458645541469663,
+      "capture_timestamp_fps": 12.453584314346632,
+      "frame_age_ms": {
+        "count": 374,
+        "p50": 128.9862925,
+        "p95": 150.979297,
+        "max": 153.772118,
+        "mean": 128.88027639037432
+      },
+      "interframe_ms": {
+        "count": 373,
+        "p50": 80.216518,
+        "p95": 81.427453,
+        "max": 83.486234,
+        "mean": 80.26554705898123
+      },
+      "delivered_capture_skips": 226,
+      "cpu_one_core_percent": {
+        "daemon": 197.7574272226464
+      },
+      "nuvo_cpu_four_core_percent": 49.4393568056616,
+      "whole_pi_cpu_percent": 50.26755852842809,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 138.34375,
+            "p95": 138.34375,
+            "max": 138.34375,
+            "mean": 138.34375
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 129.671875,
+            "p95": 129.671875,
+            "max": 129.671875,
+            "mean": 129.671875
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 124.25,
+            "p95": 124.25,
+            "max": 124.25,
+            "mean": 124.25
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 30,
+          "p50": 138.34375,
+          "p95": 138.34375,
+          "max": 138.34375,
+          "mean": 138.34375
+        },
+        "pss_mib": {
+          "count": 30,
+          "p50": 129.671875,
+          "p95": 129.671875,
+          "max": 129.671875,
+          "mean": 129.671875
+        },
+        "private_mib": {
+          "count": 30,
+          "p50": 124.25,
+          "p95": 124.25,
+          "max": 124.25,
+          "mean": 124.25
+        }
+      },
+      "temperature_c": {
+        "count": 30,
+        "p50": 59.5,
+        "p95": 60.6,
+        "max": 60.6,
+        "mean": 59.555
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 601,
+        "capture_sequence": 601,
+        "capture_sequence_gaps": 226,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 601,
+        "scheduler_completed": 0,
+        "scheduler_processed": 374,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 227,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 374,
+        "published_frames": 374,
+        "raw_processing_submissions": 601,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 374,
+          "p50": 80.20145,
+          "p95": 81.4144,
+          "max": 86.5978,
+          "mean": 80.2641
+        },
+        "rectification_ms": {
+          "count": 374,
+          "p50": 4.074615,
+          "p95": 4.66312,
+          "max": 4.8497,
+          "mean": 4.143993609625668
+        },
+        "stereo_match_ms": {
+          "count": 374,
+          "p50": 72.30369999999999,
+          "p95": 73.6605,
+          "max": 78.9193,
+          "mean": 72.4703524064171
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 0.873875824,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 16490940109635,
+          "capture_sequence": 4,
+          "sha256": "1f9102f67132a27d2ebc721aa72db4ddf927e5b7c6e7b3adf9d50ccd26adf44d"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 16500077496204,
+          "capture_sequence": 187,
+          "sha256": "12951bcb140b3a27f3f8b341d18235d03c039bfdd1411dd439b5cd85ade24dd1"
+        },
+        {
+          "file": "scene-2.pgm",
+          "boot_ns": 16530030850919,
+          "capture_sequence": 786,
+          "sha256": "839cdf98b9434492bd0f83e0944a29a16684cb955f97badadbe1257c4294be1c"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          12.461284593894387,
+          12.459256377827728,
+          12.454142264834136
+        ],
+        "frame_age_linear_slope_ms_per_second": -0.024285734859919042,
+        "first_third_median_age_ms": 129.426837,
+        "last_third_median_age_ms": 128.615348
+      },
+      "captured_pairs_per_second": 20.019332699567006,
+      "encoded_frames_per_second": null
+    },
+    {
+      "selection": {
+        "profile": "minimal",
+        "label": "minimal-sweep-30",
+        "capture": "nuvo-sgbm-max-minimal-sweep-30-capture.service",
+        "gateway": null,
+        "binary_sha256": "d1efee507a768446fc8d314062ad579d1badf589c52d3a51b01dd048b7c512ab",
+        "selected_boot_ns": 16536785685742,
+        "hz": 30,
+        "daemon_configuration_sha256": "4cb8149136b398b102e628c7ee575de00f69ef1fc719aefeff9f529aed7b4911"
+      },
+      "duration_seconds": 30.005238437,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 367,
+      "delivery_fps": 12.23890259127925,
+      "capture_timestamp_fps": 12.226789711376941,
+      "frame_age_ms": {
+        "count": 367,
+        "p50": 121.450481,
+        "p95": 136.427547,
+        "max": 139.202492,
+        "mean": 121.42818197820164
+      },
+      "interframe_ms": {
+        "count": 366,
+        "p50": 81.60776200000001,
+        "p95": 82.917559,
+        "max": 84.544981,
+        "mean": 81.7066720273224
+      },
+      "delivered_capture_skips": 532,
+      "cpu_one_core_percent": {
+        "daemon": 201.31174137084898
+      },
+      "nuvo_cpu_four_core_percent": 50.327935342712244,
+      "whole_pi_cpu_percent": 51.281836461126005,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 138.375,
+            "p95": 138.375,
+            "max": 138.375,
+            "mean": 138.29739583333333
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 129.703125,
+            "p95": 129.703125,
+            "max": 129.703125,
+            "mean": 129.62552083333333
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 124.28125,
+            "p95": 124.28125,
+            "max": 124.28125,
+            "mean": 124.20364583333334
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 30,
+          "p50": 138.375,
+          "p95": 138.375,
+          "max": 138.375,
+          "mean": 138.29739583333333
+        },
+        "pss_mib": {
+          "count": 30,
+          "p50": 129.703125,
+          "p95": 129.703125,
+          "max": 129.703125,
+          "mean": 129.62552083333333
+        },
+        "private_mib": {
+          "count": 30,
+          "p50": 124.28125,
+          "p95": 124.28125,
+          "max": 124.28125,
+          "mean": 124.20364583333334
+        }
+      },
+      "temperature_c": {
+        "count": 30,
+        "p50": 61.7,
+        "p95": 62.8,
+        "max": 63.35,
+        "mean": 61.865
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 900,
+        "capture_sequence": 900,
+        "capture_sequence_gaps": 533,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 900,
+        "scheduler_completed": 0,
+        "scheduler_processed": 367,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 533,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 367,
+        "published_frames": 367,
+        "raw_processing_submissions": 900,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 367,
+          "p50": 81.6222,
+          "p95": 82.8392,
+          "max": 92.067,
+          "mean": 81.7167629427793
+        },
+        "rectification_ms": {
+          "count": 367,
+          "p50": 4.14553,
+          "p95": 4.75863,
+          "max": 4.9539,
+          "mean": 4.189583514986376
+        },
+        "stereo_match_ms": {
+          "count": 367,
+          "p50": 73.5713,
+          "p95": 74.8185,
+          "max": 84.3001,
+          "mean": 73.72916539509536
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 0.8991998859999999,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 16536980094253,
+          "capture_sequence": 6,
+          "sha256": "3a069ccac5c1c709a3e421dad8e879f3e06eebdfec4159f0686df9f4e48c7649"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 16560056909419,
+          "capture_sequence": 698,
+          "sha256": "5dfa2d0dc49fb87b5418d542d795e2ff3ed361abf0877dfa948a6f79d53f7624"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          12.215207957115505,
+          12.25053385437177,
+          12.250044984696185
+        ],
+        "frame_age_linear_slope_ms_per_second": -0.030008900631540693,
+        "first_third_median_age_ms": 121.381168,
+        "last_third_median_age_ms": 120.528141
+      },
+      "captured_pairs_per_second": 29.994762477547713,
+      "encoded_frames_per_second": null
+    },
+    {
+      "selection": {
+        "profile": "minimal",
+        "label": "minimal-sweep-60",
+        "capture": "nuvo-sgbm-max-minimal-sweep-60-capture.service",
+        "gateway": null,
+        "binary_sha256": "d1efee507a768446fc8d314062ad579d1badf589c52d3a51b01dd048b7c512ab",
+        "selected_boot_ns": 16582660125585,
+        "hz": 60,
+        "daemon_configuration_sha256": "ad02001dce3813962c316c1edc1217f347efc235e47a8d9620dbb19c41b57a71"
+      },
+      "duration_seconds": 30.010256452,
+      "products": [
+        "depth",
+        "validity",
+        "left_mono"
+      ],
+      "requested_hz": 60,
+      "frames": 353,
+      "delivery_fps": 11.766664849966041,
+      "capture_timestamp_fps": 11.765982562245599,
+      "frame_age_ms": {
+        "count": 353,
+        "p50": 114.561685,
+        "p95": 124.448887,
+        "max": 188.229905,
+        "mean": 116.06489629461757
+      },
+      "interframe_ms": {
+        "count": 352,
+        "p50": 84.3932845,
+        "p95": 86.649747,
+        "max": 152.296484,
+        "mean": 84.98584881534092
+      },
+      "delivered_capture_skips": 1443,
+      "cpu_one_core_percent": {
+        "daemon": 210.2750807909024
+      },
+      "nuvo_cpu_four_core_percent": 52.5687701977256,
+      "whole_pi_cpu_percent": 53.89588581024349,
+      "memory_mib": {
+        "daemon": {
+          "rss_mib": {
+            "count": 30,
+            "p50": 139.515625,
+            "p95": 139.515625,
+            "max": 139.515625,
+            "mean": 139.43958333333333
+          },
+          "pss_mib": {
+            "count": 30,
+            "p50": 130.84375,
+            "p95": 130.84375,
+            "max": 130.84375,
+            "mean": 130.76468098958333
+          },
+          "private_mib": {
+            "count": 30,
+            "p50": 125.421875,
+            "p95": 125.421875,
+            "max": 125.421875,
+            "mean": 125.34583333333333
+          }
+        }
+      },
+      "nuvo_total_memory_mib": {
+        "rss_mib": {
+          "count": 30,
+          "p50": 139.515625,
+          "p95": 139.515625,
+          "max": 139.515625,
+          "mean": 139.43958333333333
+        },
+        "pss_mib": {
+          "count": 30,
+          "p50": 130.84375,
+          "p95": 130.84375,
+          "max": 130.84375,
+          "mean": 130.76468098958333
+        },
+        "private_mib": {
+          "count": 30,
+          "p50": 125.421875,
+          "p95": 125.421875,
+          "max": 125.421875,
+          "mean": 125.34583333333333
+        }
+      },
+      "temperature_c": {
+        "count": 30,
+        "p50": 65.275,
+        "p95": 66.65,
+        "max": 66.65,
+        "mean": 65.51333333333334
+      },
+      "throttled": "throttled=0x0",
+      "counter_deltas": {
+        "captured_pairs": 1800,
+        "capture_sequence": 1800,
+        "capture_sequence_gaps": 1447,
+        "ready_pair_replacements": 0,
+        "stale_dropped": 0,
+        "scheduler_accepted": 1800,
+        "scheduler_completed": 0,
+        "scheduler_processed": 353,
+        "scheduler_completed_dropped": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_pending_replaced": 1447,
+        "raw_cadence_skipped": 0,
+        "matched_frames": 353,
+        "published_frames": 353,
+        "raw_processing_submissions": 1800,
+        "frame_completion_errors": 0,
+        "request_requeue_failures": 0,
+        "trigger_errors": 0,
+        "scheduler_processing_failures": 0
+      },
+      "matcher_timing_ms": {
+        "processing_ms": {
+          "count": 353,
+          "p50": 84.3753,
+          "p95": 86.3448,
+          "max": 152.689,
+          "mean": 84.98416345609066
+        },
+        "rectification_ms": {
+          "count": 353,
+          "p50": 4.14718,
+          "p95": 4.84703,
+          "max": 6.78448,
+          "mean": 4.284089433427762
+        },
+        "stereo_match_ms": {
+          "count": 353,
+          "p50": 76.3422,
+          "p95": 78.0701,
+          "max": 144.012,
+          "mean": 76.87988583569405
+        }
+      },
+      "observer_cpu_seconds_including_warmup": 0.9813058889999999,
+      "scene_snapshots": [
+        {
+          "file": "scene-0.pgm",
+          "boot_ns": 16582846088059,
+          "capture_sequence": 12,
+          "sha256": "4c2502c45fe4db4fed956082931caedd5722e329673f20a772e1fb4f4ffe7f90"
+        },
+        {
+          "file": "scene-1.pgm",
+          "boot_ns": 16590059253111,
+          "capture_sequence": 445,
+          "sha256": "b1e7dc30cabc94e0bca11fd5d9ad9b25c0484df0ca928e8f478e79e6b5d7732e"
+        },
+        {
+          "file": "scene-2.pgm",
+          "boot_ns": 16620071754405,
+          "capture_sequence": 2241,
+          "sha256": "59cf6f5e1e7d0552e2581d3fa9279e5764ebae36add07d81911c2589bf7e01a8"
+        }
+      ],
+      "errors": [],
+      "memory_method": "/proc/PID/smaps_rollup, MiB; PSS apportions shared pages. Sum RSS includes shared-page double counting. Kernel memory cgroup controller is disabled.",
+      "latency_method": "Pi-local CLOCK_BOOTTIME from sensor capture timestamp to local IPC memfd availability; excludes network and browser rendering.",
+      "stability": {
+        "ten_second_delivery_fps": [
+          11.867823859751665,
+          11.772321139434004,
+          11.655655858279522
+        ],
+        "frame_age_linear_slope_ms_per_second": 0.08436076757714953,
+        "first_third_median_age_ms": 114.168285,
+        "last_third_median_age_ms": 115.340961
+      },
+      "captured_pairs_per_second": 59.97949410659038,
+      "encoded_frames_per_second": null
+    }
+  ],
+  "scene_checks": [
+    {
+      "label": "full-max-1",
+      "file": "scene-1.pgm",
+      "mean_luma": 11.895081710568842,
+      "blurred_mean_absolute_difference_from_first": 0.0
+    },
+    {
+      "label": "full-max-1",
+      "file": "scene-2.pgm",
+      "mean_luma": 11.895604395604396,
+      "blurred_mean_absolute_difference_from_first": 0.15084134615384615
+    },
+    {
+      "label": "full-max-2",
+      "file": "scene-2.pgm",
+      "mean_luma": 11.88340588639302,
+      "blurred_mean_absolute_difference_from_first": 0.151467558177117
+    },
+    {
+      "label": "full-max-2",
+      "file": "scene-3.pgm",
+      "mean_luma": 11.908704347123464,
+      "blurred_mean_absolute_difference_from_first": 0.15344719618616678
+    },
+    {
+      "label": "full-max-3",
+      "file": "scene-1.pgm",
+      "mean_luma": 11.902336174854558,
+      "blurred_mean_absolute_difference_from_first": 0.15251040319974143
+    },
+    {
+      "label": "full-max-3",
+      "file": "scene-2.pgm",
+      "mean_luma": 11.897591608758889,
+      "blurred_mean_absolute_difference_from_first": 0.15558591224951518
+    },
+    {
+      "label": "full-sweep-12",
+      "file": "scene-2.pgm",
+      "mean_luma": 11.803351749353588,
+      "blurred_mean_absolute_difference_from_first": 0.1783441742081448
+    },
+    {
+      "label": "full-sweep-14-retry",
+      "file": "scene-1.pgm",
+      "mean_luma": 14.023374373787977,
+      "blurred_mean_absolute_difference_from_first": 2.170776603910795
+    },
+    {
+      "label": "full-sweep-16",
+      "file": "scene-2.pgm",
+      "mean_luma": 14.006529775371687,
+      "blurred_mean_absolute_difference_from_first": 2.148874333387201
+    },
+    {
+      "label": "full-sweep-20",
+      "file": "scene-1.pgm",
+      "mean_luma": 14.096997212346476,
+      "blurred_mean_absolute_difference_from_first": 2.232400412087912
+    },
+    {
+      "label": "full-sweep-30",
+      "file": "scene-2.pgm",
+      "mean_luma": 14.79817792501616,
+      "blurred_mean_absolute_difference_from_first": 2.9441737031351
+    },
+    {
+      "label": "full-sweep-60",
+      "file": "scene-1.pgm",
+      "mean_luma": 14.128176510989011,
+      "blurred_mean_absolute_difference_from_first": 2.2627186691984487
+    },
+    {
+      "label": "minimal-max-1",
+      "file": "scene-2.pgm",
+      "mean_luma": 11.838598901098901,
+      "blurred_mean_absolute_difference_from_first": 0.1825963558500323
+    },
+    {
+      "label": "minimal-max-1",
+      "file": "scene-3.pgm",
+      "mean_luma": 11.790933560924369,
+      "blurred_mean_absolute_difference_from_first": 0.20672319408532644
+    },
+    {
+      "label": "minimal-max-2",
+      "file": "scene-1.pgm",
+      "mean_luma": 11.997550702973497,
+      "blurred_mean_absolute_difference_from_first": 0.20322095184227537
+    },
+    {
+      "label": "minimal-max-2",
+      "file": "scene-2.pgm",
+      "mean_luma": 11.82568075307046,
+      "blurred_mean_absolute_difference_from_first": 0.18583599305106657
+    },
+    {
+      "label": "minimal-max-3",
+      "file": "scene-2.pgm",
+      "mean_luma": 11.903275492889463,
+      "blurred_mean_absolute_difference_from_first": 0.16278987556561086
+    },
+    {
+      "label": "minimal-max-3",
+      "file": "scene-3.pgm",
+      "mean_luma": 11.906234849709115,
+      "blurred_mean_absolute_difference_from_first": 0.1626131221719457
+    },
+    {
+      "label": "minimal-sweep-12",
+      "file": "scene-2.pgm",
+      "mean_luma": 11.79657451923077,
+      "blurred_mean_absolute_difference_from_first": 0.20684187136393017
+    },
+    {
+      "label": "minimal-sweep-14",
+      "file": "scene-1.pgm",
+      "mean_luma": 12.474315206851971,
+      "blurred_mean_absolute_difference_from_first": 0.622553228021978
+    },
+    {
+      "label": "minimal-sweep-16",
+      "file": "scene-2.pgm",
+      "mean_luma": 11.874060681965094,
+      "blurred_mean_absolute_difference_from_first": 0.18340184631544926
+    },
+    {
+      "label": "minimal-sweep-20",
+      "file": "scene-2.pgm",
+      "mean_luma": 12.349055126858437,
+      "blurred_mean_absolute_difference_from_first": 0.5273917259211377
+    },
+    {
+      "label": "minimal-sweep-30",
+      "file": "scene-1.pgm",
+      "mean_luma": 12.413827670491273,
+      "blurred_mean_absolute_difference_from_first": 0.5705321792178409
+    },
+    {
+      "label": "minimal-sweep-60",
+      "file": "scene-2.pgm",
+      "mean_luma": 11.832066600678733,
+      "blurred_mean_absolute_difference_from_first": 0.19818853021978022
+    }
+  ],
+  "restoration": {
+    "protected_files_compared": 12,
+    "protected_files_changed": [],
+    "installed_packages_unchanged": true,
+    "original_service_active": true,
+    "original_service_arguments_unchanged": true,
+    "test_units_inactive": true,
+    "cpu_governors_unchanged": true,
+    "restore_timer_inactive": true,
+    "installed_depthd_sha256": "d1efee507a768446fc8d314062ad579d1badf589c52d3a51b01dd048b7c512ab",
+    "original_capture_target_hz_restored": 10,
+    "encoding_configuration_unchanged": true,
+    "isolated_runtimes_and_test_credentials_removed": true,
+    "all_127_payload_file_hashes_still_match": true
+  },
+  "package_payload_verification": {
+    "checked_regular_files": 127,
+    "all_hashes_match": true
+  },
+  "observer_source_sha256": "8929c4b8af4e99016618b509a3a8e19fff97292998571f5b8a9eb7e0bcd4603f",
+  "limitations": [
+    "Short steady-state test, not thermal endurance or accuracy qualification.",
+    "Maximum measured throughput among tested capture rates, with raw demand at the supported 60 Hz ceiling.",
+    "At overload the bounded scheduler replaces pending inputs; sustained output FPS does not mean processing every captured pair.",
+    "Latency is capture CLOCK_BOOTTIME to Pi-local IPC descriptor availability; excludes network, payload copies and browser display.",
+    "Full includes native daemon and gateway; workstation browser resources are excluded.",
+    "Sequential physical scene, not byte-identical replay; CPU governor left ondemand.",
+    "Full repetitions share a browser and daemon session; repeated steady-state windows are not independent cold boots.",
+    "PSS apportions shared pages. Summed RSS double-counts shared mappings. Memory sampled at 1 Hz; memory cgroup controller disabled."
+  ],
+  "hardware": {
+    "model": "Raspberry Pi 5 Model B Rev 1.1",
+    "memory_total_kib": 16608160,
+    "kernel": "6.12.75+rpt-rpi-2712",
+    "governors": [
+      "ondemand"
+    ]
+  },
+  "excluded_attempts": [
+    {
+      "label": "full-sweep-14",
+      "reason": "Browser preview paused during the window. Preview-throughput assertion failed and no result was accepted. Repeated with Streaming foreground."
+    }
+  ],
+  "loaded_executable_hashes": {
+    "minimal": {
+      "daemon": "d1efee507a768446fc8d314062ad579d1badf589c52d3a51b01dd048b7c512ab"
+    },
+    "full": {
+      "daemon": "3848639c5b9395192842bbb867da6e32801386819a47c47c91a9bde2ca7d9ceb",
+      "gateway": "6f49fc8a2a6ff9e36be8592f8b5c1e4e142bc5c17d84962432aed280649a521f"
+    }
+  },
+  "private_raw_archive_sha256": "7503cc2f0afaf3d59cf2848cb9d719aac546070a964905635b34f3191ca027cc",
+  "scene_geometry_checks": [
+    {
+      "label": "full-max-1",
+      "file": "scene-1.pgm",
+      "phase_shift_x_px": 0.49999999999994316,
+      "phase_shift_y_px": -5.684341886080802e-14,
+      "phase_response": 1.0229269617525398,
+      "fitted_luma_scale": 1.0,
+      "fitted_luma_offset": 0.0,
+      "photometric_fit_residual_mae": 0.0
+    },
+    {
+      "label": "full-max-1",
+      "file": "scene-2.pgm",
+      "phase_shift_x_px": 0.483771589968228,
+      "phase_shift_y_px": 0.005657946586552498,
+      "phase_response": 0.9773651816120466,
+      "fitted_luma_scale": 1.0000055629390274,
+      "fitted_luma_offset": 0.0002496006580372523,
+      "photometric_fit_residual_mae": 0.08743793908251388
+    },
+    {
+      "label": "full-max-2",
+      "file": "scene-2.pgm",
+      "phase_shift_x_px": 0.4760143510075068,
+      "phase_shift_y_px": 0.004557255019960849,
+      "phase_response": 0.9695808897024382,
+      "fitted_luma_scale": 0.9999296246126672,
+      "fitted_luma_offset": -0.010836310821636275,
+      "photometric_fit_residual_mae": 0.09008257405051487
+    },
+    {
+      "label": "full-max-2",
+      "file": "scene-3.pgm",
+      "phase_shift_x_px": 0.4963266793566845,
+      "phase_shift_y_px": 0.024310051143061173,
+      "phase_response": 0.9754294438182319,
+      "fitted_luma_scale": 0.9998707880944788,
+      "fitted_luma_offset": 0.015258030032082814,
+      "photometric_fit_residual_mae": 0.09136551505449952
+    },
+    {
+      "label": "full-max-3",
+      "file": "scene-1.pgm",
+      "phase_shift_x_px": 0.47553703393282376,
+      "phase_shift_y_px": 0.021134965194107735,
+      "phase_response": 0.9758410600883315,
+      "fitted_luma_scale": 1.0004441172213092,
+      "fitted_luma_offset": 0.0019131824901439387,
+      "photometric_fit_residual_mae": 0.09119758939484847
+    },
+    {
+      "label": "full-max-3",
+      "file": "scene-2.pgm",
+      "phase_shift_x_px": 0.47836926127257584,
+      "phase_shift_y_px": 0.03073799557427037,
+      "phase_response": 0.9769062514893226,
+      "fitted_luma_scale": 0.9996949703616889,
+      "fitted_luma_offset": 0.0061020393096455905,
+      "photometric_fit_residual_mae": 0.09363841417610413
+    },
+    {
+      "label": "full-sweep-12",
+      "file": "scene-2.pgm",
+      "phase_shift_x_px": 0.4922959020952362,
+      "phase_shift_y_px": -0.01862391841831368,
+      "phase_response": 0.977192726198517,
+      "fitted_luma_scale": 0.994110588967937,
+      "fitted_luma_offset": -0.021599143255466302,
+      "photometric_fit_residual_mae": 0.09160746869420551
+    },
+    {
+      "label": "full-sweep-14-retry",
+      "file": "scene-1.pgm",
+      "phase_shift_x_px": 0.5199482823441599,
+      "phase_shift_y_px": -0.08512006317931764,
+      "phase_response": 0.7520274828274355,
+      "fitted_luma_scale": 0.9690015447437285,
+      "fitted_luma_offset": 2.497150560377131,
+      "photometric_fit_residual_mae": 2.561966768280031
+    },
+    {
+      "label": "full-sweep-16",
+      "file": "scene-2.pgm",
+      "phase_shift_x_px": 0.4990726265251624,
+      "phase_shift_y_px": -0.08905812428002946,
+      "phase_response": 0.7504258808588747,
+      "fitted_luma_scale": 0.969020875790392,
+      "fitted_luma_offset": 2.479953882123219,
+      "photometric_fit_residual_mae": 2.541376676384581
+    },
+    {
+      "label": "full-sweep-20",
+      "file": "scene-1.pgm",
+      "phase_shift_x_px": 0.5019641023665713,
+      "phase_shift_y_px": -0.06482029033378467,
+      "phase_response": 0.7541161629818635,
+      "fitted_luma_scale": 0.9757003219359801,
+      "fitted_luma_offset": 2.491012594648547,
+      "photometric_fit_residual_mae": 2.535682179193799
+    },
+    {
+      "label": "full-sweep-30",
+      "file": "scene-2.pgm",
+      "phase_shift_x_px": 0.4957359525224092,
+      "phase_shift_y_px": -0.03868984116508045,
+      "phase_response": 0.7430139936629414,
+      "fitted_luma_scale": 0.971094637833703,
+      "fitted_luma_offset": 3.2469387026752674,
+      "photometric_fit_residual_mae": 2.560267415733531
+    },
+    {
+      "label": "full-sweep-60",
+      "file": "scene-1.pgm",
+      "phase_shift_x_px": 0.502169730652497,
+      "phase_shift_y_px": -0.06482255932627368,
+      "phase_response": 0.7451921249065064,
+      "fitted_luma_scale": 0.9786920133147019,
+      "fitted_luma_offset": 2.4865744122951643,
+      "photometric_fit_residual_mae": 2.511417992155534
+    },
+    {
+      "label": "minimal-max-1",
+      "file": "scene-2.pgm",
+      "phase_shift_x_px": 0.47074946245624005,
+      "phase_shift_y_px": 0.06518708716208721,
+      "phase_response": 0.9762740637746996,
+      "fitted_luma_scale": 0.9941032379123622,
+      "fitted_luma_offset": 0.013758486536563197,
+      "photometric_fit_residual_mae": 0.10071098412773348
+    },
+    {
+      "label": "minimal-max-1",
+      "file": "scene-3.pgm",
+      "phase_shift_x_px": 0.4781284938535464,
+      "phase_shift_y_px": 0.04704845251472989,
+      "phase_response": 0.9681630693446749,
+      "fitted_luma_scale": 0.9913537489935447,
+      "fitted_luma_offset": -0.0013241303206719124,
+      "photometric_fit_residual_mae": 0.10116058139338664
+    },
+    {
+      "label": "minimal-max-2",
+      "file": "scene-1.pgm",
+      "phase_shift_x_px": 0.48586586875865123,
+      "phase_shift_y_px": 0.03940623256869458,
+      "phase_response": 0.9767154540113809,
+      "fitted_luma_scale": 1.0076607990306023,
+      "fitted_luma_offset": 0.011421000188164498,
+      "photometric_fit_residual_mae": 0.10393278298374561
+    },
+    {
+      "label": "minimal-max-2",
+      "file": "scene-2.pgm",
+      "phase_shift_x_px": 0.5080799157345268,
+      "phase_shift_y_px": 0.06088578918161147,
+      "phase_response": 0.9744219608925638,
+      "fitted_luma_scale": 0.9935883318474449,
+      "fitted_luma_offset": 0.006869909469395807,
+      "photometric_fit_residual_mae": 0.09938320652409352
+    },
+    {
+      "label": "minimal-max-3",
+      "file": "scene-2.pgm",
+      "phase_shift_x_px": 0.4730182076025926,
+      "phase_shift_y_px": 0.05315688095646465,
+      "phase_response": 0.9771689490409937,
+      "fitted_luma_scale": 0.9988882098100659,
+      "fitted_luma_offset": 0.021403258603713837,
+      "photometric_fit_residual_mae": 0.10145357863472929
+    },
+    {
+      "label": "minimal-max-3",
+      "file": "scene-3.pgm",
+      "phase_shift_x_px": 0.4607398454048166,
+      "phase_shift_y_px": 0.05967061206865765,
+      "phase_response": 0.9713069143904385,
+      "fitted_luma_scale": 0.9990236988454393,
+      "fitted_luma_offset": 0.02281678515874752,
+      "photometric_fit_residual_mae": 0.10153338746363977
+    },
+    {
+      "label": "minimal-sweep-12",
+      "file": "scene-2.pgm",
+      "phase_shift_x_px": 0.5254018050176228,
+      "phase_shift_y_px": -0.12646281237874746,
+      "phase_response": 0.9867556832526985,
+      "fitted_luma_scale": 0.9951131250588165,
+      "fitted_luma_offset": -0.04036531958048961,
+      "photometric_fit_residual_mae": 0.13437828793955092
+    },
+    {
+      "label": "minimal-sweep-14",
+      "file": "scene-1.pgm",
+      "phase_shift_x_px": 0.516344005210442,
+      "phase_shift_y_px": -0.12599488868823983,
+      "phase_response": 0.9802497212554622,
+      "fitted_luma_scale": 1.0001875711362276,
+      "fitted_luma_offset": 0.5769778341121139,
+      "photometric_fit_residual_mae": 0.22690532460642002
+    },
+    {
+      "label": "minimal-sweep-16",
+      "file": "scene-2.pgm",
+      "phase_shift_x_px": 0.5279212286362167,
+      "phase_shift_y_px": -0.1441261674119687,
+      "phase_response": 0.9784599720028256,
+      "fitted_luma_scale": 1.000071096632932,
+      "fitted_luma_offset": -0.022027659267171984,
+      "photometric_fit_residual_mae": 0.1257446996050326
+    },
+    {
+      "label": "minimal-sweep-20",
+      "file": "scene-2.pgm",
+      "phase_shift_x_px": 0.6118161255757855,
+      "phase_shift_y_px": -0.02740924927246624,
+      "phase_response": 0.9796330787624479,
+      "fitted_luma_scale": 0.9922546860178949,
+      "fitted_luma_offset": 0.5461081812056214,
+      "photometric_fit_residual_mae": 0.21984886146391533
+    },
+    {
+      "label": "minimal-sweep-30",
+      "file": "scene-1.pgm",
+      "phase_shift_x_px": 0.5948515655497886,
+      "phase_shift_y_px": -0.08552612117415492,
+      "phase_response": 0.9822376431594788,
+      "fitted_luma_scale": 0.9970676117664441,
+      "fitted_luma_offset": 0.5535671401800872,
+      "photometric_fit_residual_mae": 0.22764930596153832
+    },
+    {
+      "label": "minimal-sweep-60",
+      "file": "scene-2.pgm",
+      "phase_shift_x_px": 0.5508226258223203,
+      "phase_shift_y_px": -0.1417216919082307,
+      "phase_response": 0.9768115063922373,
+      "fitted_luma_scale": 0.9977256442143514,
+      "fitted_luma_offset": -0.035855769313201336,
+      "photometric_fit_residual_mae": 0.13834332855085082
+    }
+  ],
+  "scene_geometry_method": "OpenCV phase correlation of 2-pixel Gaussian-blurred associated left images with a Hanning window; compares scene placement across runs, not stereo calibration accuracy."
+}
