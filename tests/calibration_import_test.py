@@ -82,6 +82,7 @@ class ImportTest(unittest.TestCase):
         def killed(_):raise SystemExit('injected interruption')
         with self.assertRaises(SystemExit):store.activate(self.source,restart=killed)
         self.assertTrue((self.root/control.MARKER).exists())
+        self.assertIn('recovery is pending',control.readiness(self.root,self.native)['problem'])
         with self.assertRaisesRegex(RuntimeError,'disabled after interrupted'):
             control.recover(self.root,startup=True)
         self.assertFalse((self.root/control.MARKER).exists())

@@ -15,7 +15,7 @@ import struct
 import tempfile
 import time
 
-from nuvo_calibration_store import CalibrationStore, REQUIRED_ASSETS, atomic_bytes, exclusive_lock, fsync_directory, validate_bundle
+from nuvo_calibration_store import CalibrationStore, REQUIRED_ASSETS, atomic_bytes, exclusive_lock, fsync_directory, read_transaction, validate_bundle
 
 STATE = Path('var/lib/nuvo-depth')
 CONFIG = Path('etc/nuvo-depth/daemon.yaml')
@@ -140,6 +140,9 @@ def readiness(root=Path('/'), run=subprocess.run):
               'camera_service': {key: health.get(key) for key in
                                  ['status', 'run_uuid', 'capture_sequence', 'error']}}
     try:
+        for journal in (root/STATE/'transactions').glob('calibration-*.json'):
+            if read_transaction(journal).get('state') in {'staging','awaiting_restart','restoring'}:
+                raise ValueError('Calibration activation or recovery is pending. Wait for the active command; if it was interrupted, retry import to restore the previous selection, then retry the requested change.')
         policy = service_configuration(root, run)
         result.update(preview_enabled=policy['preview_enabled'],
                       capture_enabled=policy['capture_policy_enabled'])
