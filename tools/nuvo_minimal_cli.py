@@ -163,6 +163,8 @@ def cli_parser():
     parser = argparse.ArgumentParser(prog='nuvoctl', description=__doc__)
     parser.add_argument('--root', type=Path, default=Path('/'), help=argparse.SUPPRESS)
     commands = parser.add_subparsers(dest='command', required=True)
+    calibration = commands.add_parser('calibration').add_subparsers(dest='operation', required=True)
+    calibration.add_parser('status')
     commands.add_parser('configure', help='Guided exposure and stereo configuration')
     config = commands.add_parser('config').add_subparsers(dest='operation', required=True)
     config.add_parser('show')
@@ -194,10 +196,9 @@ def main(argv=None):
         subprocess.run(['systemctl', args.command, SERVICE], check=True)
         return
     if args.command == 'configure': result = configure(root)
-    elif args.command == 'status':
-        path = root/'run/nuvo-depth/status.json'
-        result = json.loads(path.read_text())
-        if time.time()-path.stat().st_mtime > 15: raise RuntimeError('runtime status is stale; inspect systemctl status '+SERVICE)
+    elif args.command in ('status', 'calibration'):
+        import nuvo_calibration_control as calibration_control
+        result = calibration_control.status(root) if args.command == 'status' else calibration_control.readiness(root)
     elif args.operation == 'set': result = set_value(root, args.key, args.value)
     else:
         controls = configuration(root)

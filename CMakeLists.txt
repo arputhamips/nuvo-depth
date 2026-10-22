@@ -512,6 +512,10 @@ if(DEPTHD_MINIMAL_PACKAGE AND NOT TARGET depthd_runtime_factory)
   message(FATAL_ERROR "Minimal packages require the native OpenCV depth pipeline")
 endif()
 
+install(FILES tools/nuvo_calibration_store.py tools/nuvo_calibration_control.py
+  DESTINATION "lib/nuvo-depth")
+install(FILES config/calibration/nuvo_depth_100mm/profile.json
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/calibration")
 if(DEPTHD_MINIMAL_PACKAGE)
   install(TARGETS depthd RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
   install(TARGETS nuvo-depth-read RUNTIME DESTINATION "lib/nuvo-depth")
@@ -560,6 +564,7 @@ install(FILES
   sdk/python/nuvo_depth/client.py
   sdk/python/nuvo_depth/encoded.py
   sdk/python/nuvo_depth/frame.py
+  sdk/python/nuvo_depth/first_use.py
   sdk/python/nuvo_depth/recorder.py
   sdk/python/nuvo_depth/recording.py
   sdk/python/nuvo_depth/replay.py
@@ -715,6 +720,12 @@ if(BUILD_TESTING)
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/latest_release_test.py)
     add_test(NAME depthd_first_use_test COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/first_use_test.py)
+    add_test(NAME depthd_calibration_readiness_test COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/calibration_readiness_test.py)
+    if(TARGET depthd_runtime_factory)
+      add_test(NAME depthd_native_calibration_check_test COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/native_calibration_check_test.py $<TARGET_FILE:depthd>)
+    endif()
     add_test(NAME depthd_minimal_cli_test COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/minimal_cli_test.py)
     add_test(NAME depthd_minimal_install_test COMMAND ${Python3_EXECUTABLE}

@@ -380,17 +380,17 @@ std::filesystem::path calibration_path(
 depthd::PreparedStereoCalibration prepare_calibration(
     const PipelineArguments& arguments,
     const depthd::config::EffectiveConfig& configuration) {
-  if (arguments.live && arguments.calibration_root.empty()) {
+  if (arguments.live) {
     const auto calibrations = arguments.calibration_state_root / "calibrations";
     const auto factory = calibrations / "factory" / "active";
     const auto user = calibrations / "user" / "active";
-    if (std::filesystem::exists(factory / "manifest.json")) {
+    if (std::filesystem::exists(factory) || std::filesystem::is_symlink(factory)) {
       return depthd::load_and_prepare_active_calibration(
           factory, depthd::CalibrationAuthority::kFactoryValidated,
           configuration.stereo.working_width,
           configuration.stereo.working_height);
     }
-    if (std::filesystem::exists(user / "manifest.json")) {
+    if (std::filesystem::exists(user) || std::filesystem::is_symlink(user)) {
       return depthd::load_and_prepare_active_calibration(
           user, depthd::CalibrationAuthority::kUserValidated,
           configuration.stereo.working_width,
@@ -1913,6 +1913,23 @@ int main(const int argc, char** argv) {
   const std::string_view command(argv[1]);
   try {
 #if defined(DEPTHD_WITH_NATIVE_PIPELINE)
+    if (command == "--calibration-check") {
+      if (argc != 6) throw std::invalid_argument("use --calibration-check CONFIG BUNDLE DEVICE_IDENTITY user|factory");
+      const auto loaded = depthd::config::load(argv[2]);
+      const std::string_view authority(argv[5]);
+      if (authority != "user" && authority != "factory") throw std::invalid_argument("invalid calibration authority");
+      const auto calibration = depthd::load_and_prepare_active_calibration(
+          argv[3], authority == "factory" ? depthd::CalibrationAuthority::kFactoryValidated : depthd::CalibrationAuthority::kUserValidated,
+          loaded.effective.stereo.working_width, loaded.effective.stereo.working_height);
+      std::ifstream identity_file(argv[4]);
+      std::string unit; std::getline(identity_file, unit);
+      if (!identity_file || unit.empty() || unit != calibration.unit_id) throw std::invalid_argument("calibration belongs to another device");
+      if (calibration.preset_id != loaded.effective.product.profile_id) throw std::invalid_argument("calibration capture profile does not match configuration");
+      if (calibration.image_view.grid.width != loaded.effective.capture.width || calibration.image_view.grid.height != loaded.effective.capture.height)
+        throw std::invalid_argument("calibration image geometry does not match capture");
+      std::cout << "{\"valid\":true,\"bundle_id\":" << json_string(calibration.bundle_id) << "}\n";
+      return 0;
+    }
     if (command == "--pipeline-check") {
       return run_pipeline_check(parse_pipeline_arguments(argc, argv, false));
     }

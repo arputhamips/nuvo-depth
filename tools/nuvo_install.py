@@ -86,6 +86,8 @@ def collect_plan(root, args, input_fn=input, password_fn=None):
             ("nuvo", "Supported Nuvo Pi 5 / dual-IMX296 head"),
             ("custom", "Other or incomplete assembly (install console; defer capture)")], plan["hardware"], input_fn)
         if not plan["calibration_bundle"]:
+            print('Calibration: use a matching existing accepted bundle, enable provisional preview for evaluation, or leave capture disabled.')
+            print('Blank preserves existing calibration. Preview does not establish distance accuracy; an upgrade alone does not require recalibration.')
             plan["calibration_bundle"] = input_fn("Calibration bundle directory (blank: preserve/defer): ").strip() or None
         if plan["calibration_bundle"]:
             plan["calibration_namespace"] = choose("Calibration authority:", [("user", "User validated"), ("factory", "Signed factory bundle (requires provisioned trust keys)")], "user", input_fn)
@@ -176,7 +178,7 @@ def stage_installer(target):
         shutil.copyfile(source.parent, target)
     else:
         with zipfile.ZipFile(target, "x", compression=zipfile.ZIP_DEFLATED) as archive:
-            for name in ("nuvo_install.py", "nuvo_setup.py", "nuvo_release.py", "nuvoctl.py"):
+            for name in ("nuvo_install.py", "nuvo_setup.py", "nuvo_release.py", "nuvoctl.py", "nuvo_calibration_store.py", "nuvo_calibration_control.py"):
                 archive.write(source.parent / name, name)
             archive.writestr("__main__.py", "from nuvo_install import main\nmain()\n")
             for name in ("LICENSE", "NOTICE"):
@@ -259,6 +261,9 @@ def print_access(root):
             print("Network setup: http://" + str(ipaddress.IPv4Interface(state["ap_address"]).ip) + "/")
     print("Open the HTTPS console directly; no Nuvo password or setup code is required.")
     print("Status: sudo nuvo-setup status")
+    readiness = setup.status(root)['calibration_readiness']
+    print(readiness['label'] + ': ' + readiness['message'])
+    print('Next: ' + readiness['next_action'])
     print("Verify the self-signed device certificate using its fingerprint before using the console.")
 
 

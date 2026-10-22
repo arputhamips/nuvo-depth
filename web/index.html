@@ -845,6 +845,12 @@
         <details class="network-advanced"><summary>Connection preference and safe rollback</summary><div class="settings"><article><h2>Connection preference</h2><p id="transportState">Loading…</p><div class="button-row"><button type="button" class="primary" data-transport="auto">Automatic</button><button type="button" class="primary" data-transport="wifi">WiFi only</button><button type="button" class="primary" data-transport="ethernet">Ethernet preferred</button><button type="button" class="primary" data-transport="usb">USB preferred</button><button type="button" class="primary" data-transport="both">Ethernet and USB</button><button type="button" class="secondary" data-transport="off">Disable data output</button></div><p class="error" id="transportError"></p><button id="confirmTransport" class="primary">Confirm new connection</button></article><article><h2>Safe rollback</h2><p>A changed preference is provisional for 60 seconds. Confirm through the new path or restore the previous setting.</p><button id="rollbackTransport" class="primary">Roll back</button></article></div></details>
       </section>
       <section id="calibration" class="page">
+        <article class="panel" aria-label="Calibration readiness">
+          <h2 id="calibrationReadinessTitle">Status unavailable/error</h2>
+          <p id="calibrationReadinessMessage">Waiting for shared calibration status.</p>
+          <p><strong>Next action:</strong> <span id="calibrationReadinessAction">Wait for the device status response.</span></p>
+          <p class="support-text">Calibration acceptance and camera/service health are separate. An upgrade alone does not require recalibration.</p>
+        </article>
         <div class="page-header"><h1>Calibration</h1></div>
         <p class="lede">Capture synchronized board images, validate geometry, and activate a calibration profile for this camera pair.</p>
         <details class="notice calibration-boundary"><summary>Accuracy boundary · preview is for positioning only</summary><p>Detection and solving always use a synchronized, unrectified, full-profile luma pair captured directly from both ISPs—never the compressed preview.</p></details>
@@ -853,6 +859,7 @@
         <form id="calibrationSetupForm" class="settings-form calibration-setup">
           <h2 class="form-title"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-focus"/></svg>Profile identity</h2>
           <label>Capture profile ID <small>Uses the active device capture profile</small><input id="calibrationPresetId" value="" readonly required></label>
+          <details class="calibration-board"><summary>Advanced geometry and qualification parameters</summary><div>
           <label>Sensor mode<input id="calibrationSensorMode" value="imx296-728x544" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,127}" required></label>
           <label>Image width<input id="calibrationWidth" type="number" min="64" max="8192" value="728" required data-unit="px"></label>
           <label>Image height<input id="calibrationHeight" type="number" min="64" max="8192" value="544" required data-unit="px"></label>
@@ -872,6 +879,7 @@
             <label>Maximum holdout epipolar p95 <small>Pixels</small><input id="calibrationMaximumEpipolar" type="number" min="0.05" max="5" step="0.01" value="0.5" required data-unit="px"></label>
             <label>Baseline tolerance <small>Millimetres</small><input id="calibrationBaselineTolerance" type="number" min="0.1" max="100" step="0.1" value="2" required data-unit="mm"></label>
             <label>Minimum coverage score<input id="calibrationMinimumCoverage" type="number" min="0.1" max="1" step="0.05" value="0.65" required></label>
+          </div></details>
           </div></details>
           </div></details>
           <div class="form-actions"><button class="primary" type="submit">Start calibration session</button><span id="calibrationSetupState" role="status"></span></div>

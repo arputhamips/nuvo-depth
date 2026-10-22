@@ -66,16 +66,16 @@ assert.equal(writes,beforeVisible,'hidden destinations and hidden tabs do no pix
 visibleContext.document.hidden=false;visibleContext.drawVisibleProduct(visible,numeric,{kind:'left_mono'});
 assert.equal(writes,beforeVisible+1,'newly visible destination renders the current frame');
 assert(source.includes("document.addEventListener('visibilitychange',restartStreams)"),'hidden tabs must release stream demand');
-const consoleTimers=[],consoleListeners={},consoleCalls={health:0,settings:0};
+const consoleTimers=[],consoleListeners={},consoleCalls={health:0,settings:0,setup:0};
 const consolePolling={setInterval:fn=>consoleTimers.push(fn),document:{hidden:false,addEventListener:(name,fn)=>consoleListeners[name]=fn},
   refreshHealth:()=>consoleCalls.health++,refreshTransport:()=>consoleCalls.settings++,refreshEncoding:()=>consoleCalls.settings++,
-  refreshStereo:()=>consoleCalls.settings++,refreshExposure:()=>consoleCalls.settings++,refreshCapabilities:()=>consoleCalls.settings++};
+  refreshStereo:()=>consoleCalls.settings++,refreshExposure:()=>consoleCalls.settings++,refreshCapabilities:()=>consoleCalls.settings++,refreshSetupStatus:()=>consoleCalls.setup++};
 const consoleStart=source.indexOf('setInterval(()=>{if(!document.hidden)refreshHealth();}');
 vm.runInNewContext(source.slice(consoleStart,source.indexOf('\nsetInterval(()=>{if(lastFrameAt)',consoleStart)),consolePolling);
-consoleTimers.forEach(fn=>fn());assert.deepEqual(consoleCalls,{health:1,settings:5});
+consoleTimers.forEach(fn=>fn());assert.deepEqual(consoleCalls,{health:1,settings:5,setup:1});
 consolePolling.document.hidden=true;consoleTimers.forEach(fn=>fn());consoleListeners.visibilitychange();
-assert.deepEqual(consoleCalls,{health:1,settings:5},'hidden console must stop all routine endpoint polling');
-consolePolling.document.hidden=false;consoleListeners.visibilitychange();assert.deepEqual(consoleCalls,{health:2,settings:10});
+assert.deepEqual(consoleCalls,{health:1,settings:5,setup:1},'hidden console must stop all routine endpoint polling');
+consolePolling.document.hidden=false;consoleListeners.visibilitychange();assert.deepEqual(consoleCalls,{health:2,settings:10,setup:1});
 assert(!source.includes("socketUrl('/api/v1/stream')"),'browser must not request implicit legacy-all depth products');
 const emptyElements={viewerEmptyState:{},encodedEmptyState:{}};
 let encodedLive=true;

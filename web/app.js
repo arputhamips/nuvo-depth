@@ -46,6 +46,7 @@ const configurationRevisions = new Map(), latestConfigurationRevisions = new Map
 let selectedPage = '';
 let lastHealth = null, calibrationSession = null, calibrationOriginalEncoding = null;
 let firstDepth = {};
+let calibrationReadiness = null;
 let depthOutputRate = null, rawGeneration = 0;
 const formControllers = new Map();
 const restoredDraftForms = new Set();
@@ -221,13 +222,31 @@ async function refreshSetupStatus(){
   try {
     const payload=await(await api('/api/v1/setup/status')).json(),state=payload.result;
     if(!state?.schema_version)return;
+    calibrationReadiness=state.calibration_readiness||{state:'unavailable',label:'Status unavailable/error',message:'This device does not expose shared calibration readiness.',next_action:'Inspect device status and the installed software version.'};
+    renderCalibrationReadiness();
     const note=$('setupState');note.hidden=false;
     note.textContent=`${state.display_name||'Nuvo'} · ${state.phase||'Setup pending'}`+
       (state.reboot_required?' · Camera changes require a reboot':'')+
-      (state.calibration_state==='pending'?(state.engineering?' · Engineering preview; accuracy unverified':' · Capture waiting for calibration'):'')+
+      ` · ${calibrationReadiness.label}`+
       (state.capture_error?` · ${state.capture_error}`:'')+
       (state.error?` · ${state.error}`:'');
-  }catch(_){}
+    return true;
+  }catch(_){
+    calibrationReadiness={state:'unavailable',label:'Status unavailable/error',message:'Cannot read calibration readiness from the device.',next_action:'Reconnect and inspect setup and capture services.'};
+    renderCalibrationReadiness();return false;
+  }
+}
+
+function renderCalibrationReadiness(){
+  const ready=calibrationReadiness||{state:'unavailable',label:'Status unavailable/error',message:'Waiting for shared calibration status.',next_action:'Wait for the device status response.'};
+  const tone=ready.state==='calibration_accepted'?'green':ready.state==='unavailable'?'red':'amber';
+  $('calibrationState').textContent=ready.label;$('calibrationState').className=`chip chip-${tone}`;
+  $('calibrationDetail').textContent=ready.message;
+  $('calibrationNotice').textContent=`${ready.label}. ${ready.message} Next: ${ready.next_action}`;
+  $('calibrationBanner').hidden=ready.state==='calibration_accepted';
+  $('calibrationReadinessTitle').textContent=ready.label;
+  $('calibrationReadinessMessage').textContent=ready.message;
+  $('calibrationReadinessAction').textContent=ready.next_action;
 }
 
 async function refreshTransport() {
@@ -639,18 +658,22 @@ async function refreshHealth() {
         toneSaveStatus($('exposureSaveState'));
       }
     }
-    const provisional = health.calibration_authority === 0;
-    const accepted = typeof health.calibration_authority === 'number' && health.calibration_authority > 0 && !!health.calibration_sha256;
-    $('calibrationState').textContent = provisional ? 'Provisional' : accepted ? 'Accepted' : 'Unavailable';
-    $('calibrationState').classList.toggle('attention',provisional);
-    $('calibrationState').className='chip '+(provisional?'chip-amber':accepted?'chip-green':'chip-red');
-    $('calibrationDetail').textContent = provisional ? 'Metric accuracy unverified' : accepted ? 'Declared validation passed' : 'No accepted calibration';
+    renderCalibrationReadiness();
     $('calibrationHash').textContent = health.calibration_sha256 ? health.calibration_sha256.slice(0,16)+'…' : 'Not loaded';
     $('calibrationHash').title=health.calibration_sha256 || '';
-    $('calibrationNotice').textContent = provisional ? 'Metric depth is unverified. Engineering use only.' : accepted ? 'The active calibration passed its declared validation authority.' : 'Depth requires an active calibration.';
-    $('calibrationBanner').hidden=accepted;
     $('diagnosticJson').textContent = JSON.stringify(health,null,2);
-  } catch (_) { updateViewerAvailability(true); $('connection').textContent = 'Not connected'; $('connection').className = 'pill offline'; $('frameRate').textContent='—'; depthOutputRate=null; lastHealthPublished=null; performanceModel.stale=true; performanceModel.latest=null; renderPerformanceMonitor(); updateLiveMetrics(null); document.querySelector('.status-strip').classList.add('stale'); $('overviewCaptureState').textContent='Disconnected'; $('overviewDepthState').textContent='Unknown'; $('deviceResolution').textContent='Last known device state'; setFlowState('flowConnectionState','Waiting'); setFlowState('flowCaptureState','Waiting'); }
+  } catch (_) {
+    if(await refreshSetupStatus()){
+      updateViewerAvailability(true);
+      $('connection').textContent='Connected';$('connection').className='pill online';
+      $('cameraState').textContent='Capture unavailable';
+      $('cameraDetail').textContent=calibrationReadiness?.camera_service?.error||'Inspect capture service health separately from calibration.';
+      $('overviewCaptureState').textContent='Unavailable';$('overviewDepthState').textContent='No fresh depth';
+      $('frameRate').textContent='—';depthOutputRate=null;lastHealthPublished=null;
+      setFlowState('flowConnectionState','Secure session','complete');setFlowState('flowCaptureState','Needs attention','attention');
+      return;
+    }
+    updateViewerAvailability(true); $('connection').textContent = 'Not connected'; $('connection').className = 'pill offline'; $('frameRate').textContent='—'; depthOutputRate=null; lastHealthPublished=null; performanceModel.stale=true; performanceModel.latest=null; renderPerformanceMonitor(); updateLiveMetrics(null); document.querySelector('.status-strip').classList.add('stale'); $('overviewCaptureState').textContent='Disconnected'; $('overviewDepthState').textContent='Unknown'; $('deviceResolution').textContent='Last known device state'; setFlowState('flowConnectionState','Waiting'); setFlowState('flowCaptureState','Waiting'); }
 }
 
 function parseFrame(buffer) { return window.NuvoFrameCodec.parseFrame(buffer); }
@@ -1118,7 +1141,7 @@ function updateAppliedSummaries(){
 function updateLiveMetrics(health){
   document.querySelectorAll('[data-live-metric]').forEach(e=>{const key=e.dataset.liveMetric;e.textContent=key==='capture'?`Capture target · ${health?.capture_target_hz??'—'} fps`:key==='depth'?`Depth output · ${depthOutputRate===null?'—':depthOutputRate.toFixed(1)} fps`:`Compute · ${health?.processing_ms==null?'—':Number(health.processing_ms).toFixed(1)} ms`;});
   document.querySelectorAll('[data-live-resolution]').forEach(e=>e.textContent=`${health?.depth_width??'—'} × ${health?.depth_height??'—'} depth grid`);
-  document.querySelectorAll('[data-live-calibration]').forEach(e=>{const accepted=Number(health?.calibration_authority)>0&&!!health?.calibration_sha256;e.classList.toggle('accepted',accepted);e.textContent=!health?'Waiting for calibration status':accepted?'Calibration validation passed':'Metric depth is engineering-only until per-unit validation passes.';});
+  document.querySelectorAll('[data-live-calibration]').forEach(e=>{e.classList.toggle('accepted',calibrationReadiness?.accepted===true);e.textContent=calibrationReadiness?.label||'Status unavailable/error';e.title=calibrationReadiness?.message||'Refresh calibration readiness.';});
 }
 
 // Settings retain their edit base while device polling continues.
@@ -1237,6 +1260,6 @@ updateExposureFields();
 updateEncodingFields();
 restoreSession();
 setInterval(()=>{if(!document.hidden)refreshHealth();},2000);
-setInterval(()=>{if(!document.hidden){refreshTransport();refreshEncoding();refreshStereo();refreshExposure();refreshCapabilities();}},5000);
+setInterval(()=>{if(!document.hidden){refreshTransport();refreshEncoding();refreshStereo();refreshExposure();refreshCapabilities();refreshSetupStatus();}},5000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshHealth();refreshTransport();refreshEncoding();refreshStereo();refreshExposure();refreshCapabilities();}});
 setInterval(()=>{if(lastFrameAt){const age=(Date.now()-lastFrameAt)/1000;$('age').textContent=age<1?'Updated now':`${age.toFixed(1)} s old`;$('age').classList.toggle('error',age>2);if(age>2)document.querySelectorAll('.page.active [data-preview-state]').forEach(label=>{label.textContent=`Preview stale · ${age.toFixed(1)} s`;label.className='chip chip-amber';});}if(encodedFrameAt){const age=(Date.now()-encodedFrameAt)/1000;$('encodedAge').textContent=age<1?'Updated now':`${age.toFixed(1)} s old`;$('encodedAge').classList.toggle('error',age>2)}},250);

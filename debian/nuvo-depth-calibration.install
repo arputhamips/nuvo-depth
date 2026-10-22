@@ -1,4 +1,6 @@
 usr/lib/nuvo-depth/nuvo-calibration
+usr/lib/nuvo-depth/nuvo_calibration_store.py
+usr/lib/nuvo-depth/nuvo_calibration_control.py
 usr/share/nuvo-depth/presets/
 usr/share/nuvo-depth/calibration/
 usr/lib/systemd/system/nuvo-calibration@.service

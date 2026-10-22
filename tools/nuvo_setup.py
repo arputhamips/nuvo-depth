@@ -25,6 +25,7 @@ import uuid
 if Path(__file__).parent == Path("/usr/bin"):
     sys.path.insert(0, "/usr/lib/nuvo-depth")
 import nuvoctl as admin
+import nuvo_calibration_control as calibration_control
 
 DIRECTORY = "var/lib/nuvo-depth-setup"
 STATE = DIRECTORY + "/state.json"
@@ -172,9 +173,13 @@ def boot_id(root):
 def status(root):
     value = read(root, STATE, {})
     auth = read(root, AUTH, {})
+    readiness = calibration_control.readiness(root)
     return {**{key: value.get(key) for key in (
         "schema_version", "origin", "access_policy", "access_stage", "display_name", "hostname",
         "ap_ssid", "ap_address", "phase", "reboot_required", "engineering", "calibration_state", "capture_error", "error")},
+        "schema_version": 1,
+        "calibration_readiness": readiness,
+        "calibration_state": "accepted" if readiness['accepted'] else "provisional" if readiness['state'] == 'preview_enabled' else "pending",
         "reboot_required": bool(value.get("reboot_required") and value.get("prepared_boot_id") == boot_id(root)),
         "claimed": bool(auth.get("claimed")),
         "needs_owner_password": bool(auth.get("claimed") and not auth.get("password")),

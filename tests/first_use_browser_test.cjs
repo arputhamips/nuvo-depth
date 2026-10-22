@@ -18,7 +18,7 @@ function packet(names){
 const server=http.createServer((request,response)=>{
   const url=new URL(request.url,'http://localhost');const json=(value,status=200)=>{response.writeHead(status,{'content-type':'application/json',ETag:'"'+'a'.repeat(64)+'"'});response.end(JSON.stringify(value));};
   if(url.pathname==='/api/v1/session')return json({csrf:'f'.repeat(64)});
-  if(url.pathname==='/api/v1/setup/status')return json({result:{schema_version:1,display_name:'First-use test fixture',phase:'installed',calibration_state:'pending',engineering:!pending}});
+  if(url.pathname==='/api/v1/setup/status')return json({result:{schema_version:1,display_name:'First-use test fixture',phase:'installed',calibration_state:'pending',engineering:!pending,calibration_readiness:{state:pending?'calibration_needed':'preview_enabled',label:pending?'Calibration needed':'Preview enabled',message:pending?'Capture is waiting for calibration or explicit preview.':'Distance accuracy remains unverified.',next_action:pending?'Import calibration or deliberately enable preview.':'Continue evaluation or import accepted calibration.',accepted:false}}});
   if(url.pathname==='/api/v1/health')return pending?json({error:'capture waiting for calibration'},503):json({...metadataBase,status:'running',capture_sequence:sequence,image_width:728,image_height:544,depth_width:728,depth_height:544,capture_target_hz:10,processing_ms:42,depth_published:sequence,exposure_mode:'manual',stereo_backend:'cpu_sgbm'});
   if(url.pathname==='/api/v1/capabilities')return json({products:['left_rectified','right_rectified','depth','validity','left_mono'],connection:{qualified_link:false,resource_budget_bytes_per_second:20000000}});
   if(url.pathname==='/api/v1/encoding')return json(encoding);
@@ -49,7 +49,7 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
     invalid=false;await page.click('#firstDepthStart');await page.waitForFunction(()=>!document.querySelector('#firstDepthSave').disabled);
     await context.setOffline(true);await page.waitForFunction(()=>document.querySelector('#firstDepthSave').disabled);await context.setOffline(false);
     await page.waitForFunction(()=>!document.querySelector('#firstDepthSave').disabled);
-    pending=true;await page.reload();await page.waitForFunction(()=>document.querySelector('#setupState').textContent.includes('Capture waiting for calibration'));assert(await page.isDisabled('#firstDepthSave'));
+    pending=true;await page.reload();await page.waitForFunction(()=>document.querySelector('#setupState').textContent.includes('Calibration needed'));assert(await page.isDisabled('#firstDepthSave'));
     assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'results.json'),JSON.stringify({fixture:true,checks:['mono is insufficient','fresh stereo/depth/validity','saved raw metadata','all-invalid rejection','disconnect','reconnect','pending calibration'],pageErrors:errors},null,2));
     console.log('Browser first-use journeys: 7 fixture checks passed; raw metadata preserved; no page errors.');
   }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

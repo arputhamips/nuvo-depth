@@ -15,6 +15,9 @@ import shutil
 import subprocess
 import time
 import uuid
+import sys
+if Path(__file__).parent == Path('/usr/bin'):
+    sys.path.insert(0, '/usr/lib/nuvo-depth')
 
 
 def fsync_dir(path: Path) -> None:
@@ -471,6 +474,9 @@ def parse() -> argparse.Namespace:
     parser=argparse.ArgumentParser(prog="nuvoctl",description="Manage a Nuvo Depth appliance")
     parser.add_argument("--root",default="/",help=argparse.SUPPRESS)
     commands=parser.add_subparsers(dest="command",required=True)
+    commands.add_parser('status')
+    calibration=commands.add_parser('calibration').add_subparsers(dest='operation',required=True)
+    calibration.add_parser('status')
     platform=commands.add_parser("platform").add_subparsers(dest="operation",required=True)
     platform.add_parser("preflight"); prepare=platform.add_parser("prepare"); prepare.add_argument("--platform",choices=["pi5"],required=True); prepare.add_argument("--apply",action="store_true")
     identity=commands.add_parser("identity").add_subparsers(dest="operation",required=True)
@@ -511,7 +517,13 @@ def parse() -> argparse.Namespace:
 
 def main() -> None:
     args=parse(); root=Path(args.root)
-    if args.command=="platform" and args.operation=="preflight": result=platform_preflight(root)
+    if args.command=="status":
+        import nuvo_calibration_control as calibration_control
+        result=calibration_control.status(root)
+    elif args.command=="calibration":
+        import nuvo_calibration_control as calibration_control
+        result=calibration_control.readiness(root)
+    elif args.command=="platform" and args.operation=="preflight": result=platform_preflight(root)
     elif args.command=="platform": result=platform_prepare(root,args.apply)
     elif args.command=="identity": result=provision_identity(root,args.hostname)
     elif args.command=="encoding": result=set_encoding(root,{"schema_version":1,"mode":args.mode,"codec":args.codec,"source":args.source,"width":args.width,"height":args.height,"cadence_hz":args.cadence_hz,"bitrate_bps":args.bitrate_bps,"jpeg_quality":args.jpeg_quality,"keyframe_interval":args.keyframe_interval,"threads":args.threads,"low_latency":args.low_latency=="true","preset":args.preset},args.if_match)
