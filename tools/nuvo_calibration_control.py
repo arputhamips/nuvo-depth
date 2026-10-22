@@ -202,16 +202,17 @@ class CapturePolicy:
             raise ValueError('Unsafe capture-policy journal')
         for relative, encoded in snapshot['files'].items():
             path = self.root / relative
-            path.parent.mkdir(parents=True, exist_ok=True)
             if encoded is None:
                 path.unlink(missing_ok=True)
             else:
                 data = base64.b64decode(encoded, validate=True)
                 if len(data) > 65536:
                     raise ValueError('Oversized capture-policy journal')
+                path.parent.mkdir(parents=True, exist_ok=True)
                 atomic_bytes(path, data)
                 os.chmod(path, 0o644 if relative == str(POLICY_OVERRIDE) else 0o600)
-            fsync_directory(path.parent)
+            if path.parent.exists():
+                fsync_directory(path.parent)
         self.applied = snapshot
 
 

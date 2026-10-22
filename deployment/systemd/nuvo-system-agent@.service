@@ -14,6 +14,7 @@ PrivateTmp=yes
 ProtectHome=yes
 ProtectSystem=strict
 ReadWritePaths=/etc/nuvo-depth /var/lib/nuvo-depth -/var/lib/nuvo-depth-setup /run/nuvo-depth
+ReadWritePaths=-/etc/systemd/system/nuvo-depthd-native.service.d
 RestrictAddressFamilies=AF_UNIX
 MemoryMax=512M
 TasksMax=32
