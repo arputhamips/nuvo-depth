@@ -180,21 +180,18 @@ class ReleaseTest(unittest.TestCase):
 
     def test_latest_bootstrap_resolves_then_executes_only_the_exact_signed_release(self):
         directory,assets,publication,shell,env=self.bootstrap_fixture('latest-bootstrap')
-        fixture=directory/'python-fixture';fixture.mkdir()
         archive=release.BUNDLE_NAME
         metadata=dict(tag_name='v1.2.3',draft=False,prerelease=False,published_at='2026-10-21T00:00:00Z',assets=[
                       dict(name=archive,state='uploaded',size=(publication/archive).stat().st_size),
                       dict(name=archive+'.sig',state='uploaded',size=64)])
         approval=dict(schema_version=1,repository='test-owner/nuvo',approved=True,channel='stable',tag='v1.2.3',profiles=['appliance'])
-        (fixture/'sitecustomize.py').write_text('import io,json,urllib.request\n'
-            'class FixtureOpener:\n'
-            ' def open(self,request,timeout):\n'
-            '  if request.full_url == "https://raw.githubusercontent.com/test-owner/nuvo/main/deployment/public-release.json": return io.BytesIO('+repr(json.dumps(approval).encode())+')\n'
-            '  assert request.full_url == "https://api.github.com/repos/test-owner/nuvo/releases/tags/v1.2.3"\n'
-            '  return io.BytesIO('+repr(json.dumps(metadata).encode())+')\n'
-            'urllib.request.build_opener=lambda *args: FixtureOpener()\n')
+        curl=directory/'bin/curl'
+        source=curl.read_text()
+        dispatch=('if url == "https://raw.githubusercontent.com/test-owner/nuvo/main/deployment/public-release.json": sys.stdout.buffer.write('+repr(json.dumps(approval).encode())+'); sys.exit(0)\n'
+                  'if url == "https://api.github.com/repos/test-owner/nuvo/releases/tags/v1.2.3": sys.stdout.buffer.write('+repr(json.dumps(metadata).encode())+'); sys.exit(0)\n')
+        curl.write_text(source.replace('assert url.startswith(',dispatch+'assert url.startswith(',1))
         result=subprocess.run(['bash',str(shell),'--release','latest','--factory'],
-            env=env|{'PYTHONPATH':str(fixture)},capture_output=True,text=True)
+            env=env,capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertIn('Selected public appliance release: v1.2.3',result.stdout)
         self.assertIn('verified fixture installer executed',result.stdout)

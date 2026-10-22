@@ -114,23 +114,30 @@ def latest_release(repository, profile='appliance'):
     """
     import json
     import re
-    import urllib.request
+    import subprocess
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*', repository):
         raise ValueError('invalid release repository')
     if profile not in {'appliance', 'minimal'}:
         raise ValueError('invalid installation profile')
 
-    class HTTPSOnly(urllib.request.HTTPRedirectHandler):
-        def redirect_request(self, request, fp, code, msg, headers, newurl):
-            if not newurl.startswith('https://'):
-                raise ValueError('refusing non-HTTPS release metadata redirect')
-            return super().redirect_request(request, fp, code, msg, headers, newurl)
-
-    opener = urllib.request.build_opener(HTTPSOnly())
     def fetch(url, limit):
-        request = urllib.request.Request(url, headers={'User-Agent': 'Nuvo-Depth-Installer/1', 'Accept': 'application/vnd.github+json'})
-        with opener.open(request, timeout=30) as response:
-            data = response.read(limit + 1)
+        # curl races IPv6/IPv4 rather than waiting one timeout per unusable
+        # address. A newly connected Ethernet path can advertise broken IPv6.
+        # Bound the entire operation and retain TLS/HTTPS/size restrictions.
+        command = ['curl', '--proto', '=https', '--proto-redir', '=https',
+                   '--fail', '--location', '--silent', '--show-error',
+                   '--connect-timeout', '10', '--max-time', '35', '--max-redirs', '5',
+                   '--max-filesize', str(limit), '--user-agent', 'Nuvo-Depth-Installer/1',
+                   '--header', 'Accept: application/vnd.github+json', url]
+        try:
+            result = subprocess.run(command, capture_output=True, timeout=40, check=False)
+        except FileNotFoundError:
+            raise ValueError('Release discovery requires curl from the supported OS; install curl and retry') from None
+        except subprocess.TimeoutExpired:
+            raise ValueError('Release discovery timed out; check internet/HTTPS reachability and retry') from None
+        if result.returncode:
+            raise ValueError(f'Release discovery failed (curl exit {result.returncode}); check internet/HTTPS reachability and retry')
+        data = result.stdout
         if len(data) > limit:
             raise ValueError('release metadata exceeds size limit')
         return json.loads(data)
