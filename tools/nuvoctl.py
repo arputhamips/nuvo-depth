@@ -546,3 +546,8 @@ if __name__ == "__main__":
     except ConfigurationConflict as error:
         print(json.dumps({"error_code":"precondition_failed","error":str(error)}))
         raise SystemExit(3)
+    except (ValueError, RuntimeError, OSError, subprocess.SubprocessError) as error:
+        print('nuvoctl: '+str(error), file=sys.stderr)
+        raise SystemExit(2)
+    except KeyboardInterrupt:
+        raise SystemExit(130)
