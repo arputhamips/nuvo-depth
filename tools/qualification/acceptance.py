@@ -14,6 +14,13 @@ STATUSES={'not_run','pass','fail','blocked','not_applicable'}
 def load(path):return json.loads(Path(path).read_text(encoding='utf-8'))
 def digest(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
+def evidence(artifact,base):
+    if not isinstance(artifact,dict) or not re.fullmatch('[a-f0-9]{64}',artifact.get('sha256','')):raise ValueError('Evidence needs path/URL and SHA-256')
+    if 'path' in artifact:
+        path=(base/artifact['path']).resolve()
+        if not path.is_relative_to(base.resolve()) or not path.is_file() or digest(path)!=artifact['sha256']:raise ValueError('Missing/changed evidence: '+artifact['path'])
+    elif not str(artifact.get('url','')).startswith('https://'):raise ValueError('Evidence requires a local file or HTTPS artifact URL')
+
 def validate(record,base):
     reference=load(REFERENCE)
     expected={test['test_id']:test for test in reference['tests']}
@@ -21,7 +28,11 @@ def validate(record,base):
     ids=[test.get('test_id') for test in tests]
     if len(ids)!=len(set(ids)) or set(ids)!=set(expected):raise ValueError('All 69 test IDs must occur exactly once')
     if record.get('specification_sha256')!=reference['specification_sha256']:raise ValueError('Specification digest changed')
+    wanted={(stream['workstream'],item['deliverable_id']) for stream in reference['workstreams'] for item in stream['deliverables']}
+    delivered=[(stream['workstream'],item['deliverable_id']) for stream in record.get('workstreams',[]) for item in stream['deliverables']]
+    if len(delivered)!=len(wanted) or set(delivered)!=wanted:raise ValueError('All 24 deliverables must occur exactly once in their original workstreams')
     frozen=record.get('candidate',{}).get('source_commit')
+    candidate_manifest=record.get('candidate',{}).get('artifact_manifest')
     for test in tests:
         original=expected[test['test_id']]
         for key in ('execution_class','required_for_final_acceptance','procedure','expected_result'):
@@ -40,16 +51,13 @@ def validate(record,base):
                 for key in ('source_commit','candidate_manifest','environment_manifest','procedure_revision','started_at','finished_at','observed_values','criteria','evidence','reviewer'):
                     if not run.get(key):raise ValueError(f"{test['test_id']}: missing {key}")
                 if not frozen or not re.fullmatch('[a-f0-9]{40}',frozen) or run['source_commit']!=frozen:raise ValueError('Evidence is not from the frozen candidate')
+                evidence(candidate_manifest,base)
+                if run['candidate_manifest']!=candidate_manifest:raise ValueError('Attempt artifact manifest differs from frozen candidate')
                 start,end=(datetime.fromisoformat(run[key]) for key in ('started_at','finished_at'))
                 if start.tzinfo is None or end.tzinfo is None or end<start:raise ValueError('Invalid timezone/attempt chronology')
                 if original['execution_class']=='physical' and not run.get('hardware_manifest'):raise ValueError('Physical evidence needs hardware identity')
                 if run['status']=='not_applicable' and not run.get('support_scope_rationale'):raise ValueError('Not applicable needs reviewed support-scope rationale')
-                for artifact in run['evidence']:
-                    if not isinstance(artifact,dict) or not re.fullmatch('[a-f0-9]{64}',artifact.get('sha256','')):raise ValueError('Evidence needs path/URL and SHA-256')
-                    if 'path' in artifact:
-                        path=(base/artifact['path']).resolve()
-                        if not path.is_relative_to(base.resolve()) or not path.is_file() or digest(path)!=artifact['sha256']:raise ValueError('Missing/changed evidence: '+artifact['path'])
-                    elif not str(artifact.get('url','')).startswith('https://'):raise ValueError('Evidence requires a local file or HTTPS artifact URL')
+                for artifact in run['evidence']:evidence(artifact,base)
         if runs and status!=runs[-1]['status']:raise ValueError('Aggregate status must match latest retained attempt')
     return tests
 

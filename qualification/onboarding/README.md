@@ -21,7 +21,9 @@ validated per-unit geometry. The shared beta 5 seed remains provisional.
 ## Execute and retain evidence
 
 1. Copy `acceptance-template.json` to a new candidate record; fill the candidate
-   references. Copy `hardware-manifest-template.json` and freeze conditions.
+   references. `candidate.artifact_manifest` and each passing attempt's matching
+   `candidate_manifest` use a path/URL plus SHA-256 evidence object. Copy
+   `hardware-manifest-template.json` and freeze conditions.
 2. Use commands in `procedures.json`, their stated environment and timeout.
    Record exact command, source, start/end with offset, exit code, output hash,
    observations and criteria. Exit 0 is necessary for an automated test, not
@@ -101,3 +103,14 @@ Use `tools/qualification/observe_runtime.py` for bounded resource samples and
 `compare_performance.py` for frozen-budget comparison. They observe; they do not
 create network clients or establish power, SKU or accuracy evidence. Start the
 documented consumers separately and retain their identity/timestamp trace.
+
+For the local depth/validity workload, `measure_local_depth.py` runs the existing
+bounded native reader, verifies advancing associated identities, measures latency
+against the declared boottime capture clock, and retains per-frame traces plus
+resource samples. Supply frozen source/artifact/condition SHA-256 and a conditions
+JSON containing `protected_hashes`, `calibration_sha256`, `calibration_authority`
+and the remaining physical controls. It rejects control/calibration drift. The
+default is three runs, each with 300-second warmup and 600-second measurement.
+Use `--runs 1 --warmup 300 --seconds 3600` for a separate hour of this workload.
+Network/monitoring/multi-client workloads still need their declared consumers;
+this tool cannot stand in for them. Short smoke invocations do not pass budgets.

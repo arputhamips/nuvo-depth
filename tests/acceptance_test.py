@@ -25,6 +25,15 @@ class AcceptanceTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'attempt'):acceptance.validate(record,ROOT)
         record['tests'][0]['status']='not_run';record['tests'][0]['required_for_final_acceptance']=False
         with self.assertRaisesRegex(ValueError,'scope'):acceptance.validate(record,ROOT)
+    def test_omitted_deliverables_and_changed_local_evidence_are_rejected(self):
+        record=acceptance.load(acceptance.REFERENCE);record['workstreams']=[]
+        with self.assertRaisesRegex(ValueError,'24 deliverables'):acceptance.validate(record,ROOT)
+        with tempfile.TemporaryDirectory() as temporary:
+            base=Path(temporary);path=base/'receipt.json';path.write_text('{}')
+            artifact={'path':'receipt.json','sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
+            acceptance.evidence(artifact,base)
+            path.write_text('{"changed":true}')
+            with self.assertRaisesRegex(ValueError,'changed evidence'):acceptance.evidence(artifact,base)
     def test_performance_needs_complete_matched_cohorts_and_conservative_ratios(self):
         thresholds={'depth_rate_min_ratio':.95,'latency_p95_max_ratio':1.1,'steady_rss_max_ratio':1.1}
         run={'warmup_seconds':300,'seconds':600,'depth_hz':10,'latency_p95_ms':100,'rss_steady_bytes':1000000,'new_core_errors':0,'throttled':0,'swap_bytes':0}

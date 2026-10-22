@@ -59,21 +59,23 @@ def main():
         try:client.connect(args.host,username=args.user,password=password,sock=sock,look_for_keys=False,allow_agent=False,timeout=8,banner_timeout=8,auth_timeout=8)
         except BaseException:sock.close();client.close();raise
         return client
-    def execute(client,command,timeout=60):
+    def execute(client,command,timeout=60,allow_reboot_disconnect=False):
         identity=now();wrapper='sudo -S -p "" bash -c '+shlex.quote(command)
         audit({'event':'command_started','id':identity,'sudo':True,'command':command,'executed_shell_command':wrapper})
         stdin,stdout,stderr=client.exec_command(wrapper,timeout=timeout)
         stdin.write(password+'\n');stdin.flush();stdin.channel.shutdown_write()
         out,err=stdout.read().decode(),stderr.read().decode();code=stdout.channel.recv_exit_status()
         audit({'event':'command_finished','id':identity,'exit_code':code,'stdout_sha256':hashlib.sha256(out.encode()).hexdigest(),'stderr_sha256':hashlib.sha256(err.encode()).hexdigest()})
-        if code:raise RuntimeError(f'Pi command failed ({code}): '+err[-1000:])
+        # SSH can close before returning a reboot command's exit status. Keep
+        # its -1 in the audit; only the following new boot/run probe confirms it.
+        if code and not (allow_reboot_disconnect and code==-1):raise RuntimeError(f'Pi command failed ({code}): '+err[-1000:])
         return out
     client=connect();previous=json.loads(execute(client,PROBE));baseline=previous['protected_hashes']
     (args.output/'before.json').write_text(json.dumps(previous,indent=2)+'\n')
     results=[]
     try:
         for index in range(1,args.cycles+1):
-            start=now();execute(client,'systemctl reboot --no-block\n',10);client.close()
+            start=now();execute(client,'systemctl reboot --no-block\n',10,allow_reboot_disconnect=True);client.close()
             # Wait for the old transport/boot to disappear before reconnecting.
             time.sleep(8);deadline=time.monotonic()+120
             while True:
