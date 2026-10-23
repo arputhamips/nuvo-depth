@@ -4,6 +4,8 @@ nuvo-depth (0.1.1~beta.8) unstable; urgency=medium
   * Preserve provisional minimal capture policy during unattended upgrades.
   * Provide read-only diagnostics and allowlisted support exports.
   * Add runnable integration examples and reproducible host/browser checks.
+  * Preserve committed configuration on storage errors and allow crash retries.
+  * Release finished SDK sessions and report session capacity failures accurately.
 
  -- Nirmal <nml@meridian.cv>  Thu, 22 Oct 2026 18:10:00 -0500
 
