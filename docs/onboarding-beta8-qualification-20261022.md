@@ -1,6 +1,6 @@
-# Beta 8 onboarding qualification — execution in progress
+# Beta 8 onboarding qualification — closeout
 
-Updated 23 October 2026, 03:40 UTC. Frozen runtime/package source:
+Updated 23 October 2026. Long tests stopped at the operator’s request at 08:00 UTC. Frozen runtime/package source:
 [`e7cc0fa63f0bd38d16c6b407b4f7304a747759df`](https://github.com/arputhamips/nuvo-depth/tree/e7cc0fa63f0bd38d16c6b407b4f7304a747759df).
 Subsequent report/changelog edits are documentation only. The approved public
 preview remains **beta 6**. Beta 8 is not publicly approved and no completion
@@ -42,6 +42,7 @@ rewriting the rolling script or current README commands.
 | Actual keyboard tasks | Desktop light and 390-pixel mobile light/dark complete first-frame save, diagnostics refresh/download, version navigation and advanced-control toggling using Tab/Enter only; no page errors. |
 | Read-only diagnostics | All 134 checked persistent files remain unchanged. A stopped service with a recent restored cache cannot establish loaded/fresh verification. |
 | Interrupted package work | Exact-candidate core unpack, installer refusal, documented dpkg repair and normal interactive retry pass; protected state and fresh provisional output return. |
+| Minimal lifecycle | Normal GitHub bootstrap retry produces float depth, validity, metadata and associated NUV output; NumPy, Python OpenCV and the network SDK are absent. Same-profile stopped-preview reinstall, explicit-disable preservation against stale accepted cache, interrupted dpkg repair, signed beta-7 upgrade and one closeout reboot pass. Initial cross-profile fixture failures remain retained. |
 | Full-profile reboots | Ten graceful kernel reboots pass with new boot/run IDs, advancing paired output, unchanged protected settings and clean dpkg audit; 28–69 seconds each including verification. |
 | Physical setup Wi-Fi | Twenty handoffs pass, four each for success, wrong password, missed confirmation, reboot during handoff and confirmed outage; same protected hotspot secret, zero client reconnect retries. |
 | Payload equivalence | Fixed stereo input gives exactly equal disparity/depth/validity/confidence/rectified payloads against signed beta 7 with unchanged geometry/controls. |
@@ -52,8 +53,9 @@ Workflows:
 [minimal ARM64 artifacts](https://github.com/arputhamips/nuvo-depth/actions/runs/39887845193),
 [full ARM64 artifacts](https://github.com/arputhamips/nuvo-depth/actions/runs/39887847648).
 The physical candidate uses explicitly selected controlled test release signing.
-That key grants neither public-release approval nor calibration trust. Official
-signing, artifact parity and final installation are separate final steps.
+That key grants neither public-release approval nor calibration trust. Official signing, artifact parity and final installation are recorded in the
+final private evidence index. The versioned beta candidate remains a draft
+prerelease; public approval stays at beta 6.
 
 ## Physical environment and transport scope
 
@@ -111,25 +113,79 @@ Windows hotspot rejoin, an expected WebSocket rejection misclassified by the fir
 transport harness, and CRLF in the first stopped-cache wrapper. Corrected attempts
 have distinct records; failures are not erased or relabeled as candidate passes.
 
-## Work still running and acceptance limits
+## Performance result and operator stop
 
-Three full-profile smoke checks pass with exact restoration and no new core errors;
-they are not qualification. The long full core, mixed-preview and bounded-client
-sequence started at **03:39 UTC**. Each workload retains five-minute warmup,
-three ten-minute measurements per baseline/candidate and a separate one-hour
-candidate soak. Final minimal lifecycle/isolation/reboots and its own comparison/
-soak remain. Short runs or identical binary hashes cannot replace these measurements.
+The full-profile core workload completed three ten-minute baseline and three
+ten-minute candidate measurements, each after five-minute warmup, followed by a
+separate one-hour candidate soak after warmup. Matched CPU rectification,
+Balanced matcher, two OpenCV threads, B5 geometry, exposure/gain, OS/dependencies
+and declared consumers were unchanged. This compares extracted signed-beta-7
+C++ components with the candidate on the same current helper/OS environment;
+it is not a comparison of two complete historical OS installations.
 
-Private `output/spec-implementation-20261022` retains exact artifacts, manifests,
-client/frame metadata, browser traces, failed attempts, harness sources/hashes and
-the append-only `pi-commands.jsonl` bash/transfer audit. Its 69-case working record
-is structurally valid: 41 software/client/documentation passes, 8 known external
-blockages and 20 cases awaiting final physical/report review. All completion gates
-remain unverified; the final evidence index and readable command ledger are pending.
+| Frozen core check | Observed result | Limit |
+| --- | --- | --- |
+| Conservative depth-rate ratio | 0.99983; candidate 9.9983–10 Hz | ≥0.95 |
+| Conservative end-to-end p95 ratio | 1.01265; candidate 122.78–124.87 ms | ≤1.10 |
+| Aggregate service steady RSS ratio | 0.99940 | ≤1.10 |
+| Soak last/first ten-minute aggregate RSS | 1.000086 | ≤1.10 |
+| Soak fitted aggregate RSS growth/hour | 13,938 bytes | ≤1,900,380 bytes |
+| Soak depth output | 35,997 frames; 9.9992 Hz; p95 126.22 ms | Supporting observation |
+| Swap, throttle, new core errors, unexpected service/capture restarts | None observed | None allowed |
 
-[Procedures and forms](../qualification/onboarding/README.md) retain every required
-case. Freshly flashed storage, five physical power cuts per profile, five independent
-first-time users and a matching validated bundle have not been supplied. Agent
-walkthroughs, SSH reboots, memory caps and synthetic accepted bundles cannot replace
-them. Self-service and production/electrical/metric acceptance remain open. No new
-accuracy, usable-range, universal depth-rate or smaller-RAM claim is made.
+The declared **core** comparison/soak passes its frozen limits. This does not
+establish all-workload endurance or a universal throughput claim. The operator
+requested stopping long tests at 08:00 UTC. The active mixed-client run received
+SIGTERM, exited 143 as expected and restored installed candidate bytes and
+encoding. Partial mixed-client results are not qualification. Remaining bounded
+multi-client and minimal long comparisons/soaks were not run. Three earlier
+30-second full workload smokes remain supporting checks only. An earlier long
+attempt interrupted by a Pi restart/network loss is retained separately.
+
+## Additional closeout issues
+
+The controlled full-to-minimal switch exposed retained full service overrides,
+an empty root-only calibration namespace and a gateway process surviving package
+removal. The original attempt failed. Isolating those operator-fixture leftovers,
+stopping the old process and deliberately enabling preview allowed the minimal
+output/reinstall checks to pass. An orphan Python namespace also caused an
+overstrict dependency harness check; no SDK client module, NumPy or cv2 remained.
+These recovery attempts do not establish a clean new-package default pass on
+the frozen candidate. Same-profile upgrades pass independently. Full-to-minimal
+migration is explicitly unsupported in the current installation guides.
+
+The optional signed-beta-6 **service-unit-only** fixture failed to produce fresh
+frames with the current runtime/configuration. Its original service/policy were
+restored. This is a failed operator fixture, not a successful whole-beta-6
+upgrade. Host preinst regression coverage and the real signed-beta-7 upgrades
+remain separately identified. The preferred full profile and its original
+protected files are restored before closeout.
+
+## Evidence and acceptance limits
+
+Private `output/spec-implementation-20261022` retains the frozen candidate
+manifest, official signature/package/source comparison, environments, frame
+metadata, browser traces, every failed and corrected attempt, harness sources,
+the final unchanged 69-case record and SHA-256 evidence index. The closeout
+records 53 passing cases, 15 blocked cases and one failed removal/profile-switch
+case; 22 deliverables are complete and two performance reports remain partial. The append-only
+`pi-commands.jsonl`, rendered `pi-command-ledger.md` and
+`pi-command-executions.csv` retain every audited Pi bash invocation, including
+failures and repeated probes; child process argument logs accompany harnesses.
+Credentials, private keys and raw private imagery are not published in Git.
+
+[Procedures and forms](../qualification/onboarding/README.md) retain all 69 cases
+and 24 deliverables. The final record keeps blocked and unfinished requirements
+visible. Software implementation and self-service acceptance are separate
+gates; structural validity alone does not grant acceptance. No complete
+self-service or production qualification is claimed.
+
+Freshly flashed storage, five physical power removals per profile, five independent
+first-time users and a matching validated bundle were not supplied. Physical
+missing-camera/unsupported-kernel subcases, smaller physical RAM SKUs, remaining
+long workloads and the full minimal reboot sequence remain unqualified.
+The operator chose cleaned-system testing and later stopped long testing;
+these instructions are recorded without weakening the frozen acceptance rules.
+Agent walkthroughs, SSH reboots, memory caps and synthetic accepted bundles do
+not replace those cases. No new accuracy, usable-range, universal rate or
+smaller-RAM claim is made. Identity history remains deferred by the operator.

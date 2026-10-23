@@ -140,6 +140,13 @@ matcher, rectification, depth conversion or IPC source is forked.
 
 ## Finish first use
 
+Keep upgrades within the installed profile. Removing the full packages and then
+installing minimal is not a supported profile migration: locally retained full
+service overrides and processes can survive removal and block minimal startup.
+The cleaned-system qualification trial encountered this condition. Use a
+separate supported OS image for a new minimal deployment; do not delete device
+identity or calibration to force a profile change.
+
 The maintained bootstrap resolves the approved public signed bundle for
 this profile (as recorded in `deployment/public-release.json`, excluding drafts). It prints and binds
 the exact tag before verifying the bundle, manifest and package cohort. Pass
