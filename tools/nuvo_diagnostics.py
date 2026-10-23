@@ -31,6 +31,20 @@ def object_file(path):
     except (ValueError,TypeError):
         return {}
 
+def os_release(root):
+    path = root/'etc/os-release'
+    # Debian/Pi OS normally links this file to /usr/lib/os-release. Accept
+    # only that standard target; other diagnostic inputs remain no-follow.
+    if path.is_symlink():
+        target = root/'usr/lib/os-release'
+        try:
+            if path.resolve() != target.absolute() or target.is_symlink():
+                return None
+        except OSError:
+            return None
+        return small(target)
+    return small(path)
+
 def number(value):
     return value if type(value) in (int,float) and math.isfinite(value) and value >= 0 else None
 
@@ -39,7 +53,7 @@ def collect(root=Path('/'), profile='appliance', run=subprocess.run):
     health = calibration.daemon_health(root,run)
     ready = calibration.readiness(root,run)
     os_values = {}
-    for line in (small(root/'etc/os-release') or '').splitlines():
+    for line in (os_release(root) or '').splitlines():
         if '=' in line:
             key,value = line.split('=',1); os_values[key] = value.strip('"')
     packages = {}

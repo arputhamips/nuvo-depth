@@ -20,6 +20,18 @@ def fixture():
 
 class DiagnosticsTest(unittest.TestCase):
     def checks(self,inputs): return {item['id']:item for item in diagnostics.build_report(inputs)['checks']}
+    def test_standard_os_release_link_is_read_without_following_other_links(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)
+            (root/'etc').mkdir(); (root/'usr/lib').mkdir(parents=True)
+            target=root/'usr/lib/os-release'; target.write_text('ID=debian\nVERSION_CODENAME=trixie\n')
+            link=root/'etc/os-release'; link.symlink_to('../usr/lib/os-release')
+            self.assertEqual(diagnostics.os_release(root),target.read_text())
+            link.unlink(); link.symlink_to('/etc/os-release')
+            self.assertIsNone(diagnostics.os_release(root))
+            link.unlink(); link.symlink_to('../usr/lib/os-release')
+            target.unlink(); target.symlink_to('/etc/os-release')
+            self.assertIsNone(diagnostics.os_release(root))
     def test_failures_have_stable_ids_and_actions(self):
         for key,value,identity in [('camera_count',1,'capture.cameras'),('kernel','unsupported','platform.kernel'),
                                    ('trigger','0','capture.trigger'),('service','failed','capture.service'),
