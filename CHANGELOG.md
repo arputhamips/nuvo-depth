@@ -11,6 +11,8 @@
 - Preserve minimal preview and validated calibration policies during upgrades, including stopped services.
 - Keep deliberately disabled capture disabled when an old validated status file remains, and separate stopped-service state from activation verification.
 - Bound public-release discovery and handle unusable IPv6 paths without changing device network settings.
+- Preserve committed configuration on storage errors and allow retries after a process crash.
+- Release finished SDK sessions without interrupting other clients and report session-capacity failures accurately.
 - Keep the two-thread CPU baseline and shared seed authority provisional.
 
 ### Added
