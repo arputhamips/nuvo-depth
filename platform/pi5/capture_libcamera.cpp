@@ -92,7 +92,6 @@ struct RequestGate {
   std::deque<libcamera::Request*> pending;
   std::thread worker;
   std::atomic<std::size_t> outstanding{};
-  std::atomic<std::uint64_t> requeue_failures{};
   struct SharedControls* controls{};
 };
 
@@ -136,7 +135,8 @@ void recycle_request(const std::shared_ptr<RequestGate>& gate,
   gate->ready.notify_one();
 }
 
-void start_request_recycler(const std::shared_ptr<RequestGate>& gate) {
+void start_request_recycler(const std::shared_ptr<RequestGate>& gate,
+                            std::atomic<std::uint64_t>& session_failures) {
   if (!gate || gate->camera == nullptr) {
     throw std::invalid_argument("request recycler requires a camera");
   }
@@ -145,7 +145,8 @@ void start_request_recycler(const std::shared_ptr<RequestGate>& gate) {
     gate->running = true;
     gate->stop_requested = false;
   }
-  gate->worker = std::thread([gate] {
+  // Capture stop joins both recyclers before destroying the session counter.
+  gate->worker = std::thread([gate, &session_failures] {
     while (true) {
       libcamera::Request* request{};
       {
@@ -165,7 +166,7 @@ void start_request_recycler(const std::shared_ptr<RequestGate>& gate) {
         apply_request_controls(*request, *gate->controls);
       }
       if (gate->camera->queueRequest(request) != 0) {
-        ++gate->requeue_failures;
+        ++session_failures;
       }
     }
   });
@@ -336,11 +337,14 @@ class Pi5LibcameraCapture final : public CaptureSource {
     trigger_pulse_guard_overruns_.store(0U);
     trigger_max_pulse_overshoot_us_.store(0U);
     ready_pair_replacements_.store(0U);
-    last_requeue_failures_.store(0U);
+    requeue_failures_.store(0U);
     last_outstanding_after_stop_.store(0U);
 
-    left_ = std::move(left);
-    right_ = std::move(right);
+    {
+      std::lock_guard lock(state_mutex_);
+      left_ = std::move(left);
+      right_ = std::move(right);
+    }
     try {
       {
         std::lock_guard lock(controls_.mutex);
@@ -354,6 +358,7 @@ class Pi5LibcameraCapture final : public CaptureSource {
         if (options.gpiochip == "/dev/gpiochip0") {
           trigger_pwm_ = PioPwmTrigger::discover(options.gpio_line);
         }
+        require_trigger_source(options, static_cast<bool>(trigger_pwm_));
         if (!trigger_pwm_) {
           trigger_line_ = std::make_unique<GpioOutputLine>(
               options.gpiochip, options.gpio_line, options.trigger_idle_high);
@@ -433,10 +438,17 @@ class Pi5LibcameraCapture final : public CaptureSource {
   std::optional<StereoPair> wait_for_pair(
       const std::chrono::milliseconds timeout) override {
     std::unique_lock lock(ready_mutex_);
+    const auto check_requeue = [&] {
+      if (requeue_failures_.load() != 0U) {
+        throw std::runtime_error("camera request requeue failed; restart capture to restore its buffer pool");
+      }
+    };
+    check_requeue();
     ready_condition_.wait_for(lock, timeout, [this] {
-      return ready_pair_.has_value() || stop_requested_.load() ||
+      return ready_pair_.has_value() || requeue_failures_.load() != 0U || stop_requested_.load() ||
              !running_snapshot();
     });
+    check_requeue();
     if (!ready_pair_) {
       return std::nullopt;
     }
@@ -504,15 +516,16 @@ class Pi5LibcameraCapture final : public CaptureSource {
     const auto outstanding = outstanding_for(left_.get()) +
                              outstanding_for(right_.get());
     last_outstanding_after_stop_.store(outstanding);
-    last_requeue_failures_.store(requeue_failures_for(left_.get()) +
-                                 requeue_failures_for(right_.get()));
     release_camera(right_.get());
     release_camera(left_.get());
     trigger_line_.reset();
     trigger_pwm_.reset();
     trigger_enabled_.store(false);
-    right_.reset();
-    left_.reset();
+    {
+      std::lock_guard lock(state_mutex_);
+      right_.reset();
+      left_.reset();
+    }
     current_epoch_.store(0U);
   }
 
@@ -543,14 +556,12 @@ class Pi5LibcameraCapture final : public CaptureSource {
     result.trigger_max_pulse_overshoot_us =
         trigger_max_pulse_overshoot_us_.load();
     result.ready_pair_replacements = ready_pair_replacements_.load();
-    result.request_requeue_failures =
-        std::max(last_requeue_failures_.load(),
-                 requeue_failures_for(left_.get()) +
-                     requeue_failures_for(right_.get()));
+    result.request_requeue_failures = requeue_failures_.load();
     return result;
   }
 
   std::size_t outstanding_leases() const noexcept override {
+    std::lock_guard lock(state_mutex_);
     const auto active = outstanding_for(left_.get()) + outstanding_for(right_.get());
     return std::max(active, last_outstanding_after_stop_.load());
   }
@@ -672,6 +683,10 @@ class Pi5LibcameraCapture final : public CaptureSource {
     if (stream_configuration.colorSpace != libcamera::ColorSpace::Sycc) {
       throw std::runtime_error("camera must negotiate full-range sYCC for YUV/RGB conversion");
     }
+    validate_negotiated_stream(options, {binding,
+        make_reference_grid(stream_configuration.size.width, stream_configuration.size.height),
+        stream_configuration.pixelFormat.toString(), stream_configuration.stride,
+        stream_configuration.bufferCount});
     if (state.camera->configure(state.configuration.get()) != 0) {
       throw std::runtime_error("failed to configure camera " +
                                state.identity.stable_id);
@@ -685,6 +700,9 @@ class Pi5LibcameraCapture final : public CaptureSource {
     }
 
     const auto& buffers = state.allocator->buffers(state.stream);
+    if (buffers.size() != options.buffer_count) {
+      throw std::runtime_error("camera allocation differs from the negotiated buffer count");
+    }
     state.requests.reserve(buffers.size());
     for (std::size_t index = 0; index < buffers.size(); ++index) {
       const auto cookie = state.role == CameraRole::kLogicalLeft ? 1U : 2U;
@@ -730,7 +748,7 @@ class Pi5LibcameraCapture final : public CaptureSource {
                                state.identity.stable_id);
     }
     state.started = true;
-    start_request_recycler(state.gate);
+    start_request_recycler(state.gate, requeue_failures_);
   }
 
   static void queue_requests(CameraState& state) {
@@ -917,11 +935,6 @@ class Pi5LibcameraCapture final : public CaptureSource {
     return state ? state->gate->outstanding.load() : 0U;
   }
 
-  static std::uint64_t requeue_failures_for(
-      const CameraState* state) noexcept {
-    return state ? state->gate->requeue_failures.load() : 0U;
-  }
-
   std::unique_ptr<libcamera::CameraManager> manager_;
   bool manager_started_{};
   StereoPairer pairer_;
@@ -952,7 +965,7 @@ class Pi5LibcameraCapture final : public CaptureSource {
   std::atomic<std::uint64_t> trigger_pulse_guard_overruns_{};
   std::atomic<std::uint64_t> trigger_max_pulse_overshoot_us_{};
   std::atomic<std::uint64_t> ready_pair_replacements_{};
-  std::atomic<std::uint64_t> last_requeue_failures_{};
+  std::atomic<std::uint64_t> requeue_failures_{};
   std::atomic<std::size_t> last_outstanding_after_stop_{};
   mutable std::mutex state_mutex_;
   bool running_{};

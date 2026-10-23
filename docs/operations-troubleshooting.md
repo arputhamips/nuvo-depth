@@ -98,3 +98,36 @@ the same verified signed cohort and inspect `sudo dpkg --audit`. A package
 downgrade is not a tested recovery procedure; do not overwrite individual files
 or mix versions. Per-unit identity and calibration live under
 `/var/lib/nuvo-depth` and are preserved by package removal.
+
+## Capture timing safeguards (development)
+
+The native daemon requires the PIO PWM trigger when hardware triggering is
+enabled. If PIO discovery fails, startup reports an error instead of silently
+switching to scheduler-timed GPIO. Check `nuvo-trigger-prepare.service` and the
+reported trigger source. For an intentional electrical smoke test only, use
+`depthd --capture-check CONFIG --allow-userspace-trigger`; this flag is not
+accepted by `--run`. GPIO pulse measurements are software measurements, and a
+PIO programmed period is not a measurement of physical trigger edges.
+
+Stream negotiation must preserve the requested dimensions, pixel format, and
+buffer count. A mismatch now fails before capture begins. A request requeue
+failure also ends capture promptly so the service can restart with a complete
+buffer pool, rather than continuing with progressively fewer requests.
+
+Health reports `left_sensor_sequence_gaps` and `right_sensor_sequence_gaps`
+from each camera's monotonically advancing completion sequence. The compatibility
+field `capture_sequence_gaps` is their sum. These count missing sequence IDs;
+they do not identify the electrical or driver cause. `publication_sequence_gaps`
+instead counts jumps between published pair IDs, including intentional cadence
+skips. It must not be interpreted as sensor frame loss.
+
+Optional preview-copy failures increment `encoding_preview_unavailable` and
+report `encoding_last_error` without ending camera capture. A later successful
+encode clears that error. For CPU copy/remap costs, inspect
+`rectification_input_transfer_ms`, `rectification_compute_ms`, and
+`rectification_input_bytes_copied` on the same processing sequence.
+
+For live auto-exposure measurements, use `exposure_observations` to identify
+new metering samples and `exposure_frames_seen` for controller input frames.
+Status can retain a median between metering intervals; counting every status
+poll as a new brightness observation gives misleading stability results.

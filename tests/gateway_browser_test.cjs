@@ -17,6 +17,25 @@ const update=value=>fs.writeFileSync(local(manifest.control_file),JSON.stringify
     await page.click('[data-page="viewer"]');await page.click('#firstDepthStart');
     await page.waitForFunction(()=>!document.querySelector('#firstDepthSave').disabled);
     await page.screenshot({path:path.join(out,'real-gateway-first-depth.png')});
+    await page.click('[data-page="network"]');
+    for(const [preset,names] of [['camera',['left_mono']],['depth',['depth','validity']],['stereo',['left_rectified','right_rectified','disparity','validity']]]){
+      await page.selectOption('#outputPreset',preset);
+      assert.equal(await page.locator('#outputAdvanced').evaluate(element=>element.open),false);
+      await page.locator('#outputForm').evaluate(form=>form.requestSubmit());
+      await page.waitForFunction(names=>names.every(name=>outputSettings.products.includes(name))&&outputSettings.products.length===names.length,names);
+      await page.waitForFunction(()=>document.querySelector('#outputFrameSummary').textContent.includes('16 × 12'));
+    }
+    assert.match(await page.textContent('#outputBandwidth'),/images 16 × 12.*matcher 16 × 12/);
+    await page.selectOption('#outputPreset','custom');
+    assert.equal(await page.locator('#outputAdvanced').evaluate(element=>element.open),true);
+    assert.equal(await page.locator('[name="outputProduct"]').count(),14);
+    await page.selectOption('#outputPreset','depth');
+    await page.locator('#outputForm').evaluate(form=>form.requestSubmit());
+    await page.waitForFunction(()=>rawSocket?.readyState===WebSocket.OPEN);
+    await page.evaluate(()=>{window.fixturePreviousSocket=rawSocket;rawSocket.close();});
+    await page.waitForFunction(()=>rawSocket&&rawSocket!==window.fixturePreviousSocket&&rawSocket.readyState===WebSocket.OPEN&&!rawPolling);
+    await page.waitForFunction(()=>document.querySelector('#outputFrameSummary').textContent.includes('Depth validity'));
+    await page.screenshot({path:path.join(out,'real-gateway-output-presets.png')});
     await page.click('[data-page="diagnostics"]');
     await page.waitForFunction(()=>!document.querySelector('#downloadDiagnostics').disabled);
     const downloaded=page.waitForEvent('download');await page.click('#downloadDiagnostics');
@@ -46,9 +65,12 @@ const update=value=>fs.writeFileSync(local(manifest.control_file),JSON.stringify
       await page.click('[data-page="diagnostics"]');await page.waitForFunction(()=>!document.querySelector('#downloadDiagnostics').disabled);
       await page.keyboard.press('Tab');assert.notEqual(await page.evaluate(()=>document.activeElement.tagName),'BODY');
       await page.screenshot({path:path.join(out,`mobile-${theme}.png`),fullPage:true});
+      await page.click('[data-page="network"]');
+      assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+2),'Outputs must fit the mobile viewport');
+      await page.screenshot({path:path.join(out,`mobile-outputs-${theme}.png`),fullPage:true});
     }
     assert.deepEqual(errors,[]);
-    fs.writeFileSync(path.join(out,'results.json'),JSON.stringify({fixture:true,actual_gateway:true,tls:'fixture-specific SPKI; SDK uses verified CA',checks:['automatic session','fresh associated frame','allowlisted export','installed versions','four readiness states','revision conflict preserves edits','gateway restart/reconnect','390px keyboard light/dark'],pageErrors:errors},null,2));
+    fs.writeFileSync(path.join(out,'results.json'),JSON.stringify({fixture:true,actual_gateway:true,tls:'fixture-specific SPKI; SDK uses verified CA',checks:['automatic session','fresh associated frame','task presets and advanced selection','actual product grids','interrupted WebSocket reconnects without reload','allowlisted export','installed versions','four readiness states','revision conflict preserves edits','gateway restart/reconnect','390px keyboard light/dark and Outputs layout'],pageErrors:errors},null,2));
     console.log('Actual gateway browser journeys passed.');
   }catch(error){await page.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});throw error;}
   finally{await context.tracing.stop({path:path.join(out,'trace.zip')});await browser.close();}

@@ -301,6 +301,8 @@ int main(int argc, char** argv) {
     report << std::fixed << std::setprecision(3)
               << "{\n"
               << "  \"backend\": \"" << backend->name() << "\",\n"
+              << "  \"api\": \"legacy_full_image_compatibility\",\n"
+              << "  \"disparity_derivation\": \"invalid_aware_bilinear_compatibility\",\n"
               << "  \"input_width\": " << left.cols << ",\n"
               << "  \"input_height\": " << left.rows << ",\n"
               << "  \"working_width\": " << config.working_width << ",\n"

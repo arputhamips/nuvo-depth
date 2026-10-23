@@ -110,6 +110,9 @@ class LocalFrameServer final {
   struct EncodedPublication { LocalFrameCursor cursor; SealedSharedMemory memory; };
   std::shared_ptr<const EncodedPublication> encoded_;
   struct CachedFrame {
+    // Exact immutable publication plus selection; weak ownership avoids
+    // pinning a processing pool slot just to retain serialized bytes.
+    std::weak_ptr<const FrameSetStorage> frame;
     ProductMask products;
     SealedSharedMemory memory;
   };

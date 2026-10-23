@@ -38,6 +38,10 @@ let encodedPolling = false, encodedSocket = null, encodedFrameAt = 0;
 let decoder = null, decoderCodec = '', encodedLastSequence = 0;
 let encodedWaitingForKeyframe = true;
 let encodedGeneration = 0, encodedArrival = 0, encodedLastPresented = 0;
+let jpegDecodeBusy = false, pendingJpeg = null;
+let rawRetryTimer = null, encodedRetryTimer = null;
+let rawRetryDelay = 1000, encodedRetryDelay = 1000;
+let rawPollToken = 0, encodedPollToken = 0;
 let encodingFormDirty = false, encodingPreviewPending = false;
 let stereo = null, algorithmFormDirty = false, activeStereoBackend = '';
 let exposure = null, exposureFormDirty = false, exposurePending = null;
@@ -60,9 +64,10 @@ const OUTPUT_PRODUCTS = [
   ['left_rectified_rgb','Left RGB · rectified',3], ['right_rectified_rgb','Right RGB · rectified',3],
   ['rectified_stereo','Stereo side by side · rectified mono',2],
   ['rectified_stereo_rgb','Stereo side by side · rectified RGB',6],
-  ['disparity','Disparity · float32 pixels',4], ['depth','Depth · float32 metres',4],
-  ['confidence','Confidence · uint8',1], ['validity','Validity · uint8',1]
+  ['disparity','Disparity · float32 matching-grid pixels',4], ['depth','Depth · float32 metres (optical-axis Z)',4],
+  ['confidence','Matcher support · binary 0 / 255',1], ['validity','Depth validity · 1 means valid',1]
 ];
+const OUTPUT_PRESETS={camera:['left_mono'],depth:['depth','validity'],stereo:['left_rectified','right_rectified','disparity','validity']};
 let capabilities = null;
 let outputSettings = {enabled:true, products:['left_mono'], cadence_hz:5, delivery:'auto', preview:true, preview_cadence_hz:5};
 try {
@@ -75,27 +80,29 @@ try {
 function outputSubscriptionPath(path, settings=outputSettings) {
   return `${path}?cadence_hz=${settings.cadence_hz}&products=${settings.products.join(',')}&delivery=${settings.delivery}`;
 }
-function outputBandwidth(products,width,height,cadence) {
-  const bytes=products.reduce((total,name)=>total+(OUTPUT_PRODUCTS.find(p=>p[0]===name)?.[2]||0)*width*height,65568);
+function outputBandwidth(products,width,height,cadence,matchingWidth=width,matchingHeight=height) {
+  const bytes=window.NuvoDeviceSettings.outputFrameBytes(products,{width,height,matchingWidth,matchingHeight},OUTPUT_PRODUCTS);
   return {frame_bytes:bytes, bytes_per_second:bytes*cadence};
 }
 function updateOutputBudget() {
   const products=[...document.querySelectorAll('[name="outputProduct"]:checked')].map(x=>x.value);
   const cadence=Number($('outputCadence').value), connection=capabilities?.connection;
   const width=lastHealth?.image_width||728,height=lastHealth?.image_height||544;
-  const estimate=outputBandwidth(products,width,height,cadence);
+  const matchingWidth=lastHealth?.depth_width||width,matchingHeight=lastHealth?.depth_height||height;
+  const estimate=outputBandwidth(products,width,height,cadence,matchingWidth,matchingHeight);
   const budget=connection?.resource_budget_bytes_per_second;
-  $('outputBandwidth').textContent=products.length?`${(estimate.bytes_per_second/1048576).toFixed(2)} MiB/s raw estimate · ${width} × ${height} · metadata allowance included`:'Select at least one raw product';
+  $('outputBandwidth').textContent=products.length?`${(estimate.bytes_per_second/1048576).toFixed(2)} MiB/s uncompressed estimate · images ${width} × ${height} · matcher ${matchingWidth} × ${matchingHeight} · metadata allowance included`:'Select at least one data product';
   const over=budget&&estimate.bytes_per_second>budget;
   const exactUnavailable=$('outputDelivery').value==='exact'&&connection&&!connection.qualified_link;
   $('outputWarning').textContent=exactUnavailable?'This connection has no measured exact qualification. Choose best effort or connect through a qualified wired link.':over?`Selection exceeds this connection’s ${(budget/1048576).toFixed(1)} MiB/s resource budget. Reduce cadence or choose fewer products; JPEG monitoring is available on Streaming.`:products.some(p=>['depth','disparity','confidence','validity'].includes(p))?'Selected matcher products start depth processing while this output is open.':'Image-only selection runs without the depth matcher.';
   $('outputWarning').classList.toggle('error',!!(over||exactUnavailable));
 }
 function outputLimits(){return {width:lastHealth?.image_width||lastHealth?.depth_width||728,height:lastHealth?.image_height||lastHealth?.depth_height||544,
+  matchingWidth:lastHealth?.depth_width,matchingHeight:lastHealth?.depth_height,
   supportedProducts:capabilities?.products,qualified:!!capabilities?.connection?.qualified_link,bytesPerSecond:capabilities?.connection?.resource_budget_bytes_per_second,
   maxFrameBytes:capabilities?.stream_admission?.raw_maximum_wire_bytes,rawEnabled:encoding?.mode!=='encoded'};}
 function commitOutputSelection(candidate){
-  if(candidate.enabled&&!candidate.products.length)throw new Error('Select at least one raw product.');
+  if(candidate.enabled&&!candidate.products.length)throw new Error('Select at least one data product.');
   const checked=window.NuvoDeviceSettings.validateOutputSelection(candidate,outputLimits(),OUTPUT_PRODUCTS);
   const next={...candidate,enabled:checked.enabled,products:checked.products};
   let persisted=true;try{localStorage.setItem('nuvo-output-selection',JSON.stringify(next));}catch(_){persisted=false;}
@@ -103,6 +110,7 @@ function commitOutputSelection(candidate){
   document.querySelectorAll('[name="outputProduct"]').forEach(input=>input.checked=next.products.includes(input.value));
   $('outputEnabled').checked=next.enabled;$('outputCadence').value=next.cadence_hz;$('outputDelivery').value=next.delivery;
   $('outputPreviewEnabled').checked=next.preview;$('outputPreviewCadence').value=next.preview_cadence_hz;
+  $('outputPreset').value=Object.keys(OUTPUT_PRESETS).find(key=>OUTPUT_PRESETS[key].length===next.products.length&&OUTPUT_PRESETS[key].every(p=>next.products.includes(p)))||'custom';
   $('outputSaveState').textContent=persisted?'Applied to this browser':'Applied for this session';restartStreams();updateOutputBudget();
   return persisted;
 }
@@ -115,11 +123,22 @@ function initializeOutputControls() {
   $('outputEnabled').checked=outputSettings.enabled;$('outputCadence').value=outputSettings.cadence_hz;
   $('outputDelivery').value=outputSettings.delivery;$('outputPreviewEnabled').checked=outputSettings.preview;
   $('outputPreviewCadence').value=outputSettings.preview_cadence_hz;
+  $('outputPreset').value=Object.keys(OUTPUT_PRESETS).find(key=>OUTPUT_PRESETS[key].length===outputSettings.products.length&&OUTPUT_PRESETS[key].every(p=>outputSettings.products.includes(p)))||'custom';
+  $('outputAdvanced').open=$('outputPreset').value==='custom';
+  $('outputPreset').addEventListener('change',()=>{
+    const preset=OUTPUT_PRESETS[$('outputPreset').value];
+    if(preset){
+      document.querySelectorAll('[name="outputProduct"]').forEach(input=>input.checked=preset.includes(input.value));$('outputEnabled').checked=true;
+      $('outputCadence').value=Math.min(Number($('outputCadence').value),$('outputPreset').value==='stereo'?1:$('outputPreset').value==='depth'?2:5);
+    }
+    $('outputAdvanced').open=!preset;updateOutputBudget();
+  });
+  $('outputProductChoices').addEventListener('change',()=>{$('outputPreset').value='custom';});
   $('outputForm').addEventListener('input',updateOutputBudget);
   $('outputForm').addEventListener('submit',event=>{
     event.preventDefault();
     const products=[...document.querySelectorAll('[name="outputProduct"]:checked')].map(x=>x.value);
-    if(!products.length&&$('outputEnabled').checked){$('outputWarning').textContent='Select at least one raw product';return;}
+    if(!products.length&&$('outputEnabled').checked){$('outputWarning').textContent='Select at least one data product';return;}
     const candidate={enabled:$('outputEnabled').checked,products,
       cadence_hz:Number($('outputCadence').value),delivery:$('outputDelivery').value,
       preview:$('outputPreviewEnabled').checked,preview_cadence_hz:Number($('outputPreviewCadence').value)};
@@ -334,7 +353,7 @@ async function refreshEncoding() {
     else if(changed)$('encodingSaveState').textContent='Device changed · review and apply';
     if(changed){encodingPreviewPending=encoding.mode!=='raw';restartStreams();}
     $('encodingError').textContent='';
-    const delivery = encoding.mode === 'both' ? 'Raw + monitor' : encoding.mode === 'raw' ? 'Raw products' : 'Monitor only';
+    const delivery = encoding.mode === 'both' ? 'Network data + preview' : encoding.mode === 'raw' ? 'Network data' : 'Network preview only';
     setFlowState('flowDeliveryState', delivery, encoding.mode === 'encoded' ? 'attention' : 'waiting');
   } catch (error) { $('encodingError').textContent=error.message; setFlowState('flowDeliveryState','Waiting'); }
 }
@@ -354,7 +373,7 @@ $('encodingForm').addEventListener('submit', async event => {
   setFormBusy('encodingForm',true);
   try {
     const requested=requestedEncoding();
-    if(!requested.mode)throw new Error('Keep raw product delivery or the monitoring encoder enabled');
+    if(!requested.mode)throw new Error('Keep uncompressed network data or the compressed preview encoder enabled');
     if ((requested.width===0)!==(requested.height===0)) throw new Error('Set both width and height, or leave both at 0 for native resolution');
     encoding=await (await api('/api/v1/encoding',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(requested)})).json();
     encodingFormDirty=false; encodingPreviewPending=encoding.mode!=='raw';
@@ -619,6 +638,8 @@ async function refreshHealth() {
     $('deviceResolution').textContent = `${health.depth_width ?? '—'} × ${health.depth_height ?? '—'}`;
     $('cameraDetail').textContent = `Capture ${health.capture_epoch ?? '—'} · frame ${health.capture_sequence ?? '—'}`;
     $('frameDetail').textContent=`${health.depth_width??'—'} × ${health.depth_height??'—'} native depth grid`;
+    $('outputDeliveryStats').textContent=health.publication_sequence_gaps==null?'Detailed sequence counters are unavailable from this runtime.':
+      `Sensor-frame sequence gaps: L ${health.left_sensor_sequence_gaps??'—'} / R ${health.right_sensor_sequence_gaps??'—'} · publication sequence skips: ${health.publication_sequence_gaps} (includes intentional demand/cadence skips). These counters are not lost stereo pairs or browser/network loss rates.`;
     setMeasurement('processingTime',health.processing_ms == null ? null : health.processing_ms.toFixed(1),'ms');
     recordPerformanceSample(performanceModel,health,Date.now());
     renderPerformanceMonitor();
@@ -650,7 +671,7 @@ async function refreshHealth() {
     const exposureAutomatic=health.exposure_mode==='auto';
     $('exposureMedian').textContent=!exposureAutomatic?'Off':health.metered_median==null?'—':health.metered_median.toFixed(0);
     const leftMedian=health.metered_left_median,rightMedian=health.metered_right_median;
-    const stateLabels={within_deadband:'Inside target band',settling:'Waiting for camera controls',waiting_interval:'Waiting for next sample',confirming_dark:'Confirming darker scene',confirming_bright:'Confirming brighter scene',adjusted:'Adjustment sent',at_limit_or_quantized:'At limit or below one step',auto_ready:'Auto ready'};
+    const stateLabels={within_deadband:'Inside target band',stable:health.exposure_last_reason==='highlight_compromise'?'Exposure held · highlight/shadow compromise':'Exposure held · monitoring scene changes',awaiting_applied_controls:'Waiting for both cameras to report the command',applied_metadata_unavailable:'Holding exposure · camera control metadata unavailable',settling:'Camera controls settling',waiting_interval:'Waiting for next sample',confirming_dark:'Confirming darker scene',confirming_bright:'Confirming brighter scene',adjusted:'Adjustment sent',at_limit_or_quantized:'At limit or below one step',auto_ready:'Auto ready'};
     const stateText=health.exposure_last_error||stateLabels[health.exposure_controller_state]||health.exposure_last_reason||'No adjustment needed';
     $('exposureReason').textContent=!exposureAutomatic?'Manual values held constant':`${stateText}${leftMedian==null?'':` · L/R ${leftMedian.toFixed(0)}/${rightMedian.toFixed(0)}`}`;
     if(exposurePending){
@@ -679,6 +700,10 @@ async function refreshHealth() {
 
 function parseFrame(buffer) { return window.NuvoFrameCodec.parseFrame(buffer); }
 function product(frame, name) { return frame.metadata.products.find(x => x.kind === name); }
+function describeProduct(descriptor){
+  const label=OUTPUT_PRODUCTS.find(p=>p[0]===descriptor.kind)?.[1]||descriptor.kind;
+  return `${label} · ${descriptor.width} × ${descriptor.height}`;
+}
 function setSampleCanvasLive(id, live) {
   $(id).closest('.sample-canvas')?.classList.toggle('live', live);
 }
@@ -687,8 +712,10 @@ function updateViewerAvailability(disconnected=false) {
   const empty=$('viewerEmptyState');
   empty.hidden=!disconnected&&!!lastFrameAt;
   empty.textContent=disconnected?(lastFrameAt?'Disconnected · showing last received products':'Disconnected · waiting for device'):
-    !outputSettings.enabled?'Select raw outputs on the Outputs page.':encoding?.mode==='encoded'?'Raw delivery is off. Enable raw products on Streaming.':'Waiting for selected live products.';
+    !outputSettings.enabled?'Select data products on the Outputs page.':encoding?.mode==='encoded'?'Uncompressed network data is off. Enable it on Streaming.':'Waiting for selected live products.';
   $('encodedEmptyState').textContent=disconnected?'Disconnected · waiting for encoded preview':encoding?.mode==='raw'?'Encoded preview is off':'Waiting for encoded preview';
+  $('outputEncodedFigure').hidden=disconnected||!encodedFrameAt||!outputSettings.preview||encoding?.mode==='raw';
+  $('outputEncodedState').textContent=disconnected?'Disconnected · waiting for compressed preview':!outputSettings.preview?'Compressed preview is off for this browser.':encoding?.mode==='raw'?'The device preview encoder is off. Enable it on Streaming if needed.':$('encodingError').textContent||(!encodedFrameAt?'Waiting for the shared compressed preview.':'Shared compressed preview is live.');
   if(disconnected)setSampleCanvasLive('encodedCanvas',false);
 }
 function drawGray(canvas,frame,descriptor) { return window.NuvoFrameCodec.drawGray(canvas,frame,descriptor); }
@@ -717,7 +744,9 @@ function renderFrame(frame) {
   const disparity=product(frame,'disparity'),depth=product(frame,'depth');
   const firstImage=left||frame.metadata.products.find(p=>['gray8','rgb8','bgr8'].includes(p.format));
   for(const [id,descriptor] of [['leftCanvas',firstImage],['rightCanvas',right],['disparityCanvas',disparity],['depthCanvas',depth]])$(id).closest('figure').hidden=!descriptor;
-  if(firstImage)$('leftCanvas').closest('figure').querySelector('figcaption').textContent=OUTPUT_PRODUCTS.find(p=>p[0]===firstImage.kind)?.[1]||firstImage.kind;
+  for(const [id,descriptor] of [['leftCanvas',firstImage],['rightCanvas',right],['disparityCanvas',disparity],['depthCanvas',depth]]){
+    if(descriptor)$(id).closest('figure').querySelector('figcaption').textContent=describeProduct(descriptor);
+  }
   if(frame.metadata.products.length){
     $('viewerEmptyState').hidden=true;
     $('viewerLiveGrid').hidden=false;
@@ -729,7 +758,8 @@ function renderFrame(frame) {
     for(const descriptor of frame.metadata.products){
       if(grid.id==='selectedProductGrid'&&[firstImage?.kind,'right_rectified','depth','disparity'].includes(descriptor.kind))continue;
       let canvas=grid.querySelector(`[data-output-product="${descriptor.kind}"]`);
-      if(!canvas){const figure=document.createElement('figure'),caption=document.createElement('figcaption');canvas=document.createElement('canvas');canvas.dataset.outputProduct=descriptor.kind;caption.textContent=OUTPUT_PRODUCTS.find(p=>p[0]===descriptor.kind)?.[1]||descriptor.kind;figure.append(caption,canvas);grid.append(figure)}
+      if(!canvas){const figure=document.createElement('figure'),caption=document.createElement('figcaption');canvas=document.createElement('canvas');canvas.dataset.outputProduct=descriptor.kind;figure.append(caption,canvas);grid.append(figure)}
+      canvas.closest('figure').querySelector('figcaption').textContent=describeProduct(descriptor);
       drawVisibleProduct(canvas,frame,descriptor);
     }
   }
@@ -743,6 +773,7 @@ function renderFrame(frame) {
   });
   document.querySelectorAll('.page.active [data-preview-state]').forEach(label=>{label.textContent='Selected products live';label.className='chip chip-green';});
   lastFrameAt=Date.now();lastSequence=frame.sequence;lastIdentity=identity;
+  $('outputFrameSummary').textContent=`Frame ${frame.metadata.capture_sequence} · ${frame.metadata.products.map(describeProduct).join('; ')}`;
   setFlowState('flowCaptureState','Products live','complete');
   $('sequence').textContent=`Frame ${frame.metadata.capture_sequence}`; $('age').textContent='Updated now';$('frameError').textContent='';
 }
@@ -759,7 +790,7 @@ function refreshFirstDepth(){
 $('firstDepthStart').addEventListener('click',()=>{
   $('firstDepthError').textContent='';
   try{
-    if(encoding?.mode==='encoded')throw new Error('Enable Raw product delivery on Streaming, apply settings, then try again.');
+    if(encoding?.mode==='encoded')throw new Error('Enable Uncompressed network data on Streaming, apply settings, then try again.');
     commitOutputSelection({...outputSettings,enabled:true,products:['left_rectified','right_rectified','depth','validity'],cadence_hz:1,delivery:'best_effort'});
     firstDepth={};refreshFirstDepth();
   }catch(error){$('firstDepthError').textContent=error.message;}
@@ -771,18 +802,28 @@ $('firstDepthSave').addEventListener('click',()=>{
   $('firstDepthStatus').textContent=`Saved frame ${m.capture_sequence} with depth, validity and calibration metadata.`;
 });
 setInterval(refreshFirstDepth,500);
-async function pollFrame(generation) {
-  if (!rawPolling||generation!==rawGeneration||!rawPreviewPage()) return;
-  try { const buffer=await (await api(outputSubscriptionPath('/api/v1/frame/latest'))).arrayBuffer();if(generation!==rawGeneration||!rawPolling)return;renderFrame(parseFrame(buffer)); }
-  catch (error) { if(generation!==rawGeneration)return;$('frameError').textContent=error.message; }
-  if(generation===rawGeneration&&rawPolling)setTimeout(()=>pollFrame(generation),1000/outputSettings.cadence_hz);
+async function pollFrame(generation,token=rawPollToken) {
+  if (!rawPolling||token!==rawPollToken||generation!==rawGeneration||!rawPreviewPage()) return;
+  const started=Date.now();
+  try { const buffer=await (await api(outputSubscriptionPath('/api/v1/frame/latest'))).arrayBuffer();if(generation!==rawGeneration||token!==rawPollToken||!rawPolling)return;renderFrame(parseFrame(buffer)); }
+  catch (error) { if(generation!==rawGeneration||token!==rawPollToken||!rawPolling)return;$('frameError').textContent=error.message; }
+  if(generation===rawGeneration&&token===rawPollToken&&rawPolling)setTimeout(()=>pollFrame(generation,token),Math.max(0,1000/outputSettings.cadence_hz-(Date.now()-started)));
 }
 function socketUrl(path) { return `${location.protocol==='https:'?'wss':'ws'}://${location.host}${path}`; }
 function startRawViewer(){
-  if(rawSocket||rawPolling||!rawPreviewPage()||!encoding||encoding.mode==='encoded')return;
+  if(rawSocket||!rawPreviewPage()||!encoding||encoding.mode==='encoded')return;
   const generation=rawGeneration,socket=new WebSocket(socketUrl(outputSubscriptionPath('/api/v1/stream')));rawSocket=socket;socket.binaryType='arraybuffer';
-  socket.onmessage=event=>{if(generation!==rawGeneration||socket!==rawSocket)return;try{renderFrame(parseFrame(event.data))}catch(_){socket.close()}};
-  socket.onclose=()=>{if(generation!==rawGeneration||socket!==rawSocket)return;rawSocket=null;if(rawPreviewPage()&&encoding&&encoding.mode!=='encoded'&&!rawPolling){rawPolling=true;pollFrame(generation)}};
+  socket.onopen=()=>{if(generation===rawGeneration&&socket===rawSocket){rawPolling=false;++rawPollToken;}};
+  socket.onmessage=event=>{if(generation!==rawGeneration||socket!==rawSocket)return;try{renderFrame(parseFrame(event.data));rawRetryDelay=1000;}catch(error){$('frameError').textContent=error.message;socket.close()}};
+  socket.onclose=()=>{
+    if(generation!==rawGeneration||socket!==rawSocket)return;
+    rawSocket=null;
+    if(!rawPreviewPage()||!encoding||encoding.mode==='encoded')return;
+    $('frameError').textContent='Stream interrupted · temporary polling; reconnecting automatically.';
+    if(!rawPolling){rawPolling=true;pollFrame(generation,++rawPollToken);}
+    rawRetryTimer=setTimeout(()=>{rawRetryTimer=null;if(generation===rawGeneration)startRawViewer();},rawRetryDelay);
+    rawRetryDelay=Math.min(15000,rawRetryDelay*2);
+  };
 }
 
 function parseEncoded(buffer) { return window.NuvoFrameCodec.parseEncoded(buffer); }
@@ -793,7 +834,7 @@ function resetEncodedDecoder() {
 function ensureDecoder(codec,width,height,generation) {
   if(!('VideoDecoder' in window))throw new Error('This browser cannot preview H.264; the network stream remains available');
   const key=`${codec}:${width}x${height}`;
-  if(decoder&&decoderCodec===key)return decoder;
+  if(decoder&&decoder.state!=='closed'&&decoderCodec===key)return decoder;
   if(decoder){try{decoder.close()}catch(_){}}
   decoder=null;decoderCodec=key;encodedWaitingForKeyframe=true;
   decoder=new VideoDecoder({output:video=>{if(generation!==encodedGeneration){video.close();return}drawEncodedSource(video,video.displayWidth,video.displayHeight);video.close();},error:error=>{encodedWaitingForKeyframe=true;$('encodingError').textContent=`Decoder resynchronizing: ${error.message}`}});
@@ -803,9 +844,10 @@ function ensureDecoder(codec,width,height,generation) {
 function drawEncodedSource(source,width,height){
   const canvases=[];
   if(selectedPage==='streaming')canvases.push($('encodedCanvas'));
-  if(selectedPage==='network')canvases.push($('outputEncodedCanvas'));
+  if(selectedPage==='network'){$('outputEncodedFigure').hidden=false;canvases.push($('outputEncodedCanvas'));$('outputEncodedState').textContent='Shared compressed preview is live.';}
   if($('calibration').classList.contains('active'))canvases.push($('calibrationCanvas'));
   for(const canvas of canvases){if(canvasVisible(canvas))window.NuvoFrameCodec.prepareCanvas(canvas,width,height).context.drawImage(source,0,0)}
+  encodedFrameAt=Date.now();$('encodedAge').textContent='Updated now';
   setSampleCanvasLive('encodedCanvas',true);
 }
 async function renderEncoded(frame,generation,arrival) {
@@ -816,9 +858,12 @@ async function renderEncoded(frame,generation,arrival) {
     if(generation!==encodedGeneration||!encodedFrameMatchesConfiguration(metadata)||arrival<encodedLastPresented){bitmap.close();return}
     encodedLastPresented=arrival;drawEncodedSource(bitmap,bitmap.width,bitmap.height);bitmap.close();
   }else{
-    if(encodedLastSequence&&frame.streamSequence!==encodedLastSequence+1)resetEncodedDecoder();
+    // Latest-frame delivery intentionally skips frames. Independent keyframes
+    // carry everything needed to decode the next image without reconfiguration.
+    if(encodedLastSequence&&frame.streamSequence!==encodedLastSequence+1&&!metadata.keyframe)resetEncodedDecoder();
     encodedLastSequence=frame.streamSequence;
     const activeDecoder=ensureDecoder(metadata.codec_string,metadata.width,metadata.height,generation);
+    if(activeDecoder.decodeQueueSize>=2){if(!metadata.keyframe)encodedWaitingForKeyframe=true;return;}
     if(encodedWaitingForKeyframe&&!metadata.keyframe){
       $('encodingError').textContent='Stream resynchronizing at the next keyframe';
       return;
@@ -828,30 +873,57 @@ async function renderEncoded(frame,generation,arrival) {
       encodedWaitingForKeyframe=false;
     }catch(error){resetEncodedDecoder();throw error}
   }
-  encodedFrameAt=Date.now();$('encodedSequence').textContent=`Frame ${metadata.capture_sequence}`;
+  $('encodedSequence').textContent=`Frame ${metadata.capture_sequence}`;
   $('encodedSize').textContent=`${(payload.byteLength/1024).toFixed(1)} KiB`;
-  $('encodedLatency').textContent=`Encoded ${metadata.encode_ms.toFixed(1)} ms`;
-  $('encodedFormat').textContent=`${metadata.codec.toUpperCase()} · ${metadata.source.replaceAll('_',' ')} · ${metadata.width} × ${metadata.height}`;
-  $('encodedAge').textContent='Updated now';$('encodingError').textContent='';
+  $('encodedLatency').textContent=Number.isFinite(metadata.total_ms)?`Preview pipeline ${metadata.total_ms.toFixed(1)} ms`:`Encode only ${metadata.encode_ms.toFixed(1)} ms`;
+  $('encodedLatency').title=Number.isFinite(metadata.total_ms)?`Preparation ${metadata.preparation_ms.toFixed(1)} ms · queue ${metadata.queue_ms.toFixed(1)} ms · encode ${metadata.encode_ms.toFixed(1)} ms. Excludes camera exposure, transport and display.`:'Encode only; excludes preview preparation, queueing, transport and display.';
+  $('encodedFormat').textContent=`${metadata.codec.toUpperCase()} · ${metadata.source.replaceAll('_',' ')}${['depth','disparity'].includes(metadata.source)?' visualization':''} · ${metadata.width} × ${metadata.height}`;
+  $('encodingError').textContent='';
   if(encodingPreviewPending){encodingPreviewPending=false;if(!encodingFormDirty)$('encodingSaveState').textContent='Saved · preview available';}
 }
-async function pollEncoded(generation) {
-  if(!encodedPolling||generation!==encodedGeneration||!encodedPreviewPage())return;
-  try{await renderEncoded(parseEncoded(await (await api(`/api/v1/encoded/latest?cadence_hz=${outputSettings.preview_cadence_hz}`)).arrayBuffer()),generation,++encodedArrival);}
-  catch(error){if(generation===encodedGeneration){$('encodingError').textContent=error.message;}}
-  if(generation===encodedGeneration&&encodedPolling)setTimeout(()=>pollEncoded(generation),1000/outputSettings.preview_cadence_hz);
+async function queueEncoded(frame,generation,arrival){
+  if(generation!==encodedGeneration)return;
+  if(frame.metadata.codec!=='jpeg')return renderEncoded(frame,generation,arrival);
+  pendingJpeg={frame,generation,arrival};
+  if(jpegDecodeBusy)return;
+  jpegDecodeBusy=true;
+  try{
+    while(pendingJpeg){const next=pendingJpeg;pendingJpeg=null;try{await renderEncoded(next.frame,next.generation,next.arrival);}catch(error){if(next.generation===encodedGeneration)$('encodingError').textContent=error.message;}}
+  }finally{jpegDecodeBusy=false;}
+}
+async function pollEncoded(generation,token=encodedPollToken) {
+  if(!encodedPolling||token!==encodedPollToken||generation!==encodedGeneration||!encodedPreviewPage())return;
+  const started=Date.now();
+  try{
+    const frame=parseEncoded(await (await api(`/api/v1/encoded/latest?cadence_hz=${outputSettings.preview_cadence_hz}`)).arrayBuffer());
+    if(token===encodedPollToken&&encodedPolling)await queueEncoded(frame,generation,++encodedArrival);
+  }
+  catch(error){if(generation===encodedGeneration&&token===encodedPollToken&&encodedPolling){$('encodingError').textContent=error.message;}}
+  if(generation===encodedGeneration&&token===encodedPollToken&&encodedPolling)setTimeout(()=>pollEncoded(generation,token),Math.max(0,1000/outputSettings.preview_cadence_hz-(Date.now()-started)));
 }
 function encodedPreviewPage(){return !document.hidden&&(selectedPage==='calibration'||outputSettings.preview&&['streaming','network'].includes(selectedPage));}
 function startEncodedViewer(){
-  if(encodedSocket||encodedPolling||!encodedPreviewPage()||!encoding||encoding.mode==='raw')return;
+  if(encodedSocket||!encodedPreviewPage()||!encoding||encoding.mode==='raw')return;
   const generation=encodedGeneration, socket=new WebSocket(socketUrl(`/api/v1/encoded/stream?cadence_hz=${outputSettings.preview_cadence_hz}`));
   encodedSocket=socket;socket.binaryType='arraybuffer';
-  socket.onmessage=event=>{if(generation!==encodedGeneration||socket!==encodedSocket)return;try{renderEncoded(parseEncoded(event.data),generation,++encodedArrival).catch(error=>{$('encodingError').textContent=error.message})}catch(error){$('encodingError').textContent=error.message}};
-  socket.onclose=()=>{if(generation!==encodedGeneration||socket!==encodedSocket)return;encodedSocket=null;if(encodedPreviewPage()&&encoding&&encoding.mode!=='raw'&&!encodedPolling){encodedPolling=true;pollEncoded(generation)}};
+  socket.onopen=()=>{if(generation===encodedGeneration&&socket===encodedSocket){encodedPolling=false;++encodedPollToken;}};
+  socket.onmessage=event=>{if(generation!==encodedGeneration||socket!==encodedSocket)return;try{queueEncoded(parseEncoded(event.data),generation,++encodedArrival).catch(error=>{$('encodingError').textContent=error.message});encodedRetryDelay=1000;}catch(error){$('encodingError').textContent=error.message}};
+  socket.onclose=()=>{
+    if(generation!==encodedGeneration||socket!==encodedSocket)return;
+    encodedSocket=null;
+    if(!encodedPreviewPage()||!encoding||encoding.mode==='raw')return;
+    $('encodingError').textContent='Preview interrupted · temporary polling; reconnecting automatically.';
+    if(!encodedPolling){encodedPolling=true;pollEncoded(generation,++encodedPollToken);}
+    encodedRetryTimer=setTimeout(()=>{encodedRetryTimer=null;if(generation===encodedGeneration)startEncodedViewer();},encodedRetryDelay);
+    encodedRetryDelay=Math.min(15000,encodedRetryDelay*2);
+  };
 }
 function restartStreams(){
   ++rawGeneration;
   ++encodedGeneration;encodedArrival=0;encodedLastPresented=0;
+  pendingJpeg=null;
+  clearTimeout(rawRetryTimer);clearTimeout(encodedRetryTimer);rawRetryTimer=null;encodedRetryTimer=null;
+  rawRetryDelay=1000;encodedRetryDelay=1000;++rawPollToken;++encodedPollToken;
   rawPolling=false;encodedPolling=false;
   if(rawSocket){const value=rawSocket;rawSocket=null;value.onmessage=null;value.onclose=null;value.close()}
   if(encodedSocket){const value=encodedSocket;encodedSocket=null;value.onmessage=null;value.onclose=null;value.onerror=null;value.close()}
@@ -862,7 +934,7 @@ function restartStreams(){
   }
   setSampleCanvasLive('encodedCanvas',false);
   document.querySelectorAll('[data-tuning-product]').forEach(canvas=>{canvas.width=728;canvas.height=544;canvas.closest('.sample-canvas').classList.remove('live');});
-  document.querySelectorAll('[data-preview-state]').forEach(label=>{label.textContent=encoding?.mode==='encoded'?'Raw delivery off':'Waiting for live frames';label.className='chip chip-neutral';});
+  document.querySelectorAll('[data-preview-state]').forEach(label=>{label.textContent=encoding?.mode==='encoded'?'Network data off':'Waiting for live frames';label.className='chip chip-neutral';});
   document.querySelectorAll('.preview-unavailable').forEach(note=>note.hidden=encoding?.mode!=='encoded');
   $('viewerEmptyState').hidden=false;
   $('viewerLiveGrid').hidden=true;

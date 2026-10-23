@@ -103,6 +103,8 @@ struct PairerStats {
   std::uint64_t stale_dropped{};
   std::uint64_t capacity_dropped{};
   std::uint64_t maximum_sensor_delta_ns{};
+  std::uint64_t left_sequence_gaps{};
+  std::uint64_t right_sequence_gaps{};
 };
 
 // Associates already-completed left/right frames. It never guesses across a
@@ -156,6 +158,8 @@ struct CaptureOpenOptions {
   double target_hz{10.0};
   std::uint64_t pair_tolerance_ns{500'000U};
   bool hardware_trigger_enabled{true};
+  // Only capture-check may opt into scheduler-timed GPIO diagnostics.
+  bool allow_userspace_trigger{};
   std::string trigger_driver_mode{"external_xtrig"};
   std::string gpiochip{"/dev/gpiochip0"};
   std::uint32_t gpio_line{17U};
@@ -192,6 +196,11 @@ struct CaptureSessionInfo {
   bool hardware_trigger_active{};
   std::string trigger_source;
 };
+
+void validate_negotiated_stream(const CaptureOpenOptions& requested,
+                                const NegotiatedCameraStream& negotiated);
+void require_trigger_source(const CaptureOpenOptions& options,
+                            bool hardware_timed_source_available);
 
 struct CaptureRuntimeStats {
   std::string trigger_source;

@@ -77,6 +77,11 @@ void validate(const StereoProcessingRequest& request) {
   if (request.products == 0U || (request.products & ~ipc_v2::kSupportedProducts) != 0U) {
     throw std::invalid_argument("processing output selection is invalid");
   }
+  const auto image_masks = request.independent_image_products | request.associated_image_products;
+  if ((image_masks & ~ipc_v2::kImageProducts) != 0U ||
+      (image_masks & ~request.products) != 0U) {
+    throw std::invalid_argument("processing image selections must be requested image products");
+  }
   const auto& pair = request.capture;
   if (pair.capture_epoch == 0U || pair.pair_sequence == 0U ||
       pair.capture_timestamp_ns <= 0) {
@@ -134,6 +139,48 @@ void validate(const StereoProcessingRequest& request) {
   }
 }
 
+std::size_t required_frame_pool_payload_bytes(
+    const PixelGrid& image_grid, const PixelGrid& matching_grid,
+    const std::size_t capacity, const bool image_only) {
+  if (capacity == 0U || capacity > 64U) {
+    throw std::invalid_argument("native frame storage capacity must be 1..64");
+  }
+  const auto image_pixels = pixel_count(image_grid);
+  const auto matching_pixels = image_only ? 0U : pixel_count(matching_grid);
+  const auto checked_multiply = [](const std::size_t left, const std::size_t right) {
+    if (left > std::numeric_limits<std::size_t>::max() / right)
+      throw std::overflow_error("native frame payload size overflow");
+    return left * right;
+  };
+  const auto image_bytes = checked_multiply(image_pixels, 31U * capacity);
+  const auto matching_bytes = checked_multiply(matching_pixels, 10U * capacity + 11U);
+  if (image_bytes > std::numeric_limits<std::size_t>::max() - matching_bytes)
+    throw std::overflow_error("native frame payload size overflow");
+  return image_bytes + matching_bytes;
+}
+
+std::size_t bounded_frame_pool_capacity(
+    const PixelGrid& image_grid, const PixelGrid& matching_grid,
+    const std::size_t requested_capacity, const std::size_t budget,
+    const bool image_only) {
+  if (requested_capacity == 0U || requested_capacity > 64U || budget == 0U ||
+      budget > 256U * 1024U * 1024U) {
+    throw std::invalid_argument("native frame storage capacity or budget is invalid");
+  }
+  const auto image_pixels = pixel_count(image_grid);
+  const auto matching_pixels = image_only ? 0U : pixel_count(matching_grid);
+  if (image_pixels > budget / 31U || matching_pixels > budget / 11U) {
+    throw std::invalid_argument("native frame pool geometry exceeds its payload budget");
+  }
+  const auto available = budget - matching_pixels * 11U;
+  if (image_pixels * 31U > available ||
+      matching_pixels > (available - image_pixels * 31U) / 10U) {
+    throw std::invalid_argument("native frame pool geometry exceeds its payload budget");
+  }
+  const auto slot_bytes = image_pixels * 31U + matching_pixels * 10U;
+  return std::min(requested_capacity, available / slot_bytes);
+}
+
 void validate(const NativePipelineConfiguration& configuration) {
   if (configuration.frame_pool_capacity == 0U ||
       configuration.frame_pool_capacity > 64U) {
@@ -147,25 +194,15 @@ void validate(const NativePipelineConfiguration& configuration) {
   }
   validate(configuration.image_calibration);
   validate(configuration.matching_calibration);
-  constexpr std::size_t maximum_payload_budget = 256U * 1024U * 1024U;
-  const auto budget = configuration.frame_pool_payload_budget_bytes;
-  const auto image_pixels = pixel_count(configuration.image_calibration.grid);
-  const auto matching_pixels =
-      pixel_count(configuration.matching_calibration.grid);
-  if (budget == 0U || budget > maximum_payload_budget ||
-      matching_pixels > budget / 11U) {
-    throw std::invalid_argument("native frame storage payload budget is invalid");
-  }
   // All fourteen selectable outputs plus optional I420 previews occupy at
   // most 31 image bytes/pixel and 10 matching bytes/pixel per slot. Shared
   // scratch retains dependency planes for unrequested matcher/depth outputs
   // (11 matching bytes/pixel including native disparity validity).
   // Subtract shared scratch first and use division to
   // reject oversized grids without overflowing any intermediate product.
-  const auto slot_budget =
-      (budget - matching_pixels * 11U) / configuration.frame_pool_capacity;
-  if (image_pixels > slot_budget / 31U ||
-      matching_pixels > (slot_budget - image_pixels * 31U) / 10U) {
+  if (bounded_frame_pool_capacity(configuration.image_calibration.grid,
+          configuration.matching_calibration.grid, configuration.frame_pool_capacity,
+          configuration.frame_pool_payload_budget_bytes, configuration.image_only) != configuration.frame_pool_capacity) {
     throw std::invalid_argument(
         "native frame pool geometry exceeds its payload budget");
   }
@@ -284,6 +321,9 @@ bool NativeProcessingPipeline::has_available_storage() const noexcept {
 std::shared_ptr<const FrameSetStorage> NativeProcessingPipeline::process(
     StereoProcessingRequest request) {
   validate(request);
+  if (configuration_.image_only && (request.products & ipc_v2::kMatcherProducts) != 0U) {
+    throw std::invalid_argument("image-only pipeline cannot produce matcher products");
+  }
   if (request.left.width != configuration_.image_calibration.grid.width ||
       request.left.height != configuration_.image_calibration.grid.height) {
     throw std::invalid_argument(
@@ -302,6 +342,13 @@ std::shared_ptr<const FrameSetStorage> NativeProcessingPipeline::process(
   }
   auto output = *available;
   output->metadata = {};
+  const auto camera_metadata = [](const CapturedFrame& frame) {
+    return CaptureCameraMetadata{frame.sensor_timestamp_ns, frame.stream_sequence,
+        static_cast<double>(frame.isp_exposure_time_us), frame.isp_analogue_gain,
+        frame.isp_digital_gain};
+  };
+  output->capture_metadata = CaptureFrameMetadata{camera_metadata(request.capture.left),
+      camera_metadata(request.capture.right), request.capture.sensor_delta_ns};
   output->available_products = request.products;
   output->publication_context = std::move(request.publication_context);
   output->stats = {};
@@ -387,8 +434,8 @@ std::shared_ptr<const FrameSetStorage> NativeProcessingPipeline::process(
   }
   MutableImageView left_rectified{}, right_rectified{};
   if (rectify_mono) {
-    if (left_rect) resize(output->left_rectified, image_pixels * channels, image_pixels * 3U);
-    if (right_rect) resize(output->right_rectified, image_pixels * channels, image_pixels * 3U);
+    if (left_rect) resize(output->left_rectified, image_pixels * channels, image_pixels * channels);
+    if (right_rect) resize(output->right_rectified, image_pixels * channels, image_pixels * channels);
     left_rectified = {output->left_rectified.data(), image_grid.width,
                       image_grid.height, image_grid.width * channels, request.left.encoding};
     right_rectified = {output->right_rectified.data(), image_grid.width,
@@ -431,6 +478,7 @@ std::shared_ptr<const FrameSetStorage> NativeProcessingPipeline::process(
     output->stats.rectification.compute_ms += rgb_stats.compute_ms;
     output->stats.rectification.output_transfer_ms += rgb_stats.output_transfer_ms;
     output->stats.rectification.total_ms += rgb_stats.total_ms;
+    output->stats.rectification.input_bytes_copied += rgb_stats.input_bytes_copied;
   }
   if (request.color_preview != ColorPreviewRequest::kNone) {
     auto& buffer = request.color_preview == ColorPreviewRequest::kLeft ?
@@ -483,6 +531,12 @@ std::shared_ptr<const FrameSetStorage> NativeProcessingPipeline::process(
     for (std::size_t row = 0; row < image_grid.height; ++row) {
       for (std::size_t side = 0; side < 2U; ++side) {
         const auto& source = side == 0U ? left : right;
+        if (source_channels == target_channels) {
+          const auto row_bytes = image_grid.width * target_channels;
+          std::copy_n(source.data() + row * row_bytes, row_bytes,
+                      target.data() + (row * 2U + side) * row_bytes);
+          continue;
+        }
         for (std::size_t column = 0; column < image_grid.width; ++column) {
           const auto input = (row * image_grid.width + column) * source_channels;
           const auto dest = ((row * 2U + side) * image_grid.width + column) * target_channels;
@@ -527,6 +581,8 @@ std::shared_ptr<const FrameSetStorage> NativeProcessingPipeline::process(
   output->metadata.calibration = configuration_.image_calibration.identity;
   output->metadata.calibration_authority =
       configuration_.image_calibration.authority;
+  output->image_calibration = configuration_.image_calibration;
+  output->matching_calibration = configuration_.matching_calibration;
   output->metadata.left_rectified = {
       image_grid, {0U, 0U, image_grid.width, image_grid.height},
       CameraRole::kLogicalLeft, image_format};
@@ -658,6 +714,9 @@ SubmitResult BoundedNativeScheduler::try_submit(
     image.right_dmabuf_lease = request.right_dmabuf_lease;
     image.publication_context = request.publication_context;
     (void)enqueue(std::move(image), true);
+    request.products &= ~(request.independent_image_products &
+                          ~request.associated_image_products);
+    request.independent_image_products = 0U;
   }
   // Admission of a numeric preview refers to the matcher lane, even when its
   // independent image was admitted separately.

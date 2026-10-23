@@ -164,6 +164,10 @@ std::optional<StereoPair> StereoPairer::submit(CapturedFrame frame) {
           "captured frame has no active lease for its epoch");
     }
 
+    if (last_stream_sequence_[index] != 0U) {
+      const auto gap = frame.stream_sequence - last_stream_sequence_[index] - 1U;
+      (index == 0U ? stats_.left_sequence_gaps : stats_.right_sequence_gaps) += gap;
+    }
     last_stream_sequence_[index] = frame.stream_sequence;
     last_timestamp_ns_[index] = frame.sensor_timestamp_ns;
     auto& pending = index == 0U ? left_pending_ : right_pending_;

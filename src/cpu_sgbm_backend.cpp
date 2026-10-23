@@ -230,20 +230,21 @@ void validate_config(const CpuSgbmConfig& config) {
 class CpuSgbmBackend final : public StereoBackend,
                              public NativeDisparityBackend {
  public:
-  explicit CpuSgbmBackend(const CpuSgbmConfig& config)
-      : base_config_(config), config_(config) {
+  explicit CpuSgbmBackend(const CpuSgbmConfig& config, const bool metadata_only = false)
+      : base_config_(config), config_(config), metadata_only_(metadata_only) {
     validate_config(config_);
     input_grid_ = make_reference_grid(config_.input_width, config_.input_height);
     native_grid_ = make_resampled_grid(input_grid_, config_.working_width,
                                        config_.working_height);
-    disparity_scale_ = static_cast<float>(native_grid_.x_scale_to_reference);
     rebuild_matcher();
+    update_effective_revision();
 
     const cv::Size working_size(static_cast<int>(config_.working_width),
                                 static_cast<int>(config_.working_height));
-    disparity_fixed_.create(working_size, CV_16SC1);
-    disparity_filtered_.create(working_size, CV_16SC1);
-    valid_pixels_by_row_.resize(config_.working_height);
+    if (!metadata_only_) {
+      disparity_fixed_.create(working_size, CV_16SC1);
+      valid_pixels_by_row_.resize(config_.working_height);
+    }
     refresh_configuration();
   }
 
@@ -288,7 +289,7 @@ class CpuSgbmBackend final : public StereoBackend,
           metadata_ = previous_metadata;
           matcher_ = previous_matcher;
           const auto execution = opencv_execution::configuration_guard();
-          cv::setNumThreads(previous.opencv_threads);
+          if (!metadata_only_) cv::setNumThreads(previous.opencv_threads);
           throw;
         }
         ++configuration_state_.generation;
@@ -296,6 +297,7 @@ class CpuSgbmBackend final : public StereoBackend,
         config_ = std::move(updated);
       }
       configuration_state_.applied_revision = configuration_state_.requested_revision;
+      update_effective_revision();
       configuration_state_.rejection_error.clear();
     } catch (const std::exception& failure) {
       configuration_state_.rejection_error = failure.what();
@@ -305,7 +307,11 @@ class CpuSgbmBackend final : public StereoBackend,
   }
 
   [[nodiscard]] StereoConfigurationState configuration_state() const override {
-    auto result = configuration_state_;
+    return configuration_state_;
+  }
+
+ private:
+  void update_effective_revision() {
     std::ostringstream value;
     value.imbue(std::locale::classic());
     value << std::setprecision(std::numeric_limits<float>::max_digits10)
@@ -318,10 +324,10 @@ class CpuSgbmBackend final : public StereoBackend,
           << config_.disparity_12_max_diff << ':' << config_.pre_filter_cap << ':'
           << config_.bm_pre_filter_size << ':' << config_.bm_texture_threshold << ':'
           << config_.specular_threshold << ':' << config_.median_filter_size << ':' << config_.opencv_threads;
-    result.effective_revision = revision::sha256_hex(value.str());
-    return result;
+    configuration_state_.effective_revision = revision::sha256_hex(value.str());
   }
 
+ public:
   [[nodiscard]] std::string_view name() const noexcept override {
     return config_.algorithm == CpuSgbmConfig::Algorithm::kBm
                ? "opencv_bm_cpu" : "opencv_sgbm_cpu";
@@ -334,7 +340,7 @@ class CpuSgbmBackend final : public StereoBackend,
  private:
   void rebuild_matcher() {
     const auto execution = opencv_execution::configuration_guard();
-    cv::setNumThreads(config_.opencv_threads);
+    if (!metadata_only_) cv::setNumThreads(config_.opencv_threads);
     metadata_.grid = native_grid_;
     const cv::Rect matcher_roi = cv::getValidDisparityROI(
         cv::Rect(0, 0, static_cast<int>(config_.working_width),
@@ -362,6 +368,7 @@ class CpuSgbmBackend final : public StereoBackend,
             : ConfidenceModel::kBinarySgbmSupportV1;
     metadata_.derivation = DisparityDerivation::kNativeMatcherGrid;
     validate(metadata_);
+    if (metadata_only_) return;
 
     if (config_.algorithm == CpuSgbmConfig::Algorithm::kBm) {
       auto bm = cv::StereoBM::create(config_.working_disparities,
@@ -399,6 +406,7 @@ class CpuSgbmBackend final : public StereoBackend,
   void process_native(const ImageView& left, const ImageView& right,
                       const MutableDisparityProductsView& output,
                       StereoBackendStats& stats) override {
+    if (metadata_only_) throw std::logic_error("image-only backend cannot run stereo matching");
     const auto execution = opencv_execution::compute_guard();
     validate_input_views(left, right);
     validate(output);
@@ -415,6 +423,7 @@ class CpuSgbmBackend final : public StereoBackend,
   void process(const ImageView& left, const ImageView& right,
                const MutableDisparityView& output,
                StereoBackendStats& stats) override {
+    if (metadata_only_) throw std::logic_error("image-only backend cannot run stereo matching");
     refresh_configuration();
     validate_input_views(left, right);
     const auto execution = opencv_execution::compute_guard();
@@ -660,12 +669,12 @@ class CpuSgbmBackend final : public StereoBackend,
 
   CpuSgbmConfig base_config_;
   CpuSgbmConfig config_;
+  bool metadata_only_{};
   StereoConfigurationState configuration_state_;
   std::optional<std::filesystem::file_time_type> control_time_;
   PixelGrid input_grid_{};
   PixelGrid native_grid_{};
   DisparityMetadata metadata_{};
-  float disparity_scale_{};
   cv::Ptr<cv::StereoMatcher> matcher_;
   cv::Mat left_gray_;
   cv::Mat right_gray_;
@@ -692,6 +701,11 @@ std::unique_ptr<StereoBackend> make_cpu_sgbm_backend(
 std::unique_ptr<NativeDisparityBackend> make_cpu_sgbm_native_backend(
     const CpuSgbmConfig& config) {
   return std::make_unique<CpuSgbmBackend>(config);
+}
+
+std::unique_ptr<NativeDisparityBackend> make_cpu_sgbm_metadata_backend(
+    const CpuSgbmConfig& config) {
+  return std::make_unique<CpuSgbmBackend>(config, true);
 }
 
 }  // namespace depthd

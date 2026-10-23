@@ -69,6 +69,61 @@ validation label alone proves metric accuracy. The PNG is a visualization:
 black denotes invalid pixels and grey maps the chosen near/far range. It changes
 no recorded data or calibration.
 
+Both snapshot and streaming APIs accept the same selection:
+
+```python
+frame = client.latest(products=("depth", "validity"), cadence_hz=2,
+                      delivery="best_effort")
+with client.frames(products=("depth", "validity"), cadence_hz=2,
+                   delivery="best_effort") as frames:
+    for frame in frames:
+        depth = frame.products["depth"]
+        validity = frame.products["validity"]
+        print(frame.identity, depth.width, depth.height)
+        # Consume finite positive depth only where validity.data[index] == 1.
+        break
+```
+
+Omitting every option preserves the legacy six-product subscription. Supplying
+only products uses 10 Hz; supplying only cadence uses those legacy products.
+Prefer an explicit small selection and rate. The SDK fills both query fields so
+partial selections remain valid gateway requests. A selected frame holds
+immutable wire bytes and product memoryviews share that storage. Receiving a
+network message still requires a bounded ownership copy; this is not a promise
+of end-to-end zero-copy. Fragmented payloads are received directly into their
+accumulator without creating an immutable copy of every fragment.
+
+`confidence` is binary matcher support (`0` / `255`), not a probability.
+`disparity` is in matching-grid pixels, which can differ from image pixels.
+Products are keyed by name; only requested products are included. Stereo
+side-by-side outputs contain left then right horizontally. `float32_le()` gives
+a zero-copy float view on little-endian hosts; on a big-endian host use an
+explicit little-endian decoder such as NumPy `dtype="<f4"` or `struct.unpack`.
+
+New NUV1 frames add optional `image_grid` and `matching_grid` mappings,
+`disparity_metadata` (ROI, quantization, accepted range, confidence model and
+derivation), `depth_metadata`, and `calibration_geometry`. Geometry contains
+`image` and `matching` projection pairs (12 row-major values each), reprojection
+matrices (16 row-major values) and baseline in metres. Grid mappings use
+`x_scale_to_reference`, `y_scale_to_reference`, `x_offset_to_reference` and
+`y_offset_to_reference`. Use the geometry for the selected grid and retain its
+calibration hash and authority; older recordings without these fields need
+their original calibration separately.
+
+The optional `capture` object carries `sensor_delta_ns` and `left`/`right`
+sensor timestamp, stream sequence, `reported_exposure_time_us`, analogue gain
+and digital gain. Reported exposure is sensor metadata, not physical trigger
+pulse measurement. Frame capture time is the stereo timestamp midpoint in the
+device boot-time clock, not UTC. Compressed previews have independent cadence;
+normalize UUID spelling and match complete device/run/capture identity instead
+of joining the most recently received messages.
+
+`latest_encoded()` returns a compressed visualization. Encoded depth is mapped
+to 8-bit intensity over 0.2–12.2 m before compression; it is unsuitable for
+numeric measurement. Device encoder settings affect all preview consumers,
+while each data subscription selects its own products and cadence. The
+gateway's uncompressed-network toggle does not disable local socket delivery.
+
 The small real recording in `tests/fixtures/recordings/beta6-preview.nvr.gz`
 has numeric depth/validity only. Its adjacent JSON supplies license, provenance,
 original identity, checksums and exact expected dimensions/validity count. Expand

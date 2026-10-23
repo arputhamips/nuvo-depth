@@ -27,12 +27,14 @@ assert.deepEqual(check({products:['left_mono','left_mono']}).products,['left_mon
 assert.deepEqual(check({enabled:false},{rawEnabled:false}).products,[]);
 for(const candidate of [{products:[]},{products:['unknown']},{enabled:'true'},{cadence_hz:NaN},{cadence_hz:61},{preview:'true'},{preview_cadence_hz:0},{delivery:'unsupported'}])assert.throws(()=>check(candidate));
 assert.throws(()=>check({}, {supportedProducts:['depth']}),/not supported/);
-assert.throws(()=>check({}, {rawEnabled:false}),/Raw delivery is off/);
+assert.throws(()=>check({}, {rawEnabled:false}),/Uncompressed network data is off/);
 assert.throws(()=>check({delivery:'exact'}),/qualified/);
 assert.equal(check({delivery:'exact'},{qualified:true}).delivery,'exact');
 assert.throws(()=>check({products:['left_rgb','right_rgb']}),/budget/);
 assert.throws(()=>check({}, {maxFrameBytes:100}),/frame size/);
 assert.throws(()=>check({}, {width:0}),/dimensions/);
+assert.equal(check({products:['depth','validity'],cadence_hz:1},{matchingWidth:364,matchingHeight:272}).frameBytes,364*272*5+65568);
+assert.throws(()=>check({products:['depth']},{matchingWidth:0}),/dimensions/);
 for(const [product,,bytesPerPixel] of products){
   const candidate={...selection,products:[product],cadence_hz:1};
   const actual=D.validateOutputSelection(candidate,{},products);

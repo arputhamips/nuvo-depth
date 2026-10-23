@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <future>
 #include <stdexcept>
 #include <vector>
 
@@ -109,6 +110,29 @@ int main() {
   } catch (const std::invalid_argument&) {
   }
 
+  // Different starting pointers can still alias, including with padded rows.
+  // Direct remap must reject both overlap directions before touching output.
+  std::array<std::uint8_t, 64> overlapping;
+  overlapping.fill(73U);
+  for (const auto input_offset : {0U, 1U}) {
+    for (const auto memory : {depthd::ImageMemory::kCpu, depthd::ImageMemory::kDmaMapping}) {
+      bool rejected = false;
+      try {
+        backend->rectify(depthd::RectificationCamera::kLeft,
+            {overlapping.data() + input_offset, width, height, width + 2U,
+             depthd::ImageEncoding::kGray8, memory},
+            {overlapping.data() + (1U - input_offset), width, height, width + 2U,
+             depthd::ImageEncoding::kGray8}, stats);
+      } catch (const std::invalid_argument&) { rejected = true; }
+      if (!rejected || !std::all_of(overlapping.begin(), overlapping.end(),
+                                  [](auto value) { return value == 73U; })) return 7;
+    }
+  }
+  // Adjacent (nonoverlapping) pixel spans remain valid.
+  backend->rectify(depthd::RectificationCamera::kLeft,
+      {overlapping.data(), width, height, width, depthd::ImageEncoding::kGray8},
+      {overlapping.data() + width * height, width, height, width, depthd::ImageEncoding::kGray8}, stats);
+
   // Exercise nonidentity maps, out-of-bounds interpolation, padded input/output,
   // both cameras, and repeated mono/RGB format switches in the reused cache.
   for (std::size_t i = 0; i < maps.left.source_x.size(); ++i) {
@@ -147,5 +171,29 @@ int main() {
     }
   }
 
+  // Share immutable maps across workers, but never share their mutable DMA
+  // staging buffers. Destroying the float source maps cannot invalidate them.
+  auto prepared = depthd::prepare_opencv_rectification_maps(maps);
+  auto second_backend = depthd::make_opencv_rectification_backend(config, prepared);
+  backend = depthd::make_opencv_rectification_backend(config, prepared);
+  maps = {};
+  const auto run_worker = [&](depthd::RectificationBackend& worker, const std::uint8_t value) {
+    std::array<std::uint8_t, width * height> input{}, direct{}, staged{};
+    input.fill(value);
+    for (int repeat = 0; repeat < 50; ++repeat) {
+      depthd::RectificationStats direct_stats, dma_stats;
+      worker.rectify(depthd::RectificationCamera::kLeft,
+          {input.data(), width, height, width, depthd::ImageEncoding::kGray8},
+          {direct.data(), width, height, width, depthd::ImageEncoding::kGray8}, direct_stats);
+      worker.rectify(depthd::RectificationCamera::kLeft,
+          {input.data(), width, height, width, depthd::ImageEncoding::kGray8, depthd::ImageMemory::kDmaMapping},
+          {staged.data(), width, height, width, depthd::ImageEncoding::kGray8}, dma_stats);
+      if (direct != staged || direct_stats.input_bytes_copied != 0U ||
+          direct_stats.input_transfer_ms != 0.0 || dma_stats.input_bytes_copied != input.size()) return false;
+    }
+    return true;
+  };
+  auto other = std::async(std::launch::async, [&] { return run_worker(*second_backend, 203U); });
+  if (!run_worker(*backend, 17U) || !other.get()) return 6;
   return 0;
 }

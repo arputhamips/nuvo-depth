@@ -1483,6 +1483,14 @@ class StreamSession final {
     queue_.close_incomplete();
   }
  private:
+  static bool cancel_timer(net::steady_timer& timer) noexcept {
+    try {
+      timer.cancel();
+      return true;
+    } catch (const boost::system::system_error&) {
+      return false;
+    }
+  }
   void finish() noexcept {
     if (finished_) return;
     finished_ = true;
@@ -1490,8 +1498,8 @@ class StreamSession final {
     demand_.reset();
     queue_.close_incomplete();
     beast::error_code ignored;
-    tick_.cancel(ignored);
-    write_deadline_.cancel(ignored);
+    cancel_timer(tick_);
+    cancel_timer(write_deadline_);
     auto& socket = beast::get_lowest_layer(socket_).socket();
     socket.cancel(ignored);
     socket.shutdown(tcp::socket::shutdown_both, ignored);
@@ -1518,8 +1526,7 @@ class StreamSession final {
     for (const auto part : bytes->parts()) buffers->emplace_back(part.data(), part.size());
     socket_.async_write(*buffers,
         [this, bytes, buffers](const beast::error_code& error, const std::size_t count) {
-          beast::error_code ignored;
-          write_deadline_.cancel(ignored);
+          if (!cancel_timer(write_deadline_)) { finish(); return; }
           if (finished_) return;
           if (error || count != bytes->size()) { finish(); return; }
           queue_.note_bytes_sent(count);

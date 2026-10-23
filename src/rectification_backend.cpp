@@ -13,6 +13,7 @@ void add_stats(RectificationStats& destination,
   destination.compute_ms += source.compute_ms;
   destination.output_transfer_ms += source.output_transfer_ms;
   destination.total_ms += source.total_ms;
+  destination.input_bytes_copied += source.input_bytes_copied;
 }
 
 }  // namespace

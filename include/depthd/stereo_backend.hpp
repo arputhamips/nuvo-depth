@@ -16,12 +16,18 @@ enum class ImageEncoding : std::uint8_t {
   kRgb8,
 };
 
+enum class ImageMemory : std::uint8_t {
+  kCpu,
+  kDmaMapping,
+};
+
 struct ImageView {
   const std::uint8_t* data{};
   std::uint32_t width{};
   std::uint32_t height{};
   std::size_t stride_bytes{};
   ImageEncoding encoding{ImageEncoding::kGray8};
+  ImageMemory memory{ImageMemory::kCpu};
 };
 
 struct MutableDisparityView {
@@ -102,14 +108,15 @@ struct CpuSgbmConfig {
   std::int32_t uniqueness_ratio{1};
   std::int32_t speckle_window_size{30};
   std::int32_t speckle_range{2};
+  // OpenCV 3-way normalizes values <= 0 to 1; they do not disable its check.
   std::int32_t disparity_12_max_diff{1};
   std::int32_t pre_filter_cap{31};
   std::int32_t bm_pre_filter_size{9};
   std::int32_t bm_texture_threshold{10};
   // 256 disables bright-pixel rejection; 1..255 rejects pixels at/above it.
   std::int32_t specular_threshold{256};
-  // 0 disables smoothing. 3 and 5 median-filter already-valid subpixel
-  // disparity while preserving the matcher's invalid mask.
+  // Additional Nuvo smoothing. 0 leaves OpenCV's internal median unchanged.
+  // 3 and 5 preserve the matcher's invalid mask.
   std::int32_t median_filter_size{0};
   std::int32_t opencv_threads{1};
   bool operator==(const CpuSgbmConfig&) const = default;
@@ -119,5 +126,9 @@ struct CpuSgbmConfig {
     const CpuSgbmConfig& config);
 [[nodiscard]] std::unique_ptr<NativeDisparityBackend>
 make_cpu_sgbm_native_backend(const CpuSgbmConfig& config);
+// Configuration/metadata reader for an image worker. Allocates no matcher and
+// rejects matching calls; metadata and revisions match the full backend.
+[[nodiscard]] std::unique_ptr<NativeDisparityBackend>
+make_cpu_sgbm_metadata_backend(const CpuSgbmConfig& config);
 
 }  // namespace depthd

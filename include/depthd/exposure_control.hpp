@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -45,6 +46,22 @@ struct TimingLimits {
   std::uint32_t trigger_guard_us{250U};
 };
 
+// Profile settings, separate from the existing live-control JSON schema.
+// An absent ROI uses the central 60%; coordinates are [xmin,ymin,xmax,ymax].
+struct MeteringConfiguration {
+  std::optional<std::array<std::uint32_t, 4>> roi;
+  std::uint32_t dark_threshold{16U};
+  std::uint32_t clipping_threshold{245U};
+  double max_clipped_fraction{0.005};
+};
+
+struct AppliedControls {
+  std::int32_t left_exposure_us{};
+  std::int32_t right_exposure_us{};
+  double left_analogue_gain{};
+  double right_analogue_gain{};
+};
+
 struct Stats {
   std::uint64_t frames_seen{};
   std::uint64_t observations{};
@@ -67,6 +84,10 @@ struct Stats {
   std::uint32_t safe_max_exposure_us{};
   bool at_lower_limit{};
   bool at_upper_limit{};
+  bool applied_controls_tracked{};
+  bool applied_controls_available{};
+  bool applied_controls_match{};
+  std::uint64_t applied_controls_wait_frames{};
   std::string state;
   std::string confirmation_direction;
   std::string last_reason;
@@ -88,9 +109,13 @@ void validate(const Configuration& configuration);
 class Controller final {
  public:
   Controller(std::filesystem::path control_file, Configuration fallback,
-             TimingLimits timing = {});
+             TimingLimits timing = {}, MeteringConfiguration metering = {});
 
   [[nodiscard]] std::optional<Command> refresh();
+  // Call for every captured pair, before metering admission. Once enabled,
+  // missing/mismatched metadata holds AE; it never silently assumes application.
+  // This acknowledges reported sensor controls, not physical trigger edges.
+  void update_applied_controls(const AppliedControls& controls) noexcept;
   // Check before mapping either DMA buffer: most frames need no CPU metering.
   [[nodiscard]] bool should_meter_next_frame() const noexcept;
   void skip_observation_frame();
@@ -108,12 +133,15 @@ class Controller final {
   [[nodiscard]] std::uint32_t effective_auto_min_exposure_us() const noexcept;
   [[nodiscard]] std::uint32_t effective_auto_max_exposure_us() const noexcept;
   void reset_confirmation() noexcept;
+  [[nodiscard]] bool confirm(const std::string& direction);
+  void hold(const std::string& reason, double median);
   void update_state_stats() noexcept;
 
   std::filesystem::path control_file_;
   Configuration fallback_;
   Configuration configuration_;
   TimingLimits timing_;
+  MeteringConfiguration metering_;
   Command command_;
   Stats stats_;
   std::optional<std::filesystem::file_time_type> last_write_time_;
@@ -121,6 +149,9 @@ class Controller final {
   std::uint32_t settle_frames_remaining_{};
   std::uint32_t confirmation_observations_{};
   std::string confirmation_direction_;
+  std::optional<double> filtered_log_median_;
+  std::optional<double> stable_median_;
+  bool protect_highlights_{};
 };
 
 }  // namespace depthd::exposure

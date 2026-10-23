@@ -328,11 +328,11 @@ StereoProcessingRequest make_cpu_dmabuf_processing_request(
   result.left = {nullptr, result.capture.left.grid.width,
                  result.capture.left.grid.height,
                  result.capture.left.planes.front().stride_bytes,
-                 ImageEncoding::kGray8};
+                 ImageEncoding::kGray8, ImageMemory::kDmaMapping};
   result.right = {nullptr, result.capture.right.grid.width,
                   result.capture.right.grid.height,
                   result.capture.right.planes.front().stride_bytes,
-                  ImageEncoding::kGray8};
+                  ImageEncoding::kGray8, ImageMemory::kDmaMapping};
   result.left_dmabuf_lease = std::make_shared<CaptureRequestLeaseView>(
       result.capture.left.lease.token());
   result.right_dmabuf_lease = std::make_shared<CaptureRequestLeaseView>(

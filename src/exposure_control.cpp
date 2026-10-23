@@ -8,7 +8,6 @@
 #include <limits>
 #include <sstream>
 #include <stdexcept>
-#include <vector>
 
 #include <yaml-cpp/yaml.h>
 
@@ -19,6 +18,8 @@ constexpr std::uint32_t kAbsoluteMinimumExposureUs = 250U;
 constexpr std::uint32_t kAbsoluteMaximumExposureUs = 8'000U;
 constexpr double kAbsoluteMinimumGain = 1.0;
 constexpr double kAbsoluteMaximumGain = 3.0;
+constexpr std::uint32_t kConfirmationObservations = 3U;
+constexpr double kMaximumStepEv = 0.2;
 
 template <class Value>
 [[nodiscard]] Value required(const YAML::Node& root, const char* key) {
@@ -71,7 +72,8 @@ struct Observation {
 };
 
 [[nodiscard]] Observation measure(const ImageView& left,
-                                  const ImageView& right) {
+                                  const ImageView& right,
+                                  const MeteringConfiguration& configuration) {
   if (left.data == nullptr || right.data == nullptr || left.width == 0U ||
       left.height == 0U || right.width == 0U || right.height == 0U ||
       left.stride_bytes < left.width || right.stride_bytes < right.width ||
@@ -81,16 +83,16 @@ struct Observation {
     throw std::invalid_argument(
         "auto exposure requires equal uint8 stereo luma images");
   }
-  const auto x_begin = left.width / 5U;
-  const auto x_end = left.width * 4U / 5U;
-  const auto y_begin = left.height / 5U;
-  const auto y_end = left.height * 4U / 5U;
-  std::array<std::vector<std::uint8_t>, 2> side_pixels;
-  const auto samples_per_image =
-      static_cast<std::size_t>((x_end - x_begin + 3U) / 4U) *
-      static_cast<std::size_t>((y_end - y_begin + 3U) / 4U);
-  side_pixels[0].reserve(samples_per_image);
-  side_pixels[1].reserve(samples_per_image);
+  const auto roi = configuration.roi.value_or(
+      std::array<std::uint32_t, 4>{left.width / 5U, left.height / 5U,
+                                  left.width * 4U / 5U, left.height * 4U / 5U});
+  const auto [x_begin, y_begin, x_end, y_end] = roi;
+  if (x_begin >= x_end || y_begin >= y_end || x_end > left.width ||
+      y_end > left.height) {
+    throw std::invalid_argument("auto-exposure metering ROI is outside the image");
+  }
+  std::array<std::array<std::size_t, 256>, 2> histograms{};
+  std::array<std::size_t, 2> counts{};
   std::size_t dark{};
   std::array<std::size_t, 2> clipped{};
   const auto sample = [&](const ImageView& image, const std::size_t side) {
@@ -99,40 +101,40 @@ struct Observation {
                                          image.stride_bytes;
       for (auto x = x_begin; x < x_end; x += 4U) {
         const auto value = row[x];
-        side_pixels[side].push_back(value);
-        if (value < 16U) ++dark;
-        if (value > 245U) ++clipped[side];
+        ++histograms[side][value];
+        ++counts[side];
+        if (value < configuration.dark_threshold) ++dark;
+        if (value > configuration.clipping_threshold) ++clipped[side];
       }
     }
   };
   sample(left, 0U);
   sample(right, 1U);
-  if (side_pixels[0].empty() || side_pixels[1].empty()) {
-    throw std::invalid_argument("auto-exposure metering ROI is empty");
-  }
-  auto pixels = side_pixels[0];
-  pixels.insert(pixels.end(), side_pixels[1].begin(), side_pixels[1].end());
-  const auto median = [](std::vector<std::uint8_t>& values) {
-    const auto middle = values.begin() +
-                        static_cast<std::ptrdiff_t>(values.size() / 2U);
-    std::nth_element(values.begin(), middle, values.end());
-    return static_cast<double>(*middle);
+  const auto median = [](const std::array<std::size_t, 256>& histogram,
+                         const std::size_t count) {
+    std::size_t cumulative{};
+    for (std::size_t value = 0; value < histogram.size(); ++value) {
+      cumulative += histogram[value];
+      if (cumulative > count / 2U) return static_cast<double>(value);
+    }
+    return 255.0;
   };
-  const auto middle = pixels.begin() +
-                      static_cast<std::ptrdiff_t>(pixels.size() / 2U);
-  std::nth_element(pixels.begin(), middle, pixels.end());
+  std::array<std::size_t, 256> combined{};
+  for (std::size_t value = 0; value < combined.size(); ++value) {
+    combined[value] = histograms[0][value] + histograms[1][value];
+  }
   Observation result;
-  result.median = static_cast<double>(*middle);
-  result.left_median = median(side_pixels[0]);
-  result.right_median = median(side_pixels[1]);
+  result.median = median(combined, counts[0] + counts[1]);
+  result.left_median = median(histograms[0], counts[0]);
+  result.right_median = median(histograms[1], counts[1]);
   result.dark_fraction = static_cast<double>(dark) /
-                         static_cast<double>(pixels.size());
+                         static_cast<double>(counts[0] + counts[1]);
   result.left_clipped_fraction =
       static_cast<double>(clipped[0]) /
-      static_cast<double>(side_pixels[0].size());
+      static_cast<double>(counts[0]);
   result.right_clipped_fraction =
       static_cast<double>(clipped[1]) /
-      static_cast<double>(side_pixels[1].size());
+      static_cast<double>(counts[1]);
   result.clipped_fraction =
       std::max(result.left_clipped_fraction, result.right_clipped_fraction);
   return result;
@@ -277,10 +279,18 @@ std::string configuration_json(const Configuration& value) {
 }
 
 Controller::Controller(std::filesystem::path control_file,
-                       Configuration fallback, const TimingLimits timing)
+                       Configuration fallback, const TimingLimits timing,
+                       MeteringConfiguration metering)
     : control_file_(std::move(control_file)), fallback_(fallback),
-      configuration_(fallback), timing_(timing) {
+      configuration_(fallback), timing_(timing), metering_(std::move(metering)) {
   validate(fallback_);
+  if (metering_.dark_threshold >= metering_.clipping_threshold ||
+      metering_.clipping_threshold > 255U ||
+      !finite_in_range(metering_.max_clipped_fraction, 0.0, 1.0) ||
+      (metering_.roi && ((*metering_.roi)[0] >= (*metering_.roi)[2] ||
+                         (*metering_.roi)[1] >= (*metering_.roi)[3]))) {
+    throw std::invalid_argument("auto-exposure metering settings are invalid");
+  }
   if (timing_.trigger_guard_us == 0U ||
       timing_.frame_period_us <=
           kAbsoluteMinimumExposureUs + timing_.trigger_guard_us) {
@@ -348,6 +358,7 @@ std::optional<Command> Controller::refresh() {
   try {
     if (!std::filesystem::exists(control_file_)) return std::nullopt;
     const auto modified = std::filesystem::last_write_time(control_file_);
+    if (last_write_time_ == modified) return std::nullopt;
     std::ifstream input(control_file_);
     if (!input) throw std::runtime_error("cannot read exposure control file");
     const std::string document{std::istreambuf_iterator<char>(input),
@@ -359,6 +370,7 @@ std::optional<Command> Controller::refresh() {
     // Remember invalid documents too so a bad atomic update is reported once,
     // while the last valid command remains active until the file changes.
     last_document_ = document;
+    last_write_time_ = modified;
     auto loaded = parse_configuration(document);
     const auto previous_mode = configuration_.mode;
     Command updated;
@@ -388,6 +400,10 @@ std::optional<Command> Controller::refresh() {
                                    ? configuration_.auto_settle_frames_after_update
                                    : 0U;
     reset_confirmation();
+    filtered_log_median_.reset();
+    stable_median_.reset();
+    protect_highlights_ = false;
+    stats_.applied_controls_match = false;
     ++stats_.configuration_reloads;
     stats_.last_error.clear();
     stats_.last_reason =
@@ -436,6 +452,49 @@ void Controller::reset_confirmation() noexcept {
   confirmation_direction_.clear();
 }
 
+bool Controller::confirm(const std::string& direction) {
+  if (confirmation_direction_ == direction) {
+    ++confirmation_observations_;
+  } else {
+    confirmation_direction_ = direction;
+    confirmation_observations_ = 1U;
+  }
+  if (confirmation_observations_ >= kConfirmationObservations) return true;
+  stats_.state = "confirming_" + direction;
+  stats_.last_reason = stats_.state;
+  update_state_stats();
+  return false;
+}
+
+void Controller::hold(const std::string& reason, const double median) {
+  reset_confirmation();
+  stable_median_ = std::max(median, 1.0);
+  filtered_log_median_ = std::log(*stable_median_);
+  stats_.state = "stable";
+  stats_.last_reason = reason;
+  stats_.last_adjustment_factor = 1.0;
+  update_state_stats();
+}
+
+void Controller::update_applied_controls(const AppliedControls& controls) noexcept {
+  stats_.applied_controls_tracked = true;
+  stats_.applied_controls_available =
+      controls.left_exposure_us > 0 && controls.right_exposure_us > 0 &&
+      std::isfinite(controls.left_analogue_gain) && controls.left_analogue_gain > 0.0 &&
+      std::isfinite(controls.right_analogue_gain) && controls.right_analogue_gain > 0.0;
+  // Sensor line timing and analogue-gain steps cannot reproduce every request
+  // exactly. These tolerances cover quantization, not a previous 0.2 EV command.
+  const auto exposure_tolerance =
+      std::max(25.0, static_cast<double>(command_.exposure_us) * 0.01);
+  // IMX296 uses floor(200*log10(gain)); one code step is about 1.16%.
+  const auto gain_tolerance = command_.analogue_gain * 0.0125;
+  stats_.applied_controls_match = stats_.applied_controls_available &&
+      std::abs(static_cast<double>(controls.left_exposure_us) - command_.exposure_us) <= exposure_tolerance &&
+      std::abs(static_cast<double>(controls.right_exposure_us) - command_.exposure_us) <= exposure_tolerance &&
+      std::abs(controls.left_analogue_gain - command_.analogue_gain) <= gain_tolerance &&
+      std::abs(controls.right_analogue_gain - command_.analogue_gain) <= gain_tolerance;
+}
+
 void Controller::update_state_stats() noexcept {
   stats_.settle_frames_remaining = settle_frames_remaining_;
   stats_.confirmation_observations = confirmation_observations_;
@@ -460,6 +519,7 @@ void Controller::update_state_stats() noexcept {
 
 bool Controller::should_meter_next_frame() const noexcept {
   return configuration_.mode == Mode::kAuto &&
+         (!stats_.applied_controls_tracked || stats_.applied_controls_match) &&
          settle_frames_remaining_ == 0U &&
          (stats_.frames_seen + 1U) %
                  configuration_.auto_update_interval_frames == 0U;
@@ -481,6 +541,16 @@ std::optional<Command> Controller::observe(const ImageView& left,
     update_state_stats();
     return std::nullopt;
   }
+  if (stats_.applied_controls_tracked && !stats_.applied_controls_match) {
+    ++stats_.applied_controls_wait_frames;
+    stats_.state = stats_.applied_controls_available ? "awaiting_applied_controls"
+                                                   : "applied_metadata_unavailable";
+    stats_.last_reason = stats_.state;
+    reset_confirmation();
+    filtered_log_median_.reset();
+    update_state_stats();
+    return std::nullopt;
+  }
   if (settle_frames_remaining_ > 0U) {
     --settle_frames_remaining_;
     stats_.state = "settling";
@@ -492,7 +562,7 @@ std::optional<Command> Controller::observe(const ImageView& left,
     update_state_stats();
     return std::nullopt;
   }
-  const auto observed = measure(left, right);
+  const auto observed = measure(left, right, metering_);
   ++stats_.observations;
   stats_.median = observed.median;
   stats_.left_median = observed.left_median;
@@ -504,41 +574,61 @@ std::optional<Command> Controller::observe(const ImageView& left,
   stats_.left_clipped_fraction = observed.left_clipped_fraction;
   stats_.right_clipped_fraction = observed.right_clipped_fraction;
 
-  double factor{1.0};
-  std::string reason;
-  if (observed.clipped_fraction > 0.005) {
-    reset_confirmation();
-    factor = std::max(0.25, std::min(0.5, configuration_.auto_target_median /
-                                             std::max(observed.median, 1.0)));
-    reason = "clipping";
-  } else if (observed.median < configuration_.auto_min_median ||
-             observed.median > configuration_.auto_max_median) {
-    const std::string direction =
-        observed.median < configuration_.auto_min_median ? "dark" : "bright";
-    if (confirmation_direction_ == direction) {
-      ++confirmation_observations_;
-    } else {
-      confirmation_direction_ = direction;
-      confirmation_observations_ = 1U;
-    }
-    if (confirmation_observations_ < 2U) {
-      stats_.state = "confirming_" + direction;
-      stats_.last_reason = stats_.state;
+  const auto log_median = std::log(std::max(observed.median, 1.0));
+  filtered_log_median_ = filtered_log_median_
+      ? 0.5 * *filtered_log_median_ + 0.5 * log_median : log_median;
+  const auto filtered_median = std::exp(*filtered_log_median_);
+
+  bool scene_change_confirmed{};
+  if (stable_median_) {
+    // The stable baseline is fixed until a persistent scene change, so gradual
+    // lighting changes accumulate instead of disappearing into a moving target.
+    std::string direction;
+    if (observed.median < *stable_median_ * 0.8 &&
+        filtered_median < *stable_median_ * 0.85) direction = "dark";
+    if (observed.median > *stable_median_ * 1.2 &&
+        filtered_median > *stable_median_ * 1.15) direction = "bright";
+    if (direction.empty()) {
+      reset_confirmation();
+      stats_.state = "stable";
       update_state_stats();
       return std::nullopt;
     }
-    factor = std::clamp(
-        std::sqrt(configuration_.auto_target_median /
-                  std::max(observed.median, 1.0)),
-        0.5, 1.5);
-    reason = direction;
-  } else {
-    reset_confirmation();
-    stats_.state = "within_deadband";
-    stats_.last_reason = "within_deadband";
-    update_state_stats();
+    if (!confirm(direction)) return std::nullopt;
+    stable_median_.reset();
+    protect_highlights_ = false;
+    scene_change_confirmed = true;
+  }
+
+  // Highlights select the lower end of the acceptable median band. They never
+  // create a competing "keep darkening" objective below that band. A persistent
+  // small saturated region can therefore coexist with usable shadow detail.
+  const auto clipping = observed.clipped_fraction > metering_.max_clipped_fraction;
+  // Retain this target through one convergence. Otherwise a quantized shutter
+  // can repeatedly cross the clipping threshold and switch targets each step.
+  protect_highlights_ = protect_highlights_ || clipping;
+  const auto target = protect_highlights_ ? configuration_.auto_min_median
+                                         : configuration_.auto_target_median;
+  std::string direction;
+  if (observed.median < configuration_.auto_min_median) direction = "dark";
+  else if (observed.median > configuration_.auto_max_median ||
+           (protect_highlights_ && observed.median > configuration_.auto_min_median * 1.05))
+    direction = "bright";
+  else {
+    hold(protect_highlights_ ? "highlight_compromise" : "within_deadband", observed.median);
     return std::nullopt;
   }
+  if (!scene_change_confirmed && !confirm(direction)) return std::nullopt;
+  const auto step_ev = std::clamp(std::log2(target / filtered_median),
+                                -kMaximumStepEv, kMaximumStepEv);
+  // A transient must not leave the filter requesting the opposite direction.
+  if ((direction == "dark" && step_ev <= 0.0) ||
+      (direction == "bright" && step_ev >= 0.0)) {
+    reset_confirmation();
+    return std::nullopt;
+  }
+  const auto factor = std::exp2(step_ev);
+  const auto reason = protect_highlights_ ? "highlight_compromise" : direction;
 
   const auto current_value = static_cast<double>(command_.exposure_us) *
                              command_.analogue_gain;
@@ -547,14 +637,13 @@ std::optional<Command> Controller::observe(const ImageView& left,
   const auto updated_value = static_cast<double>(updated.exposure_us) *
                              updated.analogue_gain;
   if (std::abs(updated_value - current_value) / current_value < 0.02) {
-    reset_confirmation();
-    stats_.state = "at_limit_or_quantized";
-    stats_.last_reason = "quantized_no_change";
-    update_state_stats();
+    hold("at_limit_or_quantized", observed.median);
     return std::nullopt;
   }
   command_ = updated;
   reset_confirmation();
+  filtered_log_median_.reset();
+  stats_.applied_controls_match = false;
   ++stats_.updates;
   settle_frames_remaining_ = configuration_.auto_settle_frames_after_update;
   stats_.state = "adjusted";

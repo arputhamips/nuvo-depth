@@ -190,7 +190,19 @@ class SdkTest(unittest.TestCase):
         self.assertEqual(frame.stream_sequence,7)
         self.assertEqual(frame.codec,"jpeg")
         self.assertEqual(bytes(frame.data),payload)
+        self.assertIs(frame.data.obj,wire)
+        self.assertTrue(frame.data.readonly)
+        for mutable in (bytearray(wire),memoryview(bytearray(wire))):
+            frozen=decode_encoded_frame(mutable)
+            mutable[-1]^=255
+            self.assertEqual(bytes(frozen.data),payload)
+            self.assertTrue(frozen.data.readonly)
         self.assertRaises(ValueError,decode_encoded_frame,wire[:-1])
+        document=json.loads(metadata)
+        for changed in ({"width":0},{"height":1081},{"codec":"unknown"},{"keyframe":"true"}):
+            invalid=json.dumps({**document,**changed}).encode()
+            packet=struct.pack(">4sHHIQQI",b"NVE1",1,1,len(invalid),len(payload),7,0)+invalid+payload
+            self.assertRaises(ValueError,decode_encoded_frame,packet)
 
     def test_color_products_preserve_bytes_and_validate_channel_sizes(self):
         for data_format in ("bgr8", "rgb8"):
@@ -255,6 +267,58 @@ class SdkTest(unittest.TestCase):
         metadata["selected_products"] = 1
         metadata["available_products"] = 2
         self.assertRaises(ValueError, decode_frame, encode())
+
+    def test_latest_and_stream_share_selection_and_defaults(self):
+        client, _ = self.mock_client(MockSocket(b""))
+        with patch.object(client, "_request", return_value=sample()) as request:
+            self.assertEqual(client.latest(products=("depth", "validity"), cadence_hz=2,
+                                           delivery="best_effort").capture_sequence, 3)
+            path = request.call_args.args[0]
+            self.assertEqual(path, "/api/v1/frame/latest?delivery=best_effort&cadence_hz=2&products=depth,validity")
+            client.latest(products=("depth",))
+            self.assertIn("cadence_hz=10&products=depth", request.call_args.args[0])
+            client.latest(cadence_hz=1)
+            self.assertIn("cadence_hz=1&products=left_rectified,right_rectified,disparity,depth,confidence,validity", request.call_args.args[0])
+            for options in ({"products": ("unknown",)}, {"cadence_hz": True}, {"cadence_hz": "2"}):
+                self.assertRaises(ValueError, client.latest, **options)
+                self.assertRaises(ValueError, client.frames, **options)
+
+    def test_decoded_products_keep_immutable_storage(self):
+        original = sample()
+        frame = decode_frame(original)
+        self.assertIs(frame.to_bytes(), original)
+        self.assertTrue(frame.products["left_rectified"].data.readonly)
+        writable = bytearray(original)
+        frozen = decode_frame(writable)
+        writable[-1] ^= 0xFF
+        self.assertEqual(frozen.to_bytes(), original)
+        self.assertTrue(frozen.products["left_rectified"].data.readonly)
+
+    def test_decoder_bounds_before_freezing_writable_input(self):
+        class NoCopy(bytearray):
+            def __bytes__(self):
+                raise AssertionError("oversize input must not be copied")
+        with patch("nuvo_depth.frame.MAX_METADATA", 1), patch("nuvo_depth.frame.MAX_PAYLOAD", 1):
+            for data in (NoCopy(35), memoryview(bytearray(35))):
+                self.assertRaises(ValueError, decode_frame, data)
+        for data in (10**12, True, "NUV1", [1, 2, 3]):
+            self.assertRaises(TypeError, decode_frame, data)
+            self.assertRaises(TypeError, decode_encoded_frame, data)
+        with patch("nuvo_depth.encoded.MAX_ENCODED_METADATA", 1), patch("nuvo_depth.encoded.MAX_ENCODED_PAYLOAD", 1):
+            for data in (NoCopy(35), memoryview(bytearray(35))):
+                self.assertRaises(ValueError, decode_encoded_frame, data)
+
+    def test_product_dimensions_reject_implicit_numeric_conversion(self):
+        original=sample()
+        header=list(struct.unpack_from(">4sHHHHIQQ",original))
+        end=32+header[5]
+        metadata=json.loads(original[32:end])
+        for value in (True, "2", 2.0):
+            metadata["products"][0]["width"]=value
+            document=json.dumps(metadata).encode()
+            header[5]=len(document)
+            packet=struct.pack(">4sHHHHIQQ",*header)+document+original[end:]
+            self.assertRaises(ValueError,decode_frame,packet)
 
     def test_stream_uses_claimed_cookie_verified_tls_and_one_connection(self):
         close = websocket_frame(struct.pack(">H", 1000), opcode=8)

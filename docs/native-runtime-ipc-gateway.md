@@ -17,13 +17,23 @@ match cannot delay the image worker. Each produces an immutable frame set with:
   authority for the complete set; and
 - backend names and bounded processing statistics.
 
-The live runtime splits its eight storage slots and 256 MiB payload allowance
-between the two workers. Explicit shared capture leases release each camera
-request once, after both workers have dropped their mappings. A matcher result
-retains its capture-associated images even when independent mono frames have
-already advanced. Late results cannot replace the newest image or restore an
-older configuration. A bounded shared revision history gives both workers the
-same configuration epoch, including when one skips intermediate control writes.
+The live runtime divides a checked 256 MiB payload allowance between its workers.
+The normal 728 × 544 configuration uses four slots per worker; larger geometry
+must fit the combined budget with at least two slots per worker. Factory
+construction rejects smaller pools, so retaining the latest publication cannot
+prevent its replacement. Pools never expand at runtime. The image worker
+reserves no matching products or matching scratch and tracks stereo metadata
+without constructing a matcher or changing the process-wide OpenCV thread count.
+
+Explicit shared capture leases release each camera request once, after both
+workers have dropped their mappings. A matcher result retains requested
+capture-associated images even when independent mono frames have already
+advanced. Late results cannot replace the newest image or restore an older
+configuration. A bounded shared revision history gives both workers the same
+configuration epoch, including when one skips intermediate control writes.
+The request carries separate independent and associated image masks. An image
+requested only by the independent group is produced once; it is retained in the
+matcher publication only when a matcher subscriber explicitly requests it there.
 
 Input and completed queues are bounded per worker. Backpressure rejects capture work or
 drops the oldest *complete* result. Individual products are never combined
@@ -33,6 +43,13 @@ an explicit engineering-only override is supplied.
 The Linux capture bridge maps each YUV420 luma DMA-BUF with explicit
 `DMA_BUF_SYNC` read bracketing. Mapping owners are destroyed before the paired
 camera leases, including on processing failure and shutdown.
+
+CPU rectification stages DMA inputs before OpenCV remapping; already-owned CPU
+images are remapped directly. Copy time, remap time and copied bytes are measured
+separately. Immutable fixed-point maps are shared across CPU workers while
+staging buffers remain private. Input and output image spans must not overlap,
+including partial overlap with different starting pointers; the CPU backend
+rejects aliasing before remapping.
 
 IPC v2 uses fixed-count slots with separate storage for every product. The
 default untrusted subscription copies only requested products. Trusted
@@ -82,6 +99,10 @@ source generation. `selected_products` is rewritten for each filtered response;
 `available_products` retains the source union. Publication identities and whole
 RGB payloads are preserved. Shutdown wakes waiters and closes tracked network
 connections. `--snapshot-file` remains an explicit diagnostic fallback.
+Serialization caches are keyed by the immutable publication and selected product
+mask. New image publications preserve cached messages for the retained matcher
+frame. Weak frame ownership prevents this cache from pinning processing slots;
+both the entry count and serialized-byte total remain bounded.
 
 NuvoStream uses one common protocol for Ethernet, USB Ethernet, and WiFi:
 
@@ -94,6 +115,21 @@ NuvoStream uses one common protocol for Ethernet, USB Ethernet, and WiFi:
 - bounded JSON metadata decoded by `sdk/python/nuvo_depth/frame.py` and the C
   SDK. `protocol/nuvo_stream_v1.proto` is an unused reference schema, not the
   shipping serialization or a build dependency.
+
+Additive schema-1 metadata includes `image_grid` and `matching_grid`, including
+their scale/offset to the reference image; `disparity_metadata` specifies its
+valid ROI, matching-grid pixel units, 1/16-pixel quantization, accepted interval,
+derivation and binary confidence model. `depth_metadata` declares its limits
+and NaN invalid representation. Native publications also include
+`calibration_geometry.image` and `.matching`, each with row-major 3×4 left/right
+projection matrices, a row-major 4×4 `reprojection` matrix and `baseline_m`.
+These are the active calibrated views, not a replacement for their hash/authority.
+Older producers may omit this optional geometry; consumers must not invent it.
+The optional `capture` object carries each camera's sensor timestamp, sequence,
+reported exposure and gains plus stereo skew. Reported sensor exposure is not
+an electrical measurement of the external XTR pulse. Missing (zero), nonpositive
+or nonfinite exposure/gain values serialize as JSON null. The existing capture timestamp remains the pair's
+boot-time midpoint.
 
 The gateway admission core reserves the exact framed byte rate against the
 configured capacity of the actual accepted Ethernet, USB Ethernet, or WiFi
@@ -314,3 +350,29 @@ processing boundary. Formatting-only changes acknowledge a new file revision
 without rebuilding or advancing the epoch. Rejected controls leave the prior
 matcher and applied revision intact and expose the rejection error. Per-camera
 exposure metadata describes actual settings separately from requested commands.
+
+## Source map
+
+For specific changes, start at these functions and their regression tests:
+
+| Behavior | Implementation entry point | Regression coverage |
+| --- | --- | --- |
+| Camera negotiation, completion metadata and recycling | `Pi5LibcameraCapture::configure_camera`, `request_complete`, `start_request_recycler` in `platform/pi5/capture_libcamera.cpp`; negotiation checks in `platform/pi5/camera_identity.cpp` | `camera_identity_test.cpp`, `capture_lease_test.cpp` |
+| Trigger generation and physical camera binding | `platform/pi5/pio_pwm_trigger.cpp`, `bind_pi5_fixed_csi_ports` in `platform/pi5/camera_identity.cpp` | `pio_pwm_trigger_test.cpp`, `camera_identity_test.cpp`; physical edges need Pi measurements |
+| Timestamp pairing and observed sensor sequence gaps | `StereoPairer::submit` in `src/core/pairer.cpp` | `pairer_test.cpp` |
+| DMA mapping, cache ownership and CPU fallback | `platform/linux/capture_mapping.cpp` | `capture_mapping_cache_test.cpp`, `native_capture_runner_test.cpp` |
+| Exposure metering, stable hold and applied-control acknowledgement | `Controller::observe`, `update_applied_controls`, `measure` in `src/exposure_control.cpp`; every-pair wiring in `apps/depthd_main.cpp` | `exposure_control_test.cpp` |
+| Image/matcher scheduling and pool accounting | `BoundedNativeScheduler::try_submit`, `NativeProcessingPipeline::process`, `required_frame_pool_payload_bytes` in `src/core/runtime.cpp` | `runtime_test.cpp`, `runtime_factory_test.cpp` |
+| CPU rectification and prepared map sharing | `OpenCvRectificationBackend::rectify`, `prepare_opencv_rectification_maps` in `src/opencv_rectification_backend.cpp` | `opencv_rectification_backend_test.cpp`, `runtime_opencv_integration_test.cpp` |
+| OpenCV SGBM 3-way/BM and Nuvo postprocessing | `src/cpu_sgbm_backend.cpp`; factories selected by `src/core/runtime_factory.cpp` | `cpu_sgbm_test.cpp`; `sgbm_benchmark` is explicitly the legacy full-image API |
+| Validity and metric depth | `src/cpu_sgbm_backend.cpp`, `src/products.cpp`, `src/depth_conversion.cpp` | `disparity_validity_test.cpp`, `depth_conversion_test.cpp` |
+| Preview copy admission, conversion and encoding | `AsyncFrameEncoder::Impl::submit_capture`, `render_preview`, `run`, and `FfmpegFrameEncoder` in `src/image_encoder.cpp` | `image_encoder_test.cpp` |
+| Raw serialization, sealed publication and cache reuse | `src/frame_wire.cpp`, `platform/linux/local_frame_server.cpp` | `frame_wire_test.cpp`, `local_frame_server_test.cpp`, `frame_wire_sdk_roundtrip_test.py` |
+| Serving assets, APIs, TLS and streams | `apps/nuvo_gateway_main.cpp`, `src/gateway.cpp` | `gateway_integration_test.py`, `gateway_browser_test.cjs` |
+| Output selection, preview rendering and reconnects | `web/device-settings.js`, `web/app.js`, `web/frame-codec.js` | `web_output_selection_test.js`, `web_frame_codec_test.js`, `web_stream_lifecycle_test.js` |
+| SDK transport, immutable decoded frames and recording | `sdk/python/nuvo_depth/client.py`, `frame.py`, `encoded.py`, `recording.py` | `python_sdk_test.py`, `sdk_tls_test.py`, `sdk_examples_test.py` |
+
+Test filenames above are under `tests/`. Calibration authority and configuration
+transactions are also essential: inspect `src/calibration_store.cpp`,
+`src/config.cpp`, and `tools/nuvo_system_agent.py` before changing geometry,
+controls or publication epochs.

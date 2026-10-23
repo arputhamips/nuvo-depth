@@ -7,7 +7,9 @@
 #include <condition_variable>
 #include <cstring>
 #include <fstream>
+#include <iomanip>
 #include <limits>
+#include <locale>
 #include <mutex>
 #include <optional>
 #include <sstream>
@@ -96,6 +98,8 @@ template <class Value>
 
 [[nodiscard]] std::string frame_metadata_json(const EncodedFrame& frame) {
   std::ostringstream output;
+  output.imbue(std::locale::classic());
+  output << std::setprecision(std::numeric_limits<double>::max_digits10);
   output << "{\"schema_version\":1,\"capture_epoch\":"
          << frame.identity.capture_epoch << ",\"capture_sequence\":"
          << frame.identity.capture_sequence << ",\"capture_time_ns\":"
@@ -117,7 +121,10 @@ template <class Value>
          << "\",\"width\":" << frame.width << ",\"height\":"
          << frame.height << ",\"keyframe\":"
          << (frame.keyframe ? "true" : "false") << ",\"encode_ms\":"
-         << frame.encode_ms << '}';
+         << frame.encode_ms << ",\"preparation_ms\":" << frame.preparation_ms
+         << ",\"queue_ms\":" << frame.queue_ms << ",\"total_ms\":" << frame.total_ms
+         << ",\"timing_scope\":\"preparation_queue_encode\""
+         << ",\"representation\":\"compressed_visualization\"}";
   return output.str();
 }
 
@@ -332,8 +339,34 @@ class FfmpegFrameEncoder final : public FrameEncoder {
 
   EncodedFrame encode(const FrameSetStorage& frame,
                       const std::uint64_t stream_sequence) override {
-    return encode_plane(source_plane(frame, config_.source), frame.metadata,
-                        stream_sequence);
+    const auto started = std::chrono::steady_clock::now();
+    const auto input = source_plane(frame, config_.source);
+    const auto prepared = std::chrono::steady_clock::now();
+    auto result = encode_plane(input, frame.metadata, stream_sequence);
+    result.preparation_ms = std::chrono::duration<double, std::milli>(prepared - started).count();
+    result.total_ms = result.preparation_ms + result.encode_ms;
+    return result;
+  }
+
+  bool accepts_yuv420() const noexcept override { return true; }
+
+  EncodedFrame encode_yuv420(const std::span<const std::uint8_t> packed,
+      const std::uint32_t width, const std::uint32_t height,
+      const ProductSetMetadata& metadata, const std::uint64_t sequence) override {
+    const auto pixels = static_cast<std::size_t>(width) * height;
+    if (width == 0U || height == 0U || width % 2U || height % 2U ||
+        pixels > packed.size() || packed.size() - pixels < pixels / 2U) {
+      throw std::invalid_argument("preview requires complete even-sized I420 planes");
+    }
+    SourcePlane input;
+    input.width = width;
+    input.height = height;
+    input.pixel_format = AV_PIX_FMT_YUV420P;
+    input.data = {packed.data(), packed.data() + pixels,
+                  packed.data() + pixels * 5U / 4U, nullptr};
+    input.linesize = {static_cast<int>(width), static_cast<int>(width / 2U),
+                      static_cast<int>(width / 2U), 0};
+    return encode_plane(input, metadata, sequence);
   }
 
   EncodedFrame encode_image(const ImageView& image,
@@ -434,6 +467,7 @@ class FfmpegFrameEncoder final : public FrameEncoder {
     const auto finished = std::chrono::steady_clock::now();
     result.encode_ms =
         std::chrono::duration<double, std::milli>(finished - started).count();
+    result.total_ms = result.encode_ms;
     return result;
   }
 
@@ -775,6 +809,11 @@ EncodedFrame FrameEncoder::encode_image(const ImageView&,
   throw std::runtime_error("encoder does not support direct image input");
 }
 
+EncodedFrame FrameEncoder::encode_yuv420(std::span<const std::uint8_t>,
+    std::uint32_t, std::uint32_t, const ProductSetMetadata&, std::uint64_t) {
+  throw std::runtime_error("encoder does not support direct I420 input");
+}
+
 std::unique_ptr<FrameEncoder> make_ffmpeg_encoder(
     const Configuration& config) {
   return std::make_unique<FfmpegFrameEncoder>(config);
@@ -803,6 +842,7 @@ bool same_capture(const FrameSetIdentity& left,
 struct AsyncFrameEncoder::Impl {
   struct Preview {
     ProductSetMetadata metadata;
+    double copy_ms{};
     std::vector<std::uint8_t> left;
     std::vector<std::uint8_t> right;
     std::vector<std::uint8_t> left_rgb;
@@ -818,6 +858,7 @@ struct AsyncFrameEncoder::Impl {
     std::uint64_t generation{};
     std::uint64_t configuration_generation{};
     std::string applied_revision;
+    std::chrono::steady_clock::time_point queued_at{std::chrono::steady_clock::now()};
   };
 
   Impl(std::filesystem::path control, std::filesystem::path output,
@@ -1080,12 +1121,11 @@ struct AsyncFrameEncoder::Impl {
     const auto pixels = static_cast<std::size_t>(grid.width) * grid.height;
     // Includes both input planes, aligned RGB rows, rectified outputs, stereo
     // output and FFmpeg's SIMD padding for every retained pool slot.
-    const auto bounded_slot_bytes = pixels * 21U +
-        static_cast<std::size_t>(grid.height) * 62U +
-        7U * AV_INPUT_BUFFER_PADDING_SIZE;
+    constexpr std::size_t budget = 256U * 1024U * 1024U / 3U;
+    constexpr std::size_t padding = 7U * AV_INPUT_BUFFER_PADDING_SIZE;
     if (grid.width == 0U || grid.height == 0U || grid.width % 2U != 0U ||
-        grid.height % 2U != 0U || grid.width > 1920U || grid.height > 1080U ||
-        bounded_slot_bytes * preview_pool.size() > 256U * 1024U * 1024U) {
+        grid.height % 2U != 0U || grid.height > (budget - padding) / 62U ||
+        grid.width > ((budget - padding - static_cast<std::size_t>(grid.height) * 62U) / 21U) / grid.height) {
       throw std::invalid_argument("preview input grid exceeds its memory bound");
     }
     refresh();
@@ -1116,6 +1156,7 @@ struct AsyncFrameEncoder::Impl {
       ++stats_value.image_admitted;
     }
     slot->metadata = metadata;
+    const auto copy_started = std::chrono::steady_clock::now();
     const auto color = color_source(selected.source);
     const auto input_bytes = color ? pixels * 3U / 2U : pixels;
     const auto copy = [&](const CameraRole role, std::vector<std::uint8_t>& output) {
@@ -1133,6 +1174,8 @@ struct AsyncFrameEncoder::Impl {
     if (right_source(selected.source) || stereo_source(selected.source)) {
       copy(CameraRole::kLogicalRight, slot->right);
     }
+    slot->copy_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - copy_started).count();
     std::lock_guard lock(mutex);
     if (stop_requested) return SubmitResult::kStopped;
     if (selected_generation != generation || demand_cadence_hz == 0.0) {
@@ -1186,6 +1229,8 @@ struct AsyncFrameEncoder::Impl {
                       static_cast<int>(grid.height), output.data(), output_stride.data()) !=
             static_cast<int>(grid.height)) throw std::runtime_error("preview color conversion incomplete");
         image = {rgb.data(), grid.width, grid.height, rgb_stride, ImageEncoding::kRgb8};
+        std::lock_guard lock(mutex);
+        ++stats_value.image_color_conversions;
       }
       if (rectified_source(source)) {
         if (!preview_rectifier) {
@@ -1222,7 +1267,7 @@ struct AsyncFrameEncoder::Impl {
 
   void run() noexcept {
     std::unique_ptr<FrameEncoder> encoder;
-    std::uint64_t encoder_generation = std::numeric_limits<std::uint64_t>::max();
+    std::string encoder_revision;
     for (;;) {
       Work work;
       std::uint64_t sequence{};
@@ -1237,15 +1282,35 @@ struct AsyncFrameEncoder::Impl {
       auto temporary = output_file;
       temporary += ".tmp";
       try {
-        if (!encoder || encoder_generation != work.generation) {
+        const auto started = std::chrono::steady_clock::now();
+        if (!encoder || encoder_revision != work.applied_revision) {
           encoder = encoder_factory(work.config);
           if (!encoder) throw std::runtime_error("encoder factory returned null");
-          encoder_generation = work.generation;
+          encoder_revision = work.applied_revision;
         }
-        auto encoded = work.preview
-            ? encoder->encode_image(render_preview(*work.preview, work.config.source),
-                                    work.preview->metadata, sequence)
-            : encoder->encode(*work.frame, sequence);
+        EncodedFrame encoded;
+        double preparation_ms{};
+        if (work.preview) {
+          const auto prepared_at = std::chrono::steady_clock::now();
+          const auto& grid = work.preview->metadata.left_rectified.grid;
+          if (color_source(work.config.source) && !rectified_source(work.config.source) &&
+              encoder->accepts_yuv420()) {
+            const auto& raw = right_source(work.config.source) ? work.preview->right : work.preview->left;
+            encoded = encoder->encode_yuv420(raw, grid.width, grid.height,
+                                             work.preview->metadata, sequence);
+          } else {
+            const auto image = render_preview(*work.preview, work.config.source);
+            preparation_ms = std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - prepared_at).count();
+            encoded = encoder->encode_image(image, work.preview->metadata, sequence);
+          }
+          preparation_ms += work.preview->copy_ms;
+        } else {
+          encoded = encoder->encode(*work.frame, sequence);
+        }
+        encoded.preparation_ms += preparation_ms;
+        encoded.queue_ms = std::chrono::duration<double, std::milli>(started - work.queued_at).count();
+        encoded.total_ms = encoded.preparation_ms + encoded.queue_ms + encoded.encode_ms;
         encoded.encoding_configuration_generation = work.configuration_generation;
         encoded.encoding_applied_revision = work.applied_revision;
         if (encoded.codec == Codec::kH264 && !encoded.keyframe) {
@@ -1272,6 +1337,9 @@ struct AsyncFrameEncoder::Impl {
           stats_value.encoded_bytes += encoded.bytes.size();
           stats_value.last_frame_bytes = encoded.bytes.size();
           stats_value.last_encode_ms = encoded.encode_ms;
+          stats_value.last_preparation_ms = encoded.preparation_ms;
+          stats_value.last_queue_ms = encoded.queue_ms;
+          stats_value.last_total_ms = encoded.total_ms;
           stats_value.applied_revision = work.applied_revision;
           if (stats_value.requested_revision == work.applied_revision) {
             stats_value.configuration_error.clear();
@@ -1387,7 +1455,14 @@ bool AsyncFrameEncoder::commit_native_capture(const CapturePlan& plan) {
 
 SubmitResult AsyncFrameEncoder::submit_capture(
     const ProductSetMetadata& metadata, const CaptureImageReader& reader) {
-  return impl_->submit_capture(metadata, reader);
+  try {
+    return impl_->submit_capture(metadata, reader);
+  } catch (const std::exception& error) {
+    std::lock_guard lock(impl_->mutex);
+    ++impl_->stats_value.preview_unavailable;
+    impl_->last_error = error.what();
+    return SubmitResult::kPreviewUnavailable;
+  }
 }
 
 void AsyncFrameEncoder::set_demand(const double cadence_hz) {
@@ -1403,7 +1478,9 @@ void AsyncFrameEncoder::refresh_configuration() { impl_->refresh(); }
 
 Stats AsyncFrameEncoder::stats() const {
   std::lock_guard lock(impl_->mutex);
-  return impl_->stats_value;
+  auto result = impl_->stats_value;
+  result.last_error = impl_->last_error;
+  return result;
 }
 
 std::string AsyncFrameEncoder::take_last_error() {

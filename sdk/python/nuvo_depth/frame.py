@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import struct
+import sys
 from types import MappingProxyType
 from typing import Any, Mapping
 
@@ -34,6 +35,8 @@ class Product:
     def float32_le(self) -> memoryview:
         if self.format != "float32_le" or len(self.data) % 4:
             raise TypeError(f"{self.kind} is not a float32 product")
+        if sys.byteorder != "little":
+            raise TypeError("zero-copy float32_le views require a little-endian host; use struct.unpack('<f', ...) or NumPy dtype='<f4'")
         return self.data.cast("f")
 
 
@@ -71,8 +74,15 @@ class FrameSet:
 
 
 def decode_frame(wire_bytes: bytes) -> FrameSet:
-    if len(wire_bytes) < HEADER.size:
-        raise ValueError("NuvoStream message is shorter than its header")
+    if not isinstance(wire_bytes, (bytes, bytearray, memoryview)):
+        raise TypeError("NuvoStream input must be bytes, bytearray, or memoryview")
+    wire_size = wire_bytes.nbytes if isinstance(wire_bytes, memoryview) else len(wire_bytes)
+    if not HEADER.size <= wire_size <= HEADER.size + MAX_METADATA + MAX_PAYLOAD:
+        raise ValueError("NuvoStream message is outside its hard bounds")
+    # Retain immutable bytes without copying. Freeze a caller's writable buffer
+    # once so product memoryviews cannot change after validation.
+    if not isinstance(wire_bytes, bytes):
+        wire_bytes = bytes(wire_bytes)
     magic, major, minor, kind, flags, metadata_size, payload_size, sequence = (
         HEADER.unpack_from(wire_bytes)
     )
@@ -103,10 +113,10 @@ def decode_frame(wire_bytes: bytes) -> FrameSet:
         try:
             name = descriptor["kind"]
             data_format = descriptor["format"]
-            offset = int(descriptor["offset"])
-            length = int(descriptor["length"])
-            width = int(descriptor["width"])
-            height = int(descriptor["height"])
+            offset = descriptor["offset"]
+            length = descriptor["length"]
+            width = descriptor["width"]
+            height = descriptor["height"]
         except (KeyError, TypeError, ValueError) as error:
             raise ValueError("malformed Nuvo product descriptor") from error
         if (
@@ -115,6 +125,8 @@ def decode_frame(wire_bytes: bytes) -> FrameSet:
             or name in products
             or not isinstance(data_format, str)
             or data_format not in PRODUCT_FORMATS.get(name, set())
+            or any(not isinstance(value, int) or isinstance(value, bool)
+                   for value in (offset, length, width, height))
             or offset < 0
             or length <= 0
             or width <= 0

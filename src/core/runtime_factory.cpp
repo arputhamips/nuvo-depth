@@ -167,11 +167,17 @@ std::unique_ptr<NativeProcessingPipeline> make_native_pipeline(
   rectifier_configuration.input_height = configuration.capture.height;
   rectifier_configuration.output_width = configuration.capture.width;
   rectifier_configuration.output_height = configuration.capture.height;
-  auto rectifier = rectifiers.create(
-      configuration.rectification.backend,
-      configuration.rectification.fallback_backend,
-      configuration.rectification.allow_fallback, rectifier_configuration,
-      calibration.maps);
+  const auto cpu_maps = options.cpu_rectification_maps ? options.cpu_rectification_maps :
+      prepare_opencv_rectification_maps(calibration.maps);
+  auto rectifier = configuration.rectification.backend == "cpu_opencv" ?
+      make_opencv_rectification_backend(rectifier_configuration, cpu_maps) :
+      rectifiers.create(configuration.rectification.backend,
+          configuration.rectification.fallback_backend,
+          configuration.rectification.allow_fallback, rectifier_configuration,
+          calibration.maps);
+  auto rgb_rectifier = rectifier->name() == kOpenCvRectificationBackendName ?
+      std::unique_ptr<RectificationBackend>{} :
+      make_opencv_rectification_backend(rectifier_configuration, cpu_maps);
 
   CpuSgbmConfig stereo_configuration;
   stereo_configuration.control_file = options.stereo_control_file;
@@ -222,8 +228,15 @@ std::unique_ptr<NativeProcessingPipeline> make_native_pipeline(
       static_cast<std::int32_t>(configuration.stereo.opencv_threads);
 
   NativePipelineConfiguration pipeline_configuration;
+  pipeline_configuration.image_only = options.image_only;
   pipeline_configuration.configuration_epochs = options.configuration_epochs;
-  pipeline_configuration.frame_pool_capacity = options.frame_pool_capacity;
+  pipeline_configuration.frame_pool_capacity = bounded_frame_pool_capacity(
+      calibration.image_view.grid, calibration.matching_view.grid,
+      options.frame_pool_capacity, options.frame_pool_payload_budget_bytes, options.image_only);
+  if (pipeline_configuration.frame_pool_capacity < 2U) {
+    throw std::invalid_argument(
+        "native publication requires at least two frame slots; increase the explicit payload budget or reduce geometry");
+  }
   pipeline_configuration.frame_pool_payload_budget_bytes = options.frame_pool_payload_budget_bytes;
   pipeline_configuration.device_uuid = identity.device_uuid;
   pipeline_configuration.run_uuid = identity.run_uuid;
@@ -236,9 +249,9 @@ std::unique_ptr<NativeProcessingPipeline> make_native_pipeline(
       options.allow_provisional_depth_for_engineering;
   return std::make_unique<NativeProcessingPipeline>(
       pipeline_configuration, std::move(rectifier),
-      make_cpu_sgbm_native_backend(stereo_configuration),
-      rectifiers.create("cpu_opencv", "cpu_opencv", false,
-                        rectifier_configuration, calibration.maps));
+      options.image_only ? make_cpu_sgbm_metadata_backend(stereo_configuration) :
+                           make_cpu_sgbm_native_backend(stereo_configuration),
+      std::move(rgb_rectifier));
 }
 
 }  // namespace depthd

@@ -134,8 +134,15 @@ void LocalFrameServer::publish(std::shared_ptr<const FrameSetStorage> frame) {
     latest_matcher_ = frame;
   if (!latest_ || identity.capture_sequence >= latest_->metadata.frame.capture_sequence)
     latest_ = std::move(frame);
-  cache_.clear();
-  cache_bytes_ = 0U;
+  for (auto entry = cache_.begin(); entry != cache_.end();) {
+    const auto cached = entry->frame.lock();
+    if (cached && (cached == latest_ || cached == latest_matcher_)) {
+      ++entry;
+    } else {
+      cache_bytes_ -= entry->memory.size();
+      entry = cache_.erase(entry);
+    }
+  }
   changed_.notify_all();
 }
 
@@ -375,12 +382,12 @@ void LocalFrameServer::serve(SeqpacketConnection connection) {
   std::unique_lock lock(mutex_);
   // Publication only swaps a pointer. Serializing outside the producer lock
   // prevents a slow local reader from holding up the capture thread.
-  auto found = std::find_if(cache_.begin(), cache_.end(), [products](auto& item) {
-    return item.products == products;
+  auto found = std::find_if(cache_.begin(), cache_.end(), [&](auto& item) {
+    return item.products == products && item.frame.lock() == frame;
   });
   SealedSharedMemory temporary;
   const SealedSharedMemory* memory{};
-  if (latest_ == frame && found != cache_.end()) {
+  if (found != cache_.end()) {
     memory = &found->memory;
   } else {
     lock.unlock();
@@ -389,14 +396,14 @@ void LocalFrameServer::serve(SeqpacketConnection connection) {
     temporary = SealedSharedMemory::create("nuvo-local-frame", parts.wire_bytes());
     wire::write_frame_set_message(parts, temporary.writable_bytes());
     lock.lock();
-    if (latest_ == frame && parts.wire_bytes() <= kCacheMaximumBytes) {
+    if ((latest_ == frame || latest_matcher_ == frame) && parts.wire_bytes() <= kCacheMaximumBytes) {
       while (!cache_.empty() && (cache_.size() >= kCacheMaximumEntries ||
              cache_bytes_ + parts.wire_bytes() > kCacheMaximumBytes)) {
         cache_bytes_ -= cache_.front().memory.size();
         cache_.pop_front();
       }
       cache_bytes_ += parts.wire_bytes();
-      cache_.push_back({products, std::move(temporary)});
+      cache_.push_back({frame, products, std::move(temporary)});
       memory = &cache_.back().memory;
     } else {
       memory = &temporary;

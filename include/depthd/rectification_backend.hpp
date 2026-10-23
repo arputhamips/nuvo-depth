@@ -59,6 +59,7 @@ struct RectificationStats {
   double compute_ms{};
   double output_transfer_ms{};
   double total_ms{};
+  std::uint64_t input_bytes_copied{};
 };
 
 // Capture-native luma input. This is deliberately separate from ImageView:

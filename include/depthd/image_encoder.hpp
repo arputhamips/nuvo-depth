@@ -92,6 +92,9 @@ struct EncodedFrame {
   bool keyframe{};
   std::uint64_t stream_sequence{};
   double encode_ms{};
+  double preparation_ms{};
+  double queue_ms{};
+  double total_ms{};
   std::string mime_type;
   std::string codec_string;
   std::vector<std::byte> bytes;
@@ -110,6 +113,11 @@ class FrameEncoder {
       const FrameSetStorage& frame, std::uint64_t stream_sequence) = 0;
   [[nodiscard]] virtual EncodedFrame encode_image(
       const ImageView& image, const ProductSetMetadata& metadata,
+      std::uint64_t stream_sequence);
+  [[nodiscard]] virtual bool accepts_yuv420() const noexcept { return false; }
+  [[nodiscard]] virtual EncodedFrame encode_yuv420(
+      std::span<const std::uint8_t> packed, std::uint32_t width,
+      std::uint32_t height, const ProductSetMetadata& metadata,
       std::uint64_t stream_sequence);
 };
 
@@ -151,14 +159,19 @@ struct Stats {
   std::uint64_t image_copies{};
   std::uint64_t image_pool_dropped{};
   std::uint64_t image_rectified{};
+  std::uint64_t image_color_conversions{};
   std::uint64_t numeric_admitted{};
   double demand_cadence_hz{};
   std::uint64_t configuration_generation{1U};
   std::string requested_revision;
   std::string applied_revision;
   std::string configuration_error;
+  std::string last_error;
   std::size_t last_frame_bytes{};
   double last_encode_ms{};
+  double last_preparation_ms{};
+  double last_queue_ms{};
+  double last_total_ms{};
   bool running{};
 };
 

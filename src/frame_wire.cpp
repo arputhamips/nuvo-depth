@@ -2,6 +2,10 @@
 
 #include <array>
 #include <cstring>
+#include <cmath>
+#include <iomanip>
+#include <limits>
+#include <locale>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -53,6 +57,53 @@ struct ProductSource {
       return "rgb8";
   }
   throw std::invalid_argument("unsupported frame wire image format");
+}
+
+void write_grid(std::ostream& document, const PixelGrid& grid) {
+  document << "{\"width\":" << grid.width << ",\"height\":" << grid.height
+           << ",\"reference_width\":" << grid.reference_width
+           << ",\"reference_height\":" << grid.reference_height
+           << ",\"x_scale_to_reference\":" << grid.x_scale_to_reference
+           << ",\"y_scale_to_reference\":" << grid.y_scale_to_reference
+           << ",\"x_offset_to_reference\":" << grid.x_offset_to_reference
+           << ",\"y_offset_to_reference\":" << grid.y_offset_to_reference << '}';
+}
+
+template <std::size_t Size>
+void write_matrix(std::ostream& document, const std::array<double, Size>& values) {
+  document << '[';
+  for (std::size_t index = 0; index < Size; ++index) {
+    if (index != 0U) document << ',';
+    document << values[index];
+  }
+  document << ']';
+}
+
+void write_calibration(std::ostream& document, const RectifiedCalibrationView& calibration) {
+  validate(calibration);
+  document << "{\"left_projection\":";
+  write_matrix(document, calibration.left_projection);
+  document << ",\"right_projection\":";
+  write_matrix(document, calibration.right_projection);
+  document << ",\"reprojection\":";
+  write_matrix(document, calibration.reprojection_q);
+  document << ",\"baseline_m\":" << calibration.baseline_m << '}';
+}
+
+void write_camera_capture(std::ostream& document, const CaptureCameraMetadata& capture) {
+  const auto finite_or_null = [&](const double value) {
+    if (std::isfinite(value) && value > 0.0) document << value;
+    else document << "null";
+  };
+  document << "{\"sensor_timestamp_ns\":" << capture.sensor_timestamp_ns
+           << ",\"stream_sequence\":" << capture.stream_sequence
+           << ",\"reported_exposure_time_us\":";
+  finite_or_null(capture.exposure_time_us);
+  document << ",\"analogue_gain\":";
+  finite_or_null(capture.analogue_gain);
+  document << ",\"digital_gain\":";
+  finite_or_null(capture.digital_gain);
+  document << '}';
 }
 
 }  // namespace
@@ -119,6 +170,8 @@ FrameSetMessageParts prepare_frame_set_message(const FrameSetStorage& frame,
   result.header.kind = MessageKind::kFrameSet;
   result.header.stream_sequence = stream_sequence;
   std::ostringstream document;
+  document.imbue(std::locale::classic());
+  document << std::setprecision(std::numeric_limits<double>::max_digits10);
   document << "{\"schema_version\":1,\"capture_epoch\":"
            << metadata.frame.capture_epoch << ",\"capture_sequence\":"
            << metadata.frame.capture_sequence
@@ -138,7 +191,44 @@ FrameSetMessageParts prepare_frame_set_message(const FrameSetStorage& frame,
            << ",\"available_products\":" << frame.available_products
            << ",\"selected_products\":" << products
            << ",\"depth_unit\":\"metres\",\"depth_convention\":"
-              "\"optical_axis_z\",\"products\":[";
+              "\"optical_axis_z\",\"image_grid\":";
+  write_grid(document, metadata.left_rectified.grid);
+  document << ",\"matching_grid\":";
+  write_grid(document, metadata.disparity.grid);
+  const auto& disparity = metadata.disparity;
+  const char* confidence = disparity.confidence_model == ConfidenceModel::kBinarySgbmSupportV1 ?
+      "binary_sgbm_support_v1" : disparity.confidence_model == ConfidenceModel::kBinaryBmSupportV1 ?
+      "binary_bm_support_v1" : "none";
+  document << ",\"disparity_metadata\":{\"valid_roi\":{\"x\":" << disparity.valid_roi.x
+           << ",\"y\":" << disparity.valid_roi.y << ",\"width\":" << disparity.valid_roi.width
+           << ",\"height\":" << disparity.valid_roi.height
+           << "},\"unit\":\"matching_grid_pixels\",\"quantization_px\":" << disparity.algorithmic_quantization_px
+           << ",\"accepted_min_px\":" << disparity.accepted_min_disparity_px
+           << ",\"accepted_max_px\":" << disparity.accepted_max_disparity_px
+           << ",\"invalid_is_nan\":" << (disparity.invalid_is_nan ? "true" : "false")
+           << ",\"confidence_model\":\"" << confidence << "\",\"derivation\":\""
+           << (disparity.derivation == DisparityDerivation::kNativeMatcherGrid ?
+               "native_matcher_grid" : "invalid_aware_bilinear_compatibility") << "\"}"
+           << ",\"depth_metadata\":{\"minimum_m\":" << metadata.depth.minimum_depth_m
+           << ",\"maximum_m\":" << metadata.depth.maximum_depth_m
+           << ",\"invalid_is_nan\":" << (metadata.depth.invalid_is_nan ? "true" : "false") << '}';
+  if (frame.image_calibration && frame.matching_calibration) {
+    validate(metadata, *frame.image_calibration, *frame.matching_calibration);
+    document << ",\"calibration_geometry\":{\"image\":";
+    write_calibration(document, *frame.image_calibration);
+    document << ",\"matching\":";
+    write_calibration(document, *frame.matching_calibration);
+    document << '}';
+  }
+  if (frame.capture_metadata) {
+    document << ",\"capture\":{\"sensor_delta_ns\":" << frame.capture_metadata->sensor_delta_ns
+             << ",\"left\":";
+    write_camera_capture(document, frame.capture_metadata->left);
+    document << ",\"right\":";
+    write_camera_capture(document, frame.capture_metadata->right);
+    document << '}';
+  }
+  document << ",\"products\":[";
   std::size_t offset{};
   bool first = true;
   for (const auto& source : sources) {
