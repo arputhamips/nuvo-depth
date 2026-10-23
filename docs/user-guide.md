@@ -21,7 +21,10 @@ This is the versioned console and runtime reference.
    intentionally leave capture disabled while the console is available.
 5. Open **Live view** and select the products you need under **Outputs**. The
    browser initially requests only the left mono image at 5 Hz. Selected products
-   share the same capture identity.
+   share the same capture identity. Choose **View the camera**, **Use depth**, or
+   **Inspect stereo** first; individual products are under **Advanced**. Presets
+   select a conservative browser cadence, which you can change within the
+   connection budget before applying.
 
 Use the sun/moon control in the header to select light or dark appearance. The
 choice is kept in that browser; without an explicit choice the console follows
@@ -62,11 +65,11 @@ shared command and report their applied values on the same page.
 Use **Quality** when clean full-resolution disparity is the priority. It uses
 full-resolution eight-direction SGBM HH, a 96-pixel search, 5-pixel block,
 5 x 5 validity-preserving smoothing. **Balanced** is the default: two-thread
-3-way SGBM with 128 disparities, no median smoothing and a 10 Hz capture target.
-It has lower latency, but it does not suppress
+3-way SGBM with 128 disparities, no additional median smoothing and a 10 Hz
+capture target. It has lower latency, but it does not suppress
 low-texture scanline failures as completely as HH. **Fast diagnostic** uses
-3-way aggregation, a narrower 64-pixel search and no median smoothing. It can
-produce long horizontal streaks and gives up nominal near range below about
+3-way aggregation, a narrower 64-pixel search and no additional median smoothing.
+It can produce long horizontal streaks and gives up nominal near range below about
 0.688 m with the current provisional beta 5 seed. This is a theoretical search
 bound, not a measured usable range. Use **Wide search** only when near geometry needs disparities
 from 96 to 127; it costs more CPU. The **Matcher** page exposes every
@@ -77,25 +80,37 @@ measured 2.84 depth frames/s at a 60 Hz capture target; the configured trigger
 rate does not promise the same depth rate. See [performance profiles](performance-profiles.md)
 for exact settings and the evidence required to qualify a profile.
 
-Leave **Monitoring encoder** off when your application only needs raw products.
-Keep **Raw product delivery** on and choose only the required images or numeric
-products. Local SDK, WiFi, Ethernet, and approved USB Ethernet clients receive
-their selected associated products without spending CPU on an unused codec.
+Leave **Compressed preview encoder** off when your application only needs data.
+Keep **Uncompressed network data** on for HTTPS/browser/SDK consumers and select
+only the required images or numeric products. Local socket delivery is
+independent of this gateway mode. None of these data products are sensor
+RAW/Bayer: mono and colour images originate from the ISP; disparity and depth
+are processed measurements.
 
-Turn **Monitoring encoder** on for a browser/support preview. It is independent
-of raw delivery, so the valid combinations are:
+Turn **Compressed preview encoder** on for a browser/support preview. Streaming
+settings are device-wide: one encoder source, format and ceiling are shared by
+all preview clients. Outputs settings apply only to this browser. Its requested
+preview rate may be lower than the device ceiling. The valid network modes are:
 
-| Monitoring encoder | Raw delivery | Result |
+| Preview encoder | Uncompressed network data | Network result |
 | --- | --- | --- |
 | off | on | Maximum depth headroom; SDK/product output only |
 | on | on | Product output plus a monitoring preview |
-| on | off | Encoded monitoring stream only |
+| on | off | Compressed preview only; local socket data remains available |
 
 The UI requires at least one delivery mode to remain available. With no active
 output consumers, raw processing, serialization and encoding stay idle. H.264 on
 Pi 5 is software encoding. Image previews run independently of the matcher;
 numeric previews request matching only at their own cadence. Encoder settings
 are ceilings and cannot increase the selected source's throughput.
+
+**Depth preview** and **Disparity preview** are 8-bit visualizations followed by
+lossy compression. The encoded depth display maps 0.2–12.2 m; it cannot recover
+the original float measurement. For measurements, request **Depth** plus
+**Validity** as uncompressed products. The browser bounds pending decode work,
+replaces waiting JPEGs with the latest frame, and retries interrupted
+WebSockets while temporarily polling. Routine skipped independent H.264 frames
+do not reset the decoder.
 
 ## Exposure and flicker
 
@@ -106,14 +121,26 @@ time for the external active-low IMX296 XTR pulse. The permitted gain range is
 period minus a 250 µs guard; the console shows it in both microseconds and
 milliseconds.
 
-**Auto · stereo locked** meters the central 60% of both ISP luma planes and
-updates one shared command. It prefers shutter time before analogue gain,
-quantizes changes, confirms a normal bright/dark direction twice, and waits for
-the configured settle interval. Clipping in either camera is handled
-immediately. Switching from Manual starts Auto at the live command instead of
-jumping to a seed value. This avoids the left/right drift caused by independent
-3A, but it cannot correct lighting that alternates within or between external
-trigger pulses.
+**Auto · stereo locked** meters both ISP luma planes and updates one shared
+command. The default metering region is the central 60% of each dimension;
+the YAML metering and clipping settings are active. Auto prefers shutter time
+before analogue gain, filters log brightness, confirms a direction across
+three observations and caps requested changes at 0.2 EV before shutter/gain
+quantization. Persistent highlights select a lower acceptable brightness
+instead of repeatedly halving the exposure and brightening it again.
+That highlight compromise stays selected for the current convergence, even if
+one adjustment moves the highlight just below the clipping threshold.
+
+Once acceptable or at a control limit, Auto holds a fixed scene baseline.
+It resumes adjustment after raw median changes by more than 20% and filtered
+brightness by more than 15% in the same direction for three observations.
+Gradual changes accumulate against that baseline. Both cameras' reported
+controls must match the command before the configured settling interval can
+complete; missing or mismatched metadata is reported as a hold state.
+Switching from Manual starts at the current command. These acknowledgements
+are sensor metadata, not measurement of physical XTR edges. Auto balances
+highlight retention and shadow brightness within the limits; it does not
+measure noise directly or cancel mains-frequency illumination flicker.
 
 The normal page keeps only mode, manual shutter/gain, and Auto target visible.
 Open **Advanced capture controls → Auto exposure limits** for bounds or **Auto
@@ -136,11 +163,14 @@ See [Operations and troubleshooting](operations-troubleshooting.md).
   search window.
 - **Block size** trades detail for robustness; larger blocks smooth more.
 - **Uniqueness**, **speckle**, and **left-right consistency** reject ambiguous
-  or isolated matches.
+  or isolated matches. In OpenCV's SGBM 3-way implementation, nonpositive
+  left-right difference settings use 1 pixel; `-1` does not disable that check.
 - **Saturated-pixel threshold** rejects bright pixels below 256; 256 disables
   that rejection.
-- **Disparity smoothing** applies a 3 × 3 or 5 × 5 median only to matcher-valid
-  subpixel values. It never turns an invalid pixel into a valid one.
+- **Additional disparity smoothing** applies a 3 × 3 or 5 × 5 median only to
+  matcher-valid subpixel values. It never turns an invalid pixel into a valid
+  one. Off disables this additional pass; OpenCV SGBM still applies its own
+  internal 3 × 3 median.
 - **SGBM path aggregation** selects 3-way, standard five-path, HH4, or full
   eight-direction HH. The default Balanced profile uses 3-way. Quality uses HH
   because it removes the long
@@ -155,6 +185,27 @@ All matcher changes are schema-validated, atomically written, and applied on a
 subsequent processed frame without restarting camera capture.
 
 ## Product delivery
+
+Camera images can use a larger grid than matcher products. The console's
+bandwidth estimate uses each grid separately and live captions show actual
+product dimensions. Read products by name, not array position. Side-by-side
+images place left then right horizontally. The pipeline is ISP image →
+rectification → disparity → calibrated depth. Omitted products are absent.
+
+| Data | Interpretation |
+| --- | --- |
+| Depth | Little-endian float32 optical-axis Z in metres, not Euclidean range |
+| Disparity | Little-endian float32 pixels of the matching grid |
+| Validity | `1` is valid; other values describe rejection |
+| Matcher support (`confidence`) | Binary `0` / `255`, not a probability |
+
+Use associated validity plus finite, positive depth for measurements. Preview
+and data subscriptions may use different rates: associate device/run UUID,
+capture epoch and capture sequence, not arrival time. Capture timestamps use
+the device's boot-time clock and are not UTC. New frames include optional
+per-camera timestamps and reported controls, grid mappings, disparity semantics
+and calibration projection matrices. Older recordings may lack those fields;
+do not invent geometry from image size alone.
 
 The authoritative network product is `GET /api/v1/frame/latest` or WebSocket
 `/api/v1/stream` over authenticated TLS. It contains one associated NUV1 frame

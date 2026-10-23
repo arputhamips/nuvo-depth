@@ -1,6 +1,13 @@
 # Shared stereo auto exposure
 
-## Current native controller (2026-09-16)
+This page retains the September 2026 controller design and its original hardware
+measurements. The development controller now uses filtered, bounded adjustments,
+a held scene baseline and acknowledgement from both cameras. For current
+behavior, see [exposure controls](user-guide.md#exposure-and-flicker) and the
+[configuration contract](config-schema.md); the two-observation confirmation and
+immediate clipping reduction below describe the earlier implementation.
+
+## Historical native controller (2026-09-16)
 
 `depthd` now owns one exposure controller for the pair. Libcamera AE and AWB
 are disabled. Manual and auto modes both emit one command containing exposure

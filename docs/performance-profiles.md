@@ -20,8 +20,11 @@ matcher or promise 10 depth frames/s.
 
 All browser profiles use a 728 × 544 capture and matching grid, block size 5,
 two OpenCV threads, speckle window 30, speckle range 2, left-right consistency
-1, pre-filter cap 31 and no saturated-pixel rejection. Median smoothing
-preserves the invalid mask.
+1, pre-filter cap 31 and no saturated-pixel rejection. Nuvo's additional median
+smoothing preserves the invalid mask. "Off" disables only that extra pass:
+OpenCV SGBM still applies its internal 3×3 median. In the supported OpenCV 3-way
+implementation, left-right difference values at or below zero become 1;
+`-1` does not disable that consistency check.
 
 | Profile | Aggregation | Search / accepted interval | Median | Uniqueness | Nominal near range |
 |---|---|---|---|---|---|
@@ -61,10 +64,55 @@ memory behavior, dropped pairs and scene/metric accuracy over the required
 soak. Update the qualification report only after those gates pass. Copy and
 scheduling fixes cannot establish a new matcher throughput claim by themselves.
 
-The default rectifier stages camera luma into reused cached RAM before CPU
-remapping. On the tested Pi5 this reduced rectification from about 16 ms to
-3.7 ms, slightly below the GPU path at about 4.7 ms. Raw products and previews
-are driven by consumer demand; an image-only request does not run the matcher.
+The default rectifier stages camera DMA luma into reused cached RAM before CPU
+remapping; already-owned CPU input now bypasses this copy. In the earlier Pi 5
+measurement, cached staging reduced rectification from about 16 ms to 3.7 ms,
+slightly below the GPU path at about 4.7 ms. Those historical timings do not
+measure the current implementation. Raw products and previews are driven by
+consumer demand; an image-only request does not run the matcher.
+
+## Current pipeline measurement
+
+Rectification `input_transfer_ms` measures DMA staging, `compute_ms` measures
+remap, and `input_bytes_copied` distinguishes the staging and direct paths.
+Map preparation is startup work; shared maps do not share mutable staging
+buffers. Independent image selections are not repeated on the matcher worker
+unless a matched subscription explicitly requires those associated images.
+
+Health snapshots are sampled, not a per-frame trace. Top-level stage timings
+are cleared when that stage is inactive on the current capture, even if
+`processing_statistics_capture_sequence` still identifies an earlier result.
+Check the activity flags before sampling those fields. For matcher workloads,
+use `matcher_statistics` and deduplicate its own `capture_sequence`; it retains
+the last completed match across idle captures and newer image publications.
+
+Reducing `max_disparity` alone filters accepted results; reducing `search_range`
+changes matcher search work. Benchmark the native interface when comparing daemon
+performance. `sgbm_benchmark` exercises the legacy full-image compatibility API,
+which can upsample native disparity and perform additional passes. Its total time
+is not interchangeable with native-grid matcher time. Record the linked OpenCV
+version, build features, matching grid, actual search interval and thread count.
+No host-only test establishes a new Pi throughput guarantee.
+
+Unrectified color monitoring encodes owned I420 directly, avoiding an intermediate
+RGB conversion. Rectified color still needs RGB conversion and remapping. The
+preview pool permits full-sensor input when its checked memory budget fits;
+compressed output remains bounded to 1920 × 1080, so 1456 × 1088 input needs
+an explicitly smaller output size. Demand-only cadence changes reuse the codec.
+
+Encoded metadata `preparation_ms` includes the capture copy and any preview
+conversion/remap or numeric normalization. `queue_ms` measures the wait for the
+encoder worker; `encode_ms` includes scaler/codec work. `total_ms` is their sum,
+identified by `timing_scope: preparation_queue_encode`. The corresponding health
+fields use the `encoding_` prefix. This sum excludes encoder-factory construction,
+serialization, publication, network and browser display; it is not end-to-end
+latency. Calibration-directory polling and status snapshots are limited to four
+per second while capture and watchdog work continue independently.
+
+Direct smaller-grid rectification and fused disparity/depth classification remain
+separate optimization candidates. They need quality comparisons and Pi timing
+before replacing the current calibrated full-image-remap/resize sequence. Changing
+this sequence is not required to preserve or reuse an existing validated bundle.
 
 ## October 9 live verification
 

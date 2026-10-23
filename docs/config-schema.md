@@ -10,7 +10,41 @@ The exposure control schema contains `mode` (`manual` or `auto`),
 and deadband medians, auto exposure/gain limits, update interval, and settle
 frames. Schema bounds are 250–8,000 µs and 1–3× analogue gain; runtime further
 limits XTR exposure to `trigger period - 250 µs` without changing schema v1. See
-[shared stereo exposure control](stereo-auto-exposure.md).
+[shared stereo exposure control](user-guide.md#exposure-and-flicker).
+
+Native auto exposure uses the YAML `metering_roi` pixel rectangle
+(`[x_min, y_min, x_max, y_max]`, upper bounds excluded), `dark_threshold`,
+`clipping_threshold`, and `max_clipped_fraction`. These are profile settings;
+the existing 15-field `exposure.json` schema is unchanged. Metering uses a
+stride-four luma histogram in each camera, with the worse camera's clipped
+fraction and a shared median. It does not allocate image-sized sample vectors.
+
+The controller filters median brightness in log space and requires three
+consecutive observations in the same direction. Adjustments request at most
+0.2 EV per step (subject to the 50 µs shutter and 0.05 gain quantization).
+It prefers longer shutter to additional gain within the configured limits.
+Clipping selects the lower end of the median deadband; it cannot repeatedly
+halve exposure below that band to chase a small saturated highlight. An
+adjustment that encounters clipping retains the lower target until convergence;
+crossing the clipping threshold on adjacent shutter steps cannot alternate the
+target. Once an acceptable value or a control limit is reached, exposure holds
+until median brightness changes by more than 20% for three observations, with
+a filtered 15% threshold as well. The held baseline does not drift, so gradual lighting
+changes still trigger an adjustment. This policy deliberately permits small
+highlights to remain saturated when preserving usable midtones requires it.
+
+When capture supplies applied-control metadata, both cameras' reported shutter
+and analogue gain must match the command before the settling countdown starts.
+The shutter tolerance is the larger of 1% or 25 µs. Gain tolerance is 1.25%,
+covering the IMX296's approximately 1.16% gain-code step. Missing metadata
+reports `applied_metadata_unavailable`; mismatches
+report `awaiting_applied_controls`. Both hold automatic adjustments and retain
+the last command, while status reports the wait-frame count. This is an
+acknowledgement of reported sensor controls, not a measurement of physical XTR
+pulse timing. Callers without applied metadata retain frame-count settling.
+After matching, `auto_settle_frames_after_update` frames are still excluded
+from metering. The update interval controls observation cadence, so response
+time depends on capture rate as well as the configured interval.
 
 ## Scope
 

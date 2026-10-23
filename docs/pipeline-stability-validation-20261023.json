@@ -1,0 +1,2157 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-23",
+  "code_commit": "fe92b2140d0699bd503bfcb29679c0f85e924ae5",
+  "candidate_binary_sha256": "821428ef421ae32cd85d3b81256fa05dbe79e94cb4cb2885ead4b1614fbe66472",
+  "installed_binary_sha256": "c638d08dc11870c15a1a26e6714aafd7e2c42248a20c95911e2884b64eff1455a",
+  "package_artifact": "https://github.com/arputhamips/nuvo-depth/actions/runs/40017191347",
+  "host_ci": "https://github.com/arputhamips/nuvo-depth/actions/runs/40017182261",
+  "hardware": {
+    "model": "Raspberry Pi 5 Model B Rev 1.1",
+    "ram_gib": 16,
+    "os": "Debian 13 trixie",
+    "kernel": "6.12.75+rpt-rpi-2712",
+    "libcamera": "0.7.2+rpt20261009-1",
+    "opencv": "4.10.0+dfsg-5",
+    "capture_and_matching_grid": [
+      728,
+      544
+    ],
+    "capture_hz": 10,
+    "algorithm": "sgbm_3way",
+    "search_range": 128,
+    "opencv_threads": 2,
+    "trigger": "rp1-pio-pwm",
+    "physical_trigger_edges_measured": false,
+    "calibration_sha256": "fc78b88d66e26ab6291a7a1fb84dee768a5075d86ff763039824588955c4b833",
+    "calibration_authority": "provisional; unchanged beta5 geometry"
+  },
+  "regressions": {
+    "host_full_ctest": 67,
+    "host_minimal_ctest": 52,
+    "arm64_ctest": 67,
+    "focused_asan_ubsan": 7,
+    "sdk": 28,
+    "rendered_gateway_browser": "passed desktop/mobile TLS fixture journeys",
+    "independent_code_reviews": "capture/SDK/web, AE/encoder, processing reviewed"
+  },
+  "performance": {
+    "rectified-image": {
+      "installed_beta8": {
+        "passed": true,
+        "seconds": 45.0,
+        "consumers": [
+          {
+            "name": "image",
+            "products": [
+              "left_rectified"
+            ],
+            "hz": 10.0,
+            "unique_measured_frames": 450,
+            "window_hz": 10.0,
+            "interval_hz": 9.999602939151659,
+            "capture_to_reply_ms": {
+              "count": 450,
+              "p50": 22.267167999999998,
+              "p95": 24.581356,
+              "max": 27.061279
+            }
+          }
+        ],
+        "cpu_percent_one_core": 7.3176076299585615,
+        "rss_mib": {
+          "p50": 149.234375,
+          "p95": 149.234375,
+          "max": 149.234375
+        },
+        "swap_max_bytes": 0,
+        "temperature_c": {
+          "count": 45,
+          "p50": 54.0,
+          "p95": 54.550000000000004,
+          "max": 55.1
+        },
+        "throttle_bits": [
+          0
+        ],
+        "sampled_processing_frames": 450,
+        "processing": {
+          "processing_ms": {
+            "count": 450,
+            "p50": 1.84504,
+            "p95": 2.72102,
+            "max": 3.1152
+          },
+          "rectification_ms": {
+            "count": 450,
+            "p50": 1.7798500000000002,
+            "p95": 2.61611,
+            "max": 2.66952
+          },
+          "rectification_input_transfer_ms": null,
+          "rectification_compute_ms": null,
+          "rectification_input_bytes_copied": null,
+          "stereo_match_ms": {
+            "count": 450,
+            "p50": 0.0,
+            "p95": 0,
+            "max": 0
+          }
+        },
+        "new_core_errors": 0,
+        "maximum_reported_sensor_timestamp_delta_ns": 42000,
+        "counter_deltas": {
+          "frame_completion_errors": 0,
+          "request_requeue_failures": 0,
+          "scheduler_pending_replaced": 0,
+          "scheduler_storage_exhausted_dropped": 0,
+          "scheduler_completed_dropped": 0,
+          "raw_cadence_skipped": 0
+        },
+        "summary_sha256": "2cf2cd502d86c05ea696ed76cf1887daa17e8cb387852413148e6a3b55f52cfb"
+      },
+      "candidate": {
+        "passed": true,
+        "seconds": 45.0,
+        "consumers": [
+          {
+            "name": "image",
+            "products": [
+              "left_rectified"
+            ],
+            "hz": 10.0,
+            "unique_measured_frames": 450,
+            "window_hz": 10.0,
+            "interval_hz": 10.00010830429101,
+            "capture_to_reply_ms": {
+              "count": 450,
+              "p50": 22.220424,
+              "p95": 24.473103,
+              "max": 26.085946
+            }
+          }
+        ],
+        "cpu_percent_one_core": 6.908576643595305,
+        "rss_mib": {
+          "p50": 116.625,
+          "p95": 116.625,
+          "max": 116.625
+        },
+        "swap_max_bytes": 0,
+        "temperature_c": {
+          "count": 45,
+          "p50": 55.65,
+          "p95": 56.75,
+          "max": 56.75
+        },
+        "throttle_bits": [
+          0
+        ],
+        "sampled_processing_frames": 150,
+        "processing": {
+          "processing_ms": {
+            "count": 150,
+            "p50": 1.8257400000000001,
+            "p95": 2.63883,
+            "max": 2.79809
+          },
+          "rectification_ms": {
+            "count": 150,
+            "p50": 1.774445,
+            "p95": 2.55202,
+            "max": 2.61893
+          },
+          "rectification_input_transfer_ms": {
+            "count": 150,
+            "p50": 0.323935,
+            "p95": 0.371629,
+            "max": 0.375889
+          },
+          "rectification_compute_ms": {
+            "count": 150,
+            "p50": 1.4487100000000002,
+            "p95": 2.17563,
+            "max": 2.24782
+          },
+          "rectification_input_bytes_copied": {
+            "count": 150,
+            "p50": 396032.0,
+            "p95": 396032,
+            "max": 396032
+          },
+          "stereo_match_ms": {
+            "count": 150,
+            "p50": 0.0,
+            "p95": 0,
+            "max": 0
+          }
+        },
+        "new_core_errors": 0,
+        "maximum_reported_sensor_timestamp_delta_ns": 24000,
+        "counter_deltas": {
+          "left_sensor_sequence_gaps": 0,
+          "right_sensor_sequence_gaps": 0,
+          "frame_completion_errors": 0,
+          "request_requeue_failures": 0,
+          "scheduler_pending_replaced": 0,
+          "scheduler_storage_exhausted_dropped": 0,
+          "scheduler_completed_dropped": 0,
+          "raw_cadence_skipped": 0
+        },
+        "summary_sha256": "785255e92124fb708eb9bd05229022ba47d41e882b98f15e84b59af95c1147a9"
+      }
+    },
+    "depth": {
+      "installed_beta8": {
+        "passed": true,
+        "seconds": 45.0,
+        "consumers": [
+          {
+            "name": "depth",
+            "products": [
+              "depth",
+              "validity"
+            ],
+            "hz": 10.0,
+            "unique_measured_frames": 450,
+            "window_hz": 10.0,
+            "interval_hz": 9.999859895726868,
+            "capture_to_reply_ms": {
+              "count": 450,
+              "p50": 98.325833,
+              "p95": 107.570266,
+              "max": 134.438304
+            }
+          }
+        ],
+        "cpu_percent_one_core": 151.72219773828897,
+        "rss_mib": {
+          "p50": 150.75,
+          "p95": 150.75,
+          "max": 150.75
+        },
+        "swap_max_bytes": 0,
+        "temperature_c": {
+          "count": 45,
+          "p50": 60.6,
+          "p95": 62.25,
+          "max": 62.800000000000004
+        },
+        "throttle_bits": [
+          0
+        ],
+        "sampled_processing_frames": 450,
+        "processing": {
+          "processing_ms": {
+            "count": 450,
+            "p50": 77.1848,
+            "p95": 79.2758,
+            "max": 107.828
+          },
+          "rectification_ms": {
+            "count": 450,
+            "p50": 3.4668200000000002,
+            "p95": 3.56104,
+            "max": 4.60385
+          },
+          "rectification_input_transfer_ms": null,
+          "rectification_compute_ms": null,
+          "rectification_input_bytes_copied": null,
+          "stereo_match_ms": {
+            "count": 450,
+            "p50": 70.5133,
+            "p95": 72.1321,
+            "max": 100.967
+          }
+        },
+        "new_core_errors": 0,
+        "maximum_reported_sensor_timestamp_delta_ns": 79000,
+        "counter_deltas": {
+          "frame_completion_errors": 0,
+          "request_requeue_failures": 0,
+          "scheduler_pending_replaced": 0,
+          "scheduler_storage_exhausted_dropped": 0,
+          "scheduler_completed_dropped": 0,
+          "raw_cadence_skipped": 0
+        },
+        "summary_sha256": "0ab8e1b614e36f4c8a1b2f2443cf59bbe9345c21ee331282217580dcadf3070b"
+      },
+      "candidate": {
+        "passed": true,
+        "seconds": 45.0,
+        "consumers": [
+          {
+            "name": "depth",
+            "products": [
+              "depth",
+              "validity"
+            ],
+            "hz": 10.0,
+            "unique_measured_frames": 450,
+            "window_hz": 10.0,
+            "interval_hz": 9.999707890270253,
+            "capture_to_reply_ms": {
+              "count": 450,
+              "p50": 98.626868,
+              "p95": 113.100055,
+              "max": 136.788499
+            }
+          }
+        ],
+        "cpu_percent_one_core": 152.93693612192843,
+        "rss_mib": {
+          "p50": 135.71875,
+          "p95": 135.71875,
+          "max": 135.71875
+        },
+        "swap_max_bytes": 0,
+        "temperature_c": {
+          "count": 45,
+          "p50": 62.800000000000004,
+          "p95": 63.9,
+          "max": 63.9
+        },
+        "throttle_bits": [
+          0
+        ],
+        "sampled_processing_frames": 150,
+        "processing": {
+          "processing_ms": {
+            "count": 150,
+            "p50": 77.4021,
+            "p95": 100.821,
+            "max": 104.3
+          },
+          "rectification_ms": {
+            "count": 150,
+            "p50": 3.4613750000000003,
+            "p95": 3.52372,
+            "max": 4.31796
+          },
+          "rectification_input_transfer_ms": {
+            "count": 150,
+            "p50": 0.623731,
+            "p95": 0.636703,
+            "max": 0.984
+          },
+          "rectification_compute_ms": {
+            "count": 150,
+            "p50": 2.832755,
+            "p95": 2.89904,
+            "max": 3.3317
+          },
+          "rectification_input_bytes_copied": {
+            "count": 150,
+            "p50": 792064.0,
+            "p95": 792064,
+            "max": 792064
+          },
+          "stereo_match_ms": {
+            "count": 150,
+            "p50": 70.73065,
+            "p95": 93.9545,
+            "max": 97.4007
+          }
+        },
+        "new_core_errors": 0,
+        "maximum_reported_sensor_timestamp_delta_ns": 78000,
+        "counter_deltas": {
+          "left_sensor_sequence_gaps": 0,
+          "right_sensor_sequence_gaps": 0,
+          "frame_completion_errors": 0,
+          "request_requeue_failures": 0,
+          "scheduler_pending_replaced": 0,
+          "scheduler_storage_exhausted_dropped": 0,
+          "scheduler_completed_dropped": 0,
+          "raw_cadence_skipped": 0
+        },
+        "summary_sha256": "c4e7c934b06d0221967adcdd5001b90871b9029ee574a58fc0f40f8c9d1a6df2"
+      }
+    },
+    "mixed-low-depth": {
+      "installed_beta8": {
+        "passed": true,
+        "seconds": 45.0,
+        "consumers": [
+          {
+            "name": "image",
+            "products": [
+              "left_mono"
+            ],
+            "hz": 10.0,
+            "unique_measured_frames": 450,
+            "window_hz": 10.0,
+            "interval_hz": 10.000008327401144,
+            "capture_to_reply_ms": {
+              "count": 450,
+              "p50": 20.623881,
+              "p95": 20.964,
+              "max": 25.09073
+            }
+          },
+          {
+            "name": "depth",
+            "products": [
+              "depth",
+              "validity"
+            ],
+            "hz": 1.0,
+            "unique_measured_frames": 45,
+            "window_hz": 1.0,
+            "interval_hz": 1.0007860253278356,
+            "capture_to_reply_ms": {
+              "count": 45,
+              "p50": 99.191142,
+              "p95": 130.852211,
+              "max": 135.537087
+            }
+          }
+        ],
+        "cpu_percent_one_core": 17.77083879072975,
+        "rss_mib": {
+          "p50": 150.765625,
+          "p95": 150.765625,
+          "max": 150.765625
+        },
+        "swap_max_bytes": 0,
+        "temperature_c": {
+          "count": 45,
+          "p50": 56.75,
+          "p95": 57.300000000000004,
+          "max": 57.85
+        },
+        "throttle_bits": [
+          0
+        ],
+        "sampled_processing_frames": 45,
+        "processing": {
+          "processing_ms": {
+            "count": 45,
+            "p50": 78.2312,
+            "p95": 109.276,
+            "max": 112.813
+          },
+          "rectification_ms": {
+            "count": 45,
+            "p50": 3.65439,
+            "p95": 4.93352,
+            "max": 5.21744
+          },
+          "rectification_input_transfer_ms": null,
+          "rectification_compute_ms": null,
+          "rectification_input_bytes_copied": null,
+          "stereo_match_ms": {
+            "count": 45,
+            "p50": 70.9578,
+            "p95": 99.7119,
+            "max": 102.759
+          }
+        },
+        "new_core_errors": 0,
+        "maximum_reported_sensor_timestamp_delta_ns": 79000,
+        "counter_deltas": {
+          "frame_completion_errors": 0,
+          "request_requeue_failures": 0,
+          "scheduler_pending_replaced": 0,
+          "scheduler_storage_exhausted_dropped": 0,
+          "scheduler_completed_dropped": 0,
+          "raw_cadence_skipped": 0
+        },
+        "summary_sha256": "549d47e48d2ade037a5d5158dd337a5dcf179ff8b371bc1ea2a239c3be0e531d"
+      },
+      "candidate": {
+        "passed": true,
+        "seconds": 45.0,
+        "consumers": [
+          {
+            "name": "image",
+            "products": [
+              "left_mono"
+            ],
+            "hz": 10.0,
+            "unique_measured_frames": 450,
+            "window_hz": 10.0,
+            "interval_hz": 10.000137487859085,
+            "capture_to_reply_ms": {
+              "count": 450,
+              "p50": 20.67093,
+              "p95": 22.24175,
+              "max": 27.267712
+            }
+          },
+          {
+            "name": "depth",
+            "products": [
+              "depth",
+              "validity"
+            ],
+            "hz": 1.0,
+            "unique_measured_frames": 45,
+            "window_hz": 1.0,
+            "interval_hz": 0.9999720412362598,
+            "capture_to_reply_ms": {
+              "count": 45,
+              "p50": 99.054805,
+              "p95": 131.650622,
+              "max": 137.374963
+            }
+          }
+        ],
+        "cpu_percent_one_core": 18.178952931354495,
+        "rss_mib": {
+          "p50": 136.9375,
+          "p95": 136.9375,
+          "max": 136.9375
+        },
+        "swap_max_bytes": 0,
+        "temperature_c": {
+          "count": 45,
+          "p50": 57.85,
+          "p95": 58.95,
+          "max": 59.5
+        },
+        "throttle_bits": [
+          0
+        ],
+        "sampled_processing_frames": 45,
+        "processing": {
+          "processing_ms": {
+            "count": 45,
+            "p50": 77.9622,
+            "p95": 109.058,
+            "max": 114.751
+          },
+          "rectification_ms": {
+            "count": 45,
+            "p50": 3.74189,
+            "p95": 5.88146,
+            "max": 6.4437
+          },
+          "rectification_input_transfer_ms": {
+            "count": 45,
+            "p50": 0.671796,
+            "p95": 0.804833,
+            "max": 0.895018
+          },
+          "rectification_compute_ms": {
+            "count": 45,
+            "p50": 3.05585,
+            "p95": 5.11409,
+            "max": 5.75328
+          },
+          "rectification_input_bytes_copied": {
+            "count": 45,
+            "p50": 792064,
+            "p95": 792064,
+            "max": 792064
+          },
+          "stereo_match_ms": {
+            "count": 45,
+            "p50": 70.9648,
+            "p95": 99.4011,
+            "max": 106.327
+          }
+        },
+        "new_core_errors": 0,
+        "maximum_reported_sensor_timestamp_delta_ns": 78000,
+        "counter_deltas": {
+          "left_sensor_sequence_gaps": 0,
+          "right_sensor_sequence_gaps": 0,
+          "frame_completion_errors": 0,
+          "request_requeue_failures": 0,
+          "scheduler_pending_replaced": 0,
+          "scheduler_storage_exhausted_dropped": 0,
+          "scheduler_completed_dropped": 0,
+          "raw_cadence_skipped": 0
+        },
+        "summary_sha256": "bed937a3973e692589f2bdf577a768d2424c665fe0257eafb96ee57d357ff808"
+      }
+    },
+    "mixed-depth": {
+      "installed_beta8": {
+        "passed": true,
+        "seconds": 45.0,
+        "consumers": [
+          {
+            "name": "image",
+            "products": [
+              "left_mono"
+            ],
+            "hz": 10.0,
+            "unique_measured_frames": 450,
+            "window_hz": 10.0,
+            "interval_hz": 9.999606488314262,
+            "capture_to_reply_ms": {
+              "count": 450,
+              "p50": 21.050891,
+              "p95": 22.686758,
+              "max": 32.393735
+            }
+          },
+          {
+            "name": "depth",
+            "products": [
+              "depth",
+              "validity"
+            ],
+            "hz": 10.0,
+            "unique_measured_frames": 450,
+            "window_hz": 10.0,
+            "interval_hz": 9.999930885110206,
+            "capture_to_reply_ms": {
+              "count": 450,
+              "p50": 99.537451,
+              "p95": 114.071275,
+              "max": 136.410955
+            }
+          }
+        ],
+        "cpu_percent_one_core": 154.9357834671126,
+        "rss_mib": {
+          "p50": 151.203125,
+          "p95": 151.203125,
+          "max": 151.203125
+        },
+        "swap_max_bytes": 0,
+        "temperature_c": {
+          "count": 45,
+          "p50": 61.15,
+          "p95": 62.800000000000004,
+          "max": 63.35
+        },
+        "throttle_bits": [
+          0
+        ],
+        "sampled_processing_frames": 450,
+        "processing": {
+          "processing_ms": {
+            "count": 450,
+            "p50": 78.30520000000001,
+            "p95": 80.3863,
+            "max": 111.635
+          },
+          "rectification_ms": {
+            "count": 450,
+            "p50": 3.66061,
+            "p95": 3.82326,
+            "max": 5.25505
+          },
+          "rectification_input_transfer_ms": null,
+          "rectification_compute_ms": null,
+          "rectification_input_bytes_copied": null,
+          "stereo_match_ms": {
+            "count": 450,
+            "p50": 71.09925,
+            "p95": 72.9986,
+            "max": 104.282
+          }
+        },
+        "new_core_errors": 0,
+        "maximum_reported_sensor_timestamp_delta_ns": 79000,
+        "counter_deltas": {
+          "frame_completion_errors": 0,
+          "request_requeue_failures": 0,
+          "scheduler_pending_replaced": 0,
+          "scheduler_storage_exhausted_dropped": 0,
+          "scheduler_completed_dropped": 0,
+          "raw_cadence_skipped": 0
+        },
+        "summary_sha256": "41cd47642c524f5d461c50837bae3418358df45132c0a2038895ad33d346a9eb"
+      },
+      "candidate": {
+        "passed": true,
+        "seconds": 45.0,
+        "consumers": [
+          {
+            "name": "image",
+            "products": [
+              "left_mono"
+            ],
+            "hz": 10.0,
+            "unique_measured_frames": 450,
+            "window_hz": 10.0,
+            "interval_hz": 9.999099425876826,
+            "capture_to_reply_ms": {
+              "count": 450,
+              "p50": 21.015786,
+              "p95": 22.549823,
+              "max": 28.592346
+            }
+          },
+          {
+            "name": "depth",
+            "products": [
+              "depth",
+              "validity"
+            ],
+            "hz": 10.0,
+            "unique_measured_frames": 450,
+            "window_hz": 10.0,
+            "interval_hz": 9.999815239048468,
+            "capture_to_reply_ms": {
+              "count": 450,
+              "p50": 98.95887300000001,
+              "p95": 111.824014,
+              "max": 138.513141
+            }
+          }
+        ],
+        "cpu_percent_one_core": 153.98830861442391,
+        "rss_mib": {
+          "p50": 137.0,
+          "p95": 137.0,
+          "max": 137.0
+        },
+        "swap_max_bytes": 0,
+        "temperature_c": {
+          "count": 45,
+          "p50": 63.35,
+          "p95": 64.45,
+          "max": 64.45
+        },
+        "throttle_bits": [
+          0
+        ],
+        "sampled_processing_frames": 150,
+        "processing": {
+          "processing_ms": {
+            "count": 150,
+            "p50": 77.75315,
+            "p95": 79.5608,
+            "max": 100.115
+          },
+          "rectification_ms": {
+            "count": 150,
+            "p50": 3.64169,
+            "p95": 3.91983,
+            "max": 4.35807
+          },
+          "rectification_input_transfer_ms": {
+            "count": 150,
+            "p50": 0.663528,
+            "p95": 0.716963,
+            "max": 0.905018
+          },
+          "rectification_compute_ms": {
+            "count": 150,
+            "p50": 2.977665,
+            "p95": 3.19415,
+            "max": 3.45974
+          },
+          "rectification_input_bytes_copied": {
+            "count": 150,
+            "p50": 792064.0,
+            "p95": 792064,
+            "max": 792064
+          },
+          "stereo_match_ms": {
+            "count": 150,
+            "p50": 70.88505,
+            "p95": 72.7128,
+            "max": 92.852
+          }
+        },
+        "new_core_errors": 0,
+        "maximum_reported_sensor_timestamp_delta_ns": 78000,
+        "counter_deltas": {
+          "left_sensor_sequence_gaps": 0,
+          "right_sensor_sequence_gaps": 0,
+          "frame_completion_errors": 0,
+          "request_requeue_failures": 0,
+          "scheduler_pending_replaced": 0,
+          "scheduler_storage_exhausted_dropped": 0,
+          "scheduler_completed_dropped": 0,
+          "raw_cadence_skipped": 0
+        },
+        "summary_sha256": "76536c620fb0a4284c45815b82e3be86b85addb98096c89e49640264e3c5224f"
+      }
+    }
+  },
+  "all_products": {
+    "passed": true,
+    "seconds": 5.0,
+    "consumers": [
+      {
+        "name": "all",
+        "products": [
+          "left_rectified",
+          "right_rectified",
+          "disparity",
+          "depth",
+          "confidence",
+          "validity",
+          "left_mono",
+          "right_mono",
+          "left_rgb",
+          "right_rgb",
+          "left_rectified_rgb",
+          "right_rectified_rgb",
+          "rectified_stereo",
+          "rectified_stereo_rgb"
+        ],
+        "hz": 1.0,
+        "unique_measured_frames": 5,
+        "window_hz": 1.0,
+        "interval_hz": 0.9997189854913517,
+        "capture_to_reply_ms": {
+          "count": 5,
+          "p50": 194.896595,
+          "p95": 196.339383,
+          "max": 196.339383
+        }
+      }
+    ],
+    "cpu_percent_one_core": 27.99788910614995,
+    "rss_mib": {
+      "p50": 175.125,
+      "p95": 175.125,
+      "max": 175.125
+    },
+    "swap_max_bytes": 0,
+    "temperature_c": {
+      "count": 5,
+      "p50": 57.85,
+      "p95": 58.4,
+      "max": 58.4
+    },
+    "throttle_bits": [
+      0
+    ],
+    "sampled_processing_frames": 5,
+    "processing": {
+      "processing_ms": {
+        "count": 5,
+        "p50": 167.533,
+        "p95": 168.166,
+        "max": 168.166
+      },
+      "rectification_ms": {
+        "count": 5,
+        "p50": 10.712,
+        "p95": 10.8898,
+        "max": 10.8898
+      },
+      "rectification_input_transfer_ms": {
+        "count": 5,
+        "p50": 0.638741,
+        "p95": 0.64487,
+        "max": 0.64487
+      },
+      "rectification_compute_ms": {
+        "count": 5,
+        "p50": 10.0693,
+        "p95": 10.2415,
+        "max": 10.2415
+      },
+      "rectification_input_bytes_copied": {
+        "count": 5,
+        "p50": 792064,
+        "p95": 792064,
+        "max": 792064
+      },
+      "stereo_match_ms": {
+        "count": 5,
+        "p50": 73.0391,
+        "p95": 73.4195,
+        "max": 73.4195
+      }
+    },
+    "new_core_errors": 0,
+    "maximum_reported_sensor_timestamp_delta_ns": 78000,
+    "counter_deltas": {
+      "left_sensor_sequence_gaps": 0,
+      "right_sensor_sequence_gaps": 0,
+      "frame_completion_errors": 0,
+      "request_requeue_failures": 0,
+      "scheduler_pending_replaced": 0,
+      "scheduler_storage_exhausted_dropped": 0,
+      "scheduler_completed_dropped": 0,
+      "raw_cadence_skipped": 43
+    },
+    "summary_sha256": "0b25d6b9d28d97d3c9b78d23685c40094aa527c887147262aa02aa28cc70c300"
+  },
+  "soak": {
+    "passed": true,
+    "seconds": 300.0,
+    "consumers": [
+      {
+        "name": "image",
+        "products": [
+          "left_mono"
+        ],
+        "hz": 10.0,
+        "unique_measured_frames": 3000,
+        "window_hz": 10.0,
+        "interval_hz": 9.999522992978063,
+        "capture_to_reply_ms": {
+          "count": 3000,
+          "p50": 21.0555465,
+          "p95": 23.005879,
+          "max": 37.036111
+        }
+      },
+      {
+        "name": "depth",
+        "products": [
+          "depth",
+          "validity"
+        ],
+        "hz": 10.0,
+        "unique_measured_frames": 3000,
+        "window_hz": 10.0,
+        "interval_hz": 9.998596466141423,
+        "capture_to_reply_ms": {
+          "count": 3000,
+          "p50": 98.90478949999999,
+          "p95": 111.335631,
+          "max": 139.067632
+        }
+      }
+    ],
+    "cpu_percent_one_core": 153.12483886543535,
+    "rss_mib": {
+      "p50": 171.796875,
+      "p95": 171.796875,
+      "max": 171.796875
+    },
+    "swap_max_bytes": 0,
+    "temperature_c": {
+      "count": 300,
+      "p50": 66.1,
+      "p95": 67.75,
+      "max": 68.3
+    },
+    "throttle_bits": [
+      0
+    ],
+    "sampled_processing_frames": 1000,
+    "processing": {
+      "processing_ms": {
+        "count": 1000,
+        "p50": 77.58725000000001,
+        "p95": 79.0727,
+        "max": 104.124
+      },
+      "rectification_ms": {
+        "count": 1000,
+        "p50": 3.7203549999999996,
+        "p95": 4.04477,
+        "max": 7.07976
+      },
+      "rectification_input_transfer_ms": {
+        "count": 1000,
+        "p50": 0.6957055,
+        "p95": 0.796039,
+        "max": 1.50889
+      },
+      "rectification_compute_ms": {
+        "count": 1000,
+        "p50": 3.01798,
+        "p95": 3.2923,
+        "max": 6.37111
+      },
+      "rectification_input_bytes_copied": {
+        "count": 1000,
+        "p50": 792064.0,
+        "p95": 792064,
+        "max": 792064
+      },
+      "stereo_match_ms": {
+        "count": 1000,
+        "p50": 70.6237,
+        "p95": 71.9221,
+        "max": 97.1419
+      }
+    },
+    "new_core_errors": 0,
+    "maximum_reported_sensor_timestamp_delta_ns": 78000,
+    "counter_deltas": {
+      "left_sensor_sequence_gaps": 0,
+      "right_sensor_sequence_gaps": 0,
+      "frame_completion_errors": 0,
+      "request_requeue_failures": 0,
+      "scheduler_pending_replaced": 0,
+      "scheduler_storage_exhausted_dropped": 0,
+      "scheduler_completed_dropped": 0,
+      "raw_cadence_skipped": 0
+    },
+    "summary_sha256": "4a40b51e35afa0d414fba2ce6bd583bc8a19e4f3350eeb4adddf57187df4494c"
+  },
+  "exposure_probe_results": {
+    "auto-stationary": {
+      "result": "fail",
+      "checks": {
+        "one_capture_session": true,
+        "auto_mode_throughout": false,
+        "monotonic_counters": true,
+        "configuration_unchanged": false,
+        "no_new_capture_or_control_errors": true,
+        "hardware_timed_trigger": true,
+        "trigger_guard_respected": true,
+        "tail_no_exposure_updates": true,
+        "tail_command_held": true,
+        "tail_sensor_controls_confirmed": true,
+        "tail_metadata_available": true,
+        "tail_not_waiting_for_controls": true,
+        "tail_luma_stable": false
+      },
+      "failed_checks": [
+        "auto_mode_throughout",
+        "configuration_unchanged",
+        "tail_luma_stable"
+      ],
+      "tail": {
+        "start_seconds": 59.79887095599997,
+        "unique_captures": 100,
+        "unique_observations": 100,
+        "controller_states": {
+          "waiting_interval": 51,
+          "stable": 47,
+          "confirming_bright": 1,
+          "confirming_dark": 1
+        },
+        "counter_deltas": {
+          "exposure_updates": 0.0,
+          "exposure_observations": 149.0,
+          "exposure_frames_seen": 298.0,
+          "exposure_applied_controls_wait_frames": 0.0,
+          "exposure_configuration_reloads": 0.0,
+          "exposure_configuration_errors": 0.0,
+          "trigger_errors": 0.0,
+          "request_requeue_failures": 0.0,
+          "frame_completion_errors": 0.0,
+          "capture_sequence_gaps": 0.0,
+          "trigger_deadline_overruns": 0.0,
+          "trigger_pulse_guard_overruns": 0.0,
+          "published_frames": 0.0
+        },
+        "requested_exposure_value": {
+          "count": 100,
+          "min": 24000.0,
+          "max": 24000.0,
+          "median": 24000.0,
+          "mean": 24000.0,
+          "p05": 24000.0,
+          "p95": 24000.0,
+          "mad": 0.0
+        },
+        "numeric_applied_match_fraction": 1.0,
+        "reported_applied_match_fraction": 1.0,
+        "last_reasons": {
+          "at_limit_or_quantized": 96,
+          "confirming_bright": 2,
+          "confirming_dark": 2
+        },
+        "metering": {
+          "metered_median": {
+            "count": 100,
+            "min": 4.0,
+            "max": 9.0,
+            "median": 5.0,
+            "mean": 5.49,
+            "p05": 4.0,
+            "p95": 8.0,
+            "mad": 0.0
+          },
+          "metered_left_median": {
+            "count": 100,
+            "min": 4.0,
+            "max": 9.0,
+            "median": 6.0,
+            "mean": 6.34,
+            "p05": 4.0,
+            "p95": 9.0,
+            "mad": 0.0
+          },
+          "metered_right_median": {
+            "count": 100,
+            "min": 4.0,
+            "max": 9.0,
+            "median": 5.0,
+            "mean": 5.37,
+            "p05": 4.0,
+            "p95": 8.0,
+            "mad": 0.0
+          },
+          "metered_median_difference": {
+            "count": 100,
+            "min": 0.0,
+            "max": 2.0,
+            "median": 1.0,
+            "mean": 0.97,
+            "p05": 0.0,
+            "p95": 2.0,
+            "mad": 0.0
+          },
+          "metered_dark_fraction": {
+            "count": 100,
+            "min": 0.666232,
+            "max": 0.702095,
+            "median": 0.6983785,
+            "mean": 0.69284477,
+            "p05": 0.670362,
+            "p95": 0.701139,
+            "mad": 0.0020215000000000094
+          },
+          "metered_clipped_fraction": {
+            "count": 100,
+            "min": 0.0,
+            "max": 0.0,
+            "median": 0.0,
+            "mean": 0.0,
+            "p05": 0.0,
+            "p95": 0.0,
+            "mad": 0.0
+          }
+        },
+        "robust_luma_span_fraction": 0.8,
+        "shutter_difference_us": {
+          "count": 100,
+          "min": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "mean": 0.0,
+          "p05": 0.0,
+          "p95": 0.0,
+          "mad": 0.0
+        },
+        "gain_difference": {
+          "count": 100,
+          "min": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "mean": 0.0,
+          "p05": 0.0,
+          "p95": 0.0,
+          "mad": 0.0
+        },
+        "at_lower_limit": false,
+        "at_upper_limit": true
+      }
+    },
+    "auto-lighting-step": {
+      "result": "fail",
+      "checks": {
+        "one_capture_session": true,
+        "auto_mode_throughout": true,
+        "monotonic_counters": true,
+        "configuration_unchanged": true,
+        "no_new_capture_or_control_errors": true,
+        "hardware_timed_trigger": true,
+        "trigger_guard_respected": true,
+        "tail_no_exposure_updates": true,
+        "tail_command_held": true,
+        "tail_sensor_controls_confirmed": true,
+        "tail_metadata_available": true,
+        "tail_not_waiting_for_controls": true,
+        "tail_luma_stable": true,
+        "pre_step_command_held": true,
+        "lighting_step_response": false
+      },
+      "failed_checks": [
+        "lighting_step_response"
+      ],
+      "tail": {
+        "start_seconds": 149.87107769599993,
+        "unique_captures": 100,
+        "unique_observations": 100,
+        "controller_states": {
+          "waiting_interval": 51,
+          "stable": 49
+        },
+        "counter_deltas": {
+          "exposure_updates": 0.0,
+          "exposure_observations": 149.0,
+          "exposure_frames_seen": 297.0,
+          "exposure_applied_controls_wait_frames": 0.0,
+          "exposure_configuration_reloads": 0.0,
+          "exposure_configuration_errors": 0.0,
+          "trigger_errors": 0.0,
+          "request_requeue_failures": 0.0,
+          "frame_completion_errors": 0.0,
+          "capture_sequence_gaps": 0.0,
+          "trigger_deadline_overruns": 0.0,
+          "trigger_pulse_guard_overruns": 0.0,
+          "published_frames": 0.0
+        },
+        "requested_exposure_value": {
+          "count": 100,
+          "min": 24000.0,
+          "max": 24000.0,
+          "median": 24000.0,
+          "mean": 24000.0,
+          "p05": 24000.0,
+          "p95": 24000.0,
+          "mad": 0.0
+        },
+        "numeric_applied_match_fraction": 1.0,
+        "reported_applied_match_fraction": 1.0,
+        "last_reasons": {
+          "within_deadband": 100
+        },
+        "metering": {
+          "metered_median": {
+            "count": 100,
+            "min": 64.0,
+            "max": 67.0,
+            "median": 67.0,
+            "mean": 66.22,
+            "p05": 65.0,
+            "p95": 67.0,
+            "mad": 0.0
+          },
+          "metered_left_median": {
+            "count": 100,
+            "min": 64.0,
+            "max": 67.0,
+            "median": 67.0,
+            "mean": 66.2,
+            "p05": 65.0,
+            "p95": 67.0,
+            "mad": 0.0
+          },
+          "metered_right_median": {
+            "count": 100,
+            "min": 64.0,
+            "max": 68.0,
+            "median": 67.0,
+            "mean": 66.56,
+            "p05": 66.0,
+            "p95": 67.0,
+            "mad": 0.0
+          },
+          "metered_median_difference": {
+            "count": 100,
+            "min": 0.0,
+            "max": 2.0,
+            "median": 0.0,
+            "mean": 0.4,
+            "p05": 0.0,
+            "p95": 1.0,
+            "mad": 0.0
+          },
+          "metered_dark_fraction": {
+            "count": 100,
+            "min": 0.151408,
+            "max": 0.168362,
+            "median": 0.153256,
+            "mean": 0.15647925000000001,
+            "p05": 0.152104,
+            "p95": 0.163232,
+            "mad": 0.0009349999999999914
+          },
+          "metered_clipped_fraction": {
+            "count": 100,
+            "min": 0.00260824,
+            "max": 0.00278212,
+            "median": 0.00269518,
+            "mean": 0.002660404,
+            "p05": 0.00260824,
+            "p95": 0.00278212,
+            "mad": 8.693999999999976e-05
+          }
+        },
+        "robust_luma_span_fraction": 0.029850746268656716,
+        "shutter_difference_us": {
+          "count": 100,
+          "min": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "mean": 0.0,
+          "p05": 0.0,
+          "p95": 0.0,
+          "mad": 0.0
+        },
+        "gain_difference": {
+          "count": 100,
+          "min": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "mean": 0.0,
+          "p05": 0.0,
+          "p95": 0.0,
+          "mad": 0.0
+        },
+        "at_lower_limit": false,
+        "at_upper_limit": true
+      }
+    },
+    "auto-lit-stationary": {
+      "result": "pass",
+      "checks": {
+        "one_capture_session": true,
+        "auto_mode_throughout": true,
+        "monotonic_counters": true,
+        "configuration_unchanged": true,
+        "no_new_capture_or_control_errors": true,
+        "hardware_timed_trigger": true,
+        "trigger_guard_respected": true,
+        "tail_no_exposure_updates": true,
+        "tail_command_held": true,
+        "tail_sensor_controls_confirmed": true,
+        "tail_metadata_available": true,
+        "tail_not_waiting_for_controls": true,
+        "tail_luma_stable": true
+      },
+      "failed_checks": [],
+      "tail": {
+        "start_seconds": 59.810351196000056,
+        "unique_captures": 100,
+        "unique_observations": 100,
+        "controller_states": {
+          "stable": 47,
+          "waiting_interval": 53
+        },
+        "counter_deltas": {
+          "exposure_updates": 0.0,
+          "exposure_observations": 149.0,
+          "exposure_frames_seen": 298.0,
+          "exposure_applied_controls_wait_frames": 0.0,
+          "exposure_configuration_reloads": 0.0,
+          "exposure_configuration_errors": 0.0,
+          "trigger_errors": 0.0,
+          "request_requeue_failures": 0.0,
+          "frame_completion_errors": 0.0,
+          "capture_sequence_gaps": 0.0,
+          "trigger_deadline_overruns": 0.0,
+          "trigger_pulse_guard_overruns": 0.0,
+          "published_frames": 0.0
+        },
+        "requested_exposure_value": {
+          "count": 100,
+          "min": 24000.0,
+          "max": 24000.0,
+          "median": 24000.0,
+          "mean": 24000.0,
+          "p05": 24000.0,
+          "p95": 24000.0,
+          "mad": 0.0
+        },
+        "numeric_applied_match_fraction": 1.0,
+        "reported_applied_match_fraction": 1.0,
+        "last_reasons": {
+          "within_deadband": 100
+        },
+        "metering": {
+          "metered_median": {
+            "count": 100,
+            "min": 67.0,
+            "max": 67.0,
+            "median": 67.0,
+            "mean": 67.0,
+            "p05": 67.0,
+            "p95": 67.0,
+            "mad": 0.0
+          },
+          "metered_left_median": {
+            "count": 100,
+            "min": 67.0,
+            "max": 67.0,
+            "median": 67.0,
+            "mean": 67.0,
+            "p05": 67.0,
+            "p95": 67.0,
+            "mad": 0.0
+          },
+          "metered_right_median": {
+            "count": 100,
+            "min": 67.0,
+            "max": 67.0,
+            "median": 67.0,
+            "mean": 67.0,
+            "p05": 67.0,
+            "p95": 67.0,
+            "mad": 0.0
+          },
+          "metered_median_difference": {
+            "count": 100,
+            "min": 0.0,
+            "max": 0.0,
+            "median": 0.0,
+            "mean": 0.0,
+            "p05": 0.0,
+            "p95": 0.0,
+            "mad": 0.0
+          },
+          "metered_dark_fraction": {
+            "count": 100,
+            "min": 0.151756,
+            "max": 0.153886,
+            "median": 0.152995,
+            "mean": 0.15295601,
+            "p05": 0.152234,
+            "p95": 0.153539,
+            "mad": 0.0002605000000000107
+          },
+          "metered_clipped_fraction": {
+            "count": 100,
+            "min": 0.00260824,
+            "max": 0.00278212,
+            "median": 0.00260824,
+            "mean": 0.0026412772,
+            "p05": 0.00260824,
+            "p95": 0.00269518,
+            "mad": 0.0
+          }
+        },
+        "robust_luma_span_fraction": 0.0,
+        "shutter_difference_us": {
+          "count": 100,
+          "min": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "mean": 0.0,
+          "p05": 0.0,
+          "p95": 0.0,
+          "mad": 0.0
+        },
+        "gain_difference": {
+          "count": 100,
+          "min": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "mean": 0.0,
+          "p05": 0.0,
+          "p95": 0.0,
+          "mad": 0.0
+        },
+        "at_lower_limit": false,
+        "at_upper_limit": true
+      }
+    },
+    "auto-light-cycle": {
+      "result": "pass",
+      "checks": {
+        "one_capture_session": true,
+        "auto_mode_throughout": true,
+        "monotonic_counters": true,
+        "configuration_unchanged": true,
+        "no_new_capture_or_control_errors": true,
+        "hardware_timed_trigger": true,
+        "trigger_guard_respected": true,
+        "tail_no_exposure_updates": true,
+        "tail_command_held": true,
+        "tail_sensor_controls_confirmed": true,
+        "tail_metadata_available": true,
+        "tail_not_waiting_for_controls": true,
+        "tail_luma_stable": true
+      },
+      "failed_checks": [],
+      "tail": {
+        "start_seconds": 149.8331743660001,
+        "unique_captures": 100,
+        "unique_observations": 100,
+        "controller_states": {
+          "waiting_interval": 53,
+          "stable": 47
+        },
+        "counter_deltas": {
+          "exposure_updates": 0.0,
+          "exposure_observations": 149.0,
+          "exposure_frames_seen": 298.0,
+          "exposure_applied_controls_wait_frames": 0.0,
+          "exposure_configuration_reloads": 0.0,
+          "exposure_configuration_errors": 0.0,
+          "trigger_errors": 0.0,
+          "request_requeue_failures": 0.0,
+          "frame_completion_errors": 0.0,
+          "capture_sequence_gaps": 0.0,
+          "trigger_deadline_overruns": 0.0,
+          "trigger_pulse_guard_overruns": 0.0,
+          "published_frames": 0.0
+        },
+        "requested_exposure_value": {
+          "count": 100,
+          "min": 14800.0,
+          "max": 14800.0,
+          "median": 14800.0,
+          "mean": 14800.0,
+          "p05": 14800.0,
+          "p95": 14800.0,
+          "mad": 0.0
+        },
+        "numeric_applied_match_fraction": 1.0,
+        "reported_applied_match_fraction": 1.0,
+        "last_reasons": {
+          "within_deadband": 100
+        },
+        "metering": {
+          "metered_median": {
+            "count": 100,
+            "min": 44.0,
+            "max": 45.0,
+            "median": 44.0,
+            "mean": 44.03,
+            "p05": 44.0,
+            "p95": 44.0,
+            "mad": 0.0
+          },
+          "metered_left_median": {
+            "count": 100,
+            "min": 44.0,
+            "max": 45.0,
+            "median": 45.0,
+            "mean": 44.79,
+            "p05": 44.0,
+            "p95": 45.0,
+            "mad": 0.0
+          },
+          "metered_right_median": {
+            "count": 100,
+            "min": 44.0,
+            "max": 44.0,
+            "median": 44.0,
+            "mean": 44.0,
+            "p05": 44.0,
+            "p95": 44.0,
+            "mad": 0.0
+          },
+          "metered_median_difference": {
+            "count": 100,
+            "min": 0.0,
+            "max": 1.0,
+            "median": 1.0,
+            "mean": 0.79,
+            "p05": 0.0,
+            "p95": 1.0,
+            "mad": 0.0
+          },
+          "metered_dark_fraction": {
+            "count": 100,
+            "min": 0.237089,
+            "max": 0.240958,
+            "median": 0.238698,
+            "mean": 0.23879803,
+            "p05": 0.237785,
+            "p95": 0.240263,
+            "mad": 0.0004780000000000062
+          },
+          "metered_clipped_fraction": {
+            "count": 100,
+            "min": 0.00234742,
+            "max": 0.00234742,
+            "median": 0.00234742,
+            "mean": 0.00234742,
+            "p05": 0.00234742,
+            "p95": 0.00234742,
+            "mad": 0.0
+          }
+        },
+        "robust_luma_span_fraction": 0.0,
+        "shutter_difference_us": {
+          "count": 100,
+          "min": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "mean": 0.0,
+          "p05": 0.0,
+          "p95": 0.0,
+          "mad": 0.0
+        },
+        "gain_difference": {
+          "count": 100,
+          "min": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "mean": 0.0,
+          "p05": 0.0,
+          "p95": 0.0,
+          "mad": 0.0
+        },
+        "at_lower_limit": false,
+        "at_upper_limit": false
+      }
+    }
+  },
+  "exposure_assessment": {
+    "schema_version": 1,
+    "result": "pass",
+    "checks": {
+      "original_probe_passed": true,
+      "one_capture_session": true,
+      "configuration_unchanged": true,
+      "all_command_updates_observed": true,
+      "off_then_on_human_confirmations": true,
+      "confirmations_within_recording": true,
+      "two_monotonic_response_runs": true,
+      "every_observed_step_within_controller_bound_and_rounding": true,
+      "metadata_available_throughout": true,
+      "non_settling_numeric_and_reported_agreement": true,
+      "final_tail_no_command_steps_or_updates": true,
+      "final_tail_useful_brightness": true
+    },
+    "failed_checks": [],
+    "original_probe_result": "pass",
+    "original_probe_failed_checks": [],
+    "test_target": {
+      "target": 40,
+      "min": 35,
+      "max": 45,
+      "scope": "temporary controller response qualification with available illumination; production controls remain protected"
+    },
+    "unique_captures": 599,
+    "observed_update_counter_delta": 8.0,
+    "steps": [
+      {
+        "read_utc": "2026-10-23T20:27:57.510843+00:00",
+        "elapsed_seconds": 46.894038849000026,
+        "capture_sequence": 6231,
+        "observations": 1960,
+        "from_exposure_us": 8000.0,
+        "to_exposure_us": 8000.0,
+        "from_gain": 1.7,
+        "to_gain": 1.95,
+        "from_exposure_value": 13600.0,
+        "to_exposure_value": 15600.0,
+        "direction": "increase",
+        "ev_step": 0.19793937761190883,
+        "rounding_quantum_exposure_value": 400.0,
+        "minimum_abs_prequantization_ev": 0.17932369944456192,
+        "normalized_prequantization_bound": 0.8966184972228095,
+        "within_0_2_ev_plus_rounding": true
+      },
+      {
+        "read_utc": "2026-10-23T20:27:59.018709+00:00",
+        "elapsed_seconds": 48.402021647999845,
+        "capture_sequence": 6246,
+        "observations": 1963,
+        "from_exposure_us": 8000.0,
+        "to_exposure_us": 8000.0,
+        "from_gain": 1.95,
+        "to_gain": 2.25,
+        "from_exposure_value": 15600.0,
+        "to_exposure_value": 18000.0,
+        "direction": "increase",
+        "ev_step": 0.20645087746742624,
+        "rounding_quantum_exposure_value": 400.0,
+        "minimum_abs_prequantization_ev": 0.19033121210414933,
+        "normalized_prequantization_bound": 0.9516560605207466,
+        "within_0_2_ev_plus_rounding": true
+      },
+      {
+        "read_utc": "2026-10-23T20:28:00.525201+00:00",
+        "elapsed_seconds": 49.908492730000034,
+        "capture_sequence": 6262,
+        "observations": 1966,
+        "from_exposure_us": 8000.0,
+        "to_exposure_us": 8000.0,
+        "from_gain": 2.25,
+        "to_gain": 2.6,
+        "from_exposure_value": 18000.0,
+        "to_exposure_value": 20800.0,
+        "direction": "increase",
+        "ev_step": 0.20858662181141732,
+        "rounding_quantum_exposure_value": 400.0,
+        "minimum_abs_prequantization_ev": 0.19464743085354358,
+        "normalized_prequantization_bound": 0.9732371542677178,
+        "within_0_2_ev_plus_rounding": true
+      },
+      {
+        "read_utc": "2026-10-23T20:28:02.031913+00:00",
+        "elapsed_seconds": 51.41524488599998,
+        "capture_sequence": 6277,
+        "observations": 1969,
+        "from_exposure_us": 8000.0,
+        "to_exposure_us": 8000.0,
+        "from_gain": 2.6,
+        "to_gain": 3.0,
+        "from_exposure_value": 20800.0,
+        "to_exposure_value": 24000.0,
+        "direction": "increase",
+        "ev_step": 0.20645087746742624,
+        "rounding_quantum_exposure_value": 400.0,
+        "minimum_abs_prequantization_ev": 0.19437804516685128,
+        "normalized_prequantization_bound": 0.9718902258342563,
+        "within_0_2_ev_plus_rounding": true
+      },
+      {
+        "read_utc": "2026-10-23T20:28:56.465142+00:00",
+        "elapsed_seconds": 105.84845891900022,
+        "capture_sequence": 6821,
+        "observations": 2236,
+        "from_exposure_us": 8000.0,
+        "to_exposure_us": 8000.0,
+        "from_gain": 3.0,
+        "to_gain": 2.8,
+        "from_exposure_value": 24000.0,
+        "to_exposure_value": 22400.0,
+        "direction": "decrease",
+        "ev_step": -0.0995356735509144,
+        "rounding_quantum_exposure_value": 400.0,
+        "minimum_abs_prequantization_ev": 0.08671163319333085,
+        "normalized_prequantization_bound": 0.4335581659666542,
+        "within_0_2_ev_plus_rounding": true
+      },
+      {
+        "read_utc": "2026-10-23T20:28:58.272898+00:00",
+        "elapsed_seconds": 107.65612614400015,
+        "capture_sequence": 6839,
+        "observations": 2239,
+        "from_exposure_us": 8000.0,
+        "to_exposure_us": 8000.0,
+        "from_gain": 2.8,
+        "to_gain": 2.45,
+        "from_exposure_value": 22400.0,
+        "to_exposure_value": 19600.0,
+        "direction": "decrease",
+        "ev_step": -0.19264507794239588,
+        "rounding_quantum_exposure_value": 400.0,
+        "minimum_abs_prequantization_ev": 0.17799830197799454,
+        "normalized_prequantization_bound": 0.8899915098899727,
+        "within_0_2_ev_plus_rounding": true
+      },
+      {
+        "read_utc": "2026-10-23T20:28:59.784523+00:00",
+        "elapsed_seconds": 109.167671143,
+        "capture_sequence": 6854,
+        "observations": 2242,
+        "from_exposure_us": 8000.0,
+        "to_exposure_us": 8000.0,
+        "from_gain": 2.45,
+        "to_gain": 2.15,
+        "from_exposure_value": 19600.0,
+        "to_exposure_value": 17200.0,
+        "direction": "decrease",
+        "ev_step": -0.1884450894131103,
+        "rounding_quantum_exposure_value": 400.0,
+        "minimum_abs_prequantization_ev": 0.17176634826647993,
+        "normalized_prequantization_bound": 0.8588317413323996,
+        "within_0_2_ev_plus_rounding": true
+      },
+      {
+        "read_utc": "2026-10-23T20:29:01.293688+00:00",
+        "elapsed_seconds": 110.67692505600007,
+        "capture_sequence": 6869,
+        "observations": 2245,
+        "from_exposure_us": 8000.0,
+        "to_exposure_us": 8000.0,
+        "from_gain": 2.15,
+        "to_gain": 1.85,
+        "from_exposure_value": 17200.0,
+        "to_exposure_value": 14800.0,
+        "direction": "decrease",
+        "ev_step": -0.2168113890731482,
+        "rounding_quantum_exposure_value": 400.0,
+        "minimum_abs_prequantization_ev": 0.19744606420621708,
+        "normalized_prequantization_bound": 0.9872303210310853,
+        "within_0_2_ev_plus_rounding": true
+      }
+    ],
+    "direction_runs": [
+      {
+        "direction": "increase",
+        "first_read_utc": "2026-10-23T20:27:57.510843+00:00",
+        "last_read_utc": "2026-10-23T20:28:02.031913+00:00",
+        "from_exposure_value": 13600.0,
+        "to_exposure_value": 24000.0,
+        "steps": 4
+      },
+      {
+        "direction": "decrease",
+        "first_read_utc": "2026-10-23T20:28:56.465142+00:00",
+        "last_read_utc": "2026-10-23T20:29:01.293688+00:00",
+        "from_exposure_value": 24000.0,
+        "to_exposure_value": 14800.0,
+        "steps": 4
+      }
+    ],
+    "direction_reversals": 1,
+    "max_abs_observed_ev_step": 0.2168113890731482,
+    "max_abs_required_prequantization_ev_step": 0.19744606420621708,
+    "lighting_events": [
+      {
+        "event": "prompt_light_off",
+        "at_unix": 1792787250.167211,
+        "recorded_unix": 1792787250.167211,
+        "elapsed_seconds": 19.55042815208435,
+        "timestamp_scope": "prompt_only"
+      },
+      {
+        "event": "user_confirmed_light_off",
+        "at_unix": 1792787280.3652477,
+        "recorded_unix": 1792787280.3652477,
+        "elapsed_seconds": 49.748464822769165,
+        "timestamp_scope": "human_confirmation_only"
+      },
+      {
+        "event": "prompt_light_on",
+        "at_unix": 1792787308.2539456,
+        "recorded_unix": 1792787308.2539456,
+        "elapsed_seconds": 77.63716268539429,
+        "timestamp_scope": "prompt_only"
+      },
+      {
+        "event": "user_confirmed_light_on",
+        "at_unix": 1792787341.0887625,
+        "recorded_unix": 1792787341.0887625,
+        "elapsed_seconds": 110.47197961807251,
+        "timestamp_scope": "human_confirmation_only"
+      }
+    ],
+    "controls": {
+      "all_samples": {
+        "samples": 599,
+        "numeric_match_fraction": 0.9732888146911519,
+        "reported_match_fraction": 0.9699499165275459,
+        "metadata_available_fraction": 1.0,
+        "left_right_shutter_difference_us": {
+          "count": 599,
+          "min": 0,
+          "max": 0,
+          "median": 0,
+          "mean": 0.0,
+          "p05": 0,
+          "p95": 0,
+          "mad": 0
+        },
+        "left_right_gain_difference": {
+          "count": 599,
+          "min": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "mean": 0.0,
+          "p05": 0.0,
+          "p95": 0.0,
+          "mad": 0.0
+        }
+      },
+      "non_settling_samples": {
+        "samples": 570,
+        "numeric_match_fraction": 1.0,
+        "reported_match_fraction": 1.0,
+        "metadata_available_fraction": 1.0,
+        "left_right_shutter_difference_us": {
+          "count": 570,
+          "min": 0,
+          "max": 0,
+          "median": 0.0,
+          "mean": 0.0,
+          "p05": 0,
+          "p95": 0,
+          "mad": 0.0
+        },
+        "left_right_gain_difference": {
+          "count": 570,
+          "min": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "mean": 0.0,
+          "p05": 0.0,
+          "p95": 0.0,
+          "mad": 0.0
+        }
+      },
+      "excluded_transition_states": {
+        "adjusted": 2,
+        "awaiting_applied_controls": 16,
+        "settling": 11
+      },
+      "longest_consecutive_transition_status_samples": 4,
+      "exclusion_rule": "Only adjusted, awaiting_applied_controls and settling states; unavailable metadata is never excluded. Final-tail original gates remain mandatory."
+    },
+    "final_tail": {
+      "start_seconds": 149.8331743660001,
+      "unique_captures": 100,
+      "fresh_observations": 100,
+      "metered_median": {
+        "count": 100,
+        "min": 44.0,
+        "max": 45.0,
+        "median": 44.0,
+        "mean": 44.03,
+        "p05": 44.0,
+        "p95": 44.0,
+        "mad": 0.0
+      },
+      "metered_left_median": {
+        "count": 100,
+        "min": 44.0,
+        "max": 45.0,
+        "median": 45.0,
+        "mean": 44.79,
+        "p05": 44.0,
+        "p95": 45.0,
+        "mad": 0.0
+      },
+      "metered_right_median": {
+        "count": 100,
+        "min": 44.0,
+        "max": 44.0,
+        "median": 44.0,
+        "mean": 44.0,
+        "p05": 44.0,
+        "p95": 44.0,
+        "mad": 0.0
+      },
+      "clipped_fraction": {
+        "count": 100,
+        "min": 0.00234742,
+        "max": 0.00234742,
+        "median": 0.00234742,
+        "mean": 0.00234742,
+        "p05": 0.00234742,
+        "p95": 0.00234742,
+        "mad": 0.0
+      },
+      "command_steps": 0,
+      "controls": {
+        "samples": 100,
+        "numeric_match_fraction": 1.0,
+        "reported_match_fraction": 1.0,
+        "metadata_available_fraction": 1.0,
+        "left_right_shutter_difference_us": {
+          "count": 100,
+          "min": 0,
+          "max": 0,
+          "median": 0.0,
+          "mean": 0.0,
+          "p05": 0,
+          "p95": 0,
+          "mad": 0.0
+        },
+        "left_right_gain_difference": {
+          "count": 100,
+          "min": 0.0,
+          "max": 0.0,
+          "median": 0.0,
+          "mean": 0.0,
+          "p05": 0.0,
+          "p95": 0.0,
+          "mad": 0.0
+        }
+      },
+      "last_command": {
+        "exposure_us": 8000.0,
+        "analogue_gain": 1.85
+      },
+      "at_upper_limit": false
+    },
+    "measurement_boundaries": [
+      "Temporary target qualifies controller response under available illumination; it does not replace the production-target stationary test.",
+      "Status snapshots can miss updates. Per-step bounds and monotonicity qualify only if the observed step count equals the update-counter delta.",
+      "Human confirmation time can follow the physical switch and the start of a response; no precise response latency is inferred.",
+      "One increase-to-decrease reversal is expected for this off/on cycle; additional direction runs fail the cycle check.",
+      "Luma span is temporal variation of a spatial median; this report does not identify a noise/flicker cause or measure image detail.",
+      "Sensor control metadata does not measure physical PIO pulse timing."
+    ]
+  },
+  "preview_payload_validation": {
+    "schema_version": 1,
+    "scope": "Local independent decoding of first retained payload only; each decoder starts in a fresh process. No images published. Darkness is measured after decoding and does not prove its physical cause.",
+    "saved_payloads": [
+      {
+        "payload": "jpeg-left_color.jpg",
+        "payload_sha256": "acfdbd7af06dd99d54610d6b0f5cc98c08a684485f00c5169f7b1cf42a143f7d",
+        "summary": "jpeg-left_color.json",
+        "decoder": "OpenCV imdecode, libjpeg 80, fresh isolated process",
+        "width": 728,
+        "height": 544,
+        "channels": 3,
+        "frames_decoded": 1,
+        "source": "left_color",
+        "codec": "jpeg",
+        "luma_0_255": {
+          "definition": "BT.601 weighted display RGB after decoder conversion; not original sensor Y",
+          "min": 0.0,
+          "mean": 23.078161545026667,
+          "median": 4.06,
+          "p95": 102.774,
+          "max": 199.99699999999999,
+          "fraction_below_16": 0.7386271816418876,
+          "fraction_below_32": 0.765445721557854,
+          "fraction_at_least_245": 0.0
+        },
+        "measured_frames": 200,
+        "duration_seconds": 20.0,
+        "observed_hz": 10.0,
+        "encoding_counter_deltas": {
+          "encoded_frames": 198,
+          "encoding_image_admitted": 198,
+          "encoding_image_copies": 198,
+          "encoding_image_rectified": 0,
+          "encoding_image_color_conversions": 0,
+          "encode_failures": 0,
+          "encoding_preview_unavailable": 0
+        },
+        "expected_conversion_path": true,
+        "probe_ok": true,
+        "probe_new_error_count": 0,
+        "decode_exit_code": 0,
+        "decoder_stderr": "",
+        "decode_ok": true
+      },
+      {
+        "payload": "jpeg-left_rectified_rgb.jpg",
+        "payload_sha256": "25c84ad7fd026595001731827dc52d66b359fc601bfcffdd32ecfcfbf20c6e5f",
+        "summary": "jpeg-left_rectified_rgb.json",
+        "decoder": "OpenCV imdecode, libjpeg 80, fresh isolated process",
+        "width": 728,
+        "height": 544,
+        "channels": 3,
+        "frames_decoded": 1,
+        "source": "left_rectified_rgb",
+        "codec": "jpeg",
+        "luma_0_255": {
+          "definition": "BT.601 weighted display RGB after decoder conversion; not original sensor Y",
+          "min": 0.0,
+          "mean": 27.01257833205397,
+          "median": 4.288,
+          "p95": 104.97699999999999,
+          "max": 192.165,
+          "fraction_below_16": 0.6799299046541694,
+          "fraction_below_32": 0.713967558177117,
+          "fraction_at_least_245": 0.0
+        },
+        "measured_frames": 200,
+        "duration_seconds": 20.0,
+        "observed_hz": 10.0,
+        "encoding_counter_deltas": {
+          "encoded_frames": 199,
+          "encoding_image_admitted": 198,
+          "encoding_image_copies": 198,
+          "encoding_image_rectified": 198,
+          "encoding_image_color_conversions": 198,
+          "encode_failures": 0,
+          "encoding_preview_unavailable": 0
+        },
+        "expected_conversion_path": true,
+        "probe_ok": true,
+        "probe_new_error_count": 0,
+        "decode_exit_code": 0,
+        "decoder_stderr": "",
+        "decode_ok": true
+      },
+      {
+        "payload": "h264-left_color.h264",
+        "payload_sha256": "1f8c14407db4fb1d789834b9bfd471f0fe6f97f224ff0a8fed894e68dda31baf",
+        "summary": "h264-left_color.json",
+        "decoder": "OpenCV CAP_FFMPEG, libavcodec 62.11.100, fresh isolated process",
+        "width": 728,
+        "height": 544,
+        "channels": 3,
+        "frames_decoded": 1,
+        "source": "left_color",
+        "codec": "h264",
+        "luma_0_255": {
+          "definition": "BT.601 weighted display RGB after decoder conversion; not original sensor Y",
+          "min": 0.0,
+          "mean": 18.827957016099706,
+          "median": 0.0,
+          "p95": 100.76399999999998,
+          "max": 210.546,
+          "fraction_below_16": 0.7653750202003878,
+          "fraction_below_32": 0.7821867929864253,
+          "fraction_at_least_245": 0.0
+        },
+        "measured_frames": 200,
+        "duration_seconds": 20.0,
+        "observed_hz": 10.0,
+        "encoding_counter_deltas": {
+          "encoded_frames": 199,
+          "encoding_image_admitted": 199,
+          "encoding_image_copies": 199,
+          "encoding_image_rectified": 0,
+          "encoding_image_color_conversions": 0,
+          "encode_failures": 0,
+          "encoding_preview_unavailable": 0
+        },
+        "expected_conversion_path": true,
+        "probe_ok": true,
+        "probe_new_error_count": 0,
+        "decode_exit_code": 0,
+        "decoder_stderr": "",
+        "decode_ok": true
+      }
+    ],
+    "ok": true,
+    "visual_inspection": {
+      "performed": true,
+      "observations": "All three show a coherent board/target scene with a mostly dark background. No obvious partial-frame corruption, displaced color planes or decode artifacts. Rectified JPEG has changed framing consistent with geometric remapping. H.264 shadows are darker; these are separately captured first frames, so this is not a controlled codec quality/range comparison.",
+      "limitations": "Single-frame pixel validation does not establish sustained image quality, calibration accuracy or correct exposure under changing light. Status counter snapshots do not share exact boundaries with received-frame windows, so counter deltas of 198/199 differ from 200 measured deliveries."
+    }
+  },
+  "restoration": {
+    "restored": {
+      "nuvo-depthd-native.service": "active",
+      "nuvo-gateway.service": "active"
+    },
+    "protected_configuration_unchanged": true,
+    "at_unix": 1792787719.0733697,
+    "health": {
+      "original_capture_advancing": true,
+      "status": "running",
+      "trigger_source": "rp1-pio-pwm",
+      "capture_sequence_gaps": 0,
+      "frame_completion_errors": 0,
+      "request_requeue_failures": 0,
+      "candidate_shutdown": {
+        "schema_version": 1,
+        "status": "stopped",
+        "capture_epoch": 2,
+        "published_frames": 8665,
+        "matched_frames": 4111,
+        "captured_pairs": 10626,
+        "raw_processing_submissions": 5062,
+        "raw_cadence_skipped": 64,
+        "idle_captures": 4809,
+        "publication_sequence_gaps": 5374,
+        "capture_sequence_gaps": 0,
+        "outstanding_leases": 0,
+        "frame_completion_errors": 0,
+        "trigger_errors": 0,
+        "trigger_attempts": 0,
+        "trigger_deadline_overruns": 0,
+        "ready_pair_replacements": 4,
+        "request_requeue_failures": 0,
+        "scheduler_accepted": 8665,
+        "scheduler_pending_replaced": 0,
+        "scheduler_protected_pending_dropped": 0,
+        "scheduler_processed": 8665,
+        "scheduler_processing_failures": 0,
+        "scheduler_storage_exhausted_dropped": 0,
+        "scheduler_completed_dropped": 0,
+        "cpu_dmabuf_mappings_started": 20,
+        "cpu_dmabuf_mapping_cache_hits": 20530,
+        "cpu_dmabuf_cached_mappings": 20,
+        "cpu_dmabuf_cached_bytes": 4730880,
+        "cpu_dmabuf_sync_start_failures": 0,
+        "cpu_dmabuf_sync_end_failures": 0,
+        "stream_mode": "raw",
+        "encoded_codec": "h264",
+        "encoded_submitted": 691,
+        "encoded_cadence_limited": 0,
+        "encoding_capture_preflights": 691,
+        "encoding_capture_cadence_limited": 0,
+        "encoding_color_preview_requests": 691,
+        "encoding_stale_discarded": 0,
+        "encoding_preview_unavailable": 0,
+        "encoding_image_admitted": 691,
+        "encoding_image_copies": 691,
+        "encoding_image_pool_dropped": 0,
+        "encoding_image_rectified": 230,
+        "encoded_pending_replaced": 0,
+        "encoded_frames": 691,
+        "encode_failures": 0,
+        "encoding_configuration_reloads": 7,
+        "encoding_configuration_errors": 0,
+        "encoded_bytes": 19153639,
+        "last_encoded_frame_bytes": 49581,
+        "last_encode_ms": 13.597
+      },
+      "gateway_console_http_status": 200,
+      "gateway_unauthenticated_health_http_status": 401,
+      "gateway_listener_available": true
+    }
+  },
+  "limits": [
+    "Targets were 10 Hz and 1 Hz; this does not measure maximum throughput or establish a matcher speedup.",
+    "Candidate stage statistics sample about 3.33 Hz versus 10 Hz baseline; local capture-to-reply latency uses every observed frame.",
+    "Sequential workloads retain allocations; soak follows all-product/preview checks and has different illumination from baseline comparisons.",
+    "Initial dark-scene brightness stability failed while exposure was held at its ceiling. This does not identify the physical cause of luma variation.",
+    "The first light-on ended within the default median band; the expected-decrease assertion failed because a decrease was not required.",
+    "Bidirectional physical-light response used temporary target40 band35..45; default target75 band65..85 separately passed stationary hold.",
+    "Human light-switch confirmations are not instrumented event times. No precise response latency, physical XTR edge timing, quantitative noise/detail or metric accuracy claim.",
+    "Five minutes is a bounded sustained-run check, not long-duration endurance or qualification of smaller RAM variants.",
+    "Raw traces and camera images stay local; this record contains derived results and hashes only."
+  ]
+}

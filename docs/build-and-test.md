@@ -75,7 +75,9 @@ to lightweight consistency checks. ARM64 packages/signing remain manual.
 
 The minimal preset excludes optional native dependencies. The full development
 preset additionally needs yaml-cpp, OpenCV 4, FFmpeg development libraries,
-Boost.System, and OpenSSL 3. `DEPTHD_WITH_PI5_CAPTURE` stays off for host builds.
+Boost headers (1.74+), and OpenSSL 3. Boost.System is used in its header-only form,
+including distributions which no longer provide a separate Boost.System CMake
+package. `DEPTHD_WITH_PI5_CAPTURE` stays off for host builds.
 
 ```bash
 cmake --preset minimal-host
@@ -90,11 +92,27 @@ ctest --preset development-full
 For a focused test, run `ctest --test-dir build/development-full -R PATTERN
 --output-on-failure`. Build outputs remain in the ignored `build/` tree.
 
+The stability regressions run through the existing CTest jobs. Exposure tests
+simulate unchanged HDR scenes, clipping/quantization boundaries, lighting steps,
+transients, gradual drift and delayed/missing applied controls. Runtime tests
+cover independent versus associated images, pool limits and publication/cache
+ownership. CPU rectification tests compare direct CPU and staged DMA pixels and
+reject overlapping buffers. Encoder tests cover full-sensor downscaling,
+direct-I420 color, demand changes, failed optional capture copies and recovery.
+
+`depthd_web_ui_static_test` also runs frame-parser and stream-lifecycle JavaScript
+regressions. `depthd_python_sdk_test` covers selected products, fragmented receives,
+bounded immutable decoding and metadata compatibility. The separate rendered
+gateway journey checks task presets, actual product grids, interrupted streams,
+gateway restarts and desktop/mobile layout. Keep a regression at the relevant
+boundary when changing one of these paths; the [source map](native-runtime-ipc-gateway.md#source-map)
+identifies implementation and test entry points.
+
 ## Pi 5 production and packages
 
 Use the `pi5-release` preset on the intended 64-bit Pi/Linux build environment,
 with the native libcamera, EGL/GLES, libsystemd, OpenCV, yaml-cpp, FFmpeg,
-Boost.System, and OpenSSL development dependencies installed. The production
+Boost headers, and OpenSSL development dependencies installed. The production
 option requires every backend used by the depth-only appliance.
 
 ```bash

@@ -181,7 +181,6 @@ release key, see [Release operations](docs/releases.md).
 
 ## Development changes (unreleased)
 
-
 - Production capture now requires the hardware-timed PIO trigger and validates
   negotiated image geometry and buffer counts before starting. Scheduler-timed
   GPIO is available only through the explicit capture-check diagnostic flag.
@@ -200,4 +199,6 @@ release key, see [Release operations](docs/releases.md).
   compressed visual previews. SDK metadata identifies grids, units and capture
   lineage; browser decoding and reconnects have regression coverage.
   See [the console guide](docs/user-guide.md) and [SDK examples](docs/sdk-examples.md).
+
+Measured results and limits: [pipeline stability qualification](docs/pipeline-stability-validation-20261023.md).
 
