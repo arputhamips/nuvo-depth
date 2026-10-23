@@ -63,7 +63,8 @@ It has lower latency, but it does not suppress
 low-texture scanline failures as completely as HH. **Fast diagnostic** uses
 3-way aggregation, a narrower 64-pixel search and no median smoothing. It can
 produce long horizontal streaks and gives up nominal near range below about
-0.771 m. Use **Wide search** only when near geometry needs disparities
+0.688 m with the current provisional beta 5 seed. This is a theoretical search
+bound, not a measured usable range. Use **Wide search** only when near geometry needs disparities
 from 96 to 127; it costs more CPU. The **Matcher** page exposes every
 parameter and the SGBM/StereoBM switch.
 

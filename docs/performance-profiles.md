@@ -5,6 +5,11 @@ targeting 10 Hz. None of the current profiles has a
 qualified sustained depth-rate guarantee. Capture targets and output cadence
 requests are upper bounds; they do not make the matcher finish faster.
 
+The dated measurements and RAM assessments below describe their original
+commits. They do not qualify beta 8 or any smaller physical RAM SKU. Current
+onboarding evidence is tracked in
+[the candidate report](onboarding-beta8-qualification-20261022.md).
+
 `web/depth-profiles.json` is the authoritative catalog for browser profile
 selection. It is installed with the web console. The native YAML fallback and
 `config/stereo.json` agree with its balanced default, including aggregation,
@@ -20,13 +25,16 @@ preserves the invalid mask.
 
 | Profile | Aggregation | Search / accepted interval | Median | Uniqueness | Nominal near range |
 |---|---|---|---|---|---|
-| Quality | HH, eight paths | 96 / [0, 96) px | 5 | 0 | 0.514 m |
-| Balanced, default | 3-way | 128 / [0, 128) px | Off | 0 | 0.386 m |
-| Fast | 3-way | 64 / [0, 64) px | Off | 1 | 0.771 m |
-| Wide | Standard, five paths | 128 / [0, 128) px | 3 | 1 | 0.386 m |
+| Quality | HH, eight paths | 96 / [0, 96) px | 5 | 0 | 0.459 m |
+| Balanced, default | 3-way | 128 / [0, 128) px | Off | 0 | 0.344 m |
+| Fast | 3-way | 64 / [0, 64) px | Off | 1 | 0.688 m |
+| Wide | Standard, five paths | 128 / [0, 128) px | 3 | 1 | 0.344 m |
 
-These ranges follow the nominal seed's `fB = 49.3542046188 px*m`; validated
-per-unit calibration supplies actual metric geometry. Fast deliberately trades
+These theoretical bounds follow the current beta 5 seed's
+`fB = 44.04386755391325 px*m`, recorded in
+`config/calibration/nuvo_depth_100mm/profile.json`. They are not measured usable
+ranges or accuracy claims; validated per-unit calibration supplies actual metric
+geometry, and scene/occlusion limits remain separate. Fast deliberately trades
 near range, smoothing and directional streak rejection for lower compute
 cost. Balanced and Wide also require scene-quality review. Selecting a
 candidate changes matcher controls and keeps the capture/calibration geometry.
