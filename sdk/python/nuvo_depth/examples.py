@@ -47,7 +47,7 @@ def main(argv=None):
     if args.input and (args.url or args.token_file): parser.error('saved input does not take a URL or token')
     if args.example=='replay' and not args.input: parser.error('replay needs --input recording.nvr')
     if args.example in ('record','display') and args.output is None: parser.error('record/display needs a new --output filename')
-    manager=None; writer=None
+    manager=None; writer=None; client=None
     try:
         if args.input:
             print('SAVED REPLAY DATA — live freshness and current device readiness are not checked.')
@@ -81,5 +81,6 @@ def main(argv=None):
         parser.exit(1,f'Example failed: {error}\nVerify certificate hostname/trust, SDK credentials, raw output and capture readiness.\n')
     finally:
         if writer: writer.close()
+        if client is not None: client.close()
 
 if __name__=='__main__': main()

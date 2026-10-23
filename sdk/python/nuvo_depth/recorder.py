@@ -48,6 +48,7 @@ def main() -> None:
             or not math.isfinite(args.timeout) or args.timeout <= 0):
         parser.error("invalid frame count or cadence")
     products = tuple(args.products.split(",")) if args.products is not None else None
+    client = None
     try:
         client = NuvoClient(args.url, ca_file=args.ca_file, timeout=args.timeout)
         # Validate before claiming or creating the output recording.
@@ -60,6 +61,8 @@ def main() -> None:
         return
     except (OSError, ValueError, RuntimeError) as error:
         parser.exit(1, f"nuvo-record: {error}\n")
+    finally:
+        if client is not None: client.close()
 
 
 if __name__ == "__main__": main()

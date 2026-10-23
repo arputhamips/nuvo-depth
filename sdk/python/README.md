@@ -43,9 +43,10 @@ python -m pip install ./sdk/python
 
 ```python
 from nuvo_depth import NuvoClient
+from getpass import getpass
 
 camera = NuvoClient("https://YOUR-PI-HOSTNAME.local:7443", ca_file="device-ca.pem")
-camera.claim("DEVICE-ADMIN-TOKEN")
+camera.claim(getpass("Device administrator token (hidden): "))
 
 print(camera.health())
 frame = camera.latest()
@@ -90,6 +91,21 @@ with camera.frames(cadence_hz=10, products=("depth", "confidence", "validity")) 
         print(frame.identity, frame.products["depth"].float32_le())
         # Break when finished; the context manager closes the connection.
 ```
+
+After closing all frame contexts, call `camera.close()` to release its SDK
+session. You can instead put a new client inside `with NuvoClient(...) as camera:`
+and nest its frame contexts inside that block. Reuse one client for related
+requests. The current examples and recorder release their sessions on exit,
+including failed or interrupted capture; re-claiming an existing session reuses
+its slot on the candidate gateway.
+
+`close()` always clears local authorization. It returns `False` when remote
+revocation cannot be confirmed, including on the older beta 6 gateway, and does
+not mask an application exception. Beta 6 retains a finite twelve-hour session
+pool; repeated short commands can fill it. If claiming reports session capacity,
+close unused clients and retry. On that older gateway, an administrator can run
+`sudo systemctl restart nuvo-gateway` over trusted SSH when interrupting gateway
+connections is acceptable. Capture calibration and device identity are preserved.
 
 Use `delivery="exact"` for an exact subscription, `delivery="best_effort"` for
 an upper cadence bound, or `delivery="auto"` to follow the connection's policy.

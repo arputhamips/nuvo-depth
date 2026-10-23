@@ -103,6 +103,29 @@ class MockSocket:
 
 
 class SdkTest(unittest.TestCase):
+    def test_client_close_revokes_once_and_clears_authorization(self):
+        client=NuvoClient('https://nuvo.test');client._csrf='a'*64
+        client._configuration_receipts['/api/v1/stereo']={'etag':'old'}
+        with patch.object(client,'_request',return_value=b'{"closed":true}') as request:
+            self.assertTrue(client.close());self.assertTrue(client.close())
+        request.assert_called_once_with('/api/v1/session',method='DELETE',
+            headers={'Origin':'https://nuvo.test','X-Nuvo-CSRF':'a'*64},maximum=4096)
+        self.assertFalse(client._csrf);self.assertFalse(list(client._cookies));self.assertEqual(client._configuration_receipts,{})
+
+    def test_legacy_or_unreachable_logout_does_not_mask_application_failure(self):
+        for error in (client_module.urllib.error.HTTPError('https://nuvo.test/api/v1/session',404,'old gateway',{},None),
+                      client_module.urllib.error.URLError('fixture offline')):
+            client=NuvoClient('https://nuvo.test');client._csrf='a'*64
+            with patch.object(client,'_request',side_effect=error):
+                self.assertFalse(client.close())
+                self.assertFalse(client.close())
+                client._csrf='b'*64
+                with self.assertRaisesRegex(RuntimeError,'application failure'):
+                    with client:raise RuntimeError('application failure')
+            self.assertFalse(client._csrf)
+        self.assertIn('session',client_module.recovery_action(503,'/api/v1/session'))
+        self.assertNotIn('Raw output',client_module.recovery_action(503,'/api/v1/session'))
+
     def test_full_filesystem_preserves_completed_recording_frames(self):
         class FailingPayload:
             def __init__(self,output):self.output=output

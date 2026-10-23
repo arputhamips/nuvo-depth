@@ -14,7 +14,7 @@ SDK and beta 8 candidate. The public beta 6 SDK does not contain this module;
 use the standalone helper in the verified-TLS quickstart for that SDK.
 
 To try these six commands with a beta 6 gateway, obtain the
-[reviewed client source archive](https://github.com/arputhamips/nuvo-depth/archive/9cf49e973b5d21ff0af336fabc43629a24af8cdd.tar.gz)
+[current client source archive](https://github.com/arputhamips/nuvo-depth/archive/refs/heads/main.tar.gz)
 and extract it. These client examples were exercised against beta 6 as well as
 the candidate gateway. From the archive root, install its SDK in a fresh virtual
 environment. This changes the application client; it does not upgrade the Pi:
@@ -46,10 +46,19 @@ python -m nuvo_depth.examples replay --input sample.nvr --frames 10
 ```
 
 Each live invocation prompts for the token, selects only depth plus validity at
-1 Hz best effort, and closes its subscription on exit. Existing output files
+1 Hz best effort, and closes its subscription and SDK session on exit. Existing output files
 are refused. A finite live shortfall, timeout or disconnect fails explicitly;
 completed NVR records remain readable. There is no automatic reconnect or gap
 filling. Replay always identifies saved data and does not establish live freshness.
+
+For application code, reuse one `NuvoClient` and close its frame contexts before
+`client.close()`, or nest them inside `with NuvoClient(...) as client:`. The beta 8
+candidate releases the caller's session without affecting other clients. The
+older beta 6 gateway lacks session revocation: repeated short commands can fill
+its finite twelve-hour pool. A session-capacity error requires closing unused
+clients or, on that older gateway, restarting `nuvo-gateway` over trusted SSH
+when interrupting gateway connections is acceptable. It does not mean the cameras
+or calibration failed.
 
 Depth is row-major little-endian float32 optical-axis Z in metres. Consume a
 pixel only when its associated uint8 validity is `1` and Z is finite and positive;

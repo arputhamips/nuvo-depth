@@ -396,6 +396,38 @@ class GatewayIntegrationTest(unittest.TestCase):
             self.assertEqual(process.returncode, 0, process.stderr.read())
             process.stderr.close()
 
+    def test_sdk_session_cleanup_and_reauthentication_reuse_bounded_capacity(self):
+        arguments=list(self.process.args)
+        with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as reservation:
+            reservation.bind(('127.0.0.1',0));port=reservation.getsockname()[1]
+        arguments[arguments.index('--port')+1]=str(port);arguments+=['--maximum-sessions','2']
+        process=subprocess.Popen(arguments,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,text=True)
+        origin=f'https://127.0.0.1:{port}'
+        keeper=NuvoClient(origin,ca_file=self.certificate)
+        try:
+            for _ in range(30):
+                try:keeper.claim(self.token);break
+                except urllib.error.URLError:time.sleep(.1)
+            else:self.fail('bounded-session gateway did not start')
+            for index in range(32):
+                with NuvoClient(origin,ca_file=self.certificate) as client:
+                    client.claim(self.token);csrf=client._csrf
+                    self.assertEqual(client.claim(self.token),'admin')
+                    self.assertEqual(client._csrf,csrf)
+                    self.assertIsNotNone(client.capabilities())
+                    if index==0:
+                        for headers in ({},{'X-Nuvo-CSRF':'wrong'},{'Origin':'https://foreign.example','X-Nuvo-CSRF':csrf}):
+                            with self.assertRaises(urllib.error.HTTPError) as denied:
+                                client._request('/api/v1/session',method='DELETE',headers=headers)
+                            self.assertEqual(denied.exception.code,403);denied.exception.close()
+                            self.assertIsNotNone(client.capabilities())
+                    self.assertTrue(client.close())
+                # Releasing this client's cookie never releases the other one.
+                self.assertIsNotNone(keeper.capabilities())
+        finally:
+            keeper.close();process.terminate();process.wait(timeout=3)
+            self.assertEqual(process.returncode,0,process.stderr.read());process.stderr.close()
+
     def test_http_keepalive_is_bounded_and_authentication_is_per_request(self):
         address = urllib.parse.urlsplit(self.origin)
         connection = http.client.HTTPSConnection(address.hostname, address.port,

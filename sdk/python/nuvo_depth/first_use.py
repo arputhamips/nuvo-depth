@@ -65,6 +65,7 @@ def main(argv=None):
     source.add_argument('--input-nuv', type=Path, help='Inspect a saved browser NUV1 frame offline')
     source.add_argument('--replay', type=Path, help='Inspect an NVR1 recording offline')
     args = parser.parse_args(argv)
+    client = None
     try:
         if args.input_nuv or args.replay:
             if args.url or args.token_file:
@@ -93,6 +94,11 @@ def main(argv=None):
         print(f'Fresh depth confirmed. Saved {args.output} (NVR1; depth, validity and original metadata).')
     except (OSError, ValueError, RuntimeError) as error:
         parser.exit(1, f'First depth: {error}\nCheck capture/calibration status and Raw product delivery in the console.\n')
+    finally:
+        # The maintained standalone helper also supports the beta 6 SDK, which
+        # predates explicit session cleanup.
+        closer = getattr(client, 'close', None)
+        if closer is not None: closer()
 
 
 if __name__ == '__main__':

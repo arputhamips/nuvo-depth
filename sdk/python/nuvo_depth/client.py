@@ -30,6 +30,7 @@ def recovery_action(code: int, path: str = '') -> str:
     if code==412: return 'Configuration changed; reload the requested document before saving your edits.'
     if code in (409,422,429): return 'Subscription or capacity rejected; reduce products/cadence, use best effort where appropriate, or inspect measured link admission. Exact requests are not silently degraded.'
     if code==503:
+        if path=='/api/v1/session': return 'SDK session unavailable or capacity reached; close finished SDK clients and retry. On an older gateway without session cleanup, restart nuvo-gateway through trusted SSH when its connections can be interrupted. Capture and calibration may still be healthy.'
         return 'Monitoring unavailable; inspect the optional encoder setting and capture readiness.' if '/encoded/' in path else 'Raw output/capture unavailable; enable raw delivery and inspect calibration, services and required reboot.'
     return 'Inspect device diagnostics and the requested supported endpoint; do not disable TLS verification.'
 
@@ -294,11 +295,41 @@ class NuvoClient:
         self._context = context
         self._cookies = http.cookiejar.CookieJar()
         self._csrf = ""
+        self._close_confirmed = True
         self._configuration_receipts: dict[str, dict[str, str]] = {}
         self._opener = urllib.request.build_opener(
             urllib.request.HTTPCookieProcessor(self._cookies),
             urllib.request.HTTPSHandler(context=context),
         )
+
+    def close(self) -> bool:
+        """Release this session and clear local authorization; safe to repeat.
+
+        Close frame-stream contexts first. False means remote revocation could
+        not be confirmed (including older gateways without this operation).
+        Cleanup never masks an existing acquisition or application exception.
+        """
+        if not self._csrf:
+            return self._close_confirmed
+        revoked = False
+        try:
+            if self._csrf:
+                self._request('/api/v1/session', method='DELETE',
+                              headers={'Origin': self.base_url, 'X-Nuvo-CSRF': self._csrf}, maximum=4096)
+                revoked = True
+        except urllib.error.HTTPError as error:
+            error.close()
+        except (OSError, ValueError, RuntimeError):
+            pass
+        finally:
+            self._cookies.clear()
+            self._csrf = ''
+            self._configuration_receipts.clear()
+            self._close_confirmed = revoked
+        return revoked
+
+    def __enter__(self) -> 'NuvoClient': return self
+    def __exit__(self, *_: object) -> None: self.close()
 
     def _request(self, path: str, *, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None, maximum: int = MAX_PAYLOAD + MAX_METADATA + 32) -> bytes:
         request = urllib.request.Request(
@@ -354,6 +385,7 @@ class NuvoClient:
             )
         )
         self._csrf = str(document["csrf"])
+        self._close_confirmed = False
         return str(document["role"])
 
     def health(self) -> dict:

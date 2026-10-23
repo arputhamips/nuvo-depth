@@ -22,6 +22,16 @@ ROOT=Path(__file__).resolve().parents[1]
 BUILD=Path(sys.argv[1]) if len(sys.argv)>1 else None
 
 class ExampleTest(unittest.TestCase):
+    def test_recorder_cli_releases_its_session_on_completion_and_interrupt(self):
+        from nuvo_depth import recorder
+        for failure in (None,KeyboardInterrupt()):
+            with tempfile.TemporaryDirectory() as temporary:
+                client=mock.Mock()
+                argv=['nuvo-record','https://fixture.invalid',str(Path(temporary)/'record.nvr'),'--claim-token','synthetic-test-token','--frames','1']
+                with mock.patch.object(sys,'argv',argv),mock.patch.object(recorder,'NuvoClient',return_value=client),mock.patch.object(recorder,'record_frames',side_effect=failure,return_value=1):
+                    recorder.main()
+                client.close.assert_called_once()
+
     def test_previous_physical_recording_keeps_identity_authority_and_validity(self):
         directory=ROOT/'tests/fixtures/recordings'
         manifest=json.loads((directory/'beta6-preview.json').read_text())
@@ -53,6 +63,7 @@ class ExampleTest(unittest.TestCase):
                 with mock.patch('nuvo_depth.examples.NuvoClient',return_value=client), mock.patch('getpass.getpass',return_value='fixture-only'), redirect_stdout(io.StringIO()):
                     with self.assertRaises(KeyboardInterrupt if isinstance(failure,KeyboardInterrupt) else SystemExit):
                         main(['record','--url','https://fixture.invalid:7443','--ca-file','fixture.pem','--frames','3','--output',str(path)])
+                client.close.assert_called_once()
                 with RecordingReader(path) as reader:self.assertEqual(len(list(reader)),1)
 
     def test_pixel_validity_png_and_replay_keep_wire_identity(self):

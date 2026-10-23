@@ -1637,6 +1637,15 @@ void await_clients(const std::atomic_size_t& active) noexcept {
     return result;
   }
   if (request.method() == http::verb::post && target == "/api/v1/session") {
+    // Re-authentication by an already authenticated cookie must not abandon
+    // a twelve-hour session and consume another slot in the bounded pool.
+    if (const auto existing = sessions.csrf_for(cookie_value(
+            request[http::field::cookie], "nuvo_session"))) {
+      return text_response(http::status::ok, "application/json",
+          "{\"role\":\"admin\",\"csrf\":\"" + *existing +
+          "\",\"needs_owner_password\":" +
+          (needs_owner_password(options) ? "true" : "false") + "}\n", request.version());
+    }
     // Reserve capacity before consuming a single-use setup code.
     auto session = sessions.create();
     if (!session) {
@@ -1715,6 +1724,16 @@ void await_clients(const std::atomic_size_t& active) noexcept {
     return text_response(http::status::forbidden, "application/json",
                          "{\"error\":\"CSRF token rejected\"}\n",
                          request.version());
+  }
+  if (request.method() == http::verb::delete_ && target == "/api/v1/session") {
+    // The ordinary authentication, origin and CSRF checks above protect this
+    // operation. Only the caller's cookie is removed; other sessions survive.
+    sessions.remove(std::string(cookie_value(request[http::field::cookie], "nuvo_session")));
+    auto result = text_response(http::status::ok, "application/json",
+                                "{\"closed\":true}\n", request.version());
+    result.set(http::field::set_cookie,
+               "nuvo_session=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Strict");
+    return result;
   }
   if (request.method() == http::verb::post && target == "/api/v1/setup/owner") {
     try {

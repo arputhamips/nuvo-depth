@@ -6,6 +6,9 @@ import struct
 import sys
 import tempfile
 import unittest
+from unittest import mock
+from contextlib import redirect_stdout
+import io
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'sdk/python'))
 from nuvo_depth import decode_frame, RecordingReader
@@ -31,6 +34,18 @@ class Client:
 
 
 class FirstUseTest(unittest.TestCase):
+    def test_cli_releases_its_session_after_success_or_failed_capture(self):
+        from nuvo_depth.first_use import main
+        for samples,success in (([sample(),sample(2)],True),([],False)):
+            with tempfile.TemporaryDirectory() as directory:
+                client=mock.Mock();client.frames.return_value=Client(samples).frames(products=('depth','validity'))
+                with mock.patch('nuvo_depth.first_use.NuvoClient',return_value=client),mock.patch('getpass.getpass',return_value='synthetic-token'),redirect_stdout(io.StringIO()):
+                    args=['https://fixture.invalid','--ca-file','fixture.pem','--output',str(Path(directory)/'first.nvr')]
+                    if success:main(args)
+                    else:
+                        with self.assertRaises(SystemExit):main(args)
+                client.close.assert_called_once()
+
     def test_preview_capture_and_recording_preserve_original_metadata(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)/'first.nvr'
