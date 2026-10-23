@@ -2,7 +2,6 @@
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 const {chromium}=require(process.env.NUVO_PLAYWRIGHT_MODULE||'playwright-core');
 const root=path.resolve(__dirname,'..'),out=path.join(root,'output/first-use-browser');fs.mkdirSync(out,{recursive:true});
-assert.notEqual(process.env.NUVO_BROWSER_INJECT_FAILURE,'1','Deliberate rendered-browser CI qualification failure');
 let sequence=0,invalid=false,pending=false,readinessOverride=null;
 const encoding=JSON.parse(fs.readFileSync(path.join(root,'config/encoding.json')));encoding.mode='raw';
 const metadataBase={schema_version:1,device_uuid:'22'.repeat(16),run_uuid:'11'.repeat(16),capture_epoch:1,configuration_epoch:1,calibration_sha256:'ab'.repeat(32),calibration_authority:0};
@@ -36,8 +35,10 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   const executable=process.env.BROWSER_EXECUTABLE||(process.platform==='win32'?'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe':undefined);
   const browser=await chromium.launch({headless:true,...(executable?{executablePath:executable}:{})});
+  let context,page;const errors=[];
   try{
-    const context=await browser.newContext({acceptDownloads:true,viewport:{width:1440,height:1050}}),page=await context.newPage(),errors=[];
+    context=await browser.newContext({acceptDownloads:true,viewport:{width:1440,height:1050}});
+    await context.tracing.start({screenshots:true,snapshots:true,sources:true});page=await context.newPage();
     page.on('pageerror',error=>errors.push(error.message));const url=`http://127.0.0.1:${server.address().port}/`;
     await page.goto(url);await page.waitForFunction(()=>document.querySelector('#connection').textContent==='Connected');
     await page.click('[data-page="viewer"]');assert(await page.isDisabled('#firstDepthSave'),'mono alone cannot complete depth');
@@ -61,5 +62,11 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
     const advanced=page.locator('details').filter({hasText:'Advanced geometry and qualification parameters'});assert.equal(await advanced.getAttribute('open'),null);
     assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'results.json'),JSON.stringify({fixture:true,checks:['mono is insufficient','fresh stereo/depth/validity','saved raw metadata','all-invalid rejection','disconnect','reconnect','pending calibration','accepted with unavailable camera','specific readiness error and recovery','advanced calibration collapsed'],pageErrors:errors},null,2));
     console.log('Browser first-use and readiness journeys: 10 fixture checks passed; raw metadata preserved; no page errors.');
-  }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
+  }catch(error){
+    await page?.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});
+    fs.writeFileSync(path.join(out,'failure.json'),JSON.stringify({error:String(error).slice(0,4000),pageErrors:errors},null,2));throw error;
+  }finally{
+    await context?.tracing.stop({path:path.join(out,'trace.zip')}).catch(()=>{});
+    await browser.close();await new Promise(resolve=>server.close(resolve));
+  }
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});

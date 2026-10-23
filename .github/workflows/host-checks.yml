@@ -38,13 +38,15 @@ jobs:
         with: {persist-credentials: false}
       - env:
           PRESET: ${{ matrix.preset }}
-        run: bash tools/dev/bootstrap-host.sh "$([ "$PRESET" = development-full ] && echo --full || echo --minimal)"
+        run: |
+          sudo --preserve-env=GITHUB_ACTIONS bash tools/ci/use-ubuntu-mirror.sh
+          bash tools/dev/bootstrap-host.sh "$([ "$PRESET" = development-full ] && echo --full || echo --minimal)"
       - name: Inject an explicitly requested disposable regression
         env:
           PROBE: ${{ inputs.inject_failure || 'none' }}
         run: |
           if [ "$PROBE" = native ]; then echo '#error deliberate-native-CI-qualification' >> src/contract.cpp; fi
-          if [ "$PROBE" = sdk ]; then sed -i '1i raise RuntimeError("deliberate SDK CI qualification")' tests/python_sdk_test.py; fi
+          if [ "$PROBE" = sdk ]; then sed -i '1i raise RuntimeError("deliberate SDK CI qualification")' sdk/python/nuvo_depth/__init__.py; fi
       - run: cmake --preset ${{ matrix.preset }}
       - run: cmake --build --preset ${{ matrix.preset }} -j 2
       - run: ctest --preset ${{ matrix.preset }} --output-on-failure
@@ -64,14 +66,17 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with: {persist-credentials: false}
-      - run: bash tools/dev/bootstrap-host.sh --full
+      - run: |
+          sudo --preserve-env=GITHUB_ACTIONS bash tools/ci/use-ubuntu-mirror.sh
+          bash tools/dev/bootstrap-host.sh --full
       - run: cmake --preset development-full && cmake --build --preset development-full --target nuvo-gateway -j 2
       - run: npm --prefix tools/dev/browser ci && npm --prefix tools/dev/browser exec -- playwright install --with-deps chromium
       - name: Render console fixtures and actual gateway journeys
         env:
           NUVO_PLAYWRIGHT_MODULE: ${{ github.workspace }}/tools/dev/browser/node_modules/playwright
-          NUVO_BROWSER_INJECT_FAILURE: ${{ inputs.inject_failure == 'browser' && '1' || '0' }}
+          PROBE: ${{ inputs.inject_failure || 'none' }}
         run: |
+          if [ "$PROBE" = browser ]; then sed -i 's/id="firstDepthStart"/id="deliberatelyBrokenFirstDepthStart"/' web/index.html; fi
           node tests/first_use_browser_test.cjs
           python3 tools/dev/gateway_fixture.py --binary build/development-full/nuvo-gateway --manifest output/gateway-fixture/manifest.json --control output/gateway-fixture/control.json &
           fixture_pid=$!
@@ -95,7 +100,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with: {persist-credentials: false}
-      - run: bash tools/dev/bootstrap-host.sh --minimal
+      - run: |
+          sudo --preserve-env=GITHUB_ACTIONS bash tools/ci/use-ubuntu-mirror.sh
+          bash tools/dev/bootstrap-host.sh --minimal
       - name: Build with the declared minimum; reject an older version clearly
         run: |
           python3 -m venv "$RUNNER_TEMP/cmake325"
