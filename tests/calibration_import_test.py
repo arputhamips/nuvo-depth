@@ -9,10 +9,15 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import shutil
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import patch
 from calibration_test_support import prepare_root,bundle,write_json
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'tools'))
 import nuvo_calibration_control as control
 from nuvo_calibration_store import CalibrationStore
+import nuvo_calibration_store as store_module
 
 def frames(value,run_uuid='abcd',authority=1):
     result=b''
@@ -89,6 +94,77 @@ class ImportTest(unittest.TestCase):
         self.assertFalse((self.source.parent/'active').exists())
         records=[json.loads(p.read_text()) for p in store.transactions.glob('*.json')]
         self.assertEqual(records[-1]['state'],'aborted')
+    def test_every_durable_activation_boundary_recovers_the_committed_policy(self):
+        points=('journal-staging','bundle-installed','journal-awaiting_restart','active-switched',
+                'policy-marker-written','policy-override-written','policy-installed',
+                'journal-restoring','journal-committed')
+        for point in points:
+            with self.subTest(point=point),tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary);prepare_root(root)
+                original,value=bundle(root);(original.parent/'active').unlink()
+                source=root/'external-input';shutil.copytree(original,source);shutil.rmtree(original)
+                marker=root/control.MARKER;marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text('explicit-preview\n')
+                override=root/control.POLICY_OVERRIDE;override.parent.mkdir(parents=True,exist_ok=True);override.write_text('[Service]\n# preserved policy sentinel\n')
+                policy=control.CapturePolicy(root);before=policy.snapshot()['files']
+                store=CalibrationStore(root/control.STATE,policy=policy)
+                real_json=store_module.atomic_json;real_replace=store_module.os.replace
+                real_active=store._replace_active;real_apply=policy.apply;real_bytes=control.atomic_bytes
+                def stopped():raise SystemExit('simulated process loss: '+point)
+                def journal(path,record):
+                    real_json(path,record)
+                    if path.parent==store.transactions and point=='journal-'+record['state']:stopped()
+                def replaced(source_path,target):
+                    real_replace(source_path,target)
+                    if point=='bundle-installed' and Path(target)==original:stopped()
+                def active(namespace,identity):
+                    real_active(namespace,identity)
+                    if point=='active-switched' and identity==value['bundle_id']:stopped()
+                def written(path,data):
+                    real_bytes(path,data)
+                    if (point=='policy-marker-written' and path==marker or
+                            point=='policy-override-written' and path==override):stopped()
+                def applied(snapshot):
+                    real_apply(snapshot)
+                    if point=='policy-installed':stopped()
+                def restarted(identity):
+                    if point=='journal-restoring':raise RuntimeError('force service recovery path')
+                with patch.object(store_module,'atomic_json',journal),patch.object(store_module.os,'replace',replaced), \
+                     patch.object(store,'_replace_active',active),patch.object(control,'atomic_bytes',written), \
+                     patch.object(policy,'apply',applied):
+                    with self.assertRaises(SystemExit):store.activate(source,restart=restarted)
+                committed=point=='journal-committed'
+                self.assertEqual(store.recover_before_start(),not committed)
+                active_path=original.parent/'active'
+                self.assertEqual(os.readlink(active_path) if active_path.is_symlink() else None,value['bundle_id'] if committed else None)
+                expected=policy.accepted({'files':before})['files'] if committed else before
+                self.assertEqual(policy.snapshot()['files'],expected)
+                self.assertFalse(store.recover_before_start())
+                journals=[json.loads(path.read_text()) for path in store.transactions.glob('*.json')]
+                self.assertEqual(journals[-1]['state'],'committed' if committed else 'aborted')
+    def test_concurrent_import_and_rollback_serialize_without_mixed_selection(self):
+        control.import_bundle(self.root,self.source,False,self.native)
+        second,value=bundle(self.root,provenance={'synthetic_revision':'concurrent'})
+        (second.parent/'active').unlink();(second.parent/'active').symlink_to(self.value['bundle_id'])
+        entered=threading.Event();release=threading.Event();rollback_started=threading.Event()
+        def paused_native(args,**kwargs):
+            if args[:2]==['systemctl','restart']:
+                entered.set()
+                if not release.wait(5):raise RuntimeError('test did not release live activation')
+            return self.native(args,**kwargs)
+        def rollback():
+            rollback_started.set();return control.rollback(self.root,run=self.native)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            importing=executor.submit(control.import_bundle,self.root,second,False,paused_native)
+            try:
+                self.assertTrue(entered.wait(5))
+                restoring=executor.submit(rollback);self.assertTrue(rollback_started.wait(5))
+                self.assertFalse(CalibrationStore(self.root/control.STATE,policy=control.CapturePolicy(self.root)).recover_before_start())
+                self.assertFalse(restoring.done())
+            finally:release.set()
+            self.assertEqual(importing.result(timeout=5)['bundle_id'],value['bundle_id'])
+            self.assertEqual(restoring.result(timeout=5)['bundle_id'],self.value['bundle_id'])
+        self.assertEqual(os.readlink(second.parent/'active'),self.value['bundle_id'])
+        self.assertEqual(control.daemon_health(self.root)['calibration_sha256'],self.value['bundle_id'])
     def test_corruption_identity_camera_and_profile_rejected_before_mutation(self):
         for changes in [{'unit_id':'wrong'},{'left_camera_id':'wrong'},{'preset_id':'wrong'},
                         {'profile':{'sensor_mode':'bad','image_width':1,'image_height':1,'frame_rates_hz':[10]}}]:
