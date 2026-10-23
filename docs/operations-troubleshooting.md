@@ -24,7 +24,7 @@ zero trigger/requeue errors, and matched left/right reported exposure values.
 
 ## No browser image
 
-1. Check **Live view** health and that capture sequence advances.
+1. Check **Overview** health, then open **Live view** and confirm fresh frames.
 2. Check the viewer's representation and the **Receiving** label. A draft
    selection under Outputs has not yet changed the requested subscription.
 3. For numeric/image products, enable **Uncompressed network data**. For a

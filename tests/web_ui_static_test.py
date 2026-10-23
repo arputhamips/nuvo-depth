@@ -46,8 +46,15 @@ def main() -> None:
     assert not duplicates, f"duplicate element IDs: {duplicates}"
     assert parser.pages == parser.navigation, f"page/navigation mismatch: {parser.pages ^ parser.navigation}"
     assert parser.navigation_order == [
-        "viewer", "network", "device",
+        "overview", "viewer", "network", "device",
     ], f"unexpected operator navigation order: {parser.navigation_order}"
+    overview = html[html.index('<section id="overview"'):html.index('<section id="viewer"')]
+    assert '<section id="overview" class="page active">' in overview
+    for identifier in ("setupState", "cameraState", "frameRate", "processingTime", "calibrationBanner",
+                       "overviewCaptureState", "overviewDepthState", "performanceMonitor"):
+        assert f'id="{identifier}"' in overview, f"Overview must own {identifier}"
+    assert '<canvas' not in overview, "Overview must not restore duplicated camera previews"
+    assert 'id="overview" class="device-section"' not in html
     literal_refs = set(re.findall(r"\$\('([^']+)'\)", script))
     missing = literal_refs - set(parser.ids)
     assert not missing, f"JavaScript refers to missing IDs: {sorted(missing)}"

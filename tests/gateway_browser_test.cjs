@@ -17,7 +17,14 @@ const update=value=>fs.writeFileSync(local(manifest.control_file),JSON.stringify
   try{
     await page.goto(manifest.origin);await page.waitForFunction(()=>document.querySelector('#connection').textContent==='Connected');
     assert.match(await page.textContent('#fixtureBanner'),/TEST FIXTURE/);
-    assert.deepEqual(await page.locator('nav [data-page]').evaluateAll(items=>items.map(item=>item.dataset.page)),['viewer','network','device']);
+    assert.deepEqual(await page.locator('nav [data-page]').evaluateAll(items=>items.map(item=>item.dataset.page)),['overview','viewer','network','device']);
+    assert.equal(await page.locator('.page.active').getAttribute('id'),'overview');
+    assert(await page.isVisible('#cameraState'));assert(await page.isVisible('#overview .setup-guide > summary'));
+    assert(await page.evaluate(()=>{const nav=document.querySelector('nav').getBoundingClientRect(),main=document.querySelector('.page.active').getBoundingClientRect();return nav.height>nav.width&&main.left>=nav.right-1}));
+    await page.waitForFunction(async()=>{const h=await(await fetch('/api/v1/health')).json();return h.raw_product_demand===0&&h.preview_demand_cadence_hz===0});
+    await page.screenshot({path:path.join(out,'real-gateway-overview.png')});
+    checks.push('Overview landing and desktop sidebar','Overview has zero native raw and preview demand');
+    await open('viewer');
     await page.locator('#firstDepthGuide > summary').click();await page.click('#firstDepthStart');
     await page.waitForFunction(()=>!document.querySelector('#firstDepthSave').disabled);
     await page.screenshot({path:path.join(out,'real-gateway-first-depth.png')});
@@ -42,7 +49,7 @@ const update=value=>fs.writeFileSync(local(manifest.control_file),JSON.stringify
     await page.waitForFunction(()=>rawSocket&&rawSocket!==window.fixturePreviousSocket&&rawSocket.readyState===WebSocket.OPEN&&!rawPolling);
     await page.waitForFunction(()=>document.querySelector('#outputFrameSummary').textContent.includes('Depth validity'));
     await page.screenshot({path:path.join(out,'real-gateway-output-presets.png')});
-    checks.push('automatic session','three top-level destinations','named first depth','deterministic recipe rates','automatic validity','actual product grids','interrupted WebSocket recovery');
+    checks.push('automatic session','four top-level destinations','named first depth','deterministic recipe rates','automatic validity','actual product grids','interrupted WebSocket recovery');
 
     const selection=await page.evaluate(()=>JSON.stringify(outputSettings));
     const encodingBefore=await get('/api/v1/encoding'),transportBefore=await get('/api/v1/transport');
@@ -146,7 +153,12 @@ const update=value=>fs.writeFileSync(local(manifest.control_file),JSON.stringify
     await page.locator('#blockSize').fill('7');
     assert.equal(await page.inputValue('#depthProfileChoice'),'custom','a manual matcher edit must immediately stop claiming a named profile');
     assert.match(await page.textContent('#depthProfileState'),/Pending matcher changes.*Custom/);
-    checks.push('manual matcher edits immediately show pending Custom');
+    await open('overview');
+    await page.waitForFunction(async()=>{const h=await(await fetch('/api/v1/health')).json();return h.raw_product_demand===0&&h.preview_demand_cadence_hz===0});
+    await open('algorithm');
+    assert.equal(await page.inputValue('#blockSize'),'7','Overview navigation preserves unapplied matcher edits');
+    assert.match(await page.textContent('#depthProfileState'),/Pending matcher changes.*Custom/);
+    checks.push('manual matcher edits immediately show pending Custom','Overview releases native product demand and preserves matcher drafts');
     const current=await page.evaluate(async()=>{const response=await fetch('/api/v1/stereo',{credentials:'same-origin'});return {configuration:await response.json(),etag:response.headers.get('ETag')};}),configuration=current.configuration;
     configuration.uniqueness_ratio=(configuration.uniqueness_ratio+1)%20;
     const changed=await page.evaluate(async({configuration,etag})=>(await fetch('/api/v1/stereo',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Nuvo-CSRF':csrf,'If-Match':etag},body:JSON.stringify(configuration)})).status,{configuration,etag:current.etag});
@@ -160,7 +172,7 @@ const update=value=>fs.writeFileSync(local(manifest.control_file),JSON.stringify
       await page.evaluate(theme=>applyTheme(theme,false),theme);await page.setViewportSize({width,height:844});
       await open('diagnostics');await page.waitForFunction(()=>!document.querySelector('#downloadDiagnostics').disabled);
       await page.keyboard.press('Tab');assert.notEqual(await page.evaluate(()=>document.activeElement.tagName),'BODY');
-      for(const destination of ['viewer','network','device']){
+      for(const destination of ['overview','viewer','network','device']){
         await page.click(`nav [data-page="${destination}"]`);
         await page.waitForFunction(()=>window.scrollY<=1);
         assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+2),`${destination} must fit ${width}px in ${theme}`);

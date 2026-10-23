@@ -123,4 +123,24 @@ freshness.Date.now=()=>10000;assert.match(freshness.receivingStatus(),/^Stale/);
 freshness.viewerPaused=true;assert.match(freshness.receivingStatus(),/^Paused/);
 freshness.viewerPaused=false;freshness.capabilities.connection={products_permitted:false,product_policy_reason:'Wi-Fi product permission is off'};
 assert.match(freshness.receivingStatus(),/^Blocked.*Wi-Fi/);
+const pageElements=new Map(),navigationPages=['overview','viewer','network','device'];
+const navElements=navigationPages.map(page=>({dataset:{page},classList:{toggle(){}},setAttribute(){},removeAttribute(){}}));
+function pageElement(id){if(!pageElements.has(id))pageElements.set(id,{id,open:false,classList:{toggle(){}},scrollIntoView(){}});return pageElements.get(id);}
+const navigation={selectedPage:'',document:{querySelectorAll:selector=>selector==='.page'?navigationPages.map(pageElement):navElements},
+  $:pageElement,placePerformanceMonitor:()=>{},restartStreams:()=>{},requestAnimationFrame:fn=>fn(),window:{scrollTo(){}},queueMicrotask:()=>{},refreshDiagnostics(){}};
+vm.createContext(navigation);
+vm.runInContext(source.slice(source.indexOf('const LEGACY_PAGES='),source.indexOf('function navigateToPage(')),navigation);
+for(const id of ['', 'unknown', 'overview']){navigation.openPage(id);assert.equal(navigation.selectedPage,'overview','Overview is the default and explicit landing page');}
+for(const id of navigationPages){navigation.openPage(id);assert.equal(navigation.selectedPage,id);}
+for(const [id,parent] of Object.entries({exposure:'viewer',presets:'viewer',algorithm:'viewer',streaming:'device',calibration:'device',diagnostics:'device',recovery:'device'})){
+  navigation.openPage(id);assert.equal(navigation.selectedPage,parent);assert.equal(pageElement(id).open,true,'old links disclose the correct settings without restoring separate pages');
+}
+const demand={document:{hidden:false},viewerPaused:false,capabilities:{connection:{products_permitted:true}},outputSettings:{enabled:true,preview:true},selectedPage:'overview',$:()=>({open:true})};
+vm.createContext(demand);
+vm.runInContext(source.slice(source.indexOf('function rawPreviewPage('),source.indexOf('function refreshFirstDepth(')),demand);
+vm.runInContext(source.slice(source.indexOf('function encodedPreviewPage('),source.indexOf('function startEncodedViewer(')),demand);
+assert.equal(demand.rawPreviewPage(),false,'Overview must not request image or numeric products');
+assert.equal(demand.encodedPreviewPage(),false,'Overview must not request compressed pictures, even with calibration open elsewhere');
+for(const page of ['viewer','network']){demand.selectedPage=page;assert.equal(demand.rawPreviewPage(),true);assert.equal(demand.encodedPreviewPage(),true);}
+demand.selectedPage='device';assert.equal(demand.rawPreviewPage(),false);assert.equal(demand.encodedPreviewPage(),true,'calibration keeps its explicit positioning preview');
 console.log('Web output recipes, requested/received state, image rendering and demand lifecycle tests passed');

@@ -22,9 +22,219 @@
     </div>
   </header>
   <div class="shell">
-    <nav aria-label="Main navigation"><button type="button" data-page="viewer" class="active" aria-current="page"><svg class="icon" aria-hidden="true"><use href="#icon-scan"/></svg><span>Live view</span></button><button type="button" data-page="network"><svg class="icon" aria-hidden="true"><use href="#icon-cable"/></svg><span>Outputs</span></button><button type="button" data-page="device"><svg class="icon" aria-hidden="true"><use href="#icon-sliders"/></svg><span>Device</span></button></nav>
+    <nav aria-label="Main navigation"><button type="button" data-page="overview" class="active" aria-current="page"><svg class="icon" aria-hidden="true"><use href="#icon-overview"/></svg><span>Overview</span></button><button type="button" data-page="viewer"><svg class="icon" aria-hidden="true"><use href="#icon-scan"/></svg><span>Live view</span></button><button type="button" data-page="network"><svg class="icon" aria-hidden="true"><use href="#icon-cable"/></svg><span>Outputs</span></button><button type="button" data-page="device"><svg class="icon" aria-hidden="true"><use href="#icon-sliders"/></svg><span>Device</span></button></nav>
     <main id="consoleMain" tabindex="-1">
-<section id="viewer" class="page active">
+<section id="overview" class="page active">
+<div class="page-header"><h1>Overview</h1><span id="deviceResolution" class="page-meta">Waiting for device</span></div>
+<p class="lede">Device health and setup. This page does not request camera pictures or depth frames.</p>
+<p id="setupState" class="notice" role="status" hidden></p>
+
+        <div class="cards status-strip">
+          <article>
+            <span>Camera</span>
+            <strong id="cameraState" class="state-value">Waiting</strong>
+            <small id="cameraDetail">No health report yet</small>
+          </article>
+          <article>
+            <span>Depth rate</span>
+            <strong id="frameRate">—</strong>
+            <small id="frameDetail">Measured output</small>
+          </article>
+          <article>
+            <span>Compute time</span>
+            <strong id="processingTime">—</strong>
+            <small>Excludes network delivery</small>
+          </article>
+        </div>
+        <div class="notice device-notice" id="calibrationBanner">
+          <svg class="icon" aria-hidden="true" focusable="false">
+            <use href="#icon-alert"></use>
+          </svg>
+          <span id="calibrationNotice">Waiting for calibration status.</span>
+          <button type="button" class="text-action" data-open="calibration">Calibration details <svg class="icon" aria-hidden="true" focusable="false">
+              <use href="#icon-chevron"></use>
+            </svg>
+          </button>
+        </div>
+        <div class="overview-configuration">
+          <div class="panel">
+            <div class="card-heading">
+              <h2>
+                <svg class="icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-sliders"></use>
+                </svg>Configuration</h2>
+              <span class="chip chip-neutral">Applied</span>
+            </div>
+            <dl class="status-list">
+              <div>
+                <dt>Capture</dt>
+                <dd id="overviewCaptureState">Waiting</dd>
+              </div>
+              <div>
+                <dt>Depth processing</dt>
+                <dd id="overviewDepthState">Waiting</dd>
+              </div>
+              <div>
+                <dt>Calibration</dt>
+                <dd>
+                  <span id="calibrationState" class="chip chip-neutral">—</span>
+                </dd>
+              </div>
+              <div>
+                <dt>Calibration ID</dt>
+                <dd>
+                  <code id="calibrationHash">Not loaded</code>
+                </dd>
+              </div>
+            </dl>
+            <p id="calibrationDetail" class="support-text">Not loaded</p>
+            <button type="button" class="setting-link" data-open="exposure">
+              <span>
+                <svg class="icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-camera"></use>
+                </svg>Capture</span>
+              <span class="chip chip-blue" data-capture-summary>Loading</span>
+            </button>
+            <button type="button" class="setting-link" data-open="algorithm">
+              <span>
+                <svg class="icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-layers"></use>
+                </svg>Matcher</span>
+              <span class="chip chip-violet" data-matcher-summary>Loading</span>
+            </button>
+            <div class="panel-footer">
+              <button type="button" class="primary" data-open="viewer">
+                <svg class="icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-scan"></use>
+                </svg>Open live view</button>
+              <button type="button" class="secondary" data-open="presets">Depth profiles</button>
+            </div>
+          </div>
+
+        </div>
+        <section id="performanceMonitor" class="panel performance-monitor" aria-label="Performance monitor">
+            <div class="card-heading">
+              <h2>
+                <svg class="icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-activity"></use>
+                </svg>Performance <span class="chip chip-neutral">Health samples</span>
+              </h2>
+              <label class="analysis-control">Analysis target<select id="performanceTarget" aria-label="Analysis target">
+                  <option value="3">3 fps</option>
+                  <option value="5">5 fps</option>
+                  <option value="10" selected>10 fps</option>
+                  <option value="30">30 fps</option>
+                </select>
+              </label>
+            </div>
+            <div class="performance-status">
+              <span id="performanceBudgetStatus" class="chip chip-neutral">Waiting for samples</span>
+              <span id="performanceBudgetNote" class="support-text">100 ms compute budget · 10 fps analysis target</span>
+            </div>
+            <div class="performance-layout">
+              <div>
+                <div class="performance-values">
+                  <div>
+                    <span>Latest compute</span>
+                    <strong id="performanceLatest">—</strong>
+                  </div>
+                  <div>
+                    <span>P95 · sampled frames</span>
+                    <strong id="performanceP95">—</strong>
+                  </div>
+                  <div>
+                    <span id="performanceDeltaLabel">Budget difference</span>
+                    <strong id="performanceDelta">—</strong>
+                  </div>
+                </div>
+                <div class="performance-chart">
+                  <svg id="performanceChart" role="img" aria-label="Compute time health samples over the last 60 seconds"></svg>
+                  <p id="performanceEmpty">Waiting for a processed frame</p>
+                  <div id="performanceTooltip" role="tooltip" hidden></div>
+                </div>
+                <div class="chart-legend">
+                  <span>
+                    <i class="compute-swatch" aria-hidden="true"></i>Sampled compute time</span>
+                  <span>
+                    <i class="budget-swatch" aria-hidden="true"></i>Target frame budget</span>
+                </div>
+              </div>
+              <div class="performance-stages">
+                <table>
+                  <caption>Latest frame · where time is spent</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Stage</th>
+                      <th scope="col">Time</th>
+                      <th scope="col">Share</th>
+                    </tr>
+                  </thead>
+                  <tbody id="performanceStages">
+                    <tr>
+                      <td colspan="3">Waiting for timings</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="bottleneck">
+                  <span id="performanceBottleneck">Waiting for stage timings</span>
+                  <button type="button" class="secondary" data-open="algorithm">Review matcher settings <svg class="icon" aria-hidden="true" focusable="false">
+                      <use href="#icon-chevron"></use>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="performance-footnote">
+              <span>Compute only · excludes capture wait, I/O, and network.</span>
+              <span>Analysis target does not change the device.</span>
+            </div>
+          </section>
+        <details class="setup-guide">
+          <summary>Setup guide</summary>
+          <ol class="workflow-list">
+            <li>
+              <div class="workflow-top">
+                <span class="workflow-number">1</span>
+                <span id="flowConnectionState" class="flow-state waiting">Waiting</span>
+              </div>
+              <h3>Connection</h3>
+              <p>Open the HTTPS console and verify its certificate. Connection is automatic; no Nuvo login is required.</p>
+              <button class="secondary" type="button" data-open="diagnostics">Open diagnostics</button>
+            </li>
+            <li>
+              <div class="workflow-top">
+                <span class="workflow-number">2</span>
+                <span id="flowCaptureState" class="flow-state waiting">Waiting</span>
+              </div>
+              <h3>Capture</h3>
+              <p>Choose constant manual exposure for repeatability or stereo-locked auto exposure for changing light.</p>
+              <button class="secondary" type="button" data-open="exposure">Set capture</button>
+            </li>
+            <li>
+              <div class="workflow-top">
+                <span class="workflow-number">3</span>
+                <span id="flowQualityState" class="flow-state waiting">Waiting</span>
+              </div>
+              <h3>Depth profile</h3>
+              <p>Start with the default Balanced profile. Confirm the calibration status before interpreting distances.</p>
+              <button class="secondary" type="button" data-open="presets">Choose a depth profile</button>
+            </li>
+            <li>
+              <div class="workflow-top">
+                <span class="workflow-number">4</span>
+                <span id="flowDeliveryState" class="flow-state waiting">Waiting</span>
+              </div>
+              <h3>Outputs</h3>
+              <p>Choose a named output recipe. First depth includes an aligned camera reference, numeric depth and validity; save a sample with its calibration metadata from Live view.</p>
+              <div class="button-row">
+                <button class="secondary" type="button" data-open="viewer">Open live view</button>
+                <button class="secondary" type="button" data-open="network">Choose outputs</button>
+              </div>
+            </li>
+          </ol>
+        </details>
+</section>
+<section id="viewer" class="page">
 <div class="page-header"><h1>Live view</h1><span class="scope-label">This browser</span></div>
 <div class="unified-live-layout">
 <div class="live-viewer panel">
@@ -438,7 +648,7 @@
 <article class="panel shared-picture-quality"><h2>Shared picture quality</h2><p class="scope-label">Device-wide · affects every compressed-preview client</p><label>Picture quality<select id="pictureQuality" disabled><option value="compact">Smaller pictures</option><option value="balanced">Balanced</option><option value="detail">More detail</option><option value="custom">Current custom setting</option></select></label><p id="pictureQualityDetail" class="support-text">Loading shared encoder settings</p><button id="pictureQualityApply" type="button" disabled>Apply shared picture quality</button><p id="pictureQualityState" role="status"></p><p>Changes compression settings for the existing source and codec. It preserves the rate ceiling and all numeric depth outputs. Actual picture size depends on the scene.</p><button type="button" class="link-button" data-open="streaming">Advanced encoder: source, codec, dimensions and rate</button></article>
 <details class="network-advanced"><summary>Product grids and capture association</summary><p>ISP images → aligned images → disparity → calibrated depth. Side-by-side images place left then right. Numeric depth is optical-axis Z in metres, not Euclidean range. Read each product’s dimensions and grid mapping.</p><p>Products in a data frame share device/run UUID, capture epoch and capture sequence. Picture previews may arrive at a different rate. Associate by complete capture identity, not arrival time.</p><p id="outputFrameSummary">Actual product dimensions appear after a frame arrives.</p></details>
 </section>
-<section id="device" class="page"><div class="page-header"><h1>Device</h1><span id="deviceResolution" class="page-meta">Waiting for device</span></div><p class="lede">Calibration, health, software and shared device configuration.</p><details id="calibration" class="device-section"><summary>Calibration</summary><div class="section-content"><article class="panel" aria-label="Calibration readiness">
+<section id="device" class="page"><div class="page-header"><h1>Device</h1></div><p class="lede">Calibration, health, software and shared device configuration.</p><details id="calibration" class="device-section"><summary>Calibration</summary><div class="section-content"><article class="panel" aria-label="Calibration readiness">
           <h2 id="calibrationReadinessTitle">Status unavailable/error</h2>
           <p id="calibrationReadinessMessage">Waiting for shared calibration status.</p>
           <p><strong>Next action:</strong> <span id="calibrationReadinessAction">Wait for the device status response.</span></p>
@@ -523,85 +733,9 @@
           <details class="panel calibration-method"><summary>Method and operator checklist</summary>
             <ul><li>Use a rigid, flat, matte board with a white border at least one square wide.</li><li>Measure the physical square and marker sizes after printing; do not trust printer scaling.</li><li>Lock focus and exposure for the capture series. Fill all image regions with sharp, varied poses and distances.</li><li>The solver rejects duplicate/blurred/clipped views, removes high-error training outliers, and reports deterministic holdout error.</li><li>A geometric pass validates model fit and baseline scale. Factory release still requires known-distance depth verification across the advertised range.</li></ul>
           </details>
-        </div></div></details><details id="diagnostics" class="device-section"><summary>Diagnostics and performance</summary><div class="section-content">
+        </div></div></details><details id="diagnostics" class="device-section"><summary>Diagnostics</summary><div class="section-content">
         <p class="lede">Read-only checks explain readiness and recovery. Download an allowlisted support report; it excludes credentials and raw logs.</p>
-        <section id="performanceMonitor" class="panel performance-monitor" aria-label="Performance monitor">
-            <div class="card-heading">
-              <h2>
-                <svg class="icon" aria-hidden="true" focusable="false">
-                  <use href="#icon-activity"></use>
-                </svg>Performance <span class="chip chip-neutral">Health samples</span>
-              </h2>
-              <label class="analysis-control">Analysis target<select id="performanceTarget" aria-label="Analysis target">
-                  <option value="3">3 fps</option>
-                  <option value="5">5 fps</option>
-                  <option value="10" selected>10 fps</option>
-                  <option value="30">30 fps</option>
-                </select>
-              </label>
-            </div>
-            <div class="performance-status">
-              <span id="performanceBudgetStatus" class="chip chip-neutral">Waiting for samples</span>
-              <span id="performanceBudgetNote" class="support-text">100 ms compute budget · 10 fps analysis target</span>
-            </div>
-            <div class="performance-layout">
-              <div>
-                <div class="performance-values">
-                  <div>
-                    <span>Latest compute</span>
-                    <strong id="performanceLatest">—</strong>
-                  </div>
-                  <div>
-                    <span>P95 · sampled frames</span>
-                    <strong id="performanceP95">—</strong>
-                  </div>
-                  <div>
-                    <span id="performanceDeltaLabel">Budget difference</span>
-                    <strong id="performanceDelta">—</strong>
-                  </div>
-                </div>
-                <div class="performance-chart">
-                  <svg id="performanceChart" role="img" aria-label="Compute time health samples over the last 60 seconds"></svg>
-                  <p id="performanceEmpty">Waiting for a processed frame</p>
-                  <div id="performanceTooltip" role="tooltip" hidden></div>
-                </div>
-                <div class="chart-legend">
-                  <span>
-                    <i class="compute-swatch" aria-hidden="true"></i>Sampled compute time</span>
-                  <span>
-                    <i class="budget-swatch" aria-hidden="true"></i>Target frame budget</span>
-                </div>
-              </div>
-              <div class="performance-stages">
-                <table>
-                  <caption>Latest frame · where time is spent</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Stage</th>
-                      <th scope="col">Time</th>
-                      <th scope="col">Share</th>
-                    </tr>
-                  </thead>
-                  <tbody id="performanceStages">
-                    <tr>
-                      <td colspan="3">Waiting for timings</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <div class="bottleneck">
-                  <span id="performanceBottleneck">Waiting for stage timings</span>
-                  <button type="button" class="secondary" data-open="algorithm">Review matcher settings <svg class="icon" aria-hidden="true" focusable="false">
-                      <use href="#icon-chevron"></use>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div class="performance-footnote">
-              <span>Compute only · excludes capture wait, I/O, and network.</span>
-              <span>Analysis target does not change the device.</span>
-            </div>
-          </section>
+        <p><button type="button" class="secondary" data-open="overview">Open performance overview</button></p>
         <button id="refreshDiagnostics" class="secondary" type="button">Run diagnostics</button>
         <button id="copyDiagnostics" class="primary" type="button">Copy support JSON</button>
         <button id="downloadDiagnostics" class="secondary" type="button" disabled>Download support report</button>
@@ -767,135 +901,7 @@
               <p class="endpoint" id="encodedEndpoint"></p>
             </details>
           </form>
-</div></div></details><details id="overview" class="device-section"><summary>Health and setup guide</summary><div class="section-content"><p id="setupState" class="notice" role="status" hidden></p>
-
-        <div class="cards status-strip">
-          <article>
-            <span>Camera</span>
-            <strong id="cameraState" class="state-value">Waiting</strong>
-            <small id="cameraDetail">No health report yet</small>
-          </article>
-          <article>
-            <span>Depth rate</span>
-            <strong id="frameRate">—</strong>
-            <small id="frameDetail">Measured output</small>
-          </article>
-          <article>
-            <span>Compute time</span>
-            <strong id="processingTime">—</strong>
-            <small>Excludes network delivery</small>
-          </article>
-        </div>
-        <div class="notice device-notice" id="calibrationBanner">
-          <svg class="icon" aria-hidden="true" focusable="false">
-            <use href="#icon-alert"></use>
-          </svg>
-          <span id="calibrationNotice">Waiting for calibration status.</span>
-          <button type="button" class="text-action" data-open="calibration">Calibration details <svg class="icon" aria-hidden="true" focusable="false">
-              <use href="#icon-chevron"></use>
-            </svg>
-          </button>
-        </div>
-        <div class="overview-grid">
-          <div class="panel">
-            <div class="card-heading">
-              <h2>
-                <svg class="icon" aria-hidden="true" focusable="false">
-                  <use href="#icon-sliders"></use>
-                </svg>Configuration</h2>
-              <span class="chip chip-neutral">Applied</span>
-            </div>
-            <dl class="status-list">
-              <div>
-                <dt>Capture</dt>
-                <dd id="overviewCaptureState">Waiting</dd>
-              </div>
-              <div>
-                <dt>Depth processing</dt>
-                <dd id="overviewDepthState">Waiting</dd>
-              </div>
-              <div>
-                <dt>Calibration</dt>
-                <dd>
-                  <span id="calibrationState" class="chip chip-neutral">—</span>
-                </dd>
-              </div>
-              <div>
-                <dt>Calibration ID</dt>
-                <dd>
-                  <code id="calibrationHash">Not loaded</code>
-                </dd>
-              </div>
-            </dl>
-            <p id="calibrationDetail" class="support-text">Not loaded</p>
-            <button type="button" class="setting-link" data-open="exposure">
-              <span>
-                <svg class="icon" aria-hidden="true" focusable="false">
-                  <use href="#icon-camera"></use>
-                </svg>Capture</span>
-              <span class="chip chip-blue" data-capture-summary>Loading</span>
-            </button>
-            <button type="button" class="setting-link" data-open="algorithm">
-              <span>
-                <svg class="icon" aria-hidden="true" focusable="false">
-                  <use href="#icon-layers"></use>
-                </svg>Matcher</span>
-              <span class="chip chip-violet" data-matcher-summary>Loading</span>
-            </button>
-            <div class="panel-footer">
-              <button type="button" class="primary" data-open="viewer">
-                <svg class="icon" aria-hidden="true" focusable="false">
-                  <use href="#icon-scan"></use>
-                </svg>Open live view</button>
-              <button type="button" class="secondary" data-open="presets">Depth profiles</button>
-            </div>
-          </div>
-
-        </div>
-        <details class="setup-guide">
-          <summary>Setup guide</summary>
-          <ol class="workflow-list">
-            <li>
-              <div class="workflow-top">
-                <span class="workflow-number">1</span>
-                <span id="flowConnectionState" class="flow-state waiting">Waiting</span>
-              </div>
-              <h3>Connection</h3>
-              <p>Open the HTTPS console and verify its certificate. Connection is automatic; no Nuvo login is required.</p>
-              <button class="secondary" type="button" data-open="diagnostics">Open diagnostics</button>
-            </li>
-            <li>
-              <div class="workflow-top">
-                <span class="workflow-number">2</span>
-                <span id="flowCaptureState" class="flow-state waiting">Waiting</span>
-              </div>
-              <h3>Capture</h3>
-              <p>Choose constant manual exposure for repeatability or stereo-locked auto exposure for changing light.</p>
-              <button class="secondary" type="button" data-open="exposure">Set capture</button>
-            </li>
-            <li>
-              <div class="workflow-top">
-                <span class="workflow-number">3</span>
-                <span id="flowQualityState" class="flow-state waiting">Waiting</span>
-              </div>
-              <h3>Depth profile</h3>
-              <p>Start with the default Balanced profile. Confirm the calibration status before interpreting distances.</p>
-              <button class="secondary" type="button" data-open="presets">Choose a depth profile</button>
-            </li>
-            <li>
-              <div class="workflow-top">
-                <span class="workflow-number">4</span>
-                <span id="flowDeliveryState" class="flow-state waiting">Waiting</span>
-              </div>
-              <h3>Outputs</h3>
-              <p>Request both camera images, depth and validity. Confirm fresh frames, then save a raw sample with its calibration metadata.</p>
-              <div class="button-row">
-                <button class="secondary" type="button" data-open="viewer">Open live view</button>
-                <button class="secondary" type="button" data-open="network">Choose outputs</button>
-              </div>
-            </li>
-          </ol>
-        </details></div></details><details class="network-advanced"><summary>Connection preference and safe rollback</summary><div class="settings"><article><h2>Connection preference</h2><p id="transportState">Loading…</p><div class="button-row"><button type="button" class="primary" data-transport="auto">Automatic</button><button type="button" class="primary" data-transport="wifi">WiFi only</button><button type="button" class="primary" data-transport="ethernet">Ethernet preferred</button><button type="button" class="primary" data-transport="usb">USB preferred</button><button type="button" class="primary" data-transport="both">Ethernet and USB</button><button type="button" class="secondary" data-transport="off">Disable data output</button></div><p class="error" id="transportError"></p><button id="confirmTransport" class="primary">Confirm new connection</button></article><article><h2>Safe rollback</h2><p>A changed preference is provisional for 60 seconds. Confirm through the new path or restore the previous setting.</p><button id="rollbackTransport" class="primary">Roll back</button></article></div></details></section>
+</div></div></details><details class="network-advanced"><summary>Connection preference and safe rollback</summary><div class="settings"><article><h2>Connection preference</h2><p id="transportState">Loading…</p><div class="button-row"><button type="button" class="primary" data-transport="auto">Automatic</button><button type="button" class="primary" data-transport="wifi">WiFi only</button><button type="button" class="primary" data-transport="ethernet">Ethernet preferred</button><button type="button" class="primary" data-transport="usb">USB preferred</button><button type="button" class="primary" data-transport="both">Ethernet and USB</button><button type="button" class="secondary" data-transport="off">Disable data output</button></div><p class="error" id="transportError"></p><button id="confirmTransport" class="primary">Confirm new connection</button></article><article><h2>Safe rollback</h2><p>A changed preference is provisional for 60 seconds. Confirm through the new path or restore the previous setting.</p><button id="rollbackTransport" class="primary">Roll back</button></article></div></details></section>
     </main>
   </div>
   <script src="/frame-codec.js" defer></script>

@@ -19,7 +19,8 @@ can still show the older navigation until upgraded to this build.
    certificate against the trusted setup material before using the console.
 3. The console connects automatically. No browser password, setup code or
    owner-password setup is required, including on previously configured units.
-4. Check **Live view**. With capture enabled, confirm advancing frames, the installed
+4. Check **Overview** for device health and calibration, then open **Live view**.
+   With capture enabled, confirm advancing frames, the installed
    profile's dimensions, and no red health message. Pending calibration can
    intentionally leave capture disabled while the console is available.
 5. Select the result you need under **Outputs**, then apply it to this browser
@@ -31,18 +32,23 @@ Use the sun/moon control in the header to select light or dark appearance. The
 choice is kept in that browser; without an explicit choice the console follows
 the operating-system color preference.
 
-Live view shows camera, depth-rate, compute-time, and calibration status.
-Expand **Setup guide** for first-use checks. Live view offers
+Overview shows camera, depth-rate, compute-time, and calibration status.
+Expand its **Setup guide** for first-use checks. Live view offers
 **Show first depth** and **Save depth sample** after two advancing associated
 depth/validity frames; the download preserves original NUV1 metadata. Older
 beta 6 lacks these buttons. The [complete journey](https://docs.nuvohardware.com/vision-one/guide/getting-started)
 covers installation and the SDK route; use this versioned guide for development
 console navigation.
 
-## Three places to work
+## Console navigation
+
+The desktop sidebar contains four pages. On narrow screens it becomes compact
+navigation above the page. Opening the console without a page link lands on
+Overview; existing links to Live view and individual settings still work.
 
 | Page | Purpose | Scope |
 | --- | --- | --- |
+| Overview | Device health, applied configuration, calibration, performance and setup guidance | Health monitoring only; starts no product stream |
 | Live view | One primary viewer, camera/exposure controls and depth profile with advanced matcher tuning | Viewing is local; camera and matcher settings affect the device |
 | Outputs | Choose products, representation and rate; review a browser subscription or application recipe; manage Wi-Fi product permission | Browser selection is local; Wi-Fi permission is device-wide |
 | Device | Calibration, diagnostics, updates and advanced shared preview encoder settings | Device-wide |
@@ -52,10 +58,15 @@ stream. Advanced edits are reflected as Custom when they differ from a named
 profile. Applying camera, matcher or encoder settings changes the shared device;
 merely changing the viewer or drafting an output recipe does not.
 
-The performance monitor's **Analysis target** compares compute time with a
+The Overview performance monitor's **Analysis target** compares compute time with a
 frame budget. It does not change capture, matcher or delivery rates. Collapse
 advanced controls without losing pending edits. Apply and Discard actions are
 kept with their corresponding form and scope.
+
+Returning to Overview releases this browser's live product demand while keeping
+its selected outputs and unsaved settings. Open Live view or Outputs again to
+resume the selected subscription. Performance shows the work requested by
+active consumers; it can be idle when no consumer needs depth.
 
 ## Image pipeline status
 

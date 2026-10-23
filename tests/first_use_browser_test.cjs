@@ -71,10 +71,39 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
     context=await browser.newContext({acceptDownloads:true,viewport:{width:1440,height:1050}});
     await context.tracing.start({screenshots:true,snapshots:true,sources:true});page=await context.newPage();
     page.on('pageerror',error=>errors.push(error.stack||error.message));const url=`http://127.0.0.1:${server.address().port}/`;
+    const overviewProductAttempts=[];
+    const recordOverviewProduct=(kind,address)=>{
+      if(['/api/v1/frame/latest','/api/v1/encoded/latest','/api/v1/stream','/api/v1/encoded/stream'].includes(new URL(address).pathname))overviewProductAttempts.push({kind,url:address});
+    };
+    const overviewRequest=request=>recordOverviewProduct('HTTP',request.url()),overviewSocket=socket=>recordOverviewProduct('WebSocket',socket.url());
+    page.on('request',overviewRequest);page.on('websocket',overviewSocket);
     await page.goto(url);
     for(const id of ['exposureForm','algorithmForm','encodingForm'])assert.equal(await page.locator(`#${id} button[type="submit"]`).count(),1,`${id} must retain its submit control after HTML parser repair`);
     await page.waitForFunction(()=>document.querySelector('#connection').textContent==='Connected');
-    assert.deepEqual(await page.locator('nav [data-page]').evaluateAll(items=>items.map(item=>item.dataset.page)),['viewer','network','device']);
+    assert.deepEqual(await page.locator('nav [data-page]').evaluateAll(items=>items.map(item=>item.dataset.page)),['overview','viewer','network','device']);
+    assert.equal(await page.locator('.page.active').getAttribute('id'),'overview','hashless URLs land on Overview');
+    for(const id of ['cameraState','overviewCaptureState','overviewDepthState','performanceMonitor'])assert(await page.isVisible('#'+id),`${id} belongs on Overview`);
+    assert(await page.isVisible('#overview .setup-guide > summary'));
+    assert(await page.evaluate(()=>{const nav=document.querySelector('nav').getBoundingClientRect(),main=document.querySelector('.page.active').getBoundingClientRect(),buttons=[...document.querySelectorAll('nav [data-page]')].map(x=>x.getBoundingClientRect());return nav.height>nav.width&&main.left>=nav.right-1&&buttons.every((b,i)=>!i||b.top>=buttons[i-1].bottom-1)}),'desktop navigation must be a sidebar beside the content');
+    assert(await page.locator('nav [data-page]').evaluateAll(items=>items.every(item=>getComputedStyle(item).justifyContent==='flex-start'&&Math.abs(item.querySelector('svg').getBoundingClientRect().left-items[0].querySelector('svg').getBoundingClientRect().left)<1)),'desktop sidebar icons and labels stay left aligned');
+    await page.goto(url+'#unknown-section');assert.equal(await page.locator('.page.active').getAttribute('id'),'overview');
+    await page.goto(url+'#overview');
+    await page.waitForResponse(response=>response.url().endsWith('/api/v1/health')&&response.ok());
+    assert.deepEqual(overviewProductAttempts,[],'Overview must not request raw or encoded products');
+    assert.equal(requests.raw.length,0);assert.equal(requests.encoded,0);
+    await page.screenshot({path:path.join(out,'overview-desktop.png')});
+    page.off('request',overviewRequest);page.off('websocket',overviewSocket);
+    const overviewHeadingTop=await page.locator('#overview h1').evaluate(heading=>heading.getBoundingClientRect().top);
+    for(const destination of ['viewer','network','device','overview']){
+      await page.click(`nav [data-page="${destination}"]`);
+      await page.waitForFunction(()=>window.scrollY<=1);
+      const position=await page.locator(`#${destination} h1`).evaluate(heading=>({top:heading.getBoundingClientRect().top,headerBottom:document.querySelector('header').getBoundingClientRect().bottom}));
+      assert(Math.abs(position.top-overviewHeadingTop)<=2,`${destination} heading must stay top-aligned with Overview, including short collapsed Device content`);
+      assert(position.top>=position.headerBottom&&position.top<=position.headerBottom+64,`${destination} heading must remain near the top below the header`);
+    }
+    checks.push('all four desktop headings stay top aligned');
+    checks.push('Overview default and unknown-link landing','Overview status and setup visible','desktop sidebar geometry','Overview has no product demand');
+    await page.click('nav [data-page="viewer"]');
     await page.waitForFunction(()=>document.querySelector('#viewerReceiving').textContent.includes('Camera image'));
     assert.equal(requests.encoded,0,'a numeric/image recipe must not also request the shared picture');
     await page.locator('#firstDepthGuide > summary').focus();await page.keyboard.press('Enter');
@@ -87,7 +116,7 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
     const downloadPromise=page.waitForEvent('download');await page.click('#firstDepthSave');const download=await downloadPromise;await download.saveAs(path.join(out,'sample.nuv'));
     const saved=fs.readFileSync(path.join(out,'sample.nuv')),meta=JSON.parse(saved.subarray(32,32+saved.readUInt32BE(12)));
     assert.equal(meta.calibration_authority,0);assert.equal(meta.calibration_sha256,metadataBase.calibration_sha256);assert(meta.products.some(p=>p.kind==='depth')&&meta.products.some(p=>p.kind==='validity'));
-    checks.push('three destinations','keyboard first-depth disclosure','named depth with camera reference','saved numeric depth + validity and calibration identity');
+    checks.push('four destinations','keyboard first-depth disclosure','named depth with camera reference','saved numeric depth + validity and calibration identity');
     await page.screenshot({path:path.join(out,'first-use-console.png'),fullPage:false});
     invalid=true;await page.click('#firstDepthStart');await page.waitForFunction(()=>document.querySelector('#firstDepthError').textContent.includes('No valid depth'));assert(await page.isDisabled('#firstDepthSave'));
     invalid=false;await page.click('#firstDepthStart');await page.waitForFunction(()=>!document.querySelector('#firstDepthSave').disabled);
@@ -106,6 +135,15 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
     const beforeEdit=requests.raw.length;
     await page.check('[name="outputTask"][value="camera"]');
     assert.match(await page.textContent('#outputPending'),/Editing.*not requested/);
+    const requestedBeforeNavigation=await page.evaluate(()=>JSON.stringify(outputSettings));
+    await page.click('nav [data-page="overview"]');
+    await page.click('nav [data-page="device"]');
+    await page.click('nav [data-page="network"]');
+    assert(await page.isChecked('[name="outputTask"][value="camera"]'),'navigation preserves the unapplied output draft');
+    assert.match(await page.textContent('#outputPending'),/Editing.*not requested/);
+    assert.equal(await page.evaluate(()=>JSON.stringify(outputSettings)),requestedBeforeNavigation,'navigation cannot apply a draft');
+    checks.push('output draft survives Overview and Device navigation');
+    await page.waitForFunction(()=>document.querySelector('#outputReceiving').textContent.includes('Depth values'));
     assert.match(await page.textContent('#outputRequested'),/Depth values/);
     assert.match(await page.textContent('#outputReceiving'),/Depth values/);
     await page.waitForFunction(()=>document.querySelector('#outputReceiving').textContent.includes('Depth values'));
@@ -171,12 +209,12 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
     encoding.mode='raw';await page.evaluate(()=>localStorage.removeItem('nuvo-output-selection'));await page.reload();
     await page.waitForFunction(()=>document.querySelector('#viewerReceiving').textContent.includes('Camera image'));
 
-    for(const [legacy,destination] of Object.entries({overview:'device',exposure:'viewer',presets:'viewer',algorithm:'viewer',streaming:'device',calibration:'device',diagnostics:'device',recovery:'device'})){
+    for(const [legacy,destination] of Object.entries({exposure:'viewer',presets:'viewer',algorithm:'viewer',streaming:'device',calibration:'device',diagnostics:'device',recovery:'device'})){
       await page.goto(url+'#'+legacy);
       assert.equal(await page.locator('.page.active').getAttribute('id'),destination);
       assert(await page.locator('#'+legacy).evaluate(section=>section.open),`legacy #${legacy} opens its disclosed section`);
       assert.equal(await page.locator('nav [aria-current="page"]').getAttribute('data-page'),destination);
-      await page.waitForFunction(id=>document.querySelector('#'+id+' > summary').getBoundingClientRect().top>=document.querySelector('nav').getBoundingClientRect().bottom-1,legacy);
+      await page.waitForFunction(id=>(()=>{const section=document.querySelector('#'+id+' > summary').getBoundingClientRect(),nav=document.querySelector('nav').getBoundingClientRect(),header=document.querySelector('header').getBoundingClientRect();return section.top>=(section.left<nav.right?nav.bottom:header.bottom)-1})(),legacy);
     }
     await page.click('nav [data-page="viewer"]');await page.locator('nav [data-page="viewer"]').focus();
     await page.keyboard.press('Tab');assert.equal(await page.evaluate(()=>document.activeElement.dataset.page),'network');
@@ -186,9 +224,10 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
 
     for(const width of [320,390])for(const theme of ['light','dark']){
       await page.setViewportSize({width,height:844});await page.evaluate(theme=>applyTheme(theme,false),theme);
-      for(const destination of ['viewer','network','device']){
+      for(const destination of ['overview','viewer','network','device']){
         await page.click(`nav [data-page="${destination}"]`);
         await page.waitForFunction(()=>window.scrollY<=1);
+        assert(await page.locator('nav [data-page]').evaluateAll(items=>items.every(item=>{const r=item.getBoundingClientRect();return r.height>=44&&r.width>=44&&r.left>=0&&r.right<=innerWidth+1})),`all four mobile destinations must remain reachable at ${width}px`);
         assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),`${destination} must fit ${width}px in ${theme}`);
         await page.screenshot({path:path.join(out,`${destination}-${width}-${theme}.png`),fullPage:false});
       }
@@ -197,12 +236,12 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
       await page.setViewportSize({width,height:844});
       for(const legacy of ['exposure','streaming','calibration']){
         await page.goto(url+'#'+legacy);
-        await page.waitForFunction(id=>document.querySelector('#'+id+' > summary').getBoundingClientRect().top>=document.querySelector('nav').getBoundingClientRect().bottom-1,legacy);
+        await page.waitForFunction(id=>(()=>{const section=document.querySelector('#'+id+' > summary').getBoundingClientRect(),nav=document.querySelector('nav').getBoundingClientRect(),header=document.querySelector('header').getBoundingClientRect();return section.top>=(section.left<nav.right?nav.bottom:header.bottom)-1})(),legacy);
       }
     }
-    checks.push('320px and 390px three-page layouts in both themes','legacy headings remain below sticky navigation at narrow widths');
+    checks.push('320px and 390px four-page layouts in both themes','legacy headings remain below sticky navigation at narrow widths');
 
-    pending=true;await page.reload();await page.waitForFunction(()=>document.querySelector('#setupState').textContent.includes('Calibration needed'));assert(await page.isDisabled('#firstDepthSave'));
+    pending=true;await page.goto(url+'#overview');await page.reload();await page.waitForFunction(()=>document.querySelector('#setupState').textContent.includes('Calibration needed'));assert(await page.isVisible('#setupState'));assert(await page.isDisabled('#firstDepthSave'));
     readinessOverride={state:'calibration_accepted',label:'Calibration accepted',message:'Matching per-unit declared validation; camera disconnected.',next_action:'Inspect camera/service health and verify fresh output.',accepted:true};
     await page.reload();await page.waitForFunction(()=>document.querySelector('#calibrationState').textContent==='Calibration accepted');assert(await page.isDisabled('#firstDepthSave'));
     assert.equal(await page.textContent('#connection'),'Connected');

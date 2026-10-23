@@ -225,10 +225,10 @@ function setMeasurement(id, value, unit) {
   element.append(suffix);
 }
 
-const LEGACY_PAGES={overview:'device',exposure:'viewer',presets:'viewer',algorithm:'viewer',streaming:'device',calibration:'device',diagnostics:'device',recovery:'device'};
+const LEGACY_PAGES={exposure:'viewer',presets:'viewer',algorithm:'viewer',streaming:'device',calibration:'device',diagnostics:'device',recovery:'device'};
 function openPage(id) {
   const section=LEGACY_PAGES[id]?$(id):null;
-  const page=LEGACY_PAGES[id]||(['viewer','network','device'].includes(id)?id:'viewer');
+  const page=LEGACY_PAGES[id]||(['overview','viewer','network','device'].includes(id)?id:'overview');
   if(section)section.open=true;
   const changed=page!==selectedPage;selectedPage=page;
   document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===page));
@@ -1329,9 +1329,9 @@ function performanceStages(health){
   return stages.map(s=>({...s,share:total>0&&s.value!==null?100*s.value/total:null})).sort((a,b)=>(b.value??-1)-(a.value??-1));
 }
 
-// Diagnostics owns the only performance component; navigation never reparents it.
+// Overview owns the only performance component; navigation never reparents it.
 function placePerformanceMonitor(page){
-  $('performanceMonitor').hidden=page!=='device'||!$('diagnostics').open;
+  $('performanceMonitor').hidden=page!=='overview';
   if(!$('performanceMonitor').hidden)renderPerformanceMonitor();
 }
 function renderPerformanceMonitor(){
