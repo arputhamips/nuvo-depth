@@ -31,7 +31,7 @@ def execute(request: dict) -> dict:
     # APT/provisioning owns configuration while installing. Read-only status and
     # authentication remain available; no competing web mutation may run.
     state=Path("/var/lib/nuvo-depth-setup/state.json")
-    if state.is_file() and json.loads(state.read_text()).get("phase") in {"installing","configuring"} and operation not in {"setup.authenticate","setup.status","calibration.status","diagnostics.status"}:
+    if state.is_file() and json.loads(state.read_text()).get("phase") in {"installing","configuring"} and operation not in {"setup.authenticate","setup.status","calibration.status","diagnostics.status","transport.status"}:
         raise ValueError("installation in progress; wait before changing configuration")
     if operation == 'diagnostics.status':
         if set(request) != {'operation'}:
@@ -45,12 +45,24 @@ def execute(request: dict) -> dict:
         command=["/usr/bin/nuvo-setup","auth"]
         input_value=json.dumps(request,separators=(",",":"))
     elif operation=="transport.stage":
-        mode=request.get("preference")
-        if not isinstance(mode,str) or mode not in {"auto","wifi","ethernet","usb","both","off"}: raise ValueError("invalid transport preference")
-        command=["/usr/bin/nuvoctl","transport","stage",mode]
+        if (set(request)-{"operation","preference","wifi_enabled","physical_confirmation"}
+                or not ({"preference","wifi_enabled"}&set(request))):
+            raise ValueError("invalid transport patch fields")
+        command=["/usr/bin/nuvoctl","transport","stage"]
+        if "preference" in request:
+            mode=request["preference"]
+            if not isinstance(mode,str) or mode not in {"auto","wifi","ethernet","usb","both","off"}:
+                raise ValueError("invalid transport preference")
+            command.append(mode)
+        if "wifi_enabled" in request:
+            if type(request["wifi_enabled"]) is not bool: raise ValueError("wifi_enabled must be boolean")
+            command.extend(["--wifi-enabled",str(request["wifi_enabled"]).lower()])
+        if "physical_confirmation" in request and type(request["physical_confirmation"]) is not bool:
+            raise ValueError("physical_confirmation must be boolean")
         if request.get("physical_confirmation") is True: command.append("--physical-confirmation")
-    elif operation=="transport.confirm": command=["/usr/bin/nuvoctl","transport","confirm"]
-    elif operation=="transport.rollback": command=["/usr/bin/nuvoctl","transport","rollback"]
+    elif operation in {"transport.confirm","transport.rollback","transport.status"}:
+        if set(request)!={"operation"}: raise ValueError("invalid transport operation fields")
+        command=["/usr/bin/nuvoctl","transport",operation.split(".")[1]]
     elif operation=="encoding.update":
         value=request.get("configuration")
         if not isinstance(value,dict): raise ValueError("encoding configuration must be an object")

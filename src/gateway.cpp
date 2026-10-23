@@ -50,25 +50,39 @@ struct Utilization {
 }
 
 [[nodiscard]] std::vector<TransportKind> preference_order(
-    const TransportPreference preference) {
+    const TransportPreference preference, const std::optional<bool> wifi_enabled = {}) {
+  std::vector<TransportKind> result;
   switch (preference) {
     case TransportPreference::kEthernetPreferred:
-      return {TransportKind::kEthernet, TransportKind::kUsbEthernet};
+      result = {TransportKind::kEthernet, TransportKind::kUsbEthernet}; break;
     case TransportPreference::kUsbPreferred:
-      return {TransportKind::kUsbEthernet, TransportKind::kEthernet};
+      result = {TransportKind::kUsbEthernet, TransportKind::kEthernet}; break;
     case TransportPreference::kBoth:
-      return {TransportKind::kEthernet, TransportKind::kUsbEthernet};
+      result = {TransportKind::kEthernet, TransportKind::kUsbEthernet}; break;
     case TransportPreference::kOff:
       return {};
     case TransportPreference::kAuto:
-      return {TransportKind::kEthernet, TransportKind::kUsbEthernet, TransportKind::kWifi};
+      result = {TransportKind::kEthernet, TransportKind::kUsbEthernet, TransportKind::kWifi}; break;
     case TransportPreference::kWifiOnly:
-      return {TransportKind::kWifi};
+      result = {TransportKind::kWifi}; break;
+    default:
+      return {};
   }
-  return {};
+  if (wifi_enabled) {
+    std::erase(result, TransportKind::kWifi);
+    if (*wifi_enabled) result.push_back(TransportKind::kWifi);
+  }
+  return result;
 }
 
 }  // namespace
+
+bool transport_permitted(const TransportPreference preference,
+                         const TransportKind transport,
+                         const std::optional<bool> wifi_enabled) {
+  const auto order = preference_order(preference, wifi_enabled);
+  return std::find(order.begin(), order.end(), transport) != order.end();
+}
 
 struct AdmissionState {
   AdmissionConfiguration configuration{};
@@ -142,9 +156,9 @@ AdmissionResult AdmissionController::admit(const SubscriptionRequest& request) {
   const auto rate = required_rate(request);
   AdmissionResult result;
   std::lock_guard lock(state_->mutex);
-  auto order = preference_order(state_->configuration.preference);
+  auto order = preference_order(state_->configuration.preference, state_->configuration.wifi_enabled);
   if (state_->configuration.preference == TransportPreference::kBoth &&
-      order.size() == 2U) {
+      order.size() >= 2U) {
     const auto ethernet_capacity =
         state_->configuration.ethernet.qualified_payload_bytes_per_second;
     const auto usb_capacity =
@@ -193,15 +207,18 @@ AdmissionResult AdmissionController::admit(const SubscriptionRequest& request) {
 
 AdmissionResult AdmissionController::admit(
     const SubscriptionRequest& request, const TransportKind connected_transport,
-    const std::optional<TransportPreference> preference) {
+    const std::optional<TransportPreference> preference,
+    const std::optional<bool> wifi_enabled) {
   validate(request);
   const auto rate = required_rate(request);
   AdmissionResult result;
   std::lock_guard lock(state_->mutex);
   const auto policy = preference.value_or(state_->configuration.preference);
-  const auto order = preference_order(policy);
+  const auto wifi = wifi_enabled ? wifi_enabled : state_->configuration.wifi_enabled;
+  const auto order = preference_order(policy, wifi);
   const bool preferred_available = policy != TransportPreference::kBoth &&
       policy != TransportPreference::kAuto && !order.empty() &&
+      !(connected_transport == TransportKind::kWifi && wifi.value_or(false)) &&
       order.front() != connected_transport &&
       can_admit(transport_config(state_->configuration, order.front()),
                 utilization(*state_, order.front()), request, rate);

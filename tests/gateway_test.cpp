@@ -251,6 +251,45 @@ void test_serialized_storage_is_shared_and_complete() {
   copying_api.note_bytes_sent(flattened->size()); copying_api.complete_transmission();
 }
 
+void test_independent_wifi_permission_preserves_wired_policy() {
+  using depthd::gateway::TransportKind;
+  using depthd::gateway::TransportPreference;
+  for (const auto preference : {TransportPreference::kEthernetPreferred,
+       TransportPreference::kUsbPreferred, TransportPreference::kBoth,
+       TransportPreference::kAuto, TransportPreference::kWifiOnly,
+       TransportPreference::kOff}) {
+    auto config = configuration(preference);
+    config.wifi = {true, true, 8U * 1024U * 1024U, 16U * 1024U * 1024U, 4U};
+    depthd::gateway::AdmissionController controller(config);
+    const bool legacy_wifi = preference == TransportPreference::kAuto ||
+                             preference == TransportPreference::kWifiOnly;
+    require(controller.admit(request(1000U, 1.0), TransportKind::kWifi).lease.has_value() == legacy_wifi,
+            "omitting Wi-Fi permission changed legacy transport admission");
+    for (const bool enabled : {false, true}) {
+      const bool allowed = enabled && preference != TransportPreference::kOff;
+      require(controller.admit(request(1000U, 1.0), TransportKind::kWifi, preference, enabled).lease.has_value() == allowed,
+              "Wi-Fi permission did not apply independently or bypassed master off");
+      require(depthd::gateway::transport_permitted(preference, TransportKind::kWifi, enabled) == allowed,
+              "reported Wi-Fi eligibility disagrees with admission");
+      for (const auto kind : {TransportKind::kEthernet, TransportKind::kUsbEthernet}) {
+        const bool before = controller.admit(request(1000U, 1.0), kind, preference).lease.has_value();
+        const bool after = controller.admit(request(1000U, 1.0), kind, preference, enabled).lease.has_value();
+        require(before == after, "Wi-Fi-only patch changed wired admission preference");
+      }
+    }
+  }
+  auto config = configuration(TransportPreference::kEthernetPreferred);
+  config.wifi = {true, true, 8U * 1024U * 1024U, 16U * 1024U * 1024U, 4U};
+  config.wifi_enabled = true;
+  depthd::gateway::AdmissionController controller(config);
+  require(controller.admit(request(1000U, 1.0), TransportKind::kWifi).lease.has_value(),
+          "stored independent Wi-Fi permission was ignored");
+  require(!controller.admit(request(1000U, 1.0), TransportKind::kWifi, {}, false).lease,
+          "explicit false did not override configured Wi-Fi permission");
+  require(!depthd::gateway::transport_permitted(static_cast<TransportPreference>(255), TransportKind::kWifi, true),
+          "invalid preference was treated as permitted Wi-Fi");
+}
+
 }  // namespace
 
 int main() {
@@ -261,6 +300,7 @@ int main() {
     test_complete_transmission();
     test_connection_cannot_reserve_another_interface();
     test_wifi_resource_admission_and_selection();
+    test_independent_wifi_permission_preserves_wired_policy();
     test_serialized_storage_is_shared_and_complete();
     std::cout << "gateway_test: pass\n";
     return EXIT_SUCCESS;

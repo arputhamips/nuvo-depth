@@ -206,63 +206,141 @@ def provision_identity(root: Path, hostname: str) -> dict:
             "claim_token_path":str(token), "created_or_verified":True}
 
 
-def stage_transport(root: Path, mode: str, physical_confirmation: bool) -> dict:
-    if mode not in {"auto","wifi","ethernet","usb","both","off"}:
+TRANSPORT_PREFERENCES = {"auto", "wifi", "ethernet", "usb", "both", "off"}
+
+
+def validate_transport(value: dict) -> dict:
+    if (not isinstance(value, dict) or set(value) - {"schema_version", "preference", "wifi_enabled"}
+            or type(value.get("schema_version", 1)) is not int or value.get("schema_version", 1) != 1
+            or not isinstance(value.get("preference"), str) or value["preference"] not in TRANSPORT_PREFERENCES
+            or "wifi_enabled" in value and type(value["wifi_enabled"]) is not bool):
+        raise ValueError("invalid transport configuration")
+    return {"schema_version": 1, **value}
+
+
+def read_transport(root: Path) -> dict:
+    path = root / "etc/nuvo-depth/transport.json"
+    if not path.exists():
+        return {"schema_version": 1, "preference": "auto"}
+    def unique_fields(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate transport field")
+            result[key] = value
+        return result
+    with path.open('rb') as stream:
+        data = stream.read(4097)
+    if len(data) > 4096:
+        raise ValueError("transport configuration is too large")
+    return validate_transport(json.loads(data, object_pairs_hook=unique_fields))
+
+
+def public_transport(value: dict) -> dict:
+    value = validate_transport(value)
+    return {"preference": value["preference"],
+            "wifi_enabled": value.get("wifi_enabled", value["preference"] in {"auto", "wifi"}),
+            "wifi_enabled_explicit": "wifi_enabled" in value}
+
+
+def stage_transport(root: Path, mode: str | None, physical_confirmation: bool,
+                    wifi_enabled: bool | None = None) -> dict:
+    if mode is not None and mode not in TRANSPORT_PREFERENCES:
         raise ValueError("invalid transport preference")
+    if wifi_enabled is not None and type(wifi_enabled) is not bool:
+        raise ValueError("wifi_enabled must be boolean")
+    if mode is None and wifi_enabled is None:
+        raise ValueError("a preference or Wi-Fi setting is required")
     if mode == "off" and not physical_confirmation:
         raise RuntimeError("transport off requires --physical-confirmation")
-    config = root / "etc/nuvo-depth/transport.json"
-    previous = json.loads(config.read_text()) if config.exists() else {"preference":"auto"}
-    transaction = root / "var/lib/nuvo-depth/transactions/network-pending.json"
-    now = time.time_ns()
-    staged = {"schema_version":1,"preference":mode,"previous":previous.get("preference","auto"),
-              "staged_unix_ns":now,"expires_unix_ns":now+60_000_000_000,"confirmed":False}
-    atomic_write(
-        config,
-        json.dumps({"schema_version":1,"preference":mode},sort_keys=True)+"\n",
-        0o644,
-    )
-    atomic_write(transaction,json.dumps(staged,sort_keys=True)+"\n",0o600)
-    return staged
+    with configuration_lock(root):
+        transaction = root / "var/lib/nuvo-depth/transactions/network-pending.json"
+        now = time.time_ns()
+        if transaction.exists():
+            pending = json.loads(transaction.read_text())
+            if not pending.get("confirmed") and pending.get("rolled_back_unix_ns") is None:
+                if now <= pending["expires_unix_ns"]:
+                    raise RuntimeError("a transport change is pending; confirm or undo it before staging another")
+                _rollback_transport_locked(root)
+        previous = read_transport(root)
+        updated = dict(previous)
+        if mode is not None:
+            updated["preference"] = mode
+        if wifi_enabled is not None:
+            updated["wifi_enabled"] = wifi_enabled
+        # Preserve omission in legacy documents. A preference-only legacy write
+        # must still change its historical Wi-Fi behavior; explicit Wi-Fi state
+        # instead remains independent of subsequent preference edits.
+        staged = {"schema_version": 1, **public_transport(updated),
+                  "previous": previous["preference"], "previous_configuration": previous,
+                  "configuration": updated, "staged_unix_ns": now,
+                  "expires_unix_ns": now + 60_000_000_000, "confirmed": False}
+        atomic_write(transaction, json.dumps(staged, sort_keys=True) + "\n", 0o600)
+        atomic_write(root / "etc/nuvo-depth/transport.json", json.dumps(updated, sort_keys=True) + "\n", 0o644)
+        return staged
 
 
 def confirm_transport(root: Path) -> dict:
-    transaction = root / "var/lib/nuvo-depth/transactions/network-pending.json"
-    value = json.loads(transaction.read_text())
-    if time.time_ns() > value["expires_unix_ns"]: raise RuntimeError("confirmation window expired; run transport rollback")
-    value["confirmed"] = True; value["confirmed_unix_ns"] = time.time_ns()
-    atomic_write(transaction,json.dumps(value,sort_keys=True)+"\n",0o600)
-    return value
+    with configuration_lock(root):
+        transaction = root / "var/lib/nuvo-depth/transactions/network-pending.json"
+        value = json.loads(transaction.read_text())
+        if value.get("rolled_back_unix_ns") is not None or time.time_ns() > value["expires_unix_ns"]:
+            raise RuntimeError("confirmation window expired or rolled back; stage a new change")
+        if "configuration" in value and read_transport(root) != value["configuration"]:
+            raise RuntimeError("transport configuration changed after staging; cannot confirm it")
+        value["confirmed"] = True; value["confirmed_unix_ns"] = time.time_ns()
+        atomic_write(transaction,json.dumps(value,sort_keys=True)+"\n",0o600)
+        return value
 
 
-def rollback_transport(root: Path) -> dict:
+def _rollback_transport_locked(root: Path) -> dict:
     transaction = root / "var/lib/nuvo-depth/transactions/network-pending.json"
     value = json.loads(transaction.read_text())
-    restored = {"schema_version":1,"preference":value["previous"]}
+    restored = validate_transport(value.get("previous_configuration", {"schema_version":1,"preference":value["previous"]}))
     atomic_write(
         root/"etc/nuvo-depth/transport.json",
         json.dumps(restored,sort_keys=True)+"\n",
         0o644,
     )
     value["rolled_back_unix_ns"] = time.time_ns(); atomic_write(transaction,json.dumps(value,sort_keys=True)+"\n",0o600)
-    return restored
+    return {"schema_version": 1, **public_transport(restored)}
+
+
+def rollback_transport(root: Path) -> dict:
+    with configuration_lock(root):
+        return _rollback_transport_locked(root)
+
+
+def transport_status(root: Path) -> dict:
+    # Status is read-only. The timer/CLI reconcile operation owns expiry rollback.
+    with configuration_lock(root):
+        transaction = root / "var/lib/nuvo-depth/transactions/network-pending.json"
+        if not transaction.exists():
+            return {"status": "no_pending_change"}
+        value = json.loads(transaction.read_text())
+        if value.get("rolled_back_unix_ns") is not None:
+            return {"status": "rolled_back"}
+        if value.get("confirmed") is True:
+            return {"status": "confirmed"}
+        return {"status": "pending" if time.time_ns() <= value["expires_unix_ns"] else "expired",
+                "expires_unix_ns": value["expires_unix_ns"]}
 
 
 def reconcile_transport(root: Path) -> dict:
-    transaction = root / "var/lib/nuvo-depth/transactions/network-pending.json"
-    config = root / "etc/nuvo-depth/transport.json"
-    if not transaction.exists():
-        current = json.loads(config.read_text()) if config.exists() else {"schema_version":1,"preference":"auto"}
-        return {"status":"no_pending_change","preference":current.get("preference","auto")}
-    value = json.loads(transaction.read_text())
-    if value.get("confirmed") is True:
-        return {"status":"confirmed","preference":value["preference"]}
-    if value.get("rolled_back_unix_ns") is not None:
-        return {"status":"rolled_back","preference":value["previous"]}
-    if time.time_ns() <= value["expires_unix_ns"]:
-        return {"status":"pending","preference":value["preference"],"expires_unix_ns":value["expires_unix_ns"]}
-    restored = rollback_transport(root)
-    return {"status":"rolled_back","preference":restored["preference"]}
+    with configuration_lock(root):
+        transaction = root / "var/lib/nuvo-depth/transactions/network-pending.json"
+        current = public_transport(read_transport(root))
+        if not transaction.exists():
+            return {"status": "no_pending_change", **current}
+        value = json.loads(transaction.read_text())
+        if value.get("rolled_back_unix_ns") is not None:
+            return {"status": "rolled_back", **current}
+        if value.get("confirmed") is True:
+            return {"status": "confirmed", **current}
+        if time.time_ns() <= value["expires_unix_ns"]:
+            return {"status": "pending", **current, "expires_unix_ns": value["expires_unix_ns"]}
+        _rollback_transport_locked(root)
+        return {"status": "rolled_back", **public_transport(read_transport(root))}
 
 
 def validate_encoding(value: dict) -> dict:
@@ -485,8 +563,9 @@ def parse() -> argparse.Namespace:
     identity=commands.add_parser("identity").add_subparsers(dest="operation",required=True)
     provision=identity.add_parser("provision"); provision.add_argument("--hostname",default="nuvo-depth.local")
     transport=commands.add_parser("transport").add_subparsers(dest="operation",required=True)
-    stage=transport.add_parser("stage"); stage.add_argument("mode",choices=["auto","wifi","ethernet","usb","both","off"]); stage.add_argument("--physical-confirmation",action="store_true")
-    transport.add_parser("confirm"); transport.add_parser("rollback"); transport.add_parser("reconcile")
+    stage=transport.add_parser("stage"); stage.add_argument("mode",nargs="?",choices=["auto","wifi","ethernet","usb","both","off"]); stage.add_argument("--physical-confirmation",action="store_true")
+    stage.add_argument("--wifi-enabled", choices=["true", "false"])
+    transport.add_parser("confirm"); transport.add_parser("rollback"); transport.add_parser("reconcile"); transport.add_parser("status")
     encoding=commands.add_parser("encoding").add_subparsers(dest="operation",required=True)
     configure_encoding=encoding.add_parser("set")
     configure_encoding.add_argument("--if-match")
@@ -539,9 +618,11 @@ def main() -> None:
     elif args.command=="usb" and args.operation=="configure": result=usb_configure(root,args.vid,args.pid,args.electrical_approval,args.apply)
     elif args.command=="usb" and args.operation=="apply-saved": result=usb_apply_saved(root)
     elif args.command=="usb": result=usb_disable(root,args.apply)
-    elif args.operation=="stage": result=stage_transport(root,args.mode,args.physical_confirmation)
+    elif args.operation=="stage": result=stage_transport(root,args.mode,args.physical_confirmation,
+        None if args.wifi_enabled is None else args.wifi_enabled == "true")
     elif args.operation=="confirm": result=confirm_transport(root)
     elif args.operation=="rollback": result=rollback_transport(root)
+    elif args.operation=="status": result=transport_status(root)
     else: result=reconcile_transport(root)
     print(json.dumps(result,sort_keys=True,indent=2))
 

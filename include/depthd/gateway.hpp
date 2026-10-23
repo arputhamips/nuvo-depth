@@ -41,7 +41,14 @@ struct AdmissionConfiguration {
   QualifiedTransport usb_ethernet{};
   QualifiedTransport wifi{};
   TransportPreference preference{TransportPreference::kEthernetPreferred};
+  // Omission retains legacy preference behavior; explicit Wi-Fi permission is
+  // independent of wired preference. kOff remains the master product switch.
+  std::optional<bool> wifi_enabled;
 };
+
+[[nodiscard]] bool transport_permitted(TransportPreference preference,
+                                       TransportKind transport,
+                                       std::optional<bool> wifi_enabled = {});
 
 struct SubscriptionRequest {
   ipc_v2::ProductMask products{};
@@ -104,7 +111,8 @@ class AdmissionController final {
   // overload reserves only the capacity of its actual receiving interface.
   [[nodiscard]] AdmissionResult admit(const SubscriptionRequest& request,
                                       TransportKind connected_transport,
-                                      std::optional<TransportPreference> preference = {});
+                                      std::optional<TransportPreference> preference = {},
+                                      std::optional<bool> wifi_enabled = {});
   [[nodiscard]] AdmissionStats stats() const noexcept;
 
  private:

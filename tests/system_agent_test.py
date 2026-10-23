@@ -112,8 +112,29 @@ class SystemAgentTest(unittest.TestCase):
             {"operation":"identity.provision"},
             {"operation":"transport.stage","preference":"usb;reboot"},
             {"operation":"transport.stage","preference":["usb"]},
+            {"operation":"transport.stage"},
+            {"operation":"transport.stage","wifi_enabled":"false"},
+            {"operation":"transport.stage","wifi_enabled":0},
+            {"operation":"transport.stage","wifi_enabled":None},
+            {"operation":"transport.stage","wifi_enabled":False,"command":"reboot"},
+            {"operation":"transport.stage","preference":"usb","physical_confirmation":"true"},
+            {"operation":"transport.confirm","wifi_enabled":False},
+            {"operation":"transport.rollback","path":"arbitrary"},
+            {"operation":"transport.status","command":"arbitrary"},
         ):
             with self.assertRaises(ValueError): module.execute(request)
+
+    @mock.patch.object(module.subprocess,"run")
+    def test_independent_wifi_patch_is_boolean_and_keeps_optional_preference(self,run):
+        run.return_value=mock.Mock(returncode=0,stdout='{}',stderr="")
+        for enabled in (False,True):
+            module.execute({"operation":"transport.stage","wifi_enabled":enabled})
+            self.assertEqual(run.call_args.args[0],["/usr/bin/nuvoctl","transport","stage",
+                                                   "--wifi-enabled",str(enabled).lower()])
+        module.execute({"operation":"transport.stage","preference":"usb","wifi_enabled":True})
+        self.assertEqual(run.call_args.args[0],["/usr/bin/nuvoctl","transport","stage","usb","--wifi-enabled","true"])
+        module.execute({"operation":"transport.status"})
+        self.assertEqual(run.call_args.args[0],["/usr/bin/nuvoctl","transport","status"])
 
     @mock.patch.object(module.subprocess,"run")
     def test_encoding_update_uses_fixed_validated_argv(self,run):

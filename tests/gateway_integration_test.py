@@ -278,6 +278,13 @@ class ConfigurationAgent:
                     elif request['operation']=='diagnostics.status':
                         import nuvo_diagnostics
                         result=nuvo_diagnostics.build_report({'profile':'appliance','versions':{'nuvo-depth-core':'0.1.1~beta.8'}})
+                    elif request['operation']=='transport.stage':
+                        result=self.module.stage_transport(self.root,request.get('preference'),
+                            request.get('physical_confirmation',False),request.get('wifi_enabled'))
+                    elif request['operation'] in {'transport.confirm','transport.rollback','transport.status'}:
+                        operation=request['operation'].split('.')[1]
+                        name='transport_status' if operation=='status' else operation+'_transport'
+                        result=getattr(self.module,name)(self.root)
                     else:
                         result=getattr(self.module,"set_"+kind)(
                             self.root,request["configuration"],request["expected_revision"])
@@ -542,7 +549,7 @@ class GatewayIntegrationTest(unittest.TestCase):
             "--encoded-file",str(root/"encoded.nve"),"--encoding-config-file",str(cls.config_root/"encoding.json"),
             "--stereo-control-file",str(cls.config_root/"stereo.json"),
             "--exposure-control-file",str(cls.config_root/"exposure.json"),
-            "--transport-file",str(root/"missing-transport"),"--system-agent-socket",str(root/"agent.sock"),"--engineering-interface","lo"],
+            "--transport-file",str(cls.config_root/"transport.json"),"--system-agent-socket",str(root/"agent.sock"),"--engineering-interface","lo"],
             stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,text=True)
         context=ssl.create_default_context(); context.check_hostname=False; context.verify_mode=ssl.CERT_NONE
         cls.cookies=http.cookiejar.CookieJar()
@@ -988,9 +995,9 @@ class GatewayIntegrationTest(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as missing_csrf:
             self.open("/api/v1/transport/stage","POST",{"Content-Type":"application/json"},body)
         self.assertEqual(missing_csrf.exception.code,403)
-        with self.assertRaises(urllib.error.HTTPError) as no_agent:
-            self.open("/api/v1/transport/stage","POST",{"Content-Type":"application/json","X-Nuvo-CSRF":session["csrf"]},body)
-        self.assertEqual(no_agent.exception.code,400)
+        with self.assertRaises(urllib.error.HTTPError) as invalid_patch:
+            self.open("/api/v1/transport/stage","POST",{"Content-Type":"application/json","X-Nuvo-CSRF":session["csrf"]},b'{"wifi_enabled":"false"}')
+        self.assertEqual(invalid_patch.exception.code,400)
         with self.open("/") as response:
             self.assertIn("default-src 'self'",response.headers["Content-Security-Policy"])
             self.assertEqual(response.headers["X-Content-Type-Options"],"nosniff")
@@ -1291,6 +1298,141 @@ class GatewayIntegrationTest(unittest.TestCase):
             encoded.write_bytes(encoded_frame())
             self.local.publish(25, run=3)
             time.sleep(.4)
+
+    def test_transport_partial_wifi_patch_roundtrip_and_control_remain_available(self):
+        configuration=self.config_root/'transport.json'
+        transaction=self.agent.root/'var/lib/nuvo-depth/transactions/network-pending.json'
+        originals={path:path.read_bytes() if path.exists() else None for path in (configuration,transaction)}
+        def call(client,path,body=None):
+            return json.loads(client._request('/api/v1/transport'+path,method='GET' if body is None else 'POST',
+                body=None if body is None else json.dumps(body).encode(),
+                headers={'X-Nuvo-CSRF':client._csrf,'Content-Type':'application/json'}))
+        try:
+            configuration.write_text('{"schema_version":1,"preference":"usb"}')
+            transaction.unlink(missing_ok=True);time.sleep(.3)
+            with NuvoClient(self.origin,ca_file=self.certificate) as client:
+                client.claim(self.token)
+                initial=call(client,'')
+                self.assertFalse(initial['wifi_enabled']);self.assertFalse(initial['wifi_enabled_explicit'])
+                self.assertEqual(initial['connection']['interface_scope'],'camera')
+                self.assertEqual(initial['connection']['permission_scope'],'transport_policy')
+                for preference in ('auto','wifi','usb'):
+                    call(client,'/stage',{'preference':preference})
+                    current=call(client,'')
+                    self.assertEqual(current['wifi_enabled'],preference in {'auto','wifi'})
+                    self.assertFalse(current['wifi_enabled_explicit'])
+                    call(client,'/confirm',{})
+                for enabled in (True,False):
+                    staged=call(client,'/stage',{'wifi_enabled':enabled})['result']
+                    self.assertEqual(staged['preference'],'usb');self.assertIs(staged['wifi_enabled'],enabled)
+                    current=call(client,'')
+                    self.assertIs(current['wifi_enabled'],enabled);self.assertTrue(current['wifi_enabled_explicit'])
+                    self.assertEqual(current['transaction']['status'],'pending')
+                    self.assertEqual(current['transaction']['expires_unix_ns'],staged['expires_unix_ns'])
+                    with self.assertRaises(urllib.error.HTTPError) as pending:
+                        call(client,'/stage',{'preference':'auto'})
+                    self.assertEqual(pending.exception.code,400)
+                    # These are existing engineering loopback sessions, not a spoofed Wi-Fi interface.
+                    self.assertTrue(current['connection']['products_permitted'])
+                    self.assertTrue(client._request('/api/v1/encoded/latest').startswith(b'NVE1'))
+                    self.assertIsNotNone(client.latest(products=['left_mono']))
+                    self.assertIsNotNone(client.capabilities())
+                    call(client,'/confirm',{})
+                    self.assertEqual(call(client,'')['transaction']['status'],'confirmed')
+                call(client,'/stage',{'wifi_enabled':True})
+                call(client,'/rollback',{})
+                current=call(client,'')
+                self.assertEqual(current['preference'],'usb');self.assertFalse(current['wifi_enabled'])
+                self.assertEqual(current['transaction']['status'],'rolled_back')
+                for malformed in (b'{}',b'{"wifi_enabled":0}',b'{"wifi_enabled":null}',
+                        b'{"wifi_enabled":"true"}',b'{"wifi_enabled":false,"wifi_enabled":true}',
+                        b'{"preference":"off"}',b'{"wifi_enabled":true,"unknown":1}'):
+                    with self.assertRaises(urllib.error.HTTPError) as invalid:
+                        client._request('/api/v1/transport/stage',method='POST',body=malformed,
+                            headers={'X-Nuvo-CSRF':client._csrf,'Content-Type':'application/json'})
+                    self.assertEqual(invalid.exception.code,400)
+                self.assertEqual(call(client,'')['preference'],'usb')
+        finally:
+            for path,value in originals.items():
+                if value is None:path.unlink(missing_ok=True)
+                else:path.write_bytes(value)
+            time.sleep(.3)
+
+    def test_transport_wifi_toggle_preserves_raw_and_encoded_sessions_but_master_off_closes_idle_sources(self):
+        configuration=self.config_root/'transport.json'
+        previous=configuration.read_bytes() if configuration.exists() else None
+        def write(preference,enabled):
+            temporary=configuration.with_suffix('.test')
+            temporary.write_text(json.dumps({'schema_version':1,'preference':preference,'wifi_enabled':enabled}))
+            temporary.replace(configuration);time.sleep(.35)
+        def message(stream):
+            stream._set_deadline();first,second=stream._read_exact(2)
+            length=second&127
+            if length==126:length=struct.unpack('>H',stream._read_exact(2))[0]
+            elif length==127:length=struct.unpack('>Q',stream._read_exact(8))[0]
+            return first&15,stream._read_exact(length)
+        try:
+            write('ethernet',True)
+            with NuvoClient(self.origin,ca_file=self.certificate,timeout=2) as client:
+                client.claim(self.token)
+                with client.frames(products=['left_mono'],cadence_hz=5) as raw, \
+                        _FrameStream(client,'/api/v1/encoded/stream?cadence_hz=5') as encoded:
+                    next(raw);self.assertEqual(message(encoded)[0],2)
+                    for sequence,enabled in ((401,False),(402,True)):
+                        write('ethernet',enabled)
+                        self.local.publish(sequence)
+                        self.assertEqual(next(raw).capture_sequence,sequence)
+                        opcode,data=message(encoded)
+                        self.assertEqual(opcode,2);self.assertIsNotNone(decode_encoded_frame(data))
+                    self.local.serve_frames=False;self.local.auto_encode=False
+                    write('off',True)
+                    for stream in (raw,encoded):
+                        for _ in range(16):
+                            try:opcode,_=message(stream)
+                            except ConnectionError:break
+                            if opcode==8:break
+                        else:self.fail('all-products-off did not terminate the existing session')
+                for path in ('/api/v1/frame/latest','/api/v1/encoded/latest'):
+                    with self.assertRaises(urllib.error.HTTPError) as disabled:client._request(path)
+                    self.assertEqual(disabled.exception.code,409)
+                policy=json.loads(client._request('/api/v1/transport'))
+                self.assertTrue(policy['wifi_enabled'])
+                self.assertFalse(policy['connection']['products_permitted'])
+                self.assertEqual(policy['connection']['product_policy_reason'],'all_products_off')
+                self.assertIsNotNone(client.capabilities())
+                self.assertIsNotNone(client.encoding())
+        finally:
+            self.local.serve_frames=True;self.local.auto_encode=True;self.local.publish(403)
+            if previous is None:configuration.unlink(missing_ok=True)
+            else:configuration.write_bytes(previous)
+            time.sleep(.35)
+
+    def test_transport_malformed_file_fails_closed_both_products_without_hiding_console(self):
+        configuration=self.config_root/'transport.json'
+        previous=configuration.read_bytes() if configuration.exists() else None
+        try:
+            with NuvoClient(self.origin,ca_file=self.certificate) as client:
+                client.claim(self.token)
+                for malformed in ('{"preference":"auto","wifi_enabled":"false"}',
+                                  '{"preference":"auto","wifi_enabled":true,"wifi_enabled":false}',
+                                  '{"schema_version":"1","preference":"auto"}',
+                                  '{"preference":"auto","unknown":true}', '[]', 'broken'):
+                    configuration.write_text(malformed);time.sleep(.3)
+                    current=json.loads(client._request('/api/v1/transport'))
+                    self.assertFalse(current['valid']);self.assertFalse(current['connection']['products_permitted'])
+                    self.assertEqual(current['connection']['product_policy_reason'],'invalid_transport_policy')
+                    for path in ('/api/v1/frame/latest','/api/v1/encoded/latest'):
+                        with self.assertRaises(urllib.error.HTTPError) as invalid:client._request(path)
+                        self.assertEqual(invalid.exception.code,409)
+                    self.assertIsNotNone(client.capabilities())
+                configuration.write_text('{"schema_version":1,"preference":"auto","wifi_enabled":false}')
+                time.sleep(.3)
+                self.assertTrue(json.loads(client._request('/api/v1/transport'))['valid'])
+                self.assertIsNotNone(client.latest(products=['left_mono']))
+        finally:
+            if previous is None:configuration.unlink(missing_ok=True)
+            else:configuration.write_bytes(previous)
+            time.sleep(.3)
 
     def test_stream_qualified_exact_admission_and_capacity(self):
         if not self.ethernet:
