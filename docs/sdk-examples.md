@@ -9,7 +9,15 @@ prompt. Never place it in source, command history, screenshots or support report
 The core Python SDK and examples require Python 3.11+ and the standard library.
 The candidate CI matrix covers Linux and Windows with Python 3.11 and 3.13.
 NumPy and Python OpenCV are optional application choices, not SDK requirements.
-Install the matching release wheel/source in a fresh virtual environment:
+The six-command `nuvo_depth.examples` module is available in the current source
+SDK and beta 8 candidate. The public beta 6 SDK does not contain this module;
+use the standalone helper in the verified-TLS quickstart for that SDK.
+
+To try these six commands with a beta 6 gateway, obtain the
+[reviewed client source archive](https://github.com/arputhamips/nuvo-depth/archive/9cf49e973b5d21ff0af336fabc43629a24af8cdd.tar.gz)
+and extract it. These client examples were exercised against beta 6 as well as
+the candidate gateway. From the archive root, install its SDK in a fresh virtual
+environment. This changes the application client; it does not upgrade the Pi:
 
 ```bash
 python -m venv .venv
@@ -19,7 +27,8 @@ python -m pip install ./sdk/python
 python -c "import nuvo_depth; print(nuvo_depth.__version__)"
 ```
 
-Acquire the unit's public `server.crt` over authenticated SSH. Compare its SHA-256
+Acquire the unit's public `device.crt` from
+`/var/lib/nuvo-depth/identity/device.crt` over authenticated SSH. Compare its SHA-256
 fingerprint against trusted setup material on that same unit. Use its actual
 certificate hostname in the URL. An IP fallback requires a matching certificate
 SAN or a local hosts entry mapping the certificate hostname to the verified IP;
