@@ -1,5 +1,6 @@
 """Synthetic control/transaction fixtures; no accuracy claim or camera access."""
 import copy
+import errno
 import hashlib
 import json
 import os
@@ -64,6 +65,23 @@ class ImportTest(unittest.TestCase):
         control.rollback(self.root,run=self.native)
         self.assertFalse((self.root/control.MARKER).exists())
         self.assertFalse((self.source.parent/'active').exists())
+    def test_no_space_while_staging_retains_previous_selection_and_recovers(self):
+        control.import_bundle(self.root,self.source,False,self.native)
+        second,value=bundle(self.root,provenance={'synthetic_revision':2})
+        (second.parent/'active').unlink();(second.parent/'active').symlink_to(self.value['bundle_id'])
+        incoming=self.root/'incoming-bundle';shutil.copytree(second,incoming);shutil.rmtree(second)
+        before=control.CapturePolicy(self.root).snapshot()['files']
+        with patch.object(store_module.shutil,'copyfile',side_effect=OSError(errno.ENOSPC,'injected full filesystem')):
+            with self.assertRaises(OSError) as failure:control.import_bundle(self.root,incoming,False,self.native)
+        self.assertEqual(failure.exception.errno,errno.ENOSPC)
+        self.assertEqual(os.readlink(self.source.parent/'active'),self.value['bundle_id'])
+        self.assertEqual(control.CapturePolicy(self.root).snapshot()['files'],before)
+        self.assertFalse(second.exists())
+        self.assertFalse(list(second.parent.glob('.'+value['bundle_id']+'.*')))
+        control.recover(self.root)
+        self.assertEqual(os.readlink(self.source.parent/'active'),self.value['bundle_id'])
+        result=control.import_bundle(self.root,incoming,False,self.native)
+        self.assertEqual(result['bundle_id'],value['bundle_id'])
     def test_preserves_existing_bundle_and_policy_on_restart_failure(self):
         control.import_bundle(self.root,self.source,False,self.native)
         second,value=bundle(self.root,provenance={'synthetic_revision':2})

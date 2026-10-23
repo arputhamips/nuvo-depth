@@ -4,14 +4,50 @@ import threading
 import importlib.util
 import json
 import os
+import errno
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 SOURCE=Path(__file__).parents[1]/"tools/nuvoctl.py"
 spec=importlib.util.spec_from_file_location("nuvoctl",SOURCE); module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
 
 class NuvoctlTest(unittest.TestCase):
+    def test_process_crash_before_rename_does_not_block_the_next_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/"stereo.json";path.write_text("previous committed contents")
+            script=f'''import importlib.util,os
+from pathlib import Path
+spec=importlib.util.spec_from_file_location("nuvoctl",{str(SOURCE)!r})
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+real_sync=module.os.fsync
+def crash(descriptor):
+ real_sync(descriptor)
+ os._exit(77)
+module.os.fsync=crash
+module.atomic_write(Path({str(path)!r}),"interrupted replacement",0o644)
+'''
+            result=subprocess.run([sys.executable,"-c",script],timeout=15)
+            self.assertEqual(result.returncode,77)
+            self.assertEqual(path.read_text(),"previous committed contents")
+            self.assertTrue(list(path.parent.glob(".*.tmp")))
+            module.atomic_write(path,"successful retry",0o644)
+            self.assertEqual(path.read_text(),"successful retry")
+
+    def test_no_space_during_sync_preserves_committed_configuration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/"stereo.json";path.write_text("previous committed contents")
+            with patch.object(module.os,"fsync",side_effect=OSError(errno.ENOSPC,"injected full filesystem")):
+                with self.assertRaises(OSError) as failure:module.atomic_write(path,"replacement",0o644)
+            self.assertEqual(failure.exception.errno,errno.ENOSPC)
+            self.assertEqual(path.read_text(),"previous committed contents")
+            self.assertFalse(list(path.parent.glob(".*.tmp")))
+            module.atomic_write(path,"successful retry",0o644)
+            self.assertEqual(path.read_text(),"successful retry")
+
     def test_configuration_compare_and_swap_is_atomic_under_racing_writers(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)

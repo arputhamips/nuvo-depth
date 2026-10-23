@@ -14,6 +14,7 @@ import secrets
 import shutil
 import subprocess
 import time
+import tempfile
 import uuid
 import sys
 if Path(__file__).parent == Path('/usr/bin'):
@@ -33,8 +34,10 @@ def fsync_dir(path: Path) -> None:
 
 def atomic_write(path: Path, data: str, mode: int = 0o640) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + ".tmp")
-    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
+    # A process/power interruption can leave its temporary inode behind. Give
+    # each write a private name so that the next valid write can still proceed.
+    descriptor, name = tempfile.mkstemp(prefix="." + path.name + ".", suffix=".tmp", dir=path.parent)
+    temporary = Path(name)
     try:
         # Service UMask is intentionally restrictive. Set the requested final
         # mode on the still-private temporary inode before writing or renaming.
@@ -43,10 +46,8 @@ def atomic_write(path: Path, data: str, mode: int = 0o640) -> None:
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as output:
             output.write(data); output.flush(); os.fsync(output.fileno())
         os.replace(temporary, path); fsync_dir(path.parent)
-    except Exception:
-        try: temporary.unlink()
-        except FileNotFoundError: pass
-        raise
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 class ConfigurationConflict(RuntimeError):

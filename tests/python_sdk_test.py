@@ -1,4 +1,5 @@
 import base64
+import errno
 import hashlib
 import http.cookiejar
 import json
@@ -102,6 +103,26 @@ class MockSocket:
 
 
 class SdkTest(unittest.TestCase):
+    def test_full_filesystem_preserves_completed_recording_frames(self):
+        class FailingPayload:
+            def __init__(self,output):self.output=output
+            def write(self,data):
+                if len(data)>8:
+                    self.output.write(data[:len(data)//2]);self.output.flush()
+                    raise OSError(errno.ENOSPC,"injected full filesystem")
+                return self.output.write(data)
+            def flush(self):self.output.flush()
+            def close(self):self.output.close()
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/"partial.nvr";first=decode_frame(sample(sequence=3));second=decode_frame(sample(sequence=4))
+            with RecordingWriter(path) as writer:
+                writer.write(first);writer._file=FailingPayload(writer._file)
+                with self.assertRaises(OSError) as failure:writer.write(second)
+                self.assertEqual(failure.exception.errno,errno.ENOSPC)
+            with RecordingReader(path) as reader:
+                frames=iter(reader);self.assertEqual(next(frames).to_bytes(),first.to_bytes())
+                with self.assertRaisesRegex(ValueError,"truncated recording frame"):next(frames)
+
     def mock_client(self, sock, *, timeout=5):
         context = Mock()
         context.wrap_socket.return_value = sock
