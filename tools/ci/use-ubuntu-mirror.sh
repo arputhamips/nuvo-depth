@@ -6,7 +6,8 @@ test "${GITHUB_ACTIONS:-}" = true
 test "$ID:$VERSION_ID" = ubuntu:24.04
 python3 - <<'PY'
 from pathlib import Path
-for path in (Path('/etc/apt/sources.list'), Path('/etc/apt/sources.list.d/ubuntu.sources')):
+for path in (Path('/etc/apt/sources.list'), Path('/etc/apt/sources.list.d/ubuntu.sources'),
+             Path('/etc/apt/apt-mirrors.txt'), Path('/etc/apt/apt-mirrors-security.txt')):
     if not path.is_file():
         continue
     text=path.read_text()
