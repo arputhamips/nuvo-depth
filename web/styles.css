@@ -662,6 +662,12 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--da
 .output-settings fieldset { border:1px solid var(--input-line); padding:18px; margin:18px 0; border-radius:10px; }
 .output-settings legend { padding:0 8px; }
 .output-connection, .output-settings { margin-bottom:24px; }
+.output-settings { display:flex; flex-direction:column; gap:14px; }
+.output-settings .basic-fields label { grid-column:auto; }
+.output-settings .form-actions { position:static; }
+.output-settings .advanced-card { padding:12px; }
+.output-settings fieldset { margin:12px 0 0; }
+.output-product-choices { grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); }
 .output-previews:empty { display:none; }
 .output-previews canvas, #outputEncodedCanvas { width:100%; height:auto; background:#080b0f; }
 .link-button { background:none; border:0; padding:0; color:var(--accent); text-decoration:underline; font:inherit; cursor:pointer; }

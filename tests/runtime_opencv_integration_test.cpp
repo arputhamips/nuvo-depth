@@ -250,6 +250,7 @@ int main() {
     require(releases.load() == 36U,
             "repeated pooled integration processing leaked capture leases");
     std::uint64_t sequence = 19U;
+    std::array<const void*, 2> color_addresses{};
     for (const auto& [encoding, format] :
          {std::pair{depthd::ImageEncoding::kBgr8,
                     depthd::ImageProductFormat::kBgr8},
@@ -257,6 +258,11 @@ int main() {
                     depthd::ImageProductFormat::kRgb8}}) {
       frame.reset();
       frame = pipeline.process(make_request(sequence++, encoding));
+      if (!color_addresses[0]) {
+        // Mono-only operation no longer reserves triple-sized RGB buffers.
+        // First use may grow; later equal-size color frames must reuse them.
+        color_addresses = {frame->left_rectified.data(), frame->right_rectified.data()};
+      }
       const auto view = frame->view();
       require(view.left_rectified.format == format &&
                   view.right_rectified.format == format &&
@@ -265,8 +271,8 @@ int main() {
                   frame->left_rectified == *color_left &&
                   frame->right_rectified == *color_right &&
                   frame.get() == storage_address &&
-                  frame->left_rectified.data() == product_addresses[0] &&
-                  frame->right_rectified.data() == product_addresses[1],
+                  frame->left_rectified.data() == color_addresses[0] &&
+                  frame->right_rectified.data() == color_addresses[1],
               "real color pipeline lost format, color bytes, or pooled storage");
     }
     frame.reset();

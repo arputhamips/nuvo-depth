@@ -76,11 +76,13 @@ def main() -> None:
     assert "Reset to saved device settings" in script
     encoded_choices = re.search(r'<select id="streamSource">(.*?)</select>', html, re.S)
     assert encoded_choices, "missing encoded source selector"
-    assert set(re.findall(r'<option value="([^"]+)">', encoded_choices.group(1))) == {
+    assert set(re.findall(r'<option value="([^"]+)"(?: hidden)?>', encoded_choices.group(1))) == {
         "left_rectified", "right_rectified", "disparity", "depth", "left_color", "right_color",
         "left_mono", "right_mono", "left_rgb", "right_rgb", "left_rectified_rgb",
         "right_rectified_rgb", "rectified_stereo", "rectified_stereo_rgb",
     }, "encoded source selector advertises unsupported encoder inputs"
+    assert '<optgroup label="Measurements shown as pictures">' in encoded_choices.group(1)
+    assert '<option value="left_rgb" hidden>' in encoded_choices.group(1)
     for source in ("left_color", "right_color", "left_rectified",
                    "right_rectified", "disparity", "depth"):
         assert f'<option value="{source}">' in html
@@ -94,6 +96,13 @@ def main() -> None:
     assert 'claimDialog' not in script and 'ownerDialog' not in script
     assert 'needs_owner_password' not in script and '/api/v1/setup/owner' not in script
     assert 'Disconnected · showing last received products' in script
+    for identifier in ('outputPreset','outputAdvanced','outputFrameSummary'):
+        assert identifier in parser.ids
+    assert 'Depth preview · 8-bit visualization' in html
+    assert 'Local socket delivery is independent' in html
+    assert 'not sensor RAW/Bayer' in html
+    assert '−1 disables' not in html
+    assert 'OpenCV SGBM already applies its own 3 × 3 median' in html
     # The overview's calibration alert leads directly to the corrective action.
     assert 'data-open="calibration"' in html
     assert 'class="cards status-strip"' in html
@@ -115,6 +124,8 @@ def main() -> None:
         subprocess.run([node,str(ROOT/"tests/web_session_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_performance_model_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_output_selection_test.js")],check=True)
+        subprocess.run([node,str(ROOT/"tests/web_frame_codec_test.js")],check=True)
+        subprocess.run([node,str(ROOT/"tests/web_stream_lifecycle_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_shared_settings_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_calibration_status_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_first_use_test.js")],check=True)

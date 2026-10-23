@@ -245,6 +245,21 @@ int main() {
     pairer.end_epoch();
   }
 
+  const auto gaps_epoch = pairer.begin_epoch(left, right);
+  for (const auto sequence : {1U, 4U, 4U}) {
+    ++created;
+    (void)pairer.submit(frame(depthd::CameraRole::kLogicalLeft,
+        left.camera.stable_id, gaps_epoch, sequence, 6'000'000'000LL + sequence, releases));
+  }
+  if (pairer.stats().left_sequence_gaps != 2U ||
+      pairer.stats().right_sequence_gaps != 0U ||
+      pairer.stats().duplicate_sequence_rejected != 1U) {
+    return fail(18, "sensor sequence gaps included duplicate or publication events");
+  }
+  pairer.end_epoch();
+  (void)pairer.begin_epoch(left, right);
+  if (pairer.stats().left_sequence_gaps != 0U) return fail(19, "sensor gaps survived epoch restart");
+  pairer.end_epoch();
   if (releases.load() != created) {
     return fail(17, "a simulated camera request lease leaked");
   }

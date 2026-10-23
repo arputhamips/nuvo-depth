@@ -49,7 +49,8 @@ camera = NuvoClient("https://YOUR-PI-HOSTNAME.local:7443", ca_file="device-ca.pe
 camera.claim(getpass("Device administrator token (hidden): "))
 
 print(camera.health())
-frame = camera.latest()
+frame = camera.latest(products=("depth", "validity"), cadence_hz=2,
+                      delivery="best_effort")
 print(frame.capture_sequence, frame.products.keys())
 
 exposure = camera.exposure()
@@ -78,7 +79,9 @@ which a trusted Pi administrator can obtain from
 remains supported. The browser console connects automatically without entering
 credentials; see the [setup guide](https://docs.nuvohardware.com/vision-one/guide/getting-started).
 
-`camera.latest()` returns one raw frame snapshot. `camera.latest_encoded()`
+`camera.latest()` returns one uncompressed frame snapshot and accepts the same
+`products`, `cadence_hz`, and `delivery` options as `frames()`.
+`camera.latest_encoded()`
 returns an optional monitoring snapshot and reports an error when the encoder
 is disabled. Raw image products may use `gray8`, `bgr8`, or `rgb8`; inspect the
 product's `format` before interpreting its memoryview.
@@ -121,6 +124,22 @@ single-camera width. Only requested products are computed and transported.
 epoch, and capture sequence, so a daemon restart cannot collide with the prior
 run's capture counters. Legacy recordings that predate UUID metadata remain
 readable and expose empty UUIDs.
+
+If only products are supplied, the cadence ceiling is 10 Hz. If only cadence is
+supplied, the six legacy products are selected. Prefer depth + validity at a
+small explicit rate. `confidence` is binary matcher support, not probability;
+check associated validity (`1`) and finite positive depth. Disparity uses
+matching-grid pixels and images may have larger dimensions. Read each product's
+grid and optional `calibration_geometry`, `disparity_metadata`, `depth_metadata`
+and `capture` fields; see the [metadata guide](../../docs/sdk-examples.md).
+Encoded depth/disparity are lossy 8-bit visualizations, never float measurements.
+
+Decoded products and encoded preview payloads share immutable wire storage;
+passing an existing `bytes` message does not copy its pixels. Writable caller
+buffers are checked against type/size bounds before being frozen once.
+Network receive keeps its bounded ownership copy, and fragmented receives
+avoid an extra immutable copy per fragment. `float32_le()` is a native view only
+on little-endian hosts; other hosts must use explicit little-endian conversion.
 
 The stream uses the claimed session cookie and the same certificate validation
 as HTTPS requests, with no additional dependencies. It handles binary message

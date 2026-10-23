@@ -277,12 +277,12 @@ target_link_libraries(depthd_gateway PUBLIC
 depthd_enable_warnings(depthd_gateway)
 
 if(DEPTHD_WITH_GATEWAY)
-  find_package(Boost 1.74 REQUIRED COMPONENTS system)
+  find_package(Boost 1.74 REQUIRED)
   find_package(OpenSSL 3.0 REQUIRED)
   add_executable(nuvo-gateway apps/nuvo_gateway_main.cpp)
   target_compile_features(nuvo-gateway PRIVATE cxx_std_20)
   target_link_libraries(nuvo-gateway PRIVATE
-    Boost::system OpenSSL::SSL OpenSSL::Crypto Threads::Threads
+    Boost::headers OpenSSL::SSL OpenSSL::Crypto Threads::Threads
     depthd::local_frame_server
     depthd::gateway
   )

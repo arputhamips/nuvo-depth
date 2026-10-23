@@ -376,6 +376,24 @@ int main() {
       if (!(disparity[index] == baseline[index] || (std::isnan(disparity[index]) && std::isnan(baseline[index])))) return 29;
     if (cv::norm(left,saved_left,cv::NORM_INF) != 0 || cv::norm(right,saved_right,cv::NORM_INF) != 0) return 30;
   }
+  // Image-only workers keep matching provenance without allocating a matcher
+  // or changing the process-wide OpenCV thread count.
+  auto metadata_config = full;
+  metadata_config.control_file.clear();
+  metadata_config.opencv_threads = 1;
+  const auto prior_threads = cv::getNumThreads();
+  const auto image_backend = depthd::make_cpu_sgbm_metadata_backend(metadata_config);
+  if (cv::getNumThreads() != prior_threads) return 31;
+  const auto matching_backend = depthd::make_cpu_sgbm_native_backend(metadata_config);
+  const auto revision = matching_backend->configuration_state().effective_revision;
+  for (int read = 0; read < 100; ++read) {
+    if (image_backend->configuration_state().effective_revision != revision ||
+        image_backend->metadata().valid_roi.width != matching_backend->metadata().valid_roi.width) return 32;
+  }
+  bool image_matching_rejected = false;
+  try { image_backend->process_native(left_view, right_view, full_output, bm_stats); }
+  catch (const std::logic_error&) { image_matching_rejected = true; }
+  if (!image_matching_rejected) return 33;
   std::filesystem::remove(control);
   return 0;
 }

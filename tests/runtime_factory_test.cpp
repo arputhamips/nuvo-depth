@@ -48,6 +48,14 @@ int main() {
   auto pipeline = depthd::make_native_pipeline(
       loaded.effective, calibration, identity, engineering);
   assert(pipeline != nullptr);
+  auto single_slot = engineering;
+  single_slot.frame_pool_capacity = 1U;
+  expect_rejection([&] {
+    (void)depthd::make_native_pipeline(loaded.effective, calibration, identity, single_slot);
+  }, "factory allowed a pool that cannot replace its retained publication");
+  auto images = engineering;
+  images.image_only = true;
+  assert(depthd::make_native_pipeline(loaded.effective, calibration, identity, images));
   // Effective configurations can also be constructed by callers. Rejecting
   // these values proves the factory forwards mode and median to the matcher
   // instead of silently retaining the backend's half-grid 3-way defaults.

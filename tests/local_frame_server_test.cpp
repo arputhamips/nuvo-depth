@@ -252,10 +252,28 @@ int main() {
     if (images.next(newest_image->cursor, std::chrono::milliseconds(0))) return 35;
     const auto late_depth = matched.next({}, std::chrono::milliseconds(0));
     if (!late_depth || late_depth->cursor.capture_sequence != 22U) return 36;
+    const auto exported_matcher = [&] {
+      auto connection = connect_seqpacket(socket);
+      const std::array request{std::byte{'N'}, std::byte{'V'}, std::byte{'Q'},
+          std::byte{'2'}, std::byte{0}, std::byte{0}, std::byte{0},
+          static_cast<std::byte>(depth | mono)};
+      connection.send_packet(request);
+      auto response = connection.receive_packet(16U, 1U, std::chrono::seconds(1));
+      return std::move(response.handles.at(0));
+    };
+    auto before_image = exported_matcher();
+    auto advancing_image = std::make_shared<depthd::FrameSetStorage>(*fast);
+    advancing_image->metadata.frame.capture_sequence = 25U;
+    advancing_image->metadata.frame.capture_time_ns = 2'500'000'000;
+    server.publish(advancing_image);
+    auto after_image = exported_matcher();
+    struct stat before_info{}, after_info{};
+    if (::fstat(before_image.get(), &before_info) != 0 || ::fstat(after_image.get(), &after_info) != 0 ||
+        before_info.st_ino != after_info.st_ino) return 38;
     auto changed = frame();
     changed->metadata.frame.configuration_epoch = 2U;
-    changed->metadata.frame.capture_sequence = 25U;
-    changed->metadata.frame.capture_time_ns = 2'500'000'000;
+    changed->metadata.frame.capture_sequence = 26U;
+    changed->metadata.frame.capture_time_ns = 2'600'000'000;
     changed->available_products = mono;
     changed->left_rectified.clear(); changed->right_rectified.clear(); changed->disparity.clear();
     changed->confidence.clear(); changed->validity.clear(); changed->depth_m.clear();

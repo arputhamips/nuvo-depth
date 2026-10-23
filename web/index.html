@@ -286,46 +286,53 @@
             <h2 class="form-title">
               <svg class="icon" aria-hidden="true" focusable="false">
                 <use href="#icon-stream"></use>
-              </svg>Stream settings</h2>
+              </svg>Device-wide preview and network delivery</h2>
+            <p class="apply-note">These settings affect every network client. The device has one shared preview encoder; choose what this browser receives on Outputs.</p>
             <input id="streamMode" type="hidden" value="both">
             <label class="check toggle">
               <input id="streamEncoderEnabled" type="checkbox">
               <span>
-                <b>Monitoring encoder</b>
-                <small>H.264 or MJPEG browser preview</small>
+                <b>Compressed preview encoder</b>
+                <small>Shared H.264 or MJPEG visualization for all preview clients</small>
               </span>
             </label>
             <label class="check toggle">
               <input id="streamRawEnabled" type="checkbox">
               <span>
-                <b>Raw product delivery</b>
-                <small>Depth for SDK and on-device clients</small>
+                <b>Uncompressed network data</b>
+                <small>Images and numeric products for browser/HTTPS SDK clients. Local socket delivery is independent.</small>
               </span>
             </label>
             <div id="encoderSettings" class="form-group">
               <label>Codec<select id="streamCodec">
-                  <option value="h264">H.264 · efficient</option>
+                  <option value="h264">H.264 · independent frames</option>
                   <option value="jpeg">MJPEG · universal</option>
                 </select>
               </label>
-              <label>Image source<select id="streamSource">
+              <label>Shared preview source<select id="streamSource">
+                <optgroup label="Camera images · unrectified">
+                  <option value="left_mono">Left camera · mono</option>
+                  <option value="right_mono">Right camera · mono</option>
                   <option value="left_color">Left color · ISP</option>
                   <option value="right_color">Right color · ISP</option>
+                </optgroup>
+                <optgroup label="Stereo-aligned images · rectified">
                   <option value="left_rectified">Left rectified · luma</option>
                   <option value="right_rectified">Right rectified · luma</option>
-                  <option value="disparity">Disparity</option>
-                  <option value="depth">Depth</option>
-                  <option value="left_mono">Left mono · unrectified</option>
-                  <option value="right_mono">Right mono · unrectified</option>
-                  <option value="left_rgb">Left RGB · unrectified</option>
-                  <option value="right_rgb">Right RGB · unrectified</option>
                   <option value="left_rectified_rgb">Left RGB · rectified</option>
                   <option value="right_rectified_rgb">Right RGB · rectified</option>
                   <option value="rectified_stereo">Stereo side by side · mono</option>
                   <option value="rectified_stereo_rgb">Stereo side by side · RGB</option>
+                </optgroup>
+                <optgroup label="Measurements shown as pictures">
+                  <option value="disparity">Disparity preview · 8-bit visualization</option>
+                  <option value="depth">Depth preview · 8-bit visualization, 0.2–12.2 m</option>
+                </optgroup>
+                <option value="left_rgb" hidden>Left color · existing RGB alias</option>
+                <option value="right_rgb" hidden>Right color · existing RGB alias</option>
                 </select>
               </label>
-              <label>Preview ceiling<input id="streamFps" type="number" min="1" max="60" required data-unit="fps">
+              <label>Device preview rate ceiling<input id="streamFps" type="number" min="1" max="60" required data-unit="fps">
               </label>
             </div>
             <details class="panel advanced-card">
@@ -525,7 +532,7 @@
                     <button type="button" class="secondary group-reset">Discard group changes</button>
                   </div>
                   <div class="group-fields">
-                    <label>Left-right consistency <small>Maximum difference; −1 disables</small>
+                    <label>Left-right consistency <small>Maximum difference. OpenCV 3-way uses 1 px for values ≤ 0; they do not disable it.</small>
                       <input id="disparity12Diff" type="number" min="-1" max="256" required data-unit="px">
                     </label>
                     <label>Saturated-pixel threshold <small>256 disables bright-pixel rejection</small>
@@ -561,10 +568,10 @@
                     <label>Speckle range <small>Allowed disparity change in those regions</small>
                       <input id="speckleRange" type="number" min="0" max="256" required data-unit="px">
                     </label>
-                    <label>Disparity smoothing <small>Median filter; preserves invalid pixels</small>
+                    <label>Additional disparity smoothing <small>Preserves invalid pixels. OpenCV SGBM already applies its own 3 × 3 median.</small>
                       <select id="medianFilterSize">
-                        <option value="0">Off</option>
-                        <option value="3">3 × 3 · recommended</option>
+                        <option value="0">No additional filter</option>
+                        <option value="3">Additional 3 × 3</option>
                         <option value="5">5 × 5 · strongest</option>
                       </select>
                     </label>
@@ -822,25 +829,31 @@
       </section>
       <section id="network" class="page">
         <div class="page-header"><h1>Outputs</h1></div>
-        <p class="lede">Choose the products this browser receives. Camera images, rectified stereo and raw depth are available independently; processing follows active consumers.</p>
+        <p class="lede">Choose a task, then receive only the data you need. Camera → rectified stereo → disparity → depth in metres. Processing follows active consumers.</p>
         <article class="panel output-connection"><h2>Current connection</h2><p id="outputConnection">Loading connection information…</p><p id="outputRecommendation"></p><p id="originLabel"></p></article>
         <form id="outputForm" class="settings-form output-settings">
-          <h2>Browser raw output</h2>
-          <label class="checkbox-label"><input id="outputEnabled" type="checkbox" checked>Receive selected raw products</label>
-          <fieldset><legend>Image and matcher products</legend><div id="outputProductChoices" class="output-product-choices"></div></fieldset>
+          <h2>This browser: uncompressed data</h2>
+          <label>What do you want to do?<select id="outputPreset"><option value="camera">View the camera · left mono</option><option value="depth">Use depth · metres + validity</option><option value="stereo">Inspect stereo · rectified pair + disparity + validity</option><option value="custom">Custom selection</option></select></label>
+          <label class="checkbox-label"><input id="outputEnabled" type="checkbox" checked>Receive selected data products</label>
+          <details id="outputAdvanced" class="advanced-card"><summary>Advanced: individual products</summary><fieldset><legend>Images and measurements</legend><div id="outputProductChoices" class="output-product-choices"></div></fieldset></details>
+          <p class="apply-note">Images are processed ISP mono or colour, not sensor RAW/Bayer. Depth is float32 optical-axis Z in metres; accept pixels only when validity is 1 and depth is finite and positive. Disparity uses matching-grid pixels. Matcher support is binary (0 / 255), not a probability.</p>
           <div class="basic-fields">
             <label>Maximum cadence<input id="outputCadence" type="number" min="1" max="60" step="1" value="5" required></label>
             <label>Delivery<select id="outputDelivery"><option value="auto">Connection aware · WiFi best effort</option><option value="best_effort">Best effort · maximum cadence</option><option value="exact">Exact · measured wired qualification</option></select></label>
           </div>
           <p id="outputBandwidth" role="status"></p><p id="outputWarning" role="status"></p>
-          <h2>Browser encoded preview</h2>
-          <div class="basic-fields"><label class="checkbox-label"><input id="outputPreviewEnabled" type="checkbox" checked>Receive encoded preview</label><label>Maximum preview cadence<input id="outputPreviewCadence" type="number" min="1" max="60" step="1" value="5" required></label></div>
-          <p class="apply-note">Set codec, source, dimensions and quality on <button type="button" class="link-button" data-open="streaming">Streaming</button>. A saved encoder configuration runs only while a preview consumer is connected.</p>
+          <h2>This browser: compressed preview</h2>
+          <div class="basic-fields"><label class="checkbox-label"><input id="outputPreviewEnabled" type="checkbox" checked>Receive the shared compressed preview</label><label>Browser preview rate ceiling<input id="outputPreviewCadence" type="number" min="1" max="60" step="1" value="5" required></label></div>
+          <p class="apply-note">Preview is for viewing, not numeric measurement. Set the device-wide source, codec and rate on <button type="button" class="link-button" data-open="streaming">Streaming</button>. This browser can request a lower rate; it cannot raise the device ceiling. The encoder runs while a preview consumer is connected.</p>
           <div class="form-actions"><button type="submit" class="primary">Apply browser outputs</button><span id="outputSaveState" role="status"></span></div>
           <p class="apply-note">Selections apply to this browser. Closing the page or hiding the tab releases its output demand. Other SDK and browser consumers keep their own selections.</p>
         </form>
+        <p id="outputFrameSummary" role="status">Actual dimensions and selected products appear when a frame arrives.</p>
+        <p id="outputDeliveryStats" class="support-text">Waiting for sequence counters.</p>
+        <details class="network-advanced"><summary>How outputs relate and how to use them</summary><p>Unrectified images come from the ISP. Rectification aligns the left/right views; the matcher produces disparity and the calibration converts it to depth. A side-by-side image contains left then right horizontally. Numeric depth and images can use different grids: always read each product's dimensions.</p><p>Products in a data frame share its capture identity. Preview and data can arrive at different rates: associate device UUID, run UUID, capture epoch and capture sequence, not arrival time. Read products by name; omitted products are absent, not zero-filled.</p><p>SDK starting point: <code>client.frames(products=("depth", "validity"), cadence_hz=2, delivery="best_effort")</code>. A compressed depth preview does not preserve float measurements.</p></details>
         <div id="outputPreviewGrid" class="viewer-grid output-previews"></div>
-        <figure class="encoded-preview"><figcaption>Encoded preview</figcaption><canvas id="outputEncodedCanvas"></canvas></figure>
+        <p id="outputEncodedState" role="status">Waiting for preview availability.</p>
+        <figure id="outputEncodedFigure" class="encoded-preview" hidden><figcaption>Shared compressed preview · visualization only</figcaption><canvas id="outputEncodedCanvas"></canvas></figure>
         <div class="settings network-summary"><article><h2>On-device API</h2><p>The persistent sealed frame socket supports the same 14 product selections. Image-only consumers can avoid depth matching.</p></article><article><h2>Network API</h2><p>Use authenticated NuvoStream/1.0 over WiFi, Ethernet or USB Ethernet. WiFi is best effort within an explicit resource budget. Exact wired streams require measured source and link qualification.</p></article></div>
         <details class="network-advanced"><summary>Connection preference and safe rollback</summary><div class="settings"><article><h2>Connection preference</h2><p id="transportState">Loading…</p><div class="button-row"><button type="button" class="primary" data-transport="auto">Automatic</button><button type="button" class="primary" data-transport="wifi">WiFi only</button><button type="button" class="primary" data-transport="ethernet">Ethernet preferred</button><button type="button" class="primary" data-transport="usb">USB preferred</button><button type="button" class="primary" data-transport="both">Ethernet and USB</button><button type="button" class="secondary" data-transport="off">Disable data output</button></div><p class="error" id="transportError"></p><button id="confirmTransport" class="primary">Confirm new connection</button></article><article><h2>Safe rollback</h2><p>A changed preference is provisional for 60 seconds. Confirm through the new path or restore the previous setting.</p><button id="rollbackTransport" class="primary">Roll back</button></article></div></details>
       </section>

@@ -59,6 +59,7 @@ struct CaptureCheckArguments {
   std::uint32_t pairs{1'000U};
   std::uint32_t cycles{2U};
   std::uint32_t pair_timeout_ms{3'000U};
+  bool allow_userspace_trigger{};
 };
 
 #if defined(DEPTHD_WITH_NATIVE_PIPELINE)
@@ -98,7 +99,7 @@ void print_usage(std::ostream& stream) {
          << "  depthd --check-config PATH\n"
          << "  depthd --dump-effective-config PATH\n"
          << "  depthd --capture-check PATH [--pairs N] [--cycles N] "
-            "[--pair-timeout-ms N]\n"
+            "[--pair-timeout-ms N] [--allow-userspace-trigger]\n"
 #if defined(DEPTHD_WITH_NATIVE_PIPELINE)
          << "  depthd --pipeline-check PATH --left IMAGE --right IMAGE "
             "--output-dir DIR [--calibration-root DIR] "
@@ -133,13 +134,17 @@ CaptureCheckArguments parse_capture_check(const int argc, char** argv) {
   }
   CaptureCheckArguments result;
   result.config_path = argv[2];
-  for (int index = 3; index < argc; index += 2) {
+  for (int index = 3; index < argc; ++index) {
+    const std::string_view option(argv[index]);
+    if (option == "--allow-userspace-trigger") {
+      result.allow_userspace_trigger = true;
+      continue;
+    }
     if (index + 1 >= argc) {
       throw std::invalid_argument(std::string(argv[index]) +
                                   " requires a value");
     }
-    const std::string_view option(argv[index]);
-    const std::string_view value(argv[index + 1]);
+    const std::string_view value(argv[++index]);
     if (option == "--pairs") {
       result.pairs = parse_positive_u32(value, option);
     } else if (option == "--cycles") {
@@ -505,7 +510,7 @@ void write_bytes(const std::filesystem::path& path, const void* data,
 std::string frame_json(const depthd::FrameSetStorage& frame,
                        const std::string_view status,
                        const std::uint64_t published_frames = 0U,
-                       const std::uint64_t capture_sequence_gaps = 0U,
+                       const std::uint64_t publication_sequence_gaps = 0U,
                        const ExposureTelemetry* exposure = nullptr,
                        const CaptureTelemetry* capture = nullptr,
                        const depthd::CaptureRuntimeStats* capture_runtime =
@@ -526,7 +531,9 @@ std::string frame_json(const depthd::FrameSetStorage& frame,
          << ",\"capture_epoch\":" << metadata.frame.capture_epoch
          << ",\"capture_sequence\":" << metadata.frame.capture_sequence
          << ",\"published_frames\":" << published_frames
-         << ",\"capture_sequence_gaps\":" << capture_sequence_gaps
+         << ",\"publication_sequence_gaps\":" << publication_sequence_gaps
+         << ",\"capture_sequence_gaps\":" << (capture_runtime ?
+              capture_runtime->pairer.left_sequence_gaps + capture_runtime->pairer.right_sequence_gaps : 0U)
          << ",\"configuration_epoch\":"
          << metadata.frame.configuration_epoch
          << ",\"calibration_sha256\":"
@@ -552,6 +559,9 @@ std::string frame_json(const depthd::FrameSetStorage& frame,
          << ",\"stereo_configuration_error\":"
          << json_string(frame.stereo_configuration.rejection_error)
          << ",\"rectification_ms\":" << frame.stats.rectification.total_ms
+         << ",\"rectification_input_transfer_ms\":" << frame.stats.rectification.input_transfer_ms
+         << ",\"rectification_compute_ms\":" << frame.stats.rectification.compute_ms
+         << ",\"rectification_input_bytes_copied\":" << frame.stats.rectification.input_bytes_copied
          << ",\"stereo_preprocess_ms\":"
          << frame.stats.stereo.preprocess_ms
          << ",\"stereo_match_ms\":" << frame.stats.stereo.match_ms
@@ -590,6 +600,10 @@ std::string frame_json(const depthd::FrameSetStorage& frame,
            << ",\"exposure_safe_max_us\":" << stats.safe_max_exposure_us
            << ",\"exposure_settle_frames_remaining\":"
            << stats.settle_frames_remaining
+           << ",\"exposure_applied_controls_tracked\":" << (stats.applied_controls_tracked ? "true" : "false")
+           << ",\"exposure_applied_controls_available\":" << (stats.applied_controls_available ? "true" : "false")
+           << ",\"exposure_applied_controls_match\":" << (stats.applied_controls_match ? "true" : "false")
+           << ",\"exposure_applied_controls_wait_frames\":" << stats.applied_controls_wait_frames
            << ",\"exposure_confirmation_observations\":"
            << stats.confirmation_observations
            << ",\"exposure_confirmation_direction\":"
@@ -601,6 +615,8 @@ std::string frame_json(const depthd::FrameSetStorage& frame,
            << ",\"exposure_last_adjustment_factor\":"
            << stats.last_adjustment_factor
            << ",\"exposure_updates\":" << stats.updates
+           << ",\"exposure_frames_seen\":" << stats.frames_seen
+           << ",\"exposure_observations\":" << stats.observations
            << ",\"exposure_configuration_reloads\":"
            << stats.configuration_reloads
            << ",\"exposure_configuration_errors\":"
@@ -692,6 +708,8 @@ std::string frame_json(const depthd::FrameSetStorage& frame,
            << ",\"paired_captures\":" << capture_runtime->pairer.paired
            << ",\"maximum_pair_delta_ns\":"
            << capture_runtime->pairer.maximum_sensor_delta_ns;
+    output << ",\"left_sensor_sequence_gaps\":" << capture_runtime->pairer.left_sequence_gaps
+           << ",\"right_sensor_sequence_gaps\":" << capture_runtime->pairer.right_sequence_gaps;
   }
   if (activity != nullptr) {
     output << ",\"raw_product_demand\":" << activity->raw_products
@@ -710,6 +728,9 @@ std::string frame_json(const depthd::FrameSetStorage& frame,
            << ",\"matcher_statistics\":{\"capture_sequence\":" << activity->matcher_statistics_capture_sequence
            << ",\"processing_ms\":" << activity->matcher_statistics.total_ms
            << ",\"rectification_ms\":" << activity->matcher_statistics.rectification.total_ms
+           << ",\"rectification_input_transfer_ms\":" << activity->matcher_statistics.rectification.input_transfer_ms
+           << ",\"rectification_compute_ms\":" << activity->matcher_statistics.rectification.compute_ms
+           << ",\"rectification_input_bytes_copied\":" << activity->matcher_statistics.rectification.input_bytes_copied
            << ",\"stereo_preprocess_ms\":" << activity->matcher_statistics.stereo.preprocess_ms
            << ",\"stereo_match_ms\":" << activity->matcher_statistics.stereo.match_ms
            << ",\"stereo_postprocess_ms\":" << activity->matcher_statistics.stereo.postprocess_ms << '}'
@@ -723,10 +744,17 @@ std::string frame_json(const depthd::FrameSetStorage& frame,
            << ",\"encoding_requested_revision\":" << json_string(activity->encoding.requested_revision)
            << ",\"encoding_applied_revision\":" << json_string(activity->encoding.applied_revision)
            << ",\"encoding_configuration_error\":" << json_string(activity->encoding.configuration_error)
+           << ",\"encoding_last_error\":" << json_string(activity->encoding.last_error)
+           << ",\"encoding_preview_unavailable\":" << activity->encoding.preview_unavailable
            << ",\"encoding_image_admitted\":" << activity->encoding.image_admitted
            << ",\"encoding_image_copies\":" << activity->encoding.image_copies
            << ",\"encoding_image_pool_dropped\":" << activity->encoding.image_pool_dropped
            << ",\"encoding_image_rectified\":" << activity->encoding.image_rectified
+           << ",\"encoding_image_color_conversions\":" << activity->encoding.image_color_conversions
+           << ",\"encoding_preparation_ms\":" << activity->encoding.last_preparation_ms
+           << ",\"encoding_queue_ms\":" << activity->encoding.last_queue_ms
+           << ",\"encoding_total_ms\":" << activity->encoding.last_total_ms
+           << ",\"encoding_timing_scope\":\"preparation_queue_encode\""
            << ",\"encoding_numeric_admitted\":" << activity->encoding.numeric_admitted
            << ",\"encoded_frames\":" << activity->encoding.encoded
            << ",\"encoded_cadence_limited\":" << activity->encoding.cadence_limited
@@ -825,7 +853,7 @@ void write_status(const std::filesystem::path& path,
                   const depthd::FrameSetStorage& frame,
                   const std::string_view state = "running",
                   const std::uint64_t published_frames = 0U,
-                  const std::uint64_t capture_sequence_gaps = 0U,
+                  const std::uint64_t publication_sequence_gaps = 0U,
                   const ExposureTelemetry* exposure = nullptr,
                   const CaptureTelemetry* capture = nullptr,
                   const depthd::CaptureRuntimeStats* capture_runtime = nullptr,
@@ -841,7 +869,7 @@ void write_status(const std::filesystem::path& path,
   std::filesystem::create_directories(path.parent_path());
   const auto temporary = path.string() + ".tmp";
   const auto document =
-      frame_json(frame, state, published_frames, capture_sequence_gaps,
+      frame_json(frame, state, published_frames, publication_sequence_gaps,
                  exposure, capture, capture_runtime, left_camera_id,
                  right_camera_id, profile_id, capture_target_hz, scheduler, activity) +
       "\n";
@@ -1157,8 +1185,31 @@ int run_native_daemon(const PipelineArguments& arguments) {
       std::make_shared<depthd::NativeConfigurationEpochs>(identity.configuration_epoch);
   lane_options.frame_pool_capacity = 4U;
   lane_options.frame_pool_payload_budget_bytes = 128U * 1024U * 1024U;
+  lane_options.cpu_rectification_maps = depthd::prepare_opencv_rectification_maps(calibration.maps);
+  const auto pool_bytes = [&](const std::size_t slots, const bool images) {
+    return depthd::required_frame_pool_payload_bytes(calibration.image_view.grid,
+        calibration.matching_view.grid, slots, images);
+  };
+  constexpr std::size_t combined_pool_budget = 256U * 1024U * 1024U;
+  const auto fits_combined_budget = [&](const std::size_t slots) {
+    const auto matcher = pool_bytes(slots, false);
+    return matcher <= combined_pool_budget &&
+           pool_bytes(slots, true) <= combined_pool_budget - matcher;
+  };
+  while (lane_options.frame_pool_capacity > 2U &&
+         !fits_combined_budget(lane_options.frame_pool_capacity)) {
+    --lane_options.frame_pool_capacity;
+  }
+  const auto matcher_budget = pool_bytes(lane_options.frame_pool_capacity, false);
+  const auto image_budget = pool_bytes(lane_options.frame_pool_capacity, true);
+  if (matcher_budget > combined_pool_budget || image_budget > combined_pool_budget - matcher_budget) {
+    throw std::invalid_argument("capture geometry cannot fit two retained frames per lane within 256 MiB");
+  }
+  lane_options.frame_pool_payload_budget_bytes = matcher_budget;
   auto pipeline = depthd::make_native_pipeline(
       loaded.effective, calibration, identity, lane_options);
+  lane_options.image_only = true;
+  lane_options.frame_pool_payload_budget_bytes = image_budget;
   auto image_pipeline = depthd::make_native_pipeline(
       loaded.effective, calibration, identity, lane_options);
   depthd::BoundedNativeScheduler scheduler(
@@ -1179,15 +1230,13 @@ int run_native_daemon(const PipelineArguments& arguments) {
       arguments.encoding_config_path,
       arguments.diagnostic_raw_snapshots ? arguments.snapshot_directory / "latest.nve" : std::filesystem::path{}, encoder_fallback,
       arguments.trace_directory, {}, [&] {
-        depthd::RectificationBackendRegistry registry;
-        depthd::register_opencv_rectification_backend(registry);
         depthd::RectificationBackendConfig preview_configuration;
         preview_configuration.input_width = loaded.effective.capture.width;
         preview_configuration.input_height = loaded.effective.capture.height;
         preview_configuration.output_width = calibration.image_view.grid.width;
         preview_configuration.output_height = calibration.image_view.grid.height;
-        return registry.create("cpu_opencv", "cpu_opencv", false,
-                               preview_configuration, calibration.maps);
+        return depthd::make_opencv_rectification_backend(
+            preview_configuration, lane_options.cpu_rectification_maps);
       }
 #if defined(DEPTHD_WITH_LOCAL_FRAME_SERVER)
       , [&](const depthd::FrameSetIdentity& frame, std::uint64_t sequence,
@@ -1207,7 +1256,14 @@ int run_native_daemon(const PipelineArguments& arguments) {
       arguments.exposure_control_path, exposure_fallback(loaded.effective),
       {static_cast<std::uint32_t>(std::floor(
            1'000'000.0 / loaded.effective.capture.target_hz)),
-       depthd::kExternalTriggerGuardUs});
+       depthd::kExternalTriggerGuardUs},
+      {std::array<std::uint32_t, 4>{loaded.effective.capture.auto_exposure.metering_roi.at(0),
+          loaded.effective.capture.auto_exposure.metering_roi.at(1),
+          loaded.effective.capture.auto_exposure.metering_roi.at(2),
+          loaded.effective.capture.auto_exposure.metering_roi.at(3)},
+       loaded.effective.capture.auto_exposure.dark_threshold,
+       loaded.effective.capture.auto_exposure.clipping_threshold,
+       loaded.effective.capture.auto_exposure.max_clipped_fraction});
   auto open_options = capture_options(loaded.effective);
   const auto initial_controls = capture_controls(exposure_controller.command());
   open_options.exposure_time_us = initial_controls.exposure_time_us;
@@ -1228,13 +1284,15 @@ int run_native_daemon(const PipelineArguments& arguments) {
   std::uint64_t published{};
   std::uint64_t matched_published{}, matched_statistics_sequence{};
   depthd::NativePipelineStats matched_statistics{};
-  std::uint64_t capture_sequence_gaps{};
-  std::uint64_t previous_capture_sequence{};
+  std::uint64_t publication_sequence_gaps{};
+  std::uint64_t previous_publication_sequence{};
   std::mutex capture_status_mutex;
   std::shared_ptr<const NativeCaptureContext> newest_capture_context;
   NativeActivityTelemetry capture_activity;
   depthd::NativeCaptureCadence raw_capture_cadence;
   depthd::NativeCaptureCadence matcher_capture_cadence;
+  auto next_calibration_scan = std::chrono::steady_clock::time_point{};
+  auto next_status_write = std::chrono::steady_clock::time_point{};
 #if defined(DEPTHD_WITH_SYSTEMD)
   bool ready_notified{};
 #endif
@@ -1282,6 +1340,7 @@ int run_native_daemon(const PipelineArguments& arguments) {
         const auto raw_product_demand = products;
         bool raw_due{};
         depthd::ipc_v2::ProductMask independent_images{};
+        depthd::ipc_v2::ProductMask associated_images{};
 #if defined(DEPTHD_WITH_LOCAL_FRAME_SERVER)
         if (!arguments.diagnostic_raw_snapshots && arguments.trace_directory.empty()) {
           products = 0U;
@@ -1289,8 +1348,10 @@ int run_native_daemon(const PipelineArguments& arguments) {
             independent_images = demand.image_products;
             products |= independent_images;
           }
-          if (matcher_capture_cadence.admit(context->identity, demand.matcher_products, demand.matcher_cadence_hz))
+          if (matcher_capture_cadence.admit(context->identity, demand.matcher_products, demand.matcher_cadence_hz)) {
             products |= demand.matcher_products;
+            associated_images = demand.matcher_products & depthd::ipc_v2::kImageProducts;
+          }
           raw_due = products != 0U;
         } else
 #endif
@@ -1302,6 +1363,9 @@ int run_native_daemon(const PipelineArguments& arguments) {
         auto processing = depthd::make_cpu_dmabuf_processing_request(std::move(pair));
         processing.products = products;
         const auto requested_at_capture = exposure_controller.command();
+        exposure_controller.update_applied_controls({context->capture.left_exposure_us,
+            context->capture.right_exposure_us, context->capture.left_analogue_gain,
+            context->capture.right_analogue_gain});
         if (exposure_controller.should_meter_next_frame()) {
           if (!processing.dmabuf || !processing.dmabuf->acquire_cpu_fallback) {
             throw std::runtime_error("auto exposure requires mappable ISP luma planes");
@@ -1352,11 +1416,16 @@ int run_native_daemon(const PipelineArguments& arguments) {
         processing.products = products;
 #if defined(DEPTHD_WITH_LOCAL_FRAME_SERVER)
         processing.independent_image_products = independent_images;
+        processing.associated_image_products = associated_images;
 #endif
         trace_isp_pair(arguments.trace_directory, processing);
-        fulfill_calibration_capture(arguments.calibration_request_directory,
-                                    arguments.calibration_state_root, processing,
-                                    identity.device_uuid, identity.run_uuid);
+        const auto housekeeping_now = std::chrono::steady_clock::now();
+        if (housekeeping_now >= next_calibration_scan) {
+          fulfill_calibration_capture(arguments.calibration_request_directory,
+                                      arguments.calibration_state_root, processing,
+                                      identity.device_uuid, identity.run_uuid);
+          next_calibration_scan = housekeeping_now + std::chrono::milliseconds(250);
+        }
         context->exposure = {exposure_controller.configuration(),
                              requested_at_capture, exposure_controller.stats()};
         ++capture_activity.captured_pairs;
@@ -1432,10 +1501,10 @@ int run_native_daemon(const PipelineArguments& arguments) {
             frame->publication_context);
         if (!context) throw std::runtime_error("processed frame lost its capture context");
         const auto sequence = frame->metadata.frame.capture_sequence;
-        if (previous_capture_sequence != 0U && sequence > previous_capture_sequence + 1U) {
-          capture_sequence_gaps += sequence - previous_capture_sequence - 1U;
+        if (previous_publication_sequence != 0U && sequence > previous_publication_sequence + 1U) {
+          publication_sequence_gaps += sequence - previous_publication_sequence - 1U;
         }
-        previous_capture_sequence = std::max(previous_capture_sequence, sequence);
+        previous_publication_sequence = std::max(previous_publication_sequence, sequence);
         ++published;
         if ((frame->available_products & depthd::ipc_v2::kMatcherProducts) != 0U) {
           ++matched_published; matched_statistics = frame->stats; matched_statistics_sequence = sequence;
@@ -1502,11 +1571,15 @@ int run_native_daemon(const PipelineArguments& arguments) {
       }
       const auto live_capture_stats = capture->runtime_stats();
       const auto live_scheduler_stats = scheduler.stats();
-      write_status(arguments.status_path, status_frame, "running", published,
-                   capture_sequence_gaps, &latest_capture->exposure, &latest_capture->capture,
+      const auto status_now = std::chrono::steady_clock::now();
+      if (status_now >= next_status_write) {
+        write_status(arguments.status_path, status_frame, "running", published,
+                   publication_sequence_gaps, &latest_capture->exposure, &latest_capture->capture,
                    &live_capture_stats, session.left.binding.camera.stable_id,
                    session.right.binding.camera.stable_id, loaded.effective.product.profile_id,
                    loaded.effective.capture.target_hz, &live_scheduler_stats, &activity);
+        next_status_write = status_now + std::chrono::milliseconds(250);
+      }
 #if defined(DEPTHD_WITH_SYSTEMD)
       if (!ready_notified) {
         (void)sd_notify(0, "READY=1\nSTATUS=Associated capture ready; outputs follow subscriber demand");
@@ -1567,7 +1640,7 @@ int run_native_daemon(const PipelineArguments& arguments) {
     activity.encoding = encoder_stats;
 #endif
     write_status(arguments.status_path, final_status, "stopped", published,
-                 capture_sequence_gaps, &final_capture->exposure, &final_capture->capture,
+                 publication_sequence_gaps, &final_capture->exposure, &final_capture->capture,
                  &capture_stats, session.left.binding.camera.stable_id,
                  session.right.binding.camera.stable_id, loaded.effective.product.profile_id,
                  loaded.effective.capture.target_hz, &scheduler_stats, &activity);
@@ -1586,7 +1659,8 @@ int run_native_daemon(const PipelineArguments& arguments) {
             << ",\"raw_processing_submissions\":" << capture_activity.raw_submissions
             << ",\"raw_cadence_skipped\":" << capture_activity.raw_cadence_skipped
             << ",\"idle_captures\":" << capture_activity.idle_captures
-            << ",\"capture_sequence_gaps\":" << capture_sequence_gaps
+            << ",\"publication_sequence_gaps\":" << publication_sequence_gaps
+            << ",\"capture_sequence_gaps\":" << capture_stats.pairer.left_sequence_gaps + capture_stats.pairer.right_sequence_gaps
             << ",\"outstanding_leases\":" << capture->outstanding_leases()
             << ",\"frame_completion_errors\":"
             << capture_stats.frame_completion_errors
@@ -1731,7 +1805,9 @@ void write_pairer_stats_json(std::ostream& output,
          << ",\"stale_dropped\":" << stats.stale_dropped
          << ",\"capacity_dropped\":" << stats.capacity_dropped
          << ",\"maximum_sensor_delta_ns\":"
-         << stats.maximum_sensor_delta_ns << '}';
+         << stats.maximum_sensor_delta_ns
+         << ",\"left_sequence_gaps\":" << stats.left_sequence_gaps
+         << ",\"right_sequence_gaps\":" << stats.right_sequence_gaps << '}';
 }
 
 int run_capture_check(const CaptureCheckArguments& arguments) {
@@ -1742,7 +1818,8 @@ int run_capture_check(const CaptureCheckArguments& arguments) {
               << depthd::pi5_capture_backend_status() << '\n';
     return kHardwareError;
   }
-  const auto options = capture_options(loaded.effective);
+  auto options = capture_options(loaded.effective);
+  options.allow_userspace_trigger = arguments.allow_userspace_trigger;
   const auto cameras = source->enumerate();
 
   struct CycleResult {

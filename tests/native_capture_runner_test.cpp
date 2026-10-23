@@ -594,6 +594,7 @@ void test_independent_images_while_matcher_is_blocked() {
         auto request = prepare(std::move(pair));
         request.products = mono;
         request.independent_image_products = mono;
+        request.associated_image_products = mono;
         if (request.capture.pair_sequence == 1U) request.products |= depth;
         return request;
       });

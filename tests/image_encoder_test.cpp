@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <locale>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -383,8 +384,64 @@ void test_independent_capture_sources() {
     require(color ? samples[1] < 90 && samples[2] > 170 :
                     samples[1] > 110 && samples[1] < 145 && samples[2] > 110 && samples[2] < 145,
             "independent preview lost its selected mono/RGB representation");
+    const bool rectified_color = source == Source::kLeftRectifiedRgb ||
+        source == Source::kRightRectifiedRgb || source == Source::kRectifiedStereoRgb;
+    require(rectified_color ? encoder.stats().image_color_conversions > 0U :
+                             encoder.stats().image_color_conversions == 0U,
+            "unrectified preview unnecessarily converted I420 to RGB");
   }
   std::filesystem::remove_all(root);
+}
+
+void test_preview_bounds_failure_isolation_and_demand_changes() {
+  using namespace depthd::encoding;
+  Configuration config;
+  config.codec = Codec::kJpeg;
+  config.source = Source::kLeftMono;
+  config.width = 64U;
+  config.height = 48U;
+  unsigned factories{};
+  AsyncFrameEncoder encoder({}, {}, config, {}, [&](const Configuration& selected) {
+    ++factories;
+    return make_ffmpeg_encoder(selected);
+  });
+  auto metadata = frame()->metadata;
+  metadata.left_rectified.grid = depthd::make_reference_grid(1456U, 1088U);
+  auto reader = [](depthd::CameraRole, bool, std::span<std::uint8_t> target) {
+    std::fill(target.begin(), target.end(), 100U);
+  };
+  encoder.set_demand(10.0);
+  require(encoder.submit_capture(metadata, reader) == SubmitResult::kAccepted,
+          "full sensor input could not be downscaled within preview memory budget");
+  eventually([&] { return encoder.stats().encoded == 1U; }, "downscaled preview missing");
+  encoder.set_demand(5.0);
+  ++metadata.frame.capture_sequence;
+  metadata.frame.capture_time_ns += 1'000'000'000;
+  require(encoder.submit_capture(metadata, reader) == SubmitResult::kAccepted,
+          "demand change prevented next preview");
+  eventually([&] { return encoder.stats().encoded == 2U; }, "second preview missing");
+  require(factories == 1U, "cadence-only demand change rebuilt codec");
+  const auto stats = encoder.stats();
+  require(stats.last_preparation_ms >= 0.0 && stats.last_queue_ms >= 0.0 &&
+              stats.last_total_ms >= stats.last_encode_ms,
+          "preview timing omitted preparation/queue stages");
+  ++metadata.frame.capture_sequence;
+  metadata.frame.capture_time_ns += 1'000'000'000;
+  require(encoder.submit_capture(metadata, [](depthd::CameraRole, bool,
+      std::span<std::uint8_t>) { throw std::runtime_error("test copy unavailable"); }) ==
+          SubmitResult::kPreviewUnavailable, "optional copy failure escaped to capture");
+  require(encoder.stats().last_error == "test copy unavailable" &&
+              encoder.stats().preview_unavailable == 1U,
+          "preview failure missing from health statistics");
+  require(encoder.take_last_error() == "test copy unavailable", "preview failure lost diagnostic");
+  metadata.left_rectified.grid = depthd::make_reference_grid(8192U, 8192U);
+  require(encoder.submit_capture(metadata, reader) == SubmitResult::kPreviewUnavailable,
+          "preview memory bound was bypassed");
+  metadata.left_rectified.grid = depthd::make_reference_grid(64U, 48U);
+  require(encoder.submit_capture(metadata, reader) == SubmitResult::kAccepted,
+          "preview did not recover from optional failure");
+  eventually([&] { return encoder.stats().encoded == 3U; }, "recovered preview missing");
+  encoder.stop();
 }
 
 void test_event_publication_without_snapshot_and_inflight_stop() {
@@ -593,6 +650,22 @@ int main() {
                               depthd::encoding::kEncodedHeaderBytes);
   assert(envelope[0] == std::byte{'N'} && envelope[3] == std::byte{'1'});
   assert(u32(envelope.data() + 8U) > 100U);
+  struct CommaDecimal final : std::numpunct<char> {
+    char do_decimal_point() const override { return ','; }
+  };
+  const auto previous_locale = std::locale();
+  std::locale::global(std::locale(previous_locale, new CommaDecimal));
+  jpeg.preparation_ms = 1.25;
+  jpeg.queue_ms = 2.5;
+  jpeg.total_ms = jpeg.preparation_ms + jpeg.queue_ms + jpeg.encode_ms;
+  const auto localized_envelope = depthd::encoding::serialize(jpeg);
+  std::locale::global(previous_locale);
+  const std::string json(reinterpret_cast<const char*>(localized_envelope.data() +
+      depthd::encoding::kEncodedHeaderBytes), u32(localized_envelope.data() + 8U));
+  require(json.find("\"preparation_ms\":1.25") != std::string::npos &&
+              json.find("\"queue_ms\":2.5") != std::string::npos &&
+              json.find("\"timing_scope\":\"preparation_queue_encode\"") != std::string::npos,
+          "encoded timing metadata must remain valid JSON in non-C locales");
 
   config.codec = depthd::encoding::Codec::kH264;
   auto h264 = depthd::encoding::make_ffmpeg_encoder(config)->encode(*input, 1U);
@@ -746,6 +819,7 @@ int main() {
   test_image_completion_does_not_consume_numeric_plan();
   test_event_publication_without_snapshot_and_inflight_stop();
   test_independent_capture_sources();
+  test_preview_bounds_failure_isolation_and_demand_changes();
   test_sycc_full_range_conversion();
 
   bool rejected{};

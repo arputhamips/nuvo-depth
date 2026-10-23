@@ -26,8 +26,13 @@ class EncodedFrame:
 
 
 def decode_encoded_frame(wire_bytes: bytes) -> EncodedFrame:
-    if len(wire_bytes) < HEADER.size:
-        raise ValueError("encoded frame is shorter than its header")
+    if not isinstance(wire_bytes, (bytes, bytearray, memoryview)):
+        raise TypeError("encoded input must be bytes, bytearray, or memoryview")
+    wire_size = wire_bytes.nbytes if isinstance(wire_bytes, memoryview) else len(wire_bytes)
+    if not HEADER.size <= wire_size <= HEADER.size + MAX_ENCODED_METADATA + MAX_ENCODED_PAYLOAD:
+        raise ValueError("encoded frame is outside its hard bounds")
+    if not isinstance(wire_bytes, bytes):
+        wire_bytes = bytes(wire_bytes)
     magic,version,flags,metadata_bytes,payload_bytes,sequence,reserved = HEADER.unpack_from(wire_bytes)
     if magic != b"NVE1" or version != 1 or flags & ~1 or reserved != 0 or sequence == 0:
         raise ValueError("encoded frame header is invalid")
@@ -37,9 +42,14 @@ def decode_encoded_frame(wire_bytes: bytes) -> EncodedFrame:
         raise ValueError("encoded frame length does not match its header")
     metadata=json.loads(wire_bytes[HEADER.size:HEADER.size+metadata_bytes])
     required={"schema_version","capture_epoch","capture_sequence","capture_time_ns","source","codec","mime_type","width","height","keyframe"}
-    if metadata.get("schema_version") != 1 or not required.issubset(metadata):
+    if not isinstance(metadata, dict) or metadata.get("schema_version") != 1 or not required.issubset(metadata):
         raise ValueError("encoded frame metadata is invalid")
-    if bool(flags & 1) != bool(metadata["keyframe"]):
+    if not isinstance(metadata["keyframe"], bool) or bool(flags & 1) != metadata["keyframe"]:
         raise ValueError("encoded keyframe metadata disagrees with its header")
+    if (metadata["codec"] not in {"jpeg", "h264"}
+            or any(not isinstance(metadata[key], int) or isinstance(metadata[key], bool)
+                   or not 0 < metadata[key] <= maximum
+                   for key, maximum in (("width", 1920), ("height", 1080)))):
+        raise ValueError("encoded frame dimensions or codec are invalid")
     payload=memoryview(wire_bytes)[HEADER.size+metadata_bytes:]
     return EncodedFrame(sequence,bool(flags & 1),metadata,payload)

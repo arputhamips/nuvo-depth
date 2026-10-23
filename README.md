@@ -178,3 +178,26 @@ described in the license.
 Published installer bundles include matching source and build instructions.
 For rebuilding, redistribution, and installing modified software with your own
 release key, see [Release operations](docs/releases.md).
+
+## Development changes (unreleased)
+
+
+- Production capture now requires the hardware-timed PIO trigger and validates
+  negotiated image geometry and buffer counts before starting. Scheduler-timed
+  GPIO is available only through the explicit capture-check diagnostic flag.
+  See [capture diagnostics](docs/operations-troubleshooting.md).
+- Automatic exposure holds a shared setting until a sustained lighting change,
+  uses bounded adjustments, and waits for both cameras to report the requested
+  controls. Persistent highlights no longer cause competing bright/dark updates.
+  See [exposure controls](docs/config-schema.md).
+- CPU rectification shares immutable maps and avoids staging already-owned
+  memory. Independent image requests no longer repeat work on the matcher lane;
+  frame pools have explicit checked budgets. See [runtime internals](docs/native-runtime-ipc-gateway.md).
+- Unrectified color previews encode directly from I420. Optional preview failures
+  stay isolated from capture, and timing separates preparation, queueing and
+  encoding. See [performance measurement](docs/performance-profiles.md).
+- Outputs now start with task presets and distinguish measurement arrays from
+  compressed visual previews. SDK metadata identifies grids, units and capture
+  lineage; browser decoding and reconnects have regression coverage.
+  See [the console guide](docs/user-guide.md) and [SDK examples](docs/sdk-examples.md).
+

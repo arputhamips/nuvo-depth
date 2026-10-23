@@ -4,6 +4,8 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <limits>
+#include <locale>
 #include <string>
 #include <utility>
 
@@ -13,7 +15,7 @@ namespace {
 
 depthd::FrameSetStorage frame() {
   depthd::FrameSetStorage result;
-  result.stereo_configuration = {7U,std::string(64U,'a'),std::string(64U,'b'),"invalid \"range\"\n"};
+  result.stereo_configuration = {7U,std::string(64U,'a'),std::string(64U,'b'),"invalid \"range\"\n", {}};
   result.metadata.frame.device_uuid[0] = 1U;
   result.metadata.frame.run_uuid[0] = 2U;
   result.metadata.frame.capture_epoch = 1U;
@@ -54,6 +56,10 @@ int main(const int argc, char** argv) {
   const std::string metadata(reinterpret_cast<const char*>(message.metadata.data()),
                              message.metadata.size());
   assert(metadata.find("\"depth_unit\":\"metres\"") != std::string::npos);
+  assert(metadata.find("\"matching_grid\":{\"width\":2,\"height\":1") != std::string::npos);
+  assert(metadata.find("\"quantization_px\":0.0625") != std::string::npos);
+  assert(metadata.find("\"confidence_model\":\"binary_sgbm_support_v1\"") != std::string::npos);
+  assert(metadata.find("\"valid_roi\":{\"x\":0,\"y\":0,\"width\":2,\"height\":1}") != std::string::npos);
   assert(metadata.find("\"kind\":\"validity\"") != std::string::npos);
   assert(metadata.find("\"stereo_configuration_generation\":7") != std::string::npos);
   assert(metadata.find("\"stereo_requested_revision\":\"" + std::string(64U,'a') + "\"") != std::string::npos);
@@ -67,6 +73,39 @@ int main(const int argc, char** argv) {
   std::vector<std::byte> direct(parts.wire_bytes());
   depthd::wire::write_frame_set_message(parts, direct);
   assert(direct == bytes);
+
+  auto with_geometry = frame();
+  const std::array<double, 12> left_projection{100, 0, 0.5, 0, 0, 100, 0, 0, 0, 0, 1, 0};
+  auto right_projection = left_projection;
+  right_projection[3] = -10.0;
+  with_geometry.image_calibration = depthd::make_rectified_calibration(
+      with_geometry.metadata.calibration, with_geometry.metadata.calibration_authority,
+      with_geometry.metadata.left_rectified.grid, left_projection, right_projection);
+  with_geometry.matching_calibration = with_geometry.image_calibration;
+  with_geometry.capture_metadata = depthd::CaptureFrameMetadata{
+      {100, 10, 7000, 1.5, 1.0}, {120, 11, 7000, 1.5, 1.0}, 20};
+  const auto geometry_message = depthd::wire::make_frame_set_message(with_geometry);
+  const std::string geometry_json(reinterpret_cast<const char*>(geometry_message.metadata.data()),
+                                 geometry_message.metadata.size());
+  assert(geometry_json.find("\"calibration_geometry\":{\"image\":{\"left_projection\":[100,0,0.5") != std::string::npos);
+  assert(geometry_json.find("\"reprojection\":[") != std::string::npos);
+  assert(geometry_json.find("\"capture\":{\"sensor_delta_ns\":20") != std::string::npos);
+  assert(geometry_json.find("\"reported_exposure_time_us\":7000") != std::string::npos);
+  assert(geometry_message.payload == message.payload);
+  with_geometry.capture_metadata->left.analogue_gain = std::numeric_limits<double>::quiet_NaN();
+  with_geometry.capture_metadata->right.exposure_time_us = 0.0;
+  struct CommaDecimal final : std::numpunct<char> {
+    char do_decimal_point() const override { return ','; }
+  };
+  const auto previous_locale = std::locale();
+  std::locale::global(std::locale(previous_locale, new CommaDecimal));
+  const auto missing_message = depthd::wire::make_frame_set_message(with_geometry);
+  std::locale::global(previous_locale);
+  const std::string missing_json(reinterpret_cast<const char*>(missing_message.metadata.data()),
+                                 missing_message.metadata.size());
+  assert(missing_json.find("\"analogue_gain\":null") != std::string::npos);
+  assert(missing_json.find("\"reported_exposure_time_us\":null") != std::string::npos);
+  assert(missing_json.find("\"quantization_px\":0.0625") != std::string::npos);
 
   auto extended = frame();
   extended.available_products = depthd::ipc_v2::kSupportedProducts;

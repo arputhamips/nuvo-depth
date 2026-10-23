@@ -24,6 +24,33 @@ _PRODUCTS = frozenset(PRODUCT_FORMATS)
 _MAX_FRAME = MAX_PAYLOAD + MAX_METADATA + 32
 _MAX_UPGRADE_HEADERS = 16 * 1024
 _WEBSOCKET_GUID = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+_DEFAULT_PRODUCTS = tuple(PRODUCT_FORMATS)[:6]
+
+
+def _subscription_path(path: str, cadence_hz: float | None,
+                       products: Iterable[str] | None, delivery: str | None) -> str:
+    query: dict[str, str] = {}
+    if delivery is not None:
+        if delivery not in {"best_effort", "exact", "auto"}:
+            raise ValueError("stream delivery must be best_effort, exact, or auto")
+        query["delivery"] = delivery
+    # The gateway requires an explicit pair if either selection is supplied.
+    if cadence_hz is not None or products is not None:
+        cadence_hz = 10 if cadence_hz is None else cadence_hz
+        products = _DEFAULT_PRODUCTS if products is None else products
+        if (isinstance(cadence_hz, bool) or not isinstance(cadence_hz, (int, float))
+                or not math.isfinite(cadence_hz) or not 0 < cadence_hz <= 60):
+            raise ValueError("stream cadence must be finite and between 0 and 60 Hz")
+        if isinstance(products, str):
+            raise ValueError("products must be an iterable of product names")
+        selected = tuple(islice(products, len(_PRODUCTS) + 1))
+        if (not selected or len(selected) > len(_PRODUCTS)
+                or any(not isinstance(product, str) or product not in _PRODUCTS for product in selected)
+                or len(set(selected)) != len(selected)):
+            raise ValueError("stream products must be distinct known product names")
+        query["cadence_hz"] = str(cadence_hz)
+        query["products"] = ",".join(selected)
+    return path + ("?" + urllib.parse.urlencode(query, safe=",") if query else "")
 
 def recovery_action(code: int, path: str = '') -> str:
     if code in (401,403): return 'SDK credentials/session rejected; obtain the long administrator token from the correct unit through trusted SSH and claim a new session.'
@@ -68,22 +95,28 @@ class _FrameStream(Iterator[FrameSet]):
         # into bounded storage rather than accumulating an unbounded chunk list.
         if not 0 <= size <= _MAX_FRAME:
             raise ValueError("Nuvo WebSocket frame exceeds the client bound")
-        self._remaining()
         data = bytearray(size)
+        with memoryview(data) as view:
+            self._read_into(view)
+        return bytes(data)
+
+    def _read_into(self, view: memoryview) -> None:
+        """Fill caller-owned storage without an intermediate payload allocation."""
+        self._remaining()
+        size = len(view)
         buffered = min(size, len(self._buffer))
         if buffered:
-            data[:buffered] = self._buffer[:buffered]
+            with memoryview(self._buffer) as pending:
+                view[:buffered] = pending[:buffered]
             del self._buffer[:buffered]
         assert self._socket is not None
-        with memoryview(data) as view:
-            offset = buffered
-            while offset < size:
-                self._socket.settimeout(self._remaining())
-                received = self._socket.recv_into(view[offset:])
-                if not received:
-                    raise ConnectionError("Nuvo frame stream disconnected before a complete message")
-                offset += received
-        return bytes(data)
+        offset = buffered
+        while offset < size:
+            self._socket.settimeout(self._remaining())
+            received = self._socket.recv_into(view[offset:])
+            if not received:
+                raise ConnectionError("Nuvo frame stream disconnected before a complete message")
+            offset += received
 
     def _connect(self) -> None:
         if self._closed:
@@ -233,7 +266,10 @@ class _FrameStream(Iterator[FrameSet]):
                     # The gateway normally sends a single binary frame. Avoid
                     # copying it through the fragmentation accumulator.
                     return decode_frame(self._read_exact(length))
-                message.extend(self._read_exact(length))
+                start = len(message)
+                message.extend(bytearray(length))
+                with memoryview(message)[start:] as destination:
+                    self._read_into(destination)
                 if final:
                     return decode_frame(bytes(message))
                 fragmented = True
@@ -394,8 +430,12 @@ class NuvoClient:
     def capabilities(self) -> dict:
         return json.loads(self._request("/api/v1/capabilities", maximum=64 * 1024))
 
-    def latest(self) -> FrameSet:
-        return decode_frame(self._request("/api/v1/frame/latest"))
+    def latest(self, *, cadence_hz: float | None = None,
+               products: Iterable[str] | None = None,
+               delivery: str | None = None) -> FrameSet:
+        """Fetch one associated frame with the same selection rules as frames()."""
+        path = _subscription_path("/api/v1/frame/latest", cadence_hz, products, delivery)
+        return decode_frame(self._request(path))
 
     def frames(self, *, cadence_hz: float | None = None,
                products: Iterable[str] | None = None,
@@ -405,29 +445,11 @@ class NuvoClient:
         Use as a context manager to release the connection when stopping early.
         Delivery may be auto, exact, or best_effort. Check qualification after
         opening; best-effort cadence is an upper bound. Without options, use
-        the legacy six-product default subscription.
+        the legacy six-product default subscription. With only products, the
+        default ceiling is 10 Hz; with only cadence, the legacy products apply.
+        Prefer an explicit small selection such as depth + validity at 2 Hz.
         """
-        query: dict[str, str] = {}
-        if delivery is not None:
-            if delivery not in {"best_effort", "exact", "auto"}:
-                raise ValueError("stream delivery must be best_effort, exact, or auto")
-            query["delivery"] = delivery
-        if cadence_hz is not None:
-            if not math.isfinite(cadence_hz) or not 0 < cadence_hz <= 60:
-                raise ValueError("stream cadence must be finite and between 0 and 60 Hz")
-            query["cadence_hz"] = str(cadence_hz)
-        if products is not None:
-            if isinstance(products, str):
-                raise ValueError("products must be an iterable of product names")
-            selected = tuple(islice(products, len(_PRODUCTS) + 1))
-            if (not selected or len(selected) > len(_PRODUCTS)
-                    or any(not isinstance(product, str) or product not in _PRODUCTS for product in selected)
-                    or len(set(selected)) != len(selected)):
-                raise ValueError("stream products must be distinct known product names")
-            query["products"] = ",".join(selected)
-        path = "/api/v1/stream"
-        if query:
-            path += "?" + urllib.parse.urlencode(query, safe=",")
+        path = _subscription_path("/api/v1/stream", cadence_hz, products, delivery)
         return _FrameStream(self, path)
 
     def encoding(self) -> dict:

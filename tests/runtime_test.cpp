@@ -822,10 +822,76 @@ void test_capture_rgb_preserves_channels_and_padded_rows() {
             "capture RGB/mono copy mixed channels or included row padding");
 }
 
+void test_independent_images_are_not_duplicated_without_association() {
+  using namespace depthd::ipc_v2;
+  const auto mono = product_bit(ProductKind::kLeftMono);
+  const auto depth = product_bit(ProductKind::kDepth);
+  for (const bool associated : {false, true}) {
+    std::atomic<unsigned> released{};
+    depthd::BoundedNativeScheduler scheduler({1U, 1U}, pipeline(), pipeline());
+    auto input = request(1U, released);
+    input.products = mono | depth;
+    input.independent_image_products = mono;
+    input.associated_image_products = associated ? mono : 0U;
+    require(scheduler.try_submit(std::move(input)) == depthd::SubmitResult::kAccepted,
+            "mixed demand was rejected");
+    auto first = scheduler.wait_next(std::chrono::seconds(2));
+    auto second = scheduler.wait_next(std::chrono::seconds(2));
+    require(first && second, "mixed demand lost a lane completion");
+    const auto image = (first->available_products & depth) == 0U ? first : second;
+    const auto matched = (first->available_products & depth) != 0U ? first : second;
+    require(image->available_products == mono && image->left_mono.size() == 48U,
+            "independent image selection changed");
+    require(matched->available_products == (associated ? mono | depth : depth) &&
+            matched->left_mono.empty() == !associated && matched->depth_m.size() == 12U,
+            "independent image duplicated or associated image removed");
+    require(image->metadata.frame.capture_sequence == matched->metadata.frame.capture_sequence,
+            "lane split changed capture association");
+    scheduler.stop();
+    require(released.load() == 2U, "split request retained camera leases");
+  }
+}
+
+void test_bounded_pool_capacity_and_capture_metadata() {
+  const auto full = depthd::make_reference_grid(1456U, 1088U);
+  const auto half = depthd::make_resampled_grid(full, 728U, 544U);
+  require(depthd::bounded_frame_pool_capacity(full, full, 4U, 160U * 1024U * 1024U) == 2U,
+          "full-resolution pool ignored its explicit budget");
+  require(depthd::bounded_frame_pool_capacity(full, half, 4U, 128U * 1024U * 1024U) == 2U,
+          "smaller matching grid did not fit two bounded slots");
+  const auto image_bytes = depthd::required_frame_pool_payload_bytes(full, full, 2U, true);
+  const auto matcher_bytes = depthd::required_frame_pool_payload_bytes(full, full, 2U);
+  require(image_bytes + matcher_bytes <= 256U * 1024U * 1024U &&
+          depthd::bounded_frame_pool_capacity(full, full, 4U, image_bytes, true) == 2U &&
+          depthd::bounded_frame_pool_capacity(full, full, 4U, matcher_bytes) == 2U,
+          "image and matching lanes cannot partition a bounded full-resolution pool");
+  bool rejected = false;
+  try { (void)depthd::bounded_frame_pool_capacity(full, full, 4U, 32U * 1024U * 1024U); }
+  catch (const std::invalid_argument&) { rejected = true; }
+  require(rejected, "unfit geometry silently exceeded payload budget");
+  std::atomic<unsigned> released{};
+  auto input = request(1U, released);
+  input.capture.left.sensor_timestamp_ns = 123000;
+  input.capture.right.sensor_timestamp_ns = 123500;
+  input.capture.sensor_delta_ns = 500;
+  input.capture.left.stream_sequence = 41;
+  input.capture.right.stream_sequence = 42;
+  input.capture.left.isp_exposure_time_us = 7000;
+  input.capture.right.isp_analogue_gain = 2.0F;
+  const auto result = pipeline()->process(std::move(input));
+  require(result->capture_metadata && result->capture_metadata->left.sensor_timestamp_ns == 123000 &&
+          result->capture_metadata->right.stream_sequence == 42 && result->capture_metadata->sensor_delta_ns == 500 &&
+          result->capture_metadata->left.exposure_time_us == 7000 &&
+          result->capture_metadata->right.analogue_gain == 2.0 && result->matching_calibration && result->image_calibration,
+          "publication lost capture or calibration metadata before release");
+}
+
 }  // namespace
 
 int main() {
   try {
+    test_independent_images_are_not_duplicated_without_association();
+    test_bounded_pool_capacity_and_capture_metadata();
     test_synchronous_pipeline();
     test_independent_lanes_share_configuration_epochs();
     test_configuration_epoch_tracks_applied_matcher_changes();

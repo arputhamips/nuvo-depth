@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const source = fs.readFileSync(require('node:path').join(__dirname, '../web/app.js'),'utf8');
 const context = {TextDecoder, Uint8Array, DataView, Number, Set};
-context.window={NuvoFrameCodec:require('../web/frame-codec.js')};
+context.window={NuvoFrameCodec:require('../web/frame-codec.js'),NuvoDeviceSettings:require('../web/device-settings.js')};
 vm.createContext(context);
 vm.runInContext(source.slice(source.indexOf('const OUTPUT_PRODUCTS'),source.indexOf('let capabilities')),context);
 vm.runInContext(source.slice(source.indexOf('function outputSubscriptionPath'),source.indexOf('function updateOutputBudget')),context);
@@ -14,17 +14,21 @@ assert.equal(context.outputSubscriptionPath('/api/v1/stream',settings),'/api/v1/
 const image=context.outputBandwidth(['left_mono'],728,544,5);
 assert.equal(image.frame_bytes,728*544+65568);
 assert.equal(context.outputBandwidth(['rectified_stereo_rgb'],728,544,5).bytes_per_second,(728*544*6+65568)*5);
+assert.equal(context.outputBandwidth(['depth','validity','left_mono'],728,544,2,364,272).frame_bytes,728*544+364*272*5+65568,'image and matcher products use their own grids');
+const presets=vm.runInContext('OUTPUT_PRESETS',context);
+assert.deepEqual(Array.from(presets.depth),['depth','validity']);
+assert.equal(presets.camera.length,1,'camera default must not start matching');
 assert(context.outputBandwidth(['left_rgb'],728,544,5).bytes_per_second<8*1024*1024);
 assert(context.outputBandwidth(['left_rgb','right_rgb'],728,544,5).bytes_per_second>8*1024*1024);
 function frame(format,data,kind='left_rgb'){
-  const metadata=Buffer.from(JSON.stringify({products:[{kind,format,width:2,height:1,offset:0,length:data.length}]}));
-  const wire=Buffer.alloc(32+metadata.length+data.length);wire.write('NUV1');wire.writeUInt32BE(metadata.length,12);wire.writeBigUInt64BE(BigInt(data.length),16);wire.writeBigUInt64BE(7n,24);metadata.copy(wire,32);Buffer.from(data).copy(wire,32+metadata.length);
+  const metadata=Buffer.from(JSON.stringify({schema_version:1,capture_epoch:1,capture_sequence:7,capture_time_ns:1000000000,configuration_epoch:1,calibration_sha256:'a'.repeat(64),calibration_authority:0,products:[{kind,format,width:2,height:1,offset:0,length:data.length}]}));
+  const wire=Buffer.alloc(32+metadata.length+data.length);wire.write('NUV1');wire.writeUInt16BE(1,4);wire.writeUInt16BE(5,8);wire.writeUInt32BE(metadata.length,12);wire.writeBigUInt64BE(BigInt(data.length),16);wire.writeBigUInt64BE(7n,24);metadata.copy(wire,32);Buffer.from(data).copy(wire,32+metadata.length);
   return wire.buffer.slice(wire.byteOffset,wire.byteOffset+wire.byteLength);
 }
 let drawn;
 const canvas={style:{},getContext:()=>({createImageData:(w,h)=>({data:new Uint8Array(w*h*4)}),putImageData:image=>drawn=image.data})};
 for(const [format,expected] of [['rgb8',[11,22,33,255,44,55,66,255]],['bgr8',[33,22,11,255,66,55,44,255]]]){
-  const parsed=context.parseFrame(frame(format,[11,22,33,44,55,66]));context.drawGray(canvas,parsed,parsed.metadata.products[0]);
+  const parsed=context.parseFrame(frame(format,[11,22,33,44,55,66],'left_rectified'));context.drawGray(canvas,parsed,parsed.metadata.products[0]);
   assert.deepEqual(Array.from(drawn),expected);
 }
 assert.throws(()=>context.parseFrame(frame('rgb8',[11,22])),/Invalid product/,'short RGB payload must reject instead of showing partial pixels');
@@ -77,9 +81,9 @@ consolePolling.document.hidden=true;consoleTimers.forEach(fn=>fn());consoleListe
 assert.deepEqual(consoleCalls,{health:1,settings:5,setup:1},'hidden console must stop all routine endpoint polling');
 consolePolling.document.hidden=false;consoleListeners.visibilitychange();assert.deepEqual(consoleCalls,{health:2,settings:10,setup:1});
 assert(!source.includes("socketUrl('/api/v1/stream')"),'browser must not request implicit legacy-all depth products');
-const emptyElements={viewerEmptyState:{},encodedEmptyState:{}};
+const emptyElements={viewerEmptyState:{},encodedEmptyState:{},outputEncodedFigure:{},outputEncodedState:{},encodingError:{textContent:''}};
 let encodedLive=true;
-const availability={$:id=>emptyElements[id],lastFrameAt:0,outputSettings:{enabled:true},encoding:{mode:'both'},
+const availability={$:id=>emptyElements[id],lastFrameAt:0,encodedFrameAt:0,outputSettings:{enabled:true,preview:true},encoding:{mode:'both'},
   refreshFirstDepth:()=>{},firstDepth:{count:2},
   setSampleCanvasLive:(id,live)=>{assert.equal(id,'encodedCanvas');encodedLive=live}};
 vm.createContext(availability);
@@ -95,9 +99,11 @@ assert.match(emptyElements.viewerEmptyState.textContent,/Disconnected.*last rece
 assert.equal(encodedLive,false,'disconnected encoded output must expose its empty state');
 assert.equal(availability.firstDepth.count,undefined,'disconnect invalidates first-depth completion');
 availability.lastFrameAt=0;availability.outputSettings.enabled=false;
-availability.updateViewerAvailability();assert.match(emptyElements.viewerEmptyState.textContent,/Select raw outputs/);
+availability.updateViewerAvailability();assert.match(emptyElements.viewerEmptyState.textContent,/Select data products/);
 availability.outputSettings.enabled=true;availability.encoding.mode='encoded';
-availability.updateViewerAvailability();assert.match(emptyElements.viewerEmptyState.textContent,/Raw delivery is off/);
+availability.updateViewerAvailability();assert.match(emptyElements.viewerEmptyState.textContent,/Uncompressed network data is off/);
 availability.encoding.mode='raw';availability.updateViewerAvailability();
 assert.equal(emptyElements.encodedEmptyState.textContent,'Encoded preview is off');
+assert.equal(emptyElements.outputEncodedFigure.hidden,true);
+assert.match(emptyElements.outputEncodedState.textContent,/device preview encoder is off/);
 console.log('Web output selection, bandwidth, RGB/BGR, and demand lifecycle tests passed');

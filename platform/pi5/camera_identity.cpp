@@ -6,6 +6,31 @@
 #include <stdexcept>
 
 namespace depthd {
+
+void require_trigger_source(const CaptureOpenOptions& options,
+                            const bool hardware_timed_source_available) {
+  if (options.hardware_trigger_enabled && !hardware_timed_source_available &&
+      !options.allow_userspace_trigger) {
+    throw std::runtime_error(
+        "hardware-timed PIO trigger unavailable; run nuvo-trigger-prepare before capture. "
+        "Userspace GPIO is available only with capture-check --allow-userspace-trigger");
+  }
+}
+
+void validate_negotiated_stream(const CaptureOpenOptions& requested,
+                                const NegotiatedCameraStream& negotiated) {
+  const auto channels = requested.pixel_format == "RGB888" ||
+                        requested.pixel_format == "BGR888" ? 3U : 1U;
+  const auto minimum_stride = static_cast<std::uint64_t>(requested.width) * channels;
+  if (negotiated.grid.width != requested.width ||
+      negotiated.grid.height != requested.height ||
+      negotiated.pixel_format != requested.pixel_format ||
+      negotiated.buffer_count != requested.buffer_count ||
+      negotiated.stride_bytes < minimum_stride) {
+    throw std::runtime_error(
+        "camera negotiated a different geometry, pixel format, stride, or buffer count");
+  }
+}
 namespace {
 
 bool valid_role(const CameraRole role) noexcept {

@@ -5,6 +5,46 @@
 #include <vector>
 
 int main() {
+  depthd::CaptureOpenOptions requested;
+  depthd::NegotiatedCameraStream negotiated;
+  negotiated.grid = depthd::make_reference_grid(requested.width, requested.height);
+  negotiated.pixel_format = requested.pixel_format;
+  negotiated.stride_bytes = requested.width + 32U;
+  negotiated.buffer_count = requested.buffer_count;
+  depthd::validate_negotiated_stream(requested, negotiated);
+  for (int mismatch = 0; mismatch < 4; ++mismatch) {
+    auto adjusted = negotiated;
+    if (mismatch == 0) adjusted.grid.width += 2U;
+    if (mismatch == 1) adjusted.pixel_format = "RGB888";
+    if (mismatch == 2) adjusted.stride_bytes = requested.width - 1U;
+    if (mismatch == 3) ++adjusted.buffer_count;
+    try {
+      depthd::validate_negotiated_stream(requested, adjusted);
+      return 6;
+    } catch (const std::runtime_error&) {}
+  }
+  for (const auto* format : {"RGB888", "BGR888"}) {
+    auto color_request = requested;
+    color_request.pixel_format = format;
+    auto color_stream = negotiated;
+    color_stream.pixel_format = format;
+    try {
+      depthd::validate_negotiated_stream(color_request, color_stream);
+      return 8;
+    } catch (const std::runtime_error&) {}
+    color_stream.stride_bytes = requested.width * 3U;
+    depthd::validate_negotiated_stream(color_request, color_stream);
+  }
+  depthd::require_trigger_source(requested, true);
+  try {
+    depthd::require_trigger_source(requested, false);
+    return 7;
+  } catch (const std::runtime_error&) {}
+  requested.allow_userspace_trigger = true;
+  depthd::require_trigger_source(requested, false);
+  requested.allow_userspace_trigger = false;
+  requested.hardware_trigger_enabled = false;
+  depthd::require_trigger_source(requested, false);
   const depthd::CameraIdentity cam0{
       "/base/axi/pcie@1000120000/rp1/i2c@80000/imx296@1a", "imx296", "front", 1U};
   const depthd::CameraIdentity cam1{

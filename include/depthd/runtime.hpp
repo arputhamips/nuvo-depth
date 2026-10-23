@@ -46,6 +46,9 @@ struct StereoProcessingRequest {
   // Images requested independently of a matched product set. When both are
   // due, publish these promptly while preserving the matched set intact.
   ipc_v2::ProductMask independent_image_products{};
+  // Images explicitly required in the same publication as matching results.
+  // An image may be both independently subscribed and associated.
+  ipc_v2::ProductMask associated_image_products{};
   StereoPair capture{};
   std::shared_ptr<const void> left_mapping_owner{};
   std::shared_ptr<const void> right_mapping_owner{};
@@ -84,6 +87,7 @@ struct StereoProcessingRequest {
     products = other.products;
     preserve_for_preview = other.preserve_for_preview;
     independent_image_products = other.independent_image_products;
+    associated_image_products = other.associated_image_products;
 
     left_mapping_owner = std::move(other.left_mapping_owner);
     right_mapping_owner = std::move(other.right_mapping_owner);
@@ -122,6 +126,7 @@ class NativeConfigurationEpochs final {
 };
 
 struct NativePipelineConfiguration {
+  bool image_only{};
   std::array<std::uint8_t, 16> device_uuid{};
   std::array<std::uint8_t, 16> run_uuid{};
   std::uint64_t configuration_epoch{1U};
@@ -149,9 +154,26 @@ struct NativePipelineStats {
 
 // Owns every product in a coherent frame set. Views returned by view() remain
 // valid for this object's lifetime and never retain the camera request.
+struct CaptureCameraMetadata {
+  std::int64_t sensor_timestamp_ns{};
+  std::uint64_t stream_sequence{};
+  double exposure_time_us{};
+  double analogue_gain{};
+  double digital_gain{};
+};
+
+struct CaptureFrameMetadata {
+  CaptureCameraMetadata left;
+  CaptureCameraMetadata right;
+  std::uint64_t sensor_delta_ns{};
+};
+
 struct FrameSetStorage {
   ipc_v2::ProductMask available_products{ipc_v2::kAllProducts};
   ProductSetMetadata metadata{};
+  std::optional<RectifiedCalibrationView> image_calibration{};
+  std::optional<RectifiedCalibrationView> matching_calibration{};
+  std::optional<CaptureFrameMetadata> capture_metadata{};
   std::shared_ptr<const CapturePublicationContext> publication_context{};
   std::string rectification_backend;
   std::string rectification_fallback_reason;
@@ -283,6 +305,15 @@ class BoundedNativeScheduler final {
 
 void validate(const StereoProcessingRequest& request);
 void validate(const NativePipelineConfiguration& configuration);
+// Select at most the requested number of slots without increasing the payload
+// budget. Throws when even one complete worst-case slot cannot fit.
+[[nodiscard]] std::size_t bounded_frame_pool_capacity(
+    const PixelGrid& image_grid, const PixelGrid& matching_grid,
+    std::size_t requested_capacity, std::size_t payload_budget_bytes,
+    bool image_only = false);
+[[nodiscard]] std::size_t required_frame_pool_payload_bytes(
+    const PixelGrid& image_grid, const PixelGrid& matching_grid,
+    std::size_t capacity, bool image_only = false);
 
 // Describes the first (luma) DMA-BUF plane for capture-native GPU import and
 // installs a lazy mapper with explicit Linux DMA_BUF_SYNC read bracketing for

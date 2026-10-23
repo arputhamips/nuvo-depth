@@ -20,11 +20,14 @@ inline constexpr std::size_t kProductCount = 14U;
   const auto index = static_cast<std::uint8_t>(kind);
   return index < kProductCount ? 1U << index : 0U;
 }
-inline constexpr ProductMask kAllProducts = (1U << kLegacyProductCount) - 1U;
+inline constexpr ProductMask kLegacyDefaultProducts = (1U << kLegacyProductCount) - 1U;
+// Compatibility alias: this is the original six-product default, not all outputs.
+inline constexpr ProductMask kAllProducts = kLegacyDefaultProducts;
 inline constexpr ProductMask kSupportedProducts = (1U << kProductCount) - 1U;
 inline constexpr ProductMask kMatcherProducts =
     product_bit(ProductKind::kDisparity) | product_bit(ProductKind::kDepth) |
     product_bit(ProductKind::kConfidence) | product_bit(ProductKind::kValidity);
+inline constexpr ProductMask kImageProducts = kSupportedProducts & ~kMatcherProducts;
 [[nodiscard]] constexpr std::string_view product_name(const ProductKind kind) {
   constexpr std::string_view names[]{"left_rectified", "right_rectified", "disparity",
       "depth", "confidence", "validity", "left_mono", "right_mono", "left_rgb",

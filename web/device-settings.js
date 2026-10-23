@@ -261,11 +261,11 @@
         "options": [
           {
             "value": "0",
-            "label": "Off"
+            "label": "No additional filter"
           },
           {
             "value": "3",
-            "label": "3 × 3 · recommended"
+            "label": "Additional 3 × 3"
           },
           {
             "value": "5",
@@ -307,7 +307,7 @@
         "options": [
           {
             "value": "h264",
-            "label": "H.264 · efficient"
+            "label": "H.264 · independent frames"
           },
           {
             "value": "jpeg",
@@ -337,11 +337,11 @@
           },
           {
             "value": "disparity",
-            "label": "Disparity"
+            "label": "Disparity preview · 8-bit visualization"
           },
           {
             "value": "depth",
-            "label": "Depth"
+            "label": "Depth preview · 8-bit visualization, 0.2–12.2 m"
           },
           {
             "value": "left_mono",
@@ -495,7 +495,7 @@
     }
     if(kind==='algorithm'&&(config.min_disparity>=config.max_disparity||config.max_disparity>config.min_disparity+config.search_range))errors.set('maxDisparity','Maximum must lie inside the search range.');
     if(kind==='encoding'){
-      if(!['raw','both','encoded'].includes(config.mode))errors.set('streamRawEnabled','Keep raw delivery or the monitoring encoder enabled.');
+      if(!['raw','both','encoded'].includes(config.mode))errors.set('streamRawEnabled','Keep uncompressed network data or the compressed preview encoder enabled.');
       if((config.width===0)!==(config.height===0))errors.set('streamWidth','Set both dimensions, or leave both at 0 for native resolution.');
     }
     if(kind==='exposure'){
@@ -506,25 +506,34 @@
     }
     return errors;
   }
+  function outputFrameBytes(products,limits={},productTypes=[]){
+    const bytes=new Map(productTypes.map(([id,,size])=>[id,size]));
+    const width=limits.width??728,height=limits.height??544;
+    const matchingWidth=limits.matchingWidth??width,matchingHeight=limits.matchingHeight??height;
+    if(![width,height,matchingWidth,matchingHeight].every(x=>Number.isSafeInteger(x)&&x>0&&x<=8192))throw new Error('Device dimensions are unavailable or outside supported bounds.');
+    return 65568+products.reduce((sum,product)=>{
+      if(!bytes.has(product))throw new Error('This source is not a supported camera product.');
+      const pixels=['depth','disparity','confidence','validity'].includes(product)?matchingWidth*matchingHeight:width*height;
+      return sum+pixels*bytes.get(product);
+    },0);
+  }
   function validateOutputSelection(value,limits={},productTypes=[]){
-    if(!value||typeof value.enabled!=='boolean'||!Array.isArray(value.products)||value.products.length>14)throw new Error('Choose a valid raw output selection.');
+    if(!value||typeof value.enabled!=='boolean'||!Array.isArray(value.products)||value.products.length>14)throw new Error('Choose a valid data output selection.');
     const bytes=new Map(productTypes.map(([id,,size])=>[id,size]));
     if(value.products.some(product=>typeof product!=='string'||!bytes.has(product)))throw new Error('This source is not a supported camera product.');
     if(!Number.isFinite(value.cadence_hz)||value.cadence_hz<=0||value.cadence_hz>60)throw new Error('Output cadence must be greater than 0 and at most 60 Hz.');
     if(!['auto','best_effort','exact'].includes(value.delivery))throw new Error('Choose a supported delivery policy.');
     if(typeof value.preview!=='boolean'||!Number.isFinite(value.preview_cadence_hz)||value.preview_cadence_hz<=0||value.preview_cadence_hz>60)throw new Error('Use a valid monitoring state and cadence from 0–60 Hz, greater than zero.');
-    if(value.enabled&&!value.products.length)throw new Error('Select at least one raw product.');
+    if(value.enabled&&!value.products.length)throw new Error('Select at least one data product.');
     const products=value.enabled?[...new Set(value.products)]:[];
     if(!products.length)return {...value,enabled:false,products,frameBytes:0,bytesPerSecond:0};
     if(Array.isArray(limits.supportedProducts)&&products.some(product=>!limits.supportedProducts.includes(product)))throw new Error('A selected product is not supported by this device.');
     if(value.delivery==='exact'&&!limits.qualified)throw new Error('Exact delivery requires a measured, qualified connection. Choose Auto or Best effort.');
-    if(limits.rawEnabled===false)throw new Error('Raw delivery is off. Enable it on Streaming before applying these outputs.');
-    const width=limits.width??728,height=limits.height??544;
-    if(!Number.isSafeInteger(width)||!Number.isSafeInteger(height)||width<=0||height<=0||width>8192||height>8192)throw new Error('Device dimensions are unavailable or outside supported bounds.');
-    const frameBytes=65568+products.reduce((sum,product)=>sum+width*height*bytes.get(product),0);
+    if(limits.rawEnabled===false)throw new Error('Uncompressed network data is off. Enable it on Streaming before applying these outputs.');
+    const frameBytes=outputFrameBytes(products,limits,productTypes);
     const maxFrame=Number.isFinite(limits.maxFrameBytes)&&limits.maxFrameBytes>0?limits.maxFrameBytes:16777216;
     const budget=Number.isFinite(limits.bytesPerSecond)&&limits.bytesPerSecond>0?limits.bytesPerSecond:8*1048576;
-    if(frameBytes>maxFrame)throw new Error('Selected products exceed the raw frame size limit. Choose fewer products.');
+    if(frameBytes>maxFrame)throw new Error('Selected products exceed the data frame size limit. Choose fewer products.');
     const bytesPerSecond=frameBytes*value.cadence_hz;
     if(bytesPerSecond>budget){const safe=Math.floor(budget/frameBytes*10)/10;throw new Error(`Outputs exceed the connection resource budget. Use ${safe>0?safe+' Hz or less':'fewer products'}, or choose fewer products.`);}
     return {...value,enabled:true,products,frameBytes,bytesPerSecond};
@@ -570,5 +579,5 @@
 }
 
 
-  return Object.freeze({DEFINITIONS,validate,validateOutputSelection,values,configuration,request,saveDraft,loadDraft,clearDraft});
+  return Object.freeze({DEFINITIONS,validate,validateOutputSelection,outputFrameBytes,values,configuration,request,saveDraft,loadDraft,clearDraft});
 });
