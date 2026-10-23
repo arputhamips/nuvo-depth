@@ -28,7 +28,11 @@ choice is kept in that browser; without an explicit choice the console follows
 the operating-system color preference.
 
 The overview shows live camera, depth-rate, compute-time, and calibration status.
-Expand **Setup guide** for first-use checks. Current source Live view also offers **Show first depth** and **Save depth sample** after two advancing associated depth/validity frames; the download preserves original NUV1 metadata. These controls are not in the public beta 6 console. Use the [complete journey](https://docs.nuvohardware.com/vision-one/guide/getting-started) for its manual Outputs and SDK route. The full **Performance** monitor
+Expand **Setup guide** for first-use checks. Public beta 8 Live view offers
+**Show first depth** and **Save depth sample** after two advancing associated
+depth/validity frames; the download preserves original NUV1 metadata. Older
+beta 6 lacks these buttons. The [complete journey](https://docs.nuvohardware.com/vision-one/guide/getting-started)
+covers the console controls, manual Outputs steps and SDK route. The full **Performance** monitor
 appears on Overview and Diagnostics, with observed compute-time history,
 sampled-frame P95, and a stage timing table. Its **Analysis target** compares
 compute time with a frame budget; it does not change the device configuration.
