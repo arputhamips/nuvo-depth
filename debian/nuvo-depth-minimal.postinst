@@ -15,16 +15,8 @@ if not path.exists():
         output.write(str(uuid.uuid4()) + '\n')
     os.chown(path, 0, grp.getgrnam('nuvo-video').gr_gid)
     os.chmod(path, 0o640)
-# Preserve an existing running validated legacy selection during upgrades.
-# Fresh installs and implicit provisional output never create this choice.
-marker = pathlib.Path('/etc/nuvo-depth/capture-enabled')
-try:
-    status = json.loads(pathlib.Path('/run/nuvo-depth/status.json').read_text())
-    if status.get('calibration_authority', 0) > 0 and not marker.exists():
-        marker.write_text('preserved-validated-calibration\n')
-        marker.chmod(0o600)
-except (OSError, ValueError):
-    pass
+# Preinst already preserved the OLD effective policy before unit replacement.
+# A leftover runtime status file must never enable deliberately disabled capture.
 PY
 fi
 #DEBHELPER#

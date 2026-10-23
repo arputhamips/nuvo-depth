@@ -36,7 +36,7 @@ def number(value):
 
 def collect(root=Path('/'), profile='appliance', run=subprocess.run):
     root = Path(root)
-    health = calibration.daemon_health(root)
+    health = calibration.daemon_health(root,run)
     ready = calibration.readiness(root,run)
     os_values = {}
     for line in (small(root/'etc/os-release') or '').splitlines():

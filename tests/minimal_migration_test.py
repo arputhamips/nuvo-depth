@@ -1,6 +1,8 @@
 """Upgrade the old effective policy before its unit file is replaced; no daemon needed."""
 from pathlib import Path
+import builtins
 import tempfile
+from types import SimpleNamespace
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +35,20 @@ class MigrationTest(unittest.TestCase):
         scope['migrate'](root)
         self.assertFalse((root/'etc/nuvo-depth/capture-enabled').exists())
         self.assertFalse((root/'etc/systemd/system/nuvo-depthd-native.service.d').exists())
+        # Exercise postinst too: the historical fallback incorrectly re-enabled
+        # a deliberately disabled unit from a leftover validated health file.
+        identity=root/'var/lib/nuvo-depth/identity/device.uuid'
+        identity.parent.mkdir(parents=True);identity.write_text('preserved-unit\n')
+        status=root/'run/nuvo-depth/status.json';status.parent.mkdir(parents=True)
+        status.write_text('{"status":"running","calibration_authority":1}')
+        real_import=builtins.__import__
+        def importing(name,*args,**kwargs):
+            if name=='pathlib':return SimpleNamespace(Path=lambda value:root/value.lstrip('/'))
+            return real_import(name,*args,**kwargs)
+        post=(ROOT/'debian/nuvo-depth-minimal.postinst').read_text().split("<<'PY'\n",1)[1].split('\nPY\n',1)[0]
+        exec(compile(post,'minimal.postinst','exec'),{'__builtins__':dict(vars(builtins),__import__=importing)})
+        self.assertFalse((root/'etc/nuvo-depth/capture-enabled').exists())
+        self.assertEqual(identity.read_text(),'preserved-unit\n')
     def test_guarded_preview_and_validated_policy_keep_the_original_command(self):
         for preview in (True,False):
             with self.subTest(preview=preview):

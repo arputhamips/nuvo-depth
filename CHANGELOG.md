@@ -9,6 +9,7 @@
 - Verify supplied calibration through the shared activation transaction and restore the previous selection on startup failure.
 - Report malformed calibration/status state with an actionable unavailable result.
 - Preserve minimal preview and validated calibration policies during upgrades, including stopped services.
+- Keep deliberately disabled capture disabled when an old validated status file remains, and separate stopped-service state from activation verification.
 - Bound public-release discovery and handle unusable IPv6 paths without changing device network settings.
 - Keep the two-thread CPU baseline and shared seed authority provisional.
 

@@ -33,7 +33,7 @@ def read_json(path, limit=65536):
     return value
 
 
-def daemon_health(root):
+def daemon_health(root, run=subprocess.run):
     path = root / 'run/nuvo-depth/status.json'
     try:
         health = read_json(path)
@@ -49,6 +49,19 @@ def daemon_health(root):
             raise ValueError('Daemon capture sequence is malformed')
         if time.time() - path.stat().st_mtime > 15:
             return {'status': 'unavailable', 'error': 'Daemon status is stale', 'error_code': 'daemon_status_stale'}
+        # A just-stopped service can leave a recent status file behind. That
+        # file must not establish current loaded/fresh-frame verification.
+        if health['status'] == 'running' and (root/'run/systemd/system').is_dir():
+            try:
+                service = run(['systemctl','is-active',SERVICE],capture_output=True,text=True,timeout=5,check=False)
+            except (OSError,subprocess.SubprocessError):
+                return {'status':'unavailable','error':'Capture service activity could not be determined',
+                        'error_code':'daemon_service_unavailable'}
+            if service.returncode or service.stdout.strip() != 'active':
+                value=service.stdout.strip()
+                return {'status':'unavailable','error':'Capture service is not active; request fresh output after starting capture',
+                        'error_code':'daemon_service_not_running',
+                        'service_state':value if value in ('inactive','failed','activating','deactivating') else 'unknown'}
         return health
     except (OSError, ValueError) as error:
         return {'status': 'unavailable', 'error': str(error),
@@ -142,7 +155,7 @@ def selected_calibration(root, run=subprocess.run, cfg=None):
 
 def readiness(root=Path('/'), run=subprocess.run):
     root = Path(root)
-    health = daemon_health(root)
+    health = daemon_health(root,run)
     result = {'schema_version': 1, 'state': 'unavailable', 'label': 'Status unavailable/error',
               'message': 'Calibration readiness could not be determined.',
               'next_action': 'Inspect the specific problem and repair the configuration or service.',
@@ -153,7 +166,7 @@ def readiness(root=Path('/'), run=subprocess.run):
               'runtime_verification': {'state': 'unverified', 'run_uuid': health.get('run_uuid'),
                                        'fresh_frames_verified': False},
               'camera_service': {key: health.get(key) for key in
-                                 ['status', 'run_uuid', 'capture_sequence', 'error', 'error_code']}}
+                                 ['status', 'run_uuid', 'capture_sequence', 'error', 'error_code', 'service_state']}}
     try:
         if health.get('error_code') == 'daemon_status_malformed':
             result['reason'] = 'daemon_status_malformed'
@@ -222,7 +235,7 @@ def readiness(root=Path('/'), run=subprocess.run):
 
 def status(root=Path('/'), run=subprocess.run):
     root = Path(root)
-    return {**daemon_health(root), 'calibration_readiness': readiness(root, run)}
+    return {**daemon_health(root,run), 'calibration_readiness': readiness(root, run)}
 
 
 class CapturePolicy:
@@ -305,7 +318,7 @@ def restart_and_verify(root, policy, expected_bundle, run=subprocess.run):
         result = run(['systemctl', *args], capture_output=True, text=True, timeout=timeout, check=False)
         if result.returncode:
             raise RuntimeError(result.stderr.strip() or 'Capture service command failed: ' + ' '.join(args))
-    old_run = daemon_health(root).get('run_uuid')
+    old_run = daemon_health(root,run).get('run_uuid')
     systemctl('daemon-reload')
     configuration_state = service_configuration(root, run)
     if not configuration_state['capture_policy_enabled']:
@@ -313,7 +326,7 @@ def restart_and_verify(root, policy, expected_bundle, run=subprocess.run):
         return
     systemctl('restart', SERVICE)
     systemctl('is-active', '--quiet', SERVICE, timeout=5)
-    health = daemon_health(root)
+    health = daemon_health(root,run)
     if health.get('status') != 'running' or not health.get('run_uuid') or health['run_uuid'] == old_run:
         raise RuntimeError('Capture did not publish a new running daemon status')
     expected = expected_bundle

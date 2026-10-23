@@ -16,6 +16,9 @@ class ReadinessTest(unittest.TestCase):
         temporary=tempfile.TemporaryDirectory();self.addCleanup(temporary.cleanup);self.root=Path(temporary.name)
         self.cfg=prepare_root(self.root)
     def run_native(self,args,**kwargs):
+        if args[:2]==['systemctl','is-active']:
+            value=getattr(self,'service_state','active')
+            return subprocess.CompletedProcess(args,0 if value=='active' else 3,value+'\n','')
         if '--dump-effective-config' in args:return subprocess.CompletedProcess(args,0,json.dumps({'configuration':self.cfg}),'')
         if '--calibration-check' in args:return subprocess.CompletedProcess(args,0,'{"valid":true}','')
         raise AssertionError(args)
@@ -88,5 +91,13 @@ class ReadinessTest(unittest.TestCase):
         for key,replacement in (('run_uuid','old-run'),('authority',2),('bundle_id','f'*64)):
             write_json(self.root/control.STATE/'calibration-verification.json',{**receipt,key:replacement})
             self.assertFalse(self.status()['runtime_verification']['fresh_frames_verified'])
+        write_json(self.root/control.STATE/'calibration-verification.json',receipt)
+        (self.root/'run/systemd/system').mkdir(parents=True)
+        self.service_state='inactive'
+        stopped=self.status()
+        self.assertTrue(stopped['accepted'])  # Bundle validation remains separate.
+        self.assertIsNone(stopped['loaded'])
+        self.assertFalse(stopped['runtime_verification']['fresh_frames_verified'])
+        self.assertEqual(stopped['camera_service']['error_code'],'daemon_service_not_running')
 
 if __name__=='__main__':unittest.main()
