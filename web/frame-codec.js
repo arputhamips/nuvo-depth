@@ -89,11 +89,14 @@ function fillProduct(image, frame, descriptor, maximum) {
   const numeric=descriptor.format==='float32_le';
   if(numeric){
     const values=new DataView(frame.buffer,frame.payloadOffset+descriptor.offset,descriptor.length);
+    const validity=descriptor.kind==='depth'?frame.metadata.products.find(p=>p.kind==='validity'&&p.format==='uint8'&&p.width===descriptor.width&&p.height===descriptor.height):null;
+    const mask=validity?new Uint8Array(frame.buffer,frame.payloadOffset+validity.offset,validity.length):null;
     let valid=0;
     for(let i=0,j=0;i<descriptor.length;i+=4,j+=4){
-      const value=values.getFloat32(i,true),accepted=Number.isFinite(value)&&(descriptor.kind!=='depth'||value>0);
+      const value=values.getFloat32(i,true),accepted=Number.isFinite(value)&&(descriptor.kind!=='depth'||value>0&&(!mask||mask[i/4]===1));
       if(accepted){
         valid++;
+        if(descriptor.kind==='depth'&&(value<.2||value>12.2)){image.data[j]=255;image.data[j+1]=0;image.data[j+2]=255;image.data[j+3]=255;continue;}
         const t=Math.max(0,Math.min(1,descriptor.kind==='depth'?(value-.2)/12:value/maximum));
         image.data[j]=Math.round(255*Math.max(0,Math.min(1,1.5-Math.abs(4*t-3))));
         image.data[j+1]=Math.round(255*Math.max(0,Math.min(1,1.5-Math.abs(4*t-2))));
@@ -119,5 +122,14 @@ function drawDepth(canvas, frame, descriptor) {
 function drawDisparity(canvas, frame, descriptor, maximum=128) {
   return drawProduct(canvas,frame,descriptor,maximum);
 }
-return Object.freeze({parseFrame,parseEncoded,drawGray,drawDepth,drawDisparity,prepareCanvas});
+function inspectDepth(frame,x,y){
+  const depth=frame?.metadata?.products.find(p=>p.kind==='depth'),validity=frame?.metadata?.products.find(p=>p.kind==='validity');
+  if(!depth||!validity||depth.format!=='float32_le'||validity.format!=='uint8'||depth.width!==validity.width||depth.height!==validity.height)return {valid:false,reason:'Associated numeric depth and validity are unavailable.'};
+  if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=depth.width||y>=depth.height)return {valid:false,reason:`Choose a pixel inside the ${depth.width} × ${depth.height} depth grid.`};
+  const index=y*depth.width+x;
+  const z=new DataView(frame.buffer,frame.payloadOffset+depth.offset,depth.length).getFloat32(index*4,true);
+  const status=new Uint8Array(frame.buffer,frame.payloadOffset+validity.offset,validity.length)[index];
+  return status===1&&Number.isFinite(z)&&z>0?{valid:true,z,x,y,outsideDisplay:z<.2||z>12.2,captureSequence:frame.metadata.capture_sequence}:{valid:false,reason:'Invalid depth pixel · no measurement',x,y,captureSequence:frame.metadata.capture_sequence};
+}
+return Object.freeze({parseFrame,parseEncoded,drawGray,drawDepth,drawDisparity,prepareCanvas,inspectDepth});
 });

@@ -6,6 +6,20 @@ Browser connections are automatic; SDK clients still exchange the long device
 administrator token for a session. Read it over trusted SSH and use the hidden
 prompt. Never place it in source, command history, screenshots or support reports.
 
+In the development console, **Outputs → My application** prepares a recipe for
+your own client. Showing that recipe does not start an application stream or
+change the browser's active subscription. Use numeric **depth + validity** for
+measurements. A shared JPEG/H.264 picture preview is a viewing product and cannot
+recover the original numeric depth values; an ISP image is not sensor Bayer RAW.
+
+Wi-Fi, Ethernet and USB Ethernet use the same API. The device's independent
+Wi-Fi product permission applies to both picture previews and uncompressed
+products. A disabled Wi-Fi permission blocks data on that camera interface while
+console/control access remains available. It does not select an interface for
+your client; reconnect to an appropriate reachable address to change links.
+The gateway's connection description identifies the camera-side interface,
+not every network segment between the camera and the application.
+
 The core Python SDK and examples require Python 3.11+ and the standard library.
 The candidate CI matrix covers Linux and Windows with Python 3.11 and 3.13.
 NumPy and Python OpenCV are optional application choices, not SDK requirements.

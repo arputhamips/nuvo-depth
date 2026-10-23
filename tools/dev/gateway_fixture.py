@@ -10,6 +10,7 @@ import importlib.util
 import json
 from pathlib import Path
 import signal
+import struct
 import subprocess
 import sys
 import threading
@@ -35,6 +36,9 @@ def main():
         sys.argv=[str(__file__),str(args.binary.resolve()),str(ROOT/'web')]
         fixture.setUpClass()
     finally:sys.argv=original
+    # The protocol integration fixture intentionally uses undecodable bytes.
+    # This rendered-browser fixture must supply an actual synthetic picture.
+    fixture.local.auto_encode=False
     stop=threading.Event()
     for item in (signal.SIGINT,signal.SIGTERM):signal.signal(item,lambda *_:stop.set())
     directory=Path(fixture.temporary.name)
@@ -65,12 +69,28 @@ def main():
     atomic_json(args.manifest,manifest)
     print(json.dumps({'fixture':True,'origin':fixture.origin,'manifest':str(args.manifest)}),flush=True)
     sequence=0; current_run=2; restarts=0
+    transport_path=fixture.config_root/"transport.json"
+    transport_off=False; transport_original=None
+    preview_revision=None; preview_payload=None; preview_generation=0; preview_sequence=0; next_preview=0.
     try:
         while not stop.wait(.1):
             try:
                 value=json.loads(args.control.read_text())
                 if isinstance(value,dict):control=value
             except (OSError,ValueError):pass
+            # Model a local operator policy write only inside this temporary root.
+            # The HTTP API deliberately does not permit remote master Off.
+            requested_off=control.get('transport_off') is True
+            if requested_off!=transport_off:
+                if requested_off:
+                    transport_original=transport_path.read_bytes() if transport_path.exists() else None
+                    policy=json.loads(transport_original) if transport_original is not None else {'schema_version':1}
+                    policy['preference']='off';atomic_json(transport_path,policy)
+                elif transport_original is None:transport_path.unlink(missing_ok=True)
+                else:
+                    temporary=transport_path.with_suffix('.restore')
+                    temporary.write_bytes(transport_original);temporary.replace(transport_path)
+                transport_off=requested_off
             requested=control.get('run',2)
             if type(requested) is not int or not 1<=requested<=255:requested=2
             if requested!=current_run:sequence=0;current_run=requested
@@ -79,12 +99,43 @@ def main():
             fixture.local.serve_frames=state in ('preview_enabled','calibration_accepted')
             fixture.local.authority=1 if state=='calibration_accepted' else 0
             fixture.local.publish(sequence,run=current_run,width=16,height=12)
+            demand=fixture.local.demand()
+            encoding_bytes=(fixture.config_root/'encoding.json').read_bytes()
+            encoding=json.loads(encoding_bytes)
+            revision=hashlib.sha256(encoding_bytes).hexdigest()
+            if encoding['codec']=='jpeg' and encoding['mode']!='raw' and demand[2]>0 and time.monotonic()>=next_preview:
+                if preview_revision!=revision:
+                    import cv2
+                    import numpy as np
+                    width,height=encoding['width'] or 16,encoding['height'] or 12
+                    image=np.zeros((height,width,3),dtype=np.uint8)
+                    image[:,:,0]=np.arange(width,dtype=np.uint32)%256
+                    image[:,:,1]=(np.arange(height,dtype=np.uint32)%256)[:,None]
+                    image[:,:,2]=100
+                    valid,payload=cv2.imencode('.jpg',image,[cv2.IMWRITE_JPEG_QUALITY,encoding['jpeg_quality']])
+                    if not valid:raise RuntimeError('cannot encode synthetic browser fixture JPEG')
+                    preview_payload=payload.tobytes();preview_revision=revision;preview_generation+=1
+                preview_sequence+=1
+                envelope=fixture_module.encoded_frame(preview_sequence,
+                    run_uuid=f'{current_run:02x}000000-0000-0000-0000-000000000000',capture_sequence=sequence,
+                    source=encoding['source'],width=encoding['width'] or 16,height=encoding['height'] or 12,
+                    encoding_applied_revision=revision,encoding_configuration_generation=preview_generation)
+                metadata_size=struct.unpack_from('>I',envelope,8)[0]
+                header=struct.pack('>4sHHIQQI',b'NVE1',1,1,metadata_size,len(preview_payload),preview_sequence,0)
+                temporary=fixture.local.encoded_path.with_suffix('.tmp')
+                temporary.write_bytes(header+envelope[32:32+metadata_size]+preview_payload)
+                temporary.replace(fixture.local.encoded_path)
+                next_preview=time.monotonic()+1/min(encoding['cadence_hz'],demand[2])
             health={'schema_version':1,'status':'running','fixture':True,'capture_sequence':sequence,
                     'run_uuid':f'{current_run:02x}'+'00'*15,'image_width':16,'image_height':12,'depth_width':16,'depth_height':12,
                     'capture_target_hz':10,'captured_pairs':sequence,'matched_frames':sequence,'published_frames':sequence,
                     'calibration_sha256':'01'+'00'*31,'calibration_authority':fixture.local.authority,'processing_ms':1.,
                     'left_camera_id':'fixture-left','right_camera_id':'fixture-right','stereo_backend':'fixture',
-                    'profile_id':'synthetic_fixture','matcher_active':bool(fixture.local.demand()[0]&24)}
+                    'profile_id':'synthetic_fixture','matcher_active':bool(demand[0]&60),
+                    'raw_product_demand':demand[0],'raw_demand_cadence_hz':demand[1],
+                    'preview_demand_cadence_hz':demand[2],'encoding_active':demand[2]>0,
+                    'encoding_applied_revision':preview_revision or '',
+                    'encoding_configuration_generation':preview_generation,'encoded_frames':preview_sequence}
             path=directory/'missing-status'
             if fixture.local.serve_frames:atomic_json(path,health)
             else:path.unlink(missing_ok=True)

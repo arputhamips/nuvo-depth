@@ -20,17 +20,27 @@ A healthy live response has `status: running`, an advancing
 `capture_sequence`, 728 × 544 image and depth dimensions,
 `rectification_backend: egl_gl_dmabuf`, the selected OpenCV stereo backend,
 zero trigger/requeue errors, and matched left/right reported exposure values.
-The Diagnostics page copies the same credential-free JSON.
+**Device → Diagnostics** copies the same credential-free JSON.
 
 ## No browser image
 
-1. Check Overview health and that capture sequence advances.
-2. For Live viewer, enable **Raw product delivery**.
-3. For Streaming preview, enable **Monitoring encoder** and wait for the next
-   image. Live H.264 requires keyframe interval 1 so every image is independent.
+1. Check **Live view** health and that capture sequence advances.
+2. Check the viewer's representation and the **Receiving** label. A draft
+   selection under Outputs has not yet changed the requested subscription.
+3. For numeric/image products, enable **Uncompressed network data**. For a
+   compressed picture, enable **Compressed preview encoder** under Device and
+   choose the picture preview in Outputs. Live H.264 requires keyframe interval
+   1 so every image is independent.
 4. If settings appear stale, reload the page and verify
    `GET /api/v1/encoding`; configuration is device authority, not browser state.
 5. Inspect `journalctl -u nuvo-gateway.service -u nuvo-depthd-native.service`.
+
+If the camera-side link is Wi-Fi, inspect **Allow product streaming over Wi-Fi**
+under Outputs. When disabled, both numeric/image streams and compressed pictures
+are blocked, although the console can still load. A successfully loaded console
+does not prove data permission. A master Off preference also blocks every link.
+Changing a preference does not migrate an existing connection; reconnect to the
+appropriate camera address. USB means USB Ethernet.
 
 The encoder endpoint intentionally returns HTTP 503 when monitoring encoding is
 off. The raw endpoint intentionally returns HTTP 503 in encoded-only mode.

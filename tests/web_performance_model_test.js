@@ -4,7 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, '../web/app.js'), 'utf8');
 const start = source.indexOf('// Performance sample model.');
-const end = source.indexOf('// Performance monitor rendering:', start);
+const end = source.indexOf('function placePerformanceMonitor(', start);
 assert(start >= 0 && end > start);
 const context = {};
 vm.createContext(context);
