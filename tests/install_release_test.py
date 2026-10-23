@@ -22,6 +22,181 @@ import nuvo_install as installer
 import nuvo_setup as setup
 
 
+def run_pty(command, *, cwd=None, env=None, prompts=(), timeout=15):
+    """Drain a PTY and reap its child under one deadline; EOF is not exit."""
+    import errno, pty, select, signal, time
+    deadline = time.monotonic() + timeout
+    pid, master = pty.fork()
+    if pid == 0:
+        try:
+            if cwd is not None:
+                os.chdir(cwd)
+            os.execvpe(command[0], command, os.environ if env is None else env)
+        except BaseException:
+            os._exit(127)
+    transcript = bytearray()
+    answered = set()
+    status = None
+    eof = False
+    completed = False
+    try:
+        while True:
+            if status is None:
+                done, child_status = os.waitpid(pid, os.WNOHANG)
+                if done:
+                    status = child_status
+            if eof and status is not None:
+                completed = True
+                return os.waitstatus_to_exitcode(status), bytes(transcript)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("PTY child did not finish before deadline: " + transcript.decode(errors='replace'))
+            if eof:
+                # EIO/EOF can precede process exit. Keep waiting, without
+                # spinning on a permanently readable closed terminal.
+                time.sleep(min(0.01, remaining))
+                continue
+            if not select.select([master], [], [], min(0.05, remaining))[0]:
+                continue
+            try:
+                chunk = os.read(master, 65536)
+            except OSError as error:
+                if error.errno != errno.EIO:
+                    raise
+                chunk = b''
+            if not chunk:
+                eof = True
+                continue
+            transcript.extend(chunk)
+            for prompt, answer in prompts:
+                if prompt in transcript and prompt not in answered:
+                    os.write(master, answer)
+                    answered.add(prompt)
+    finally:
+        try:
+            if not completed:
+                try:
+                    os.killpg(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    # The fork can fail before creating its terminal session.
+                    if status is None:
+                        try:
+                            os.kill(pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                if status is None:
+                    os.waitpid(pid, 0)
+        finally:
+            os.close(master)
+
+
+@unittest.skipUnless(os.name == 'posix', 'requires a controlling PTY')
+class PtyRunnerTest(unittest.TestCase):
+    def test_eof_before_delayed_child_exit_is_not_failure(self):
+        import errno, time
+        # The child cannot exit until the parent has observed terminal EOF.
+        # This reproduces the race without depending on scheduler timing.
+        real_read = os.read
+        for eof_as_bytes in (False, True):
+            release_read, release_write = os.pipe()
+            os.set_inheritable(release_read, True)
+            eof_seen = []
+            def observe_eof(fd, size):
+                try:
+                    chunk = real_read(fd, size)
+                except OSError as error:
+                    if error.errno != errno.EIO:
+                        raise
+                    eof_seen.append(True)
+                    os.write(release_write, b'x')
+                    if eof_as_bytes:
+                        return b''
+                    raise
+                if not chunk:
+                    eof_seen.append(True)
+                    os.write(release_write, b'x')
+                return chunk
+            program = ("import os,time\nprint('output drained',flush=True)\n"
+                       "for fd in (0,1,2): os.close(fd)\n"
+                       f"os.read({release_read},1)\ntime.sleep(.1)\n")
+            try:
+                started = time.monotonic()
+                with self.subTest(eof_as_bytes=eof_as_bytes), mock.patch('os.read', side_effect=observe_eof):
+                    code, transcript = run_pty([sys.executable, '-c', program], timeout=2)
+                self.assertEqual(code, 0)
+                self.assertIn(b'output drained', transcript)
+                self.assertTrue(eof_seen)
+                self.assertGreaterEqual(time.monotonic() - started, .1)
+            finally:
+                os.close(release_read)
+                os.close(release_write)
+
+    def test_nonzero_exit_and_all_output_are_retained(self):
+        code, transcript = run_pty([sys.executable, '-c', "import sys;print('failure output');sys.exit(7)"])
+        self.assertEqual(code, 7)
+        self.assertIn(b'failure output', transcript)
+
+    def test_open_or_closed_terminal_hang_uses_same_deadline_and_is_reaped(self):
+        import signal, time
+        for close in (False, True):
+            program = "import os,time\nprint('ready',flush=True)\n"
+            if close:
+                program += "for fd in (0,1,2): os.close(fd)\n"
+            program += 'time.sleep(60)\n'
+            with self.subTest(closed=close), mock.patch('os.killpg', wraps=os.killpg) as kill:
+                started = time.monotonic()
+                with self.assertRaisesRegex(TimeoutError, 'deadline.*ready'):
+                    run_pty([sys.executable, '-c', program], timeout=.3)
+                self.assertLess(time.monotonic() - started, 2)
+                pid = kill.call_args.args[0]
+                kill.assert_called_once_with(pid, signal.SIGKILL)
+                with self.assertRaises(ChildProcessError):
+                    os.waitpid(pid, os.WNOHANG)
+
+    def test_io_and_assertion_exceptions_kill_and_reap_the_owned_group(self):
+        import signal
+        program = "import time;print('answer: ',flush=True);time.sleep(60)"
+        for operation, error in [('select.select', RuntimeError('select failed')),
+                                 ('os.read', AssertionError('read failed')),
+                                 ('os.write', OSError('write failed'))]:
+            with self.subTest(operation=operation), mock.patch('os.killpg', wraps=os.killpg) as kill:
+                with mock.patch(operation, side_effect=error), self.assertRaises(type(error)):
+                    run_pty([sys.executable, '-c', program], prompts=[(b'answer: ', b'yes\n')], timeout=2)
+                pid = kill.call_args.args[0]
+                kill.assert_called_once_with(pid, signal.SIGKILL)
+                with self.assertRaises(ChildProcessError):
+                    os.waitpid(pid, os.WNOHANG)
+
+    @unittest.skipUnless(Path('/proc/self/stat').exists(), 'Linux process-state check')
+    def test_timeout_also_stops_descendants_in_the_owned_group(self):
+        import time
+        with tempfile.TemporaryDirectory() as temporary:
+            pids = Path(temporary)/'pids'
+            program = ("import os,signal,time\nfrom pathlib import Path\n"
+                       "signal.signal(signal.SIGHUP,signal.SIG_IGN)\nchild=os.fork()\n"
+                       "if child==0: time.sleep(60);os._exit(0)\n"
+                       f"Path({str(pids)!r}).write_text(str(os.getpid())+' '+str(child))\n"
+                       "print('descendant ready',flush=True)\nos._exit(0)\n")
+            with self.assertRaisesRegex(TimeoutError, 'deadline.*descendant ready'):
+                run_pty([sys.executable, '-c', program], timeout=.3)
+            leader, child = map(int, pids.read_text().split())
+            with self.assertRaises(ChildProcessError):
+                os.waitpid(leader, os.WNOHANG)
+            # A killed descendant may briefly remain an init-owned zombie;
+            # distinguish that from a running leaked process.
+            deadline = time.monotonic()+1
+            state = Path(f'/proc/{child}/stat')
+            while state.exists():
+                try:
+                    process_state = state.read_text().rsplit(')',1)[1].split()[0]
+                except FileNotFoundError:
+                    break
+                if process_state == 'Z':
+                    break
+                self.assertLess(time.monotonic(), deadline, 'PTY descendant survived cleanup')
+                time.sleep(.01)
+
+
 @unittest.skipUnless(shutil.which("dpkg-deb") and shutil.which("openssl"), "requires Linux Debian fixture tools")
 class ReleaseTest(unittest.TestCase):
     @classmethod
@@ -266,48 +441,16 @@ class ReleaseTest(unittest.TestCase):
 
     @unittest.skipUnless(os.name=="posix","requires a controlling PTY")
     def test_curl_pipe_preserves_questions_and_masked_passwords(self):
-        import errno, pty, select, signal, time
         program="import getpass,sys\nassert sys.stdin.isatty()\nassert input('Network choice: ')=='current'\nassert getpass.getpass('Wi-Fi password: ')=='private test password'\nprint('interactive fixture complete')\n"
         directory,_,_,_,env=self.bootstrap_fixture("interactive-pipe",program)
         env=env|{"BOOTSTRAP_URL":"https://github.com/test-owner/nuvo/releases/download/v1.2.3/install-nuvo-depth.sh"}
-        pid,master=pty.fork()
-        if pid==0:
-            os.chdir(directory)
-            os.execvpe("bash",["bash","-c",'set -o pipefail; curl -fsSL "$BOOTSTRAP_URL" | bash'],env)
-        transcript=b""; answered=set(); status=None
-        try:
-            deadline=time.monotonic()+15
-            while time.monotonic()<deadline:
-                if select.select([master],[],[],.1)[0]:
-                    try: chunk=os.read(master,65536)
-                    except OSError as error:
-                        if error.errno!=errno.EIO: raise
-                        break
-                    if not chunk: break
-                    transcript+=chunk
-                    for prompt,answer in [(b"Network choice: ",b"current\n"),(b"Wi-Fi password: ",b"private test password\n")]:
-                        if prompt in transcript and prompt not in answered:
-                            os.write(master,answer); answered.add(prompt)
-                done,child_status=os.waitpid(pid,os.WNOHANG)
-                if done: status=child_status; break
-            if status is None:
-                done,child_status=os.waitpid(pid,os.WNOHANG)
-                if done: status=child_status
-            if status is None:
-                os.killpg(pid,signal.SIGKILL); _,status=os.waitpid(pid,0)
-                self.fail("Interactive piped installer did not exit: "+transcript.decode(errors="replace"))
-            while select.select([master],[],[],.1)[0]:
-                try: chunk=os.read(master,65536)
-                except OSError as error:
-                    if error.errno!=errno.EIO: raise
-                    break
-                if not chunk: break
-                transcript+=chunk
-            self.assertEqual(os.waitstatus_to_exitcode(status),0,transcript.decode(errors="replace"))
-            self.assertIn(b"interactive fixture complete",transcript)
-            self.assertNotIn(b"private test password",transcript)
-        finally:
-            os.close(master)
+        code, transcript = run_pty(["bash", "-c", 'set -o pipefail; curl -fsSL "$BOOTSTRAP_URL" | bash'],
+                                   cwd=directory, env=env,
+                                   prompts=[(b"Network choice: ", b"current\n"),
+                                            (b"Wi-Fi password: ", b"private test password\n")])
+        self.assertEqual(code, 0, transcript.decode(errors="replace"))
+        self.assertIn(b"interactive fixture complete", transcript)
+        self.assertNotIn(b"private test password", transcript)
 
     def test_normal_pipe_without_a_terminal_fails_before_downloads(self):
         directory,_,_,_,env=self.bootstrap_fixture("no-terminal")

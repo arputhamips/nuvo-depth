@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       source_ref:
-        description: Branch, tag or commit to build for testing
+        description: Branch, tag or full 40-character commit SHA to build (blank uses the workflow commit)
         type: string
         required: false
       package_profile:
@@ -22,7 +22,23 @@ on:
 permissions:
   contents: read
 jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    outputs:
+      source_commit: ${{ steps.source.outputs.source_commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - name: Validate and resolve source before starting ARM64
+        id: source
+        env:
+          NUVO_SOURCE_REF: ${{ inputs.source_ref }}
+          NUVO_FALLBACK_SHA: ${{ github.sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/ci/resolve_source_ref.py
   build:
+    needs: resolve
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 45
     container:
@@ -38,7 +54,7 @@ jobs:
           apt-get install -y --no-install-recommends git ca-certificates
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.source_ref || github.sha }}
+          ref: ${{ needs.resolve.outputs.source_commit }}
           persist-credentials: false
       - name: Prepare Trixie and Raspberry Pi build dependencies
         run: bash tools/ci/prepare-trixie-builder.sh

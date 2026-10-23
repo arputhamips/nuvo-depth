@@ -1,4 +1,5 @@
 name: Required host and browser checks
+run-name: ${{ github.event_name == 'workflow_dispatch' && inputs.inject_failure != 'none' && format('INTENTIONAL FAILURE PROBE - {0} - {1}', inputs.inject_failure, github.ref_name) || format('Required host and browser checks - {0}', github.ref_name) }}
 on:
   push:
   pull_request:
@@ -18,6 +19,17 @@ jobs:
       native: ${{ steps.route.outputs.native }}
       browser: ${{ steps.route.outputs.browser }}
     steps:
+      - name: Label intentional failure qualification
+        if: github.event_name == 'workflow_dispatch' && inputs.inject_failure != 'none'
+        env:
+          PROBE: ${{ inputs.inject_failure }}
+        run: |
+          echo "::warning title=Intentional CI qualification::The $PROBE regression is deliberately injected. This run must fail; required checks are unchanged."
+          {
+            echo '## Intentional failure qualification'
+            printf 'Requested probe: **%s**.\n\n' "$PROBE"
+            echo 'A regression is deliberately injected into this run. The affected checks and required aggregator must fail. This is not a normal product validation run.'
+          } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with: {fetch-depth: 0, persist-credentials: false}
       - id: route
