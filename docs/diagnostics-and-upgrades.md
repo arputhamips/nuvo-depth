@@ -73,6 +73,18 @@ required. Do not mix individual package versions or force a downgrade. No packag
 downgrade/rollback transition is advertised as qualified. Calibration rollback
 uses its supported separate transaction and retains integrity/identity rules.
 
+If `dpkg --audit` specifically reports packages that are unpacked but not yet
+configured, complete their pending configuration before retrying the installer:
+
+```bash
+sudo dpkg --configure -a
+sudo dpkg --audit
+```
+
+Continue only when the audit is empty. If configuration fails, retain its exact
+error and resolve the named dependency, filesystem, or service problem first;
+repeated installer attempts do not repair a broken OS package transaction.
+
 Candidate lifecycle results and their limits must accompany the exact artifact
 manifest. A host fixture or Debian userspace container cannot establish physical
 Pi reboot, Wi-Fi, smaller RAM SKU or new-user acceptance.
