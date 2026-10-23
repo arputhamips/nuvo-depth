@@ -1,5 +1,12 @@
 # Beta 8 onboarding qualification — closeout
 
+**Publication update, 23 October 2026:** the operator approved beta 8 as the
+public preview. The existing signed draft was promoted without rebuilding and
+the rolling approved reference advanced to beta 8. The execution record below
+retains the approval state at test closeout and all unfinished gates; publication
+does not turn blocked, failed or interrupted tests into passes.
+
+
 Updated 23 October 2026. Long tests stopped at the operator’s request at 08:00 UTC. Frozen runtime/package source:
 [`e7cc0fa63f0bd38d16c6b407b4f7304a747759df`](https://github.com/arputhamips/nuvo-depth/tree/e7cc0fa63f0bd38d16c6b407b4f7304a747759df).
 Subsequent report/changelog edits are documentation only. The approved public

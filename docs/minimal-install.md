@@ -18,9 +18,9 @@ The installer retains your existing network and SSH configuration.
 ## Install the public preview
 
 The approved public preview is recorded in `deployment/public-release.json`
-(currently `v0.1.1-beta.6`). Its minimal bundle and installer are separate from
-the full appliance downloads. The readiness/import commands below describe the
-beta 8 candidate/current source, pending public approval.
+(currently `v0.1.1-beta.8`). Its minimal bundle and installer are separate from
+the full appliance downloads. The readiness/import commands below are included
+in this public preview.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/arputhamips/nuvo-depth/main/install-nuvo-depth-minimal.sh | sudo bash
@@ -45,7 +45,7 @@ run with `package_profile=minimal`. Extract it, then on the Pi run:
 ```bash
 sha256sum --check SHA256SUMS
 sudo bash ./install-nuvo-depth-minimal.sh \
-  --package ./nuvo-depth-minimal_0.1.1~beta.6_arm64.deb \
+  --package ./nuvo-depth-minimal_0.1.1~beta.8_arm64.deb \
   --platform ./release-platform.json --dry-run
 ```
 
@@ -105,7 +105,7 @@ length. Its provenance and file hashes are recorded in
 `provisional_recalibration_required` authority; these files do not establish
 metric accuracy for a different assembled rig. Published beta 6 packages
 predate this default change and still contain the earlier seed. There is no
-calibration capture or solving workflow in this package. Beta 8/current source
+calibration capture or solving workflow in this package. Public beta 8
 supports existing-bundle import without editing service files:
 
 ```bash
@@ -116,8 +116,8 @@ sudo nuvoctl calibration rollback
 
 Use the original complete compatible per-unit bundle, never a relabelled seed.
 Review the [validation, activation and recovery contract](calibration-readiness.md)
-before importing. Beta 6 lacks this command; use the reviewed candidate artifacts
-for testing or wait for an approved update.
+before importing. Older beta 6 lacks this command; upgrade within the minimal profile to the
+approved public preview to use it.
 
 ```bash
 sudo systemctl status nuvo-depthd-native.service

@@ -13,10 +13,14 @@
 - Bound public-release discovery and handle unusable IPv6 paths without changing device network settings.
 - Preserve committed configuration on storage errors and allow retries after a process crash.
 - Release finished SDK sessions without interrupting other clients and report session-capacity failures accurately.
-- Keep the two-thread CPU baseline and shared seed authority provisional.
+- Keep the two-thread CPU baseline, preserve validated per-unit bundles and reuse unchanged beta 5 shared geometry with provisional authority.
 
 ### Added
 
+- Guide the first fresh depth sample in the console and Python quickstart, retaining original frame identity, validity and calibration metadata.
+- Show consistent calibration readiness and next actions in installation, console and CLI.
+- Import compatible existing per-unit calibration on full and minimal with dry-run validation, transactional activation and rollback.
+- Follow one centrally approved public release in rolling installers, keeping future upgrades independent of README command edits.
 - Export allowlisted read-only diagnostics from the console and terminal, with installed-version and supported upgrade guidance.
 - Run Python depth, pixel, display, stream, recording and replay examples and a public C decoder example.
 - Reproduce host dependencies and exercise native, SDK and rendered-browser checks continuously.

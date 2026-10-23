@@ -1,7 +1,7 @@
 # Installer reference
 
 <!-- BEGIN APPROVED SETUP -->
-Approved public release: **`v0.1.1-beta.6`**. Start with **Balanced**.
+Approved public release: **`v0.1.1-beta.8`**. Start with **Balanced**.
 Use Raspberry Pi OS Lite 64-bit Trixie (`arm64`), kernel `6.12.75+rpt-rpi-2712`.
 The rolling command follows this approved reference; development builds and
 draft candidates are never selected automatically. Quality is an optional
@@ -31,9 +31,9 @@ Failure to reach public metadata stops installation; retry or specify a tag.
 
 Release-specific installer assets retain their exact default for reproducible
 installation. `--release latest` explicitly requests an update from such an
-installer; `--release TAG` pins a maintained bootstrap. The public beta 6
-[qualification record](release-qualification-beta6-20261021.md) describes the
-published package cohort; newer source UI/helper changes are not in that cohort.
+installer; `--release TAG` pins a maintained bootstrap. The public beta 8
+[qualification report](onboarding-beta8-qualification-20261022.md) records the
+tested cohort and its unfinished acceptance gates.
 
 ## Supported machine
 
@@ -202,12 +202,12 @@ Wi-Fi profiles use the documented
 
 After installation follow [Get your first depth frame](https://docs.nuvohardware.com/vision-one/guide/getting-started) through sample capture.
 
-## Calibration readiness in beta 8/current source
+## Calibration readiness in public beta 8
 
 The installer explains compatible existing calibration, explicit provisional
 preview and disabled capture before asking for a choice. Completion reports
 the same active-bundle/effective-policy readiness as the console and CLI.
 See [readiness and supported import](calibration-readiness.md) for both package
 profiles, failure recovery and the boundary between declared validation and
-independent accuracy. The approved public installer remains beta 6 until approval.
+independent accuracy. The approved public installer selects beta 8.
 

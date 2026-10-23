@@ -1,7 +1,7 @@
 # Nuvo Depth
 
 <!-- BEGIN APPROVED SETUP -->
-Approved public release: **`v0.1.1-beta.6`**. Start with **Balanced**.
+Approved public release: **`v0.1.1-beta.8`**. Start with **Balanced**.
 Use Raspberry Pi OS Lite 64-bit Trixie (`arm64`), kernel `6.12.75+rpt-rpi-2712`.
 The rolling command follows this approved reference; development builds and
 draft candidates are never selected automatically. Quality is an optional
@@ -83,19 +83,22 @@ calibration. Shared seed authority remains provisional.
 
 ## Current status
 
-- The public beta 6 release provides full and minimal signed package bundles
-  with separate installers. Both cohorts passed physical Pi camera checks;
-  minimal signed installation, CLI controls, reinstall and isolated startup passed.
-  Public downloads match the reviewed package hashes.
-- [Beta 6 qualification evidence](docs/release-qualification-beta6-20261021.md)
-  records the scope and limits. [Beta 5 qualification](docs/release-qualification-beta5-20261021.md)
-  records prior interactive upgrade and public-installer checks. [Earlier setup evidence](docs/release-qualification-20261019.md)
-  covers prior hotspot/network cohorts. Accepted per-unit calibration is
-  required for metric depth.
-- Routine testing uses Actions artifacts. New release candidates are prepared
-  manually as drafts and published only after approval.
-- [Changelog](CHANGELOG.md) and [release process](docs/releases.md).
-- [Minimal raw-depth installation](docs/minimal-install.md) provides terminal configuration and local depth output.
+- Public preview **beta 8** provides signed full and minimal bundles, consistent
+  calibration readiness, existing-bundle import/dry-run/rollback, diagnostics,
+  first-depth guidance and runnable application examples.
+- The [beta 8 qualification report](docs/onboarding-beta8-qualification-20261022.md)
+  records exact artifacts, actual Pi journeys and remaining limits: 53 cases pass,
+  15 remain blocked and one removal/profile-switch case fails. The operator
+  stopped the remaining long tests; public preview approval does not establish
+  complete self-service, production, electrical or metric qualification.
+- Validated per-unit calibration is preserved. Shared beta 5 geometry remains
+  provisional; a software upgrade alone does not require recalibration.
+- Routine tests use Actions artifacts. New candidates stay draft until explicitly
+  approved. Earlier [beta 6 evidence](docs/release-qualification-beta6-20261021.md)
+  and [beta 5 evidence](docs/release-qualification-beta5-20261021.md) retain their
+  original cohorts and version references.
+- [Changelog](CHANGELOG.md), [release process](docs/releases.md) and
+  [minimal raw-depth installation](docs/minimal-install.md).
 
 ## Documentation
 

@@ -1,8 +1,8 @@
 # Calibration readiness and existing-bundle import
 
-This reference describes the beta 8 candidate/current source. The approved public
-installer still selects beta 6 until a candidate is explicitly approved. Beta 6
-does not include these `nuvoctl calibration` commands.
+This reference describes public preview beta 8. The maintained installer selects
+this approved release. Older beta 6 does not include these `nuvoctl calibration`
+commands; upgrade within the installed profile to use them.
 
 Calibration describes the geometry and its declared validation. Camera/service
 health describes whether capture is working now. An accepted bundle can coexist

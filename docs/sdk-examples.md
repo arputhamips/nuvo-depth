@@ -10,13 +10,13 @@ The core Python SDK and examples require Python 3.11+ and the standard library.
 The candidate CI matrix covers Linux and Windows with Python 3.11 and 3.13.
 NumPy and Python OpenCV are optional application choices, not SDK requirements.
 The six-command `nuvo_depth.examples` module is available in the current source
-SDK and beta 8 candidate. The public beta 6 SDK does not contain this module;
+SDK and public beta 8. The older beta 6 SDK does not contain this module;
 use the standalone helper in the verified-TLS quickstart for that SDK.
 
 To try these six commands with a beta 6 gateway, obtain the
 [current client source archive](https://github.com/arputhamips/nuvo-depth/archive/refs/heads/main.tar.gz)
 and extract it. These client examples were exercised against beta 6 as well as
-the candidate gateway. From the archive root, install its SDK in a fresh virtual
+the beta 8 gateway. From the archive root, install its SDK in a fresh virtual
 environment. This changes the application client; it does not upgrade the Pi:
 
 ```bash
@@ -78,7 +78,7 @@ fixture tests older recordings, not candidate geometry or metric quality.
 
 | Combination | Contract |
 | --- | --- |
-| beta 8 client / candidate full appliance | NUV1/NVE1 v1, NVR1, current API; exact candidate results belong in acceptance evidence |
+| beta 8 client / public full appliance | NUV1/NVE1 v1, NVR1, current API; exact candidate results belong in acceptance evidence |
 | beta 8 client / saved beta 6 NVR1 | Original identity, authority, masks and payload preserved; registered compatibility test |
 | Older v1 recordings without UUIDs | Remain readable; UUID properties are empty, not invented |
 | Minimal appliance | Local `nuvoctl depth` only; no HTTPS endpoint |

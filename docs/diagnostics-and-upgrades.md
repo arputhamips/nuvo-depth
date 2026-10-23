@@ -1,7 +1,7 @@
 # Diagnostics and maintenance
 
-These additions describe beta 8/current source. The approved public installer
-still selects `deployment/public-release.json`, presently beta 6. A development
+These commands are included in public preview beta 8. The approved public
+installer selects `deployment/public-release.json`, presently beta 8. A development
 version or draft never advances that public reference automatically.
 
 ```bash
@@ -42,6 +42,12 @@ not imply failed raw depth. Accepted calibration and camera/service health are
 separate: request advancing depth/validity output to check actual capture.
 
 ## Upgrade and interrupted-operation recovery
+
+The beta 8 Software update page can show its older bundled approval reference.
+For the currently approved release, use the maintained GitHub command below.
+It resolves beta 8 and verifies its signed cohort; an implicit downgrade is
+refused. Installed-version reporting remains accurate.
+
 
 Read the selected release's platform prerequisites first. Re-run the maintained
 GitHub bootstrap for the installed profile, or pin the approved release explicitly
