@@ -136,10 +136,22 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
     await page.fill('#outputCadence','3');assert(await page.isHidden('#outputRecipe'),'edited inputs invalidate old connection code');
     checks.push('deterministic recipe rates','depth automatically includes validity','recipe does not change subscriptions or device settings','recipe survives refresh and invalidates on edit');
 
-    encoding.mode='encoded';encoding.codec='jpeg';encoding.width=0;encoding.height=0;
+    // A hash change on the old document still uses its last-known raw configuration.
+    // Isolate cold startup and count all raw attempts made by the new document.
     await page.evaluate(()=>localStorage.removeItem('nuvo-output-selection'));
-    const rawBeforePicture=requests.raw.length;
-    await page.goto(url+'#viewer');await page.reload();
+    await page.close();
+    encoding.mode='encoded';encoding.codec='jpeg';encoding.width=0;encoding.height=0;
+    page=await context.newPage();page.on('pageerror',error=>errors.push(error.stack||error.message));
+    const pictureRawAttempts=[];
+    const recordRawAttempt=(kind,address)=>{
+      const route=new URL(address).pathname;
+      if(route==='/api/v1/frame/latest'||route==='/api/v1/stream')pictureRawAttempts.push({kind,url:address});
+    };
+    const onPictureRequest=request=>recordRawAttempt('HTTP',request.url());
+    const onPictureSocket=socket=>recordRawAttempt('WebSocket',socket.url());
+    page.on('request',onPictureRequest);page.on('websocket',onPictureSocket);
+    const pictureRequests=requests.encoded;
+    await page.goto(url+'#viewer');
     await page.waitForFunction(()=>document.querySelector('#viewerReceiving').textContent.includes('JPEG'));
     assert(await page.isVisible('#viewerPicture'));assert(await page.isHidden('#pixelInspector'));
     assert(await page.isHidden('#viewerModeNotice'),'receiving the selected picture must not still ask the user to choose picture preview');
@@ -147,7 +159,12 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
     await page.locator('#pixelInspector').evaluate(form=>form.requestSubmit());
     assert.doesNotMatch(await page.textContent('#pixelValue'),/Depth Z:/,'a hidden inspector must not reuse a previous numeric frame for a compressed picture');
     assert.equal(await page.locator('#encodedCanvas').evaluate(canvas=>[canvas.width,canvas.height].join('x')),'16x12');
-    assert.equal(requests.raw.length,rawBeforePicture,'compressed-only Live view must not open uncompressed requests');
+    await page.evaluate(()=>refreshCapabilities());
+    await page.waitForFunction(()=>document.querySelector('#viewerReceiving').textContent.includes('JPEG'));
+    await page.waitForResponse(response=>response.url().includes('/api/v1/encoded/latest')&&response.ok());
+    assert(requests.encoded>pictureRequests,'compressed-only startup must receive picture data');
+    assert.deepEqual(pictureRawAttempts,[],'compressed-only Live view must not attempt raw HTTP or WebSocket requests');
+    page.off('request',onPictureRequest);page.off('websocket',onPictureSocket);
     assert(await page.isDisabled('#firstDepthSave'));
     await page.screenshot({path:path.join(out,'compressed-only-live.png')});
     checks.push('compressed-only Live view decodes a real JPEG','picture cannot claim numeric measurement','compressed path does not also subscribe to raw products');
