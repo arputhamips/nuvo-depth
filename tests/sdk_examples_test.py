@@ -22,6 +22,32 @@ ROOT=Path(__file__).resolve().parents[1]
 BUILD=Path(sys.argv[1]) if len(sys.argv)>1 else None
 
 class ExampleTest(unittest.TestCase):
+    @unittest.skipUnless(BUILD and (BUILD/'cmake_install.cmake').is_file() and shutil.which('cmake'),
+                         'Installed Python SDK requires a configured CMake build')
+    def test_installed_python_component_contains_streaming_modules(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)
+            subprocess.run(['cmake','--install',str(BUILD),'--component','python-sdk',
+                            '--prefix',str(root/'installed')],check=True,capture_output=True)
+            package=next((root/'installed').rglob('nuvo_depth/__init__.py')).parent
+            script='''
+import pathlib,sys
+package=pathlib.Path(sys.argv[1]).resolve()
+sys.path.insert(0,str(package.parent))
+import nuvo_depth
+from nuvo_depth import paired, examples, encoded, frame
+assert pathlib.Path(nuvo_depth.__file__).resolve().parent==package
+assert all(pathlib.Path(module.__file__).resolve().parent==package for module in (paired,examples,encoded,frame))
+client=nuvo_depth.NuvoClient('https://fixture.invalid')
+assert hasattr(client.encoded_frames(),'close')
+assert hasattr(client.paired_frames(),'close')
+assert nuvo_depth.decode_paired_frame is paired.decode_paired_frame
+print('Installed Python SDK streaming imports passed')
+'''
+            output=subprocess.check_output([sys.executable,'-I','-c',script,str(package)],
+                                           cwd=root,text=True)
+            self.assertIn('Installed Python SDK streaming imports passed',output)
+
     def test_recorder_cli_releases_its_session_on_completion_and_interrupt(self):
         from nuvo_depth import recorder
         for failure in (None,KeyboardInterrupt()):

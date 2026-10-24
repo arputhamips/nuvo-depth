@@ -23,20 +23,19 @@ can still show the older navigation until upgraded to this build.
    With capture enabled, confirm advancing frames, the installed
    profile's dimensions, and no red health message. Pending calibration can
    intentionally leave capture disabled while the console is available.
-5. Select the result you need under **Outputs**, then apply it to this browser
-   or generate an application recipe. Selected products share a capture identity;
-   they can have different dimensions. Numeric depth includes validity. Individual
-   products and technical delivery settings remain available under Advanced.
+5. Use **Live view** for compressed visual checks. Under **Outputs**, generate an
+   application recipe for numeric/raw data, encoded images, or both. Numeric
+   depth includes validity. Product dimensions can differ; associate encoded
+   pictures and numeric frames by their full capture identity.
 
 Use the sun/moon control in the header to select light or dark appearance. The
 choice is kept in that browser; without an explicit choice the console follows
 the operating-system color preference.
 
 Overview shows camera, depth-rate, compute-time, and calibration status.
-Expand its **Setup guide** for first-use checks. Live view offers
-**Show first depth** and **Save depth sample** after two advancing associated
-depth/validity frames; the download preserves original NUV1 metadata. Older
-beta 6 lacks these buttons. The [complete journey](https://docs.nuvohardware.com/vision-one/guide/getting-started)
+Expand its **Setup guide** for first-use checks. Browser views are compressed
+visualizations; obtain original depth and recordings through the SDK. The
+[complete journey](https://docs.nuvohardware.com/vision-one/guide/getting-started)
 covers installation and the SDK route; use this versioned guide for development
 console navigation.
 
@@ -49,8 +48,8 @@ Overview; existing links to Live view and individual settings still work.
 | Page | Purpose | Scope |
 | --- | --- | --- |
 | Overview | Device health, applied configuration, calibration, performance and setup guidance | Health monitoring only; starts no product stream |
-| Live view | One primary viewer, camera/exposure controls and depth profile with advanced matcher tuning | Viewing is local; camera and matcher settings affect the device |
-| Outputs | Choose products, representation and rate; review a browser subscription or application recipe; manage Wi-Fi product permission | Browser selection is local; Wi-Fi permission is device-wide |
+| Live view | Compressed preview in a permanent panel, pause/resume, camera/exposure controls and depth profile with advanced matcher tuning | Preview demand is local; camera, matcher and shared encoder settings affect the device |
+| Outputs | Choose numeric/raw and encoded products, rates and application connection; manage raw-data delivery permissions | Preparing a recipe starts no stream; delivery permissions are device-wide |
 | Device | Calibration, diagnostics, updates and advanced shared preview encoder settings | Device-wide |
 
 Profiles select a set of matcher parameters; they are not another output or
@@ -63,10 +62,11 @@ frame budget. It does not change capture, matcher or delivery rates. Collapse
 advanced controls without losing pending edits. Apply and Discard actions are
 kept with their corresponding form and scope.
 
-Returning to Overview releases this browser's live product demand while keeping
-its selected outputs and unsaved settings. Open Live view or Outputs again to
-resume the selected subscription. Performance shows the work requested by
-active consumers; it can be idle when no consumer needs depth.
+Leaving a visible preview releases this browser's encoded demand. Overview and
+Outputs start no image stream. A hidden tab, off-screen panel, closed page, paused preview or
+collapsed calibration preview likewise requests no encoding. Other application
+subscribers remain independent. Performance shows the work requested by active
+consumers; it can be idle when no consumer needs depth or encoded images.
 
 ## Image pipeline status
 
@@ -74,11 +74,11 @@ Use **Live view** for camera/depth settings and **Outputs** to choose what a
 consumer receives. The console uses the shared device settings and frame codec;
 it does not create a separate pipeline for each navigation page.
 
-Every viewer identifies its representation. An uncompressed image is rendered
-in the browser; numeric depth is colored in the browser; a JPEG/H.264 picture is
-decoded from the shared encoder. These can all look like images on screen, but
-only the numeric product carries the original depth values. Compressed depth
-pictures cannot be used to recover those measurements.
+Every browser viewer decodes a JPEG/H.264 picture and identifies the codec,
+source and camera-side connection. It never silently subscribes to raw/numeric
+products. Compressed depth pictures are visualizations and cannot recover the
+original measurements; use the application's numeric depth product for those.
+The preview rectangle stays present while waiting, paused or disconnected.
 
 ## Recommended daily workflow
 
@@ -105,28 +105,26 @@ measured 2.84 depth frames/s at a 60 Hz capture target; the configured trigger
 rate does not promise the same depth rate. See [performance profiles](performance-profiles.md)
 for exact settings and the evidence required to qualify a profile.
 
-Leave **Compressed preview encoder** off when your application only needs data.
-Keep **Uncompressed network data** on for HTTPS/browser/SDK consumers and select
-only the required images or numeric products. Local socket delivery is
-independent of this gateway mode. None of these data products are sensor
-RAW/Bayer: mono and colour images originate from the ISP; disparity and depth
-are processed measurements.
+New installations enable JPEG previews on demand alongside raw/numeric output.
+Having the encoder enabled does not keep it running. **Pause preview** releases
+this browser's demand; the encoder becomes idle once its last consumer leaves.
+If an application still requests encoded frames, it continues encoding and the
+shared activity indicator remains active. A shared encoder-off control stops
+encoded output for every client and is useful for controlled performance tests.
+It does not turn off raw/numeric data.
 
-Turn **Compressed preview encoder** on for a browser/support preview. Encoder
-settings under **Device** are device-wide: one source, format and ceiling are shared by
-all preview clients. Outputs settings apply only to this browser. Its requested
-preview rate may be lower than the device ceiling. The valid network modes are:
+One source, codec and ceiling are shared by all encoded-output clients. Changing
+them is a device-wide action, including changing the preview source. A browser's
+requested preview rate may be below that ceiling. Use application output choices
+for the required raw/numeric products; images originate from the ISP and are
+not sensor Bayer RAW. Legacy `encoding.json` modes remain accepted: `raw` turns
+encoding off, `both` enables both representations, and `encoded` restricts
+network output to encoded pictures. Local socket delivery is independent.
 
-| Preview encoder | Uncompressed network data | Network result |
-| --- | --- | --- |
-| off | on | Maximum depth headroom; SDK/product output only |
-| on | on | Product output plus a monitoring preview |
-| on | off | Compressed preview only; local socket data remains available |
-
-The UI requires at least one delivery mode to remain available. With no active
-output consumers, raw processing, serialization and encoding stay idle. H.264 on
+With no active output consumers, raw processing, serialization and encoding
+stay idle. H.264 on
 Pi 5 is software encoding. Image previews run independently of the matcher;
-numeric previews request matching only at their own cadence. Encoder settings
+numeric application outputs request matching only at their own cadence. Encoder settings
 are ceilings and cannot increase the selected source's throughput.
 
 **Depth preview** and **Disparity preview** are 8-bit visualizations followed by
@@ -267,7 +265,7 @@ processing. Gigabit Ethernet is the normal remote path. USB Ethernet remains a
 qualified transport option only after the product VID/PID, power design, and
 target-host compatibility gates pass.
 
-## Wi-Fi, Ethernet and USB Ethernet
+## Ethernet, USB 2.0 and WLAN
 
 All three links use the same HTTPS/WebSocket gateway and product names. USB here
 means **USB Ethernet**, not a USB webcam or separate raw-image protocol. The
@@ -275,10 +273,52 @@ connection indicator describes the **camera's interface**. A computer connected
 by Wi-Fi to a router can still reach the camera through Ethernet; the console
 cannot establish the entire end-to-end route from its accepted socket.
 
-**Allow product streaming over Wi-Fi** is a separate device-wide permission for
-both compressed pictures and uncompressed products on the camera's Wi-Fi link.
-Disabling it blocks those products while keeping console/control access and
-permitted wired clients available. It does not disable the radio, configure an
+Under **Outputs**, choose the application products and **Connect my application
+to**. Browser previews remain separate in Live view. The three choices are:
+
+| Connection | What it carries | What must be ready |
+| --- | --- | --- |
+| Ethernet · Pi Ethernet port | Selected images or numeric products; shared pictures are also supported | Camera Ethernet link and a reachable address |
+| USB 2.0 · Pi USB-C port | The same selected products over the USB cable | Device-mode setup, compatible host, USB link and IP addressing |
+| WLAN · Pi Wi-Fi connection | Encoded pictures and, when permitted, selected raw/numeric products | Camera Wi-Fi connection; raw-data permission for uncompressed products |
+
+These are the three physical delivery choices. USB is not an extra Ethernet
+port: its current data protocol uses an ECM virtual network adapter over the
+USB cable. Protocol and TLS details are collapsed under **Advanced connection
+details** rather than used as the output names.
+
+Each application choice shows the detected interface, readiness and available
+addresses. If more than one usable address is reported, choose the address the
+application can reach. **Show connection code** creates a recipe for that path;
+it does not start an application or change the current browser stream. The SDK
+uses the selected address while still verifying the device hostname, and checks
+which camera interface it reached before requesting products. See the
+[SDK connection example](sdk-examples.md#choose-a-device-connection).
+
+USB-C status distinguishes controller/setup problems, an unplugged host and
+missing IP addressing. A USB Ethernet adapter plugged into a host port is not
+the Pi's USB-C output. The current Nuvo gadget uses ECM and does not assign
+addresses automatically. Windows compatibility must be established for this
+ECM implementation; do not assume the Windows support of Raspberry Pi's
+separate ECM/RNDIS package applies. Raspberry Pi documents the Pi 5 USB-C device
+connection and host requirements in its
+[USB gadget guide](https://www.raspberrypi.com/news/usb-gadget-mode-in-raspberry-pi-os-ssh-over-usb/).
+
+Selecting WLAN preserves numeric depth. Encoded images can be selected alone
+or alongside numeric/raw products. A JPEG/H.264 depth picture is not a compressed
+float-depth array. The source and encoder state remain visible, and changing
+the shared encoder is an explicit device action.
+
+The wired delivery preference is a separate device setting. Apply, confirm or
+undo it explicitly. A preference does not reroute an existing TCP connection,
+configure USB device mode or change the independent Wi-Fi permission. The
+current browser connection label changes only when an actual new connection
+uses that path.
+
+The **raw/numeric data over WLAN** checkbox controls only uncompressed products
+on the camera's Wi-Fi link. Turning it off blocks raw images and numeric data,
+including existing raw streams, while browser previews and application encoded
+streams remain available. It does not disable the radio, configure an
 SSID or move an existing connection to another interface. The advanced all-data
 Off policy remains a master stop. Changing the chosen link requires reconnecting
 to the appropriate reachable address.
@@ -292,6 +332,15 @@ compression can discard image detail and is not an alternative encoding of the
 original float depth array. No lossless numeric wire-compression mode is offered.
 Changing matching resolution also changes geometry and processing; it is not a
 network compression setting.
+
+Depth over WLAN is supported and useful for monitoring, logging and lower-rate
+remote robotics clients. Start with depth + validity at 1–2 frames/s and check
+actual link performance. At 728 × 544, float32 depth plus uint8 validity is
+1,980,160 bytes per capture: about 3.96 MB/s (31.7 Mbit/s) at 2 frames/s before
+metadata, TLS and network overhead. Five frames/s is about 9.90 MB/s, beyond the
+gateway's default 8 MiB/s WLAN resource budget even before adding images.
+The budget is a bound, not a measured throughput guarantee. Prefer Ethernet or
+USB when high-rate data or reliable latency is required.
 
 For pictures, Outputs provides **Smaller pictures**, **Balanced**, and
 **More detail**, followed by **Apply shared picture quality**. With JPEG these
@@ -308,7 +357,7 @@ discarded first, so a simple quality change cannot overwrite it silently.
 Encoder, stereo, and exposure changes apply live. Transport-policy changes,
 including Wi-Fi permission, are provisional for 60 seconds and must be
 confirmed or rolled back. The same console connection remains available when
-Wi-Fi products are disabled. Calibration is not part of the
+WLAN raw products are disabled; compressed previews continue. Calibration is not part of the
 normal user flow. Trained operators use **Device → Calibration** for
 the separate [advanced calibration process](advanced-calibration.md). Its
 encoded view is only a positioning aid; synchronized unrectified ISP frames are

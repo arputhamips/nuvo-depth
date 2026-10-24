@@ -18,11 +18,19 @@ class NativeCaptureCadence final {
  public:
   [[nodiscard]] bool admit(const FrameSetIdentity& identity,
                             ipc_v2::ProductMask products, double cadence_hz);
+  [[nodiscard]] std::int64_t next_due_time_ns() const noexcept;
  private:
   std::optional<FrameSetIdentity> last_;
   ipc_v2::ProductMask products_{};
   double cadence_hz_{};
 };
+
+// Equal-rate previews use captures already selected for raw consumers. Prefer
+// the matcher lane for depth pairing; unequal rates retain independent cadence.
+[[nodiscard]] bool preview_capture_aligned(double preview_hz,
+    double matcher_hz, bool matcher_due, double image_hz, bool image_due,
+    ipc_v2::ProductMask paired_products = 0U, std::int64_t capture_time_ns = 0,
+    std::int64_t matcher_next_ns = 0, std::int64_t image_next_ns = 0) noexcept;
 
 // Collects capture independently from processing and publication. The capture
 // callbacks have one owner (the producer); publication consumes immutable

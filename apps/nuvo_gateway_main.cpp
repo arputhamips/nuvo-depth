@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <deque>
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -28,6 +29,7 @@
 #include <vector>
 #include <ifaddrs.h>
 #include <arpa/inet.h>
+#include <net/if.h>
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/asio.hpp>
@@ -398,8 +400,14 @@ struct TransportPolicy {
   [[nodiscard]] bool wifi_permission() const {
     return wifi_enabled.value_or(preference == "auto" || preference == "wifi");
   }
-  [[nodiscard]] bool permits(const depthd::gateway::TransportKind kind) const {
-    return valid && depthd::gateway::transport_permitted(preference_kind(preference), kind, wifi_enabled);
+  [[nodiscard]] bool permits(const depthd::gateway::TransportKind kind, const bool encoded = false) const {
+    return valid && depthd::gateway::transport_permitted(preference_kind(preference), kind, wifi_enabled, encoded);
+  }
+  [[nodiscard]] std::string_view reason(const depthd::gateway::TransportKind kind, const bool encoded = false) const {
+    if (!valid) return "invalid_transport_policy";
+    if (preference == "off") return "all_products_off";
+    if (permits(kind, encoded)) return "allowed";
+    return kind == depthd::gateway::TransportKind::kWifi ? "wifi_disabled" : "wired_disabled";
   }
 };
 
@@ -676,7 +684,7 @@ using FrameBytes = depthd::gateway::SerializedBytes;
 
 // Validate the NVE1 envelope before reading bounded metadata. Arrival over a
 // new IPC connection does not make a cached encoded capture fresh.
-[[nodiscard]] std::uint64_t encoded_capture_time(const FrameBytes& bytes) {
+[[nodiscard]] Json encoded_capture_metadata(const FrameBytes& bytes) {
   constexpr std::size_t header_bytes = 32U;
   const auto prefix = bytes.prefix();
   if (prefix.size() < header_bytes || bytes.size() > 4U * 1024U * 1024U ||
@@ -766,7 +774,19 @@ using FrameBytes = depthd::gateway::SerializedBytes;
       quoted_fields.contains("keyframe") || (keyframe != "true" && keyframe != "false") ||
       (keyframe == "true") != ((flags & 1U) != 0U))
     throw std::invalid_argument("invalid encoded frame metadata");
-  return positive("capture_time_ns");
+  (void)positive("capture_time_ns");
+  return metadata;
+}
+
+[[nodiscard]] std::string capture_identity(const Json& metadata) {
+  std::string result;
+  for (const auto* key : {"device_uuid", "run_uuid"}) {
+    for (const auto character : metadata.get<std::string>(key))
+      if (character != '-') result += static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
+    result += ':';
+  }
+  return result + metadata.get<std::string>("capture_epoch") + ':' +
+      metadata.get<std::string>("capture_sequence");
 }
 
 [[nodiscard]] bool fresh_capture(const std::uint64_t captured) {
@@ -865,6 +885,8 @@ class FrameSource final {
     depthd::ipc_v2::ProductMask products{};
     std::chrono::steady_clock::time_point published_at{};
     std::uint64_t capture_time_ns{};
+    std::string capture_identity;
+    std::shared_ptr<const Bytes> raw_bytes;
   };
   class DemandLease final {
    public:
@@ -902,7 +924,7 @@ class FrameSource final {
     if (encoded_worker_.joinable()) encoded_worker_.join();
   }
   [[nodiscard]] DemandLease acquire(bool encoded, depthd::ipc_v2::ProductMask products,
-                                     double cadence) {
+                                     double cadence, bool paired = false) {
     if (!std::isfinite(cadence) || cadence <= 0 || cadence > 60 ||
         (!encoded && (products == 0 || (products & ~depthd::ipc_v2::kSupportedProducts) != 0))) {
       throw std::invalid_argument("invalid output demand");
@@ -913,21 +935,27 @@ class FrameSource final {
     refresh_policy();
     std::lock_guard lock(mutex_);
     if (stopped_.load()) throw std::runtime_error("local source is stopping");
+    if (paired) for (const auto& entry : demands_) {
+      if (entry.second.paired &&
+          ((entry.second.products & depthd::ipc_v2::kMatcherProducts) != 0U) !=
+          ((products & depthd::ipc_v2::kMatcherProducts) != 0U))
+        throw std::runtime_error("paired processing lane is occupied; close image-only pairs before numeric pairs or vice versa");
+    }
     const auto id = ++demand_id_;
-    demands_.emplace(id, Demand{encoded, products, cadence});
+    demands_.emplace(id, Demand{encoded, products, cadence, paired});
     changed_.notify_all();
     return DemandLease(*this, id);
   }
   [[nodiscard]] Snapshot wait_ready(bool encoded, depthd::ipc_v2::ProductMask products,
-                                    std::chrono::milliseconds timeout = std::chrono::seconds(3)) {
+                                    std::chrono::milliseconds timeout = std::chrono::seconds(3), bool paired = false) {
     std::unique_lock lock(mutex_);
     const auto ready = [&] {
-      const auto value = latest_locked(encoded, products);
+      const auto value = latest_locked(encoded, products, paired);
       return value.bytes && (encoded || (value.products & products) == products) &&
           std::chrono::steady_clock::now() - value.published_at <= std::chrono::milliseconds(500);
     };
     changed_.wait_for(lock, timeout, [&] { return stopped_.load() || stopping.load() || ready(); });
-    return ready() ? latest_locked(encoded, products) : Snapshot{};
+    return ready() ? latest_locked(encoded, products, paired) : Snapshot{};
   }
   [[nodiscard]] bool enabled(bool encoded) const {
     std::lock_guard lock(mutex_);
@@ -936,8 +964,8 @@ class FrameSource final {
   [[nodiscard]] TransportPolicy transport_policy(const bool force = false) const {
     return transport_policy_.get(force);
   }
-  [[nodiscard]] Snapshot latest(bool encoded, depthd::ipc_v2::ProductMask products = 0U) const {
-    std::lock_guard lock(mutex_); return latest_locked(encoded, products);
+  [[nodiscard]] Snapshot latest(bool encoded, depthd::ipc_v2::ProductMask products = 0U, bool paired = false) const {
+    std::lock_guard lock(mutex_); return latest_locked(encoded, products, paired);
   }
   [[nodiscard]] std::uint64_t subscribe(std::function<void()> callback) {
     std::lock_guard lock(mutex_); const auto id = ++subscriber_id_;
@@ -951,13 +979,15 @@ class FrameSource final {
     if ((frame.products & mask) != mask) throw std::runtime_error("requested products are not published yet");
     std::lock_guard lock(subsets_mutex_);
     if (subset_generation_ > frame.generation) {
-      return {frame.generation, select_products(frame.bytes, mask), mask, frame.published_at};
+      return {frame.generation, select_products(frame.bytes, mask), mask, frame.published_at,
+              frame.capture_time_ns, frame.capture_identity, {}};
     }
     if (subset_generation_ != frame.generation) {
       subsets_.clear(); subset_bytes_ = frame.bytes->retained_size(); subset_generation_ = frame.generation;
     }
     if (const auto found = subsets_.find(mask); found != subsets_.end()) {
-      return {frame.generation, found->second, mask, frame.published_at};
+      return {frame.generation, found->second, mask, frame.published_at,
+              frame.capture_time_ns, frame.capture_identity, {}};
     }
     auto bytes = select_products(frame.bytes, mask);
     constexpr std::size_t maximum = 16U * 1024U * 1024U +
@@ -971,7 +1001,8 @@ class FrameSource final {
       throw std::length_error("active product selection cache is full");
     }
     subset_bytes_ += bytes->prefix().size(); subsets_.emplace(mask, bytes);
-    return {frame.generation, std::move(bytes), mask, frame.published_at};
+    return {frame.generation, std::move(bytes), mask, frame.published_at,
+            frame.capture_time_ns, frame.capture_identity, {}};
   }
   [[nodiscard]] std::pair<std::size_t, std::size_t> consumers() const {
     std::lock_guard lock(mutex_); std::size_t raw{}, encoded{};
@@ -979,9 +1010,35 @@ class FrameSource final {
     return {raw, encoded};
   }
  private:
-  struct Demand { bool encoded; depthd::ipc_v2::ProductMask products; double cadence; };
-  struct Aggregate { depthd::ipc_v2::ProductMask products{}; double cadence{}; };
-  [[nodiscard]] Snapshot latest_locked(bool encoded, depthd::ipc_v2::ProductMask products) const {
+  struct Demand { bool encoded; depthd::ipc_v2::ProductMask products; double cadence; bool paired; };
+  struct Aggregate { depthd::ipc_v2::ProductMask products{}; double cadence{}; bool paired{}; };
+  struct History { Snapshot frame; bool encoded; };
+  [[nodiscard]] Snapshot latest_locked(bool encoded, depthd::ipc_v2::ProductMask products, bool paired = false) const {
+    if (paired) {
+      for (auto raw = history_.rbegin(); raw != history_.rend(); ++raw) {
+        if (raw->encoded || (raw->frame.products & products) != products ||
+            ((raw->frame.products & depthd::ipc_v2::kMatcherProducts) != 0U) !=
+            ((products & depthd::ipc_v2::kMatcherProducts) != 0U) || !fresh_capture(raw->frame.capture_time_ns)) continue;
+        for (auto preview = history_.rbegin(); preview != history_.rend(); ++preview) {
+          if (!preview->encoded || preview->frame.capture_identity != raw->frame.capture_identity) continue;
+          auto selected = raw->frame.products == products ? raw->frame.bytes : select_products(raw->frame.bytes, products);
+          if (selected->size() > 16U * 1024U * 1024U) continue;
+          std::vector<std::byte> header(32U);
+          std::memcpy(header.data(), "NVP1", 4U); header[5] = std::byte{1};
+          const auto put = [&](std::size_t offset, std::uint64_t value) {
+            for (unsigned count = 0; count < 8U; ++count) { header[offset + 7U - count] = std::byte(value & 255U); value >>= 8U; }
+          };
+          put(8U, selected->size()); put(16U, preview->frame.bytes->size());
+          auto result = raw->frame;
+          result.raw_bytes = selected;
+          result.bytes = std::make_shared<const Bytes>(std::move(header),
+              std::vector<std::shared_ptr<const Bytes>>{std::move(selected), preview->frame.bytes});
+          result.products = products;
+          return result;
+        }
+      }
+      return {};
+    }
     if (encoded) return encoded_;
     Snapshot result;
     for (const auto* candidate : {&raw_, &raw_matcher_})
@@ -997,6 +1054,7 @@ class FrameSource final {
       if (!encoded && ((entry.second.products & depthd::ipc_v2::kMatcherProducts) != 0U) != matcher) continue;
       result.products |= entry.second.products;
       result.cadence = std::max(result.cadence, entry.second.cadence);
+      result.paired |= entry.second.paired;
     }
     return result;
   }
@@ -1006,6 +1064,9 @@ class FrameSource final {
     for (const auto& entry : demands_) (entry.second.encoded ? encoded : raw) = true;
     if (!raw) clear_locked(false);
     if (!encoded) clear_locked(true);
+    if (!std::any_of(demands_.begin(), demands_.end(), [](const auto& entry) { return entry.second.paired; })) {
+      history_.clear(); history_bytes_ = 0U;
+    }
     changed_.notify_all();
   }
   static std::optional<std::filesystem::file_time_type> modified(const std::filesystem::path& path) noexcept {
@@ -1020,6 +1081,7 @@ class FrameSource final {
     for (const auto& subscriber : subscribers_) subscriber.second();
   }
   void clear_locked(bool encoded) {
+    history_.clear(); history_bytes_ = 0U;
     if (!encoded) {
       std::lock_guard variants(subsets_mutex_);
       subsets_.clear(); subset_bytes_ = 0;
@@ -1067,15 +1129,17 @@ class FrameSource final {
   }
   void publish(bool encoded, Bytes bytes, bool matcher = false) {
     depthd::ipc_v2::ProductMask products{};
-    std::uint64_t capture_time{}; std::string scope;
+    std::uint64_t capture_time{}; std::string scope, capture_key;
     if (encoded) {
-      try { capture_time = encoded_capture_time(bytes); }
+      try { const auto metadata = encoded_capture_metadata(bytes);
+        capture_time = metadata.get<std::uint64_t>("capture_time_ns"); capture_key = capture_identity(metadata); }
       catch (const std::exception&) { return; }
       // read_encoded has already advanced its cursor. Skipping a stale or
       // malformed cached packet must preserve demand until a fresh one arrives.
       if (!fresh_capture(capture_time)) return;
     } else {
       const auto metadata = frame_metadata(bytes);
+      capture_key = capture_identity(metadata);
       capture_time = metadata.get<std::uint64_t>("capture_time_ns", 0U);
       scope = metadata.get<std::string>("run_uuid", "") + ":" +
           metadata.get<std::string>("capture_epoch", "") + ":" + metadata.get<std::string>("configuration_epoch", "");
@@ -1094,12 +1158,29 @@ class FrameSource final {
     }
     auto value = std::make_shared<const Bytes>(std::move(bytes));
     std::lock_guard lock(mutex_);
+    // The final consumer can disconnect while the IPC read is in flight. Do
+    // not refill an idle source's cleared cache with that late completion.
+    const bool demanded = std::any_of(demands_.begin(), demands_.end(), [&](const auto& entry) {
+      return entry.second.encoded == encoded && (encoded ||
+          ((entry.second.products & depthd::ipc_v2::kMatcherProducts) != 0U) == matcher);
+    });
+    if (!demanded || transport_ == "off" || !(encoded ? encoded_enabled_ : raw_enabled_)) return;
     if (!encoded) {
       if (raw_scope_ != scope) {
         // Both readers share CLOCK_BOOTTIME, including across daemon runs.
         // An in-flight response from the old scope cannot roll the cache back.
         if (capture_time < raw_scope_time_) return;
         raw_ = {}; raw_matcher_ = {}; raw_scope_ = scope;
+        // New-scope encoding may finish before its first matcher completion.
+        // Retire old raw pairs but retain already-arrived previews from this
+        // capture scope, never a previous run/configuration's older captures.
+        const auto prefix = capture_key.substr(0U, capture_key.rfind(':') + 1U);
+        for (auto item = history_.begin(); item != history_.end();) {
+          if (!item->encoded || !item->frame.capture_identity.starts_with(prefix) ||
+              (item->frame.capture_time_ns < capture_time && item->frame.capture_identity != capture_key)) {
+            history_bytes_ -= item->frame.bytes->retained_size(); item = history_.erase(item);
+          } else ++item;
+        }
       }
       raw_scope_time_ = std::max(raw_scope_time_, capture_time);
     }
@@ -1108,6 +1189,18 @@ class FrameSource final {
     destination.generation = ++publication_generation_; destination.bytes = std::move(value); destination.products = products;
     destination.published_at = std::chrono::steady_clock::now();
     destination.capture_time_ns = capture_time;
+    destination.capture_identity = std::move(capture_key);
+    if (std::any_of(demands_.begin(), demands_.end(), [&](const auto& entry) {
+          return entry.second.paired && (encoded ||
+              ((entry.second.products & depthd::ipc_v2::kMatcherProducts) != 0U) == matcher);
+        })) {
+      history_bytes_ += destination.bytes->retained_size();
+      history_.push_back({destination, encoded});
+      while (!history_.empty() && (history_.size() > 16U || history_bytes_ > 32U * 1024U * 1024U ||
+          !fresh_capture(history_.front().frame.capture_time_ns))) {
+        history_bytes_ -= history_.front().frame.bytes->retained_size(); history_.pop_front();
+      }
+    }
     notify_locked();
   }
   void pause(std::chrono::milliseconds duration) {
@@ -1126,10 +1219,10 @@ class FrameSource final {
       }
       try {
         if (!client) {
-          client = std::make_unique<depthd::ipc_v2::LocalFrameClient>(options_.data_socket, requested.products, requested.cadence);
+          client = std::make_unique<depthd::ipc_v2::LocalFrameClient>(options_.data_socket, requested.products, requested.cadence, 0.0, requested.paired);
           active = requested; cursor = {};
-        } else if (active.products != requested.products || active.cadence != requested.cadence) {
-          client->set_demand(requested.products, requested.cadence); active = requested; cursor = {};
+        } else if (active.products != requested.products || active.cadence != requested.cadence || active.paired != requested.paired) {
+          client->set_demand(requested.products, requested.cadence, 0.0, requested.paired); active = requested; cursor = {};
         }
         auto next = client->next_mapped(cursor, std::chrono::milliseconds(200), 16U * 1024U * 1024U);
         if (next) { cursor = next->cursor; publish(false, Bytes(std::move(next->owner), next->bytes), matcher); }
@@ -1199,8 +1292,180 @@ class FrameSource final {
   std::uint64_t subscriber_id_{}, demand_id_{};
   std::unordered_map<std::uint64_t, std::function<void()>> subscribers_;
   std::unordered_map<std::uint64_t, Demand> demands_;
+  std::deque<History> history_;
+  std::size_t history_bytes_{};
   std::mutex subsets_mutex_; std::uint64_t subset_generation_{}; std::size_t subset_bytes_{};
   std::unordered_map<depthd::ipc_v2::ProductMask, std::shared_ptr<const Bytes>> subsets_;
+};
+
+class NetworkInventory final {
+ public:
+  struct Address { std::string family, address; bool listening{}, scope_required{}; };
+  struct Interface {
+    std::string name, path{"other"}; bool up{}; std::optional<bool> carrier;
+    std::vector<Address> addresses;
+    [[nodiscard]] std::string state() const {
+      if (!up || carrier == false) return "disconnected";
+      if (!carrier) return "unknown";
+      return std::any_of(addresses.begin(), addresses.end(), [](const auto& a) { return a.listening; })
+          ? "available" : "no_address";
+    }
+  };
+  explicit NetworkInventory(const Arguments& options) : options_(options) {}
+  [[nodiscard]] std::vector<Interface> get() const {
+    std::lock_guard lock(mutex_);
+    const auto now = std::chrono::steady_clock::now();
+    if (now < next_scan_) return interfaces_;
+    next_scan_ = now + std::chrono::seconds(2);
+    interfaces_.clear(); scan_ok_ = false;
+    ifaddrs* addresses{};
+    if (::getifaddrs(&addresses) != 0) return interfaces_;
+    std::unique_ptr<ifaddrs, decltype(&::freeifaddrs)> owner(addresses, &::freeifaddrs);
+    const auto listener = net::ip::make_address(options_.address);
+    for (auto* item = addresses; item; item = item->ifa_next) {
+      const std::string name(item->ifa_name);
+      if (name.empty() || name.size() > 15U || name.find_first_not_of(
+          "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-") != std::string::npos) continue;
+      auto found = std::find_if(interfaces_.begin(), interfaces_.end(), [&](const auto& value) { return value.name == name; });
+      if (found == interfaces_.end()) {
+        if (interfaces_.size() >= 64U) continue;
+        Interface value; value.name = name; value.up = (item->ifa_flags & IFF_UP) != 0;
+        const auto sys = std::filesystem::path("/sys/class/net") / name;
+        std::error_code error;
+        const auto device = std::filesystem::canonical(sys / "device", error).string();
+        const auto net_path = std::filesystem::canonical(sys, error).string();
+        value.path = depthd::gateway::network_path((item->ifa_flags & IFF_LOOPBACK) != 0,
+            std::filesystem::exists(sys / "wireless", error), device, net_path, usb_interfaces_.contains(name));
+        // Virtual interfaces are not evidence of a physical Ethernet port.
+        const auto carrier = scalar(sys / "carrier");
+        if (carrier == "1") value.carrier = true;
+        else if (carrier == "0") value.carrier = false;
+        interfaces_.push_back(std::move(value)); found = std::prev(interfaces_.end());
+      }
+      if (!item->ifa_addr || found->addresses.size() >= 16U) continue;
+      const auto family = item->ifa_addr->sa_family;
+      if (family != AF_INET && family != AF_INET6) continue;
+      char literal[INET6_ADDRSTRLEN]{};
+      const void* bytes = family == AF_INET ? static_cast<const void*>(&reinterpret_cast<sockaddr_in*>(item->ifa_addr)->sin_addr)
+          : static_cast<const void*>(&reinterpret_cast<sockaddr_in6*>(item->ifa_addr)->sin6_addr);
+      if (!::inet_ntop(family, bytes, literal, sizeof(literal))) continue;
+      const auto address = net::ip::make_address(literal);
+      const bool same_family = address.is_v4() == listener.is_v4();
+      found->addresses.push_back({family == AF_INET ? "ipv4" : "ipv6", literal,
+          same_family && (listener.is_unspecified() || listener == address),
+          address.is_v6() && address.to_v6().is_link_local()});
+    }
+    scan_ok_ = true;
+    return interfaces_;
+  }
+  [[nodiscard]] std::string path(const std::string& name) const {
+    for (const auto& value : get()) if (value.name == name) return value.path;
+    return "other";
+  }
+  [[nodiscard]] depthd::gateway::TransportMask available() const {
+    depthd::gateway::TransportMask result{};
+    for (const auto& value : get()) {
+      if (value.state() != "available") continue;
+      using Kind = depthd::gateway::TransportKind;
+      if (value.path == "ethernet") result |= depthd::gateway::transport_bit(Kind::kEthernet);
+      else if (value.path == "usb_device" || value.path == "usb_host_adapter") result |= depthd::gateway::transport_bit(Kind::kUsbEthernet);
+      else if (value.path == "wifi") result |= depthd::gateway::transport_bit(Kind::kWifi);
+    }
+    return result;
+  }
+  [[nodiscard]] std::string json(const TransportPolicy& policy) {
+    refresh_usb();
+    const auto interfaces = get();
+    std::lock_guard lock(mutex_);
+    const auto listener = net::ip::make_address(options_.address);
+    std::string result = ",\"listener\":{\"address\":\"" + options_.address + "\",\"port\":" +
+        std::to_string(options_.port) + ",\"family\":\"" + (listener.is_v4() ? "ipv4" : "ipv6") + "\"},\"paths\":{";
+    bool first_path = true;
+    for (const std::string key : {"ethernet", "usb_device", "wifi"}) {
+      using Kind = depthd::gateway::TransportKind;
+      const auto kind = key == "wifi" ? Kind::kWifi : key == "usb_device" ? Kind::kUsbEthernet : Kind::kEthernet;
+      std::string rows, state = !scan_ok_ || (key == "usb_device" && !usb_controller_) ? "unknown" : "unavailable";
+      int priority{};
+      for (const auto& value : interfaces) {
+        if (value.path != key) continue;
+        const auto candidate = value.state();
+        const int rank = candidate == "available" ? 4 : candidate == "no_address" ? 3 : candidate == "unknown" ? 2 : 1;
+        if (rank > priority) { state = candidate; priority = rank; }
+        if (!rows.empty()) rows += ',';
+        rows += "{\"name\":\"" + value.name + "\",\"admin_up\":" + boolean(value.up) +
+            ",\"carrier\":" + boolean(value.carrier) + ",\"addresses\":[";
+        bool first_address = true;
+        for (const auto& address : value.addresses) {
+          if (!first_address) rows += ',';
+          first_address = false;
+          rows += "{\"family\":\"" + address.family + "\",\"address\":\"" + address.address +
+              "\",\"gateway_listening\":" + boolean(address.listening) +
+              ",\"scope_required\":" + boolean(address.scope_required) + "}";
+        }
+        rows += "]}";
+      }
+      if (!first_path) result += ',';
+      first_path = false;
+      result += "\"" + key + "\":{\"state\":\"" + state + "\",\"policy_kind\":\"" +
+          (key == "usb_device" ? "usb_ethernet" : key) + "\",\"products_permitted\":" +
+          boolean(policy.permits(kind)) + ",\"raw_products_permitted\":" + boolean(policy.permits(kind)) +
+          ",\"encoded_products_permitted\":" + boolean(policy.permits(kind, true)) +
+          ",\"product_policy_reason\":\"" + std::string(policy.reason(kind)) +
+          "\",\"raw_product_policy_reason\":\"" + std::string(policy.reason(kind)) +
+          "\",\"encoded_product_policy_reason\":\"" + std::string(policy.reason(kind, true)) +
+          "\",\"interfaces\":[" + rows + "]";
+      if (key == "usb_device") result += ",\"provisioned\":" + boolean(usb_provisioned_) +
+          ",\"controller_present\":" + boolean(usb_controller_) + ",\"bound\":" + boolean(usb_bound_) +
+          ",\"host_connected\":" + boolean(usb_connected_);
+      result += "}";
+    }
+    return result + "}";
+  }
+ private:
+  [[nodiscard]] static std::string scalar(const std::filesystem::path& path) {
+    std::ifstream input(path); std::string value;
+    if (input) std::getline(input, value);
+    return value;
+  }
+  [[nodiscard]] static std::string boolean(const std::optional<bool> value) {
+    return value ? (*value ? "true" : "false") : "null";
+  }
+  void refresh_usb() {
+    // Privileged observation is confined to the inventory endpoint. Stream
+    // admission and per-request connection labels only consult cached evidence.
+    std::unique_lock rpc_lock(usb_rpc_mutex_, std::try_to_lock);
+    if (!rpc_lock || std::chrono::steady_clock::now() < next_usb_) return;
+    next_usb_ = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    std::optional<bool> provisioned, controller, bound, connected;
+    std::unordered_set<std::string> names;
+    try {
+      const auto reply = system_agent(options_, "{\"operation\":\"usb.status\"}", 2);
+      if (agent_succeeded(reply)) {
+        const auto document = parse_json(std::string(reply.begin(), reply.end()));
+        const auto field = [&](const char* name) -> std::optional<bool> {
+          const auto value = document.get<std::string>(std::string("result.") + name, "null");
+          if (value == "true") return true;
+          if (value == "false") return false;
+          return {};
+        };
+        provisioned = field("provisioned"); controller = field("controller_present");
+        bound = field("bound"); connected = field("host_connected");
+        if (bound == true) for (const auto& entry : document.get_child("result.interfaces")) names.insert(entry.second.get_value<std::string>());
+      }
+    } catch (const std::exception&) {}
+    std::lock_guard lock(mutex_);
+    usb_provisioned_ = provisioned; usb_controller_ = controller; usb_bound_ = bound; usb_connected_ = connected;
+    usb_interfaces_ = std::move(names); next_scan_ = {};
+  }
+  const Arguments& options_;
+  mutable std::mutex mutex_;
+  mutable std::vector<Interface> interfaces_;
+  mutable std::chrono::steady_clock::time_point next_scan_{};
+  mutable bool scan_ok_{};
+  std::optional<bool> usb_provisioned_, usb_controller_, usb_bound_, usb_connected_;
+  std::unordered_set<std::string> usb_interfaces_;
+  std::mutex usb_rpc_mutex_;
+  std::chrono::steady_clock::time_point next_usb_{};
 };
 
 class StreamAdmission final {
@@ -1214,9 +1479,11 @@ class StreamAdmission final {
     std::string preference;
     depthd::ipc_v2::ProductMask products{};
     depthd::gateway::TransportKind transport{};
+    bool encoded{};
+    bool paired{};
     std::string label;
   };
-  explicit StreamAdmission(const Arguments& options, TransportPolicyCache& policy) : options_(options), policy_(policy),
+  explicit StreamAdmission(const Arguments& options, TransportPolicyCache& policy) : options_(options), policy_(policy), inventory_(options),
       qualification_configuration_(qualification(options)),
       traffic_configuration_(effective_configuration(options)), traffic_(traffic_configuration_) {}
 
@@ -1227,7 +1494,8 @@ class StreamAdmission final {
     const auto policy = policy_.get();
     if (!policy.valid) throw std::runtime_error("transport policy is invalid; product delivery disabled");
     if (policy.preference == "off") throw std::runtime_error("all data transports disabled");
-    if (wifi && !policy.wifi_permission()) throw std::runtime_error("Wi-Fi product delivery is disabled");
+    if (wifi && !policy.permits(depthd::gateway::TransportKind::kWifi, encoded))
+      throw std::runtime_error("raw Wi-Fi product delivery is disabled");
     if (interface == "lo" && !override) throw std::runtime_error("unsupported data interface");
     if (requested.delivery == "exact" && (wifi || override)) throw std::runtime_error("this connection supports best effort only");
     if (encoded && requested.exact) throw std::invalid_argument("encoded streams do not expose raw product subscriptions");
@@ -1236,7 +1504,8 @@ class StreamAdmission final {
   [[nodiscard]] Contract admit(const Subscription& requested,
                               const std::string& interface,
                               const std::shared_ptr<const FrameSource::Bytes>& bytes,
-                              const bool encoded) {
+                              const bool encoded, const std::size_t paired_wire_bytes = 0U,
+                              const std::size_t paired_retained_bytes = 0U) {
     preflight(requested, interface, encoded);
     const bool override = !options_.engineering_interface.empty() &&
                           interface == options_.engineering_interface;
@@ -1248,12 +1517,14 @@ class StreamAdmission final {
     const bool known = wired && (interface == ethernet_interface_ || interface == usb_interface_);
     Contract result;
     const auto policy = policy_.get();
-    if (!policy.valid || policy.preference == "off" || (wifi && !policy.wifi_permission())) {
+    if (!policy.valid || policy.preference == "off" || (wifi && !policy.permits(kind, encoded))) {
       throw std::runtime_error("product delivery is disabled by transport policy");
     }
     result.preference = policy.preference;
     result.products = requested.products;
     result.transport = kind;
+    result.encoded = encoded;
+    result.paired = paired_wire_bytes != 0U;
     Json metadata;
     depthd::wire::Header header;
     if (!encoded) {
@@ -1262,6 +1533,7 @@ class StreamAdmission final {
       result.identity = identity(metadata, requested.products);
       result.maximum_wire_bytes = depthd::wire::kHeaderBytes +
           depthd::wire::kHardMaximumMetadataBytes + static_cast<std::size_t>(header.payload_bytes);
+      if (result.paired) result.maximum_wire_bytes += 32U + 4U * 1024U * 1024U;
     } else {
       result.maximum_wire_bytes = 4U * 1024U * 1024U;
     }
@@ -1277,11 +1549,11 @@ class StreamAdmission final {
       throw std::runtime_error("requested source/profile/cadence lacks current measured qualification");
     }
     const depthd::gateway::SubscriptionRequest request{
-        requested.products, encoded ? std::max<std::size_t>(1U, bytes->size() - depthd::wire::kHeaderBytes) : header.payload_bytes,
-        depthd::wire::kHardMaximumMetadataBytes, requested.cadence_hz, false, false};
+        requested.products, result.paired ? paired_wire_bytes : encoded ? std::max<std::size_t>(1U, bytes->size() - depthd::wire::kHeaderBytes) : header.payload_bytes,
+        depthd::wire::kHardMaximumMetadataBytes, requested.cadence_hz, false, false, encoded};
     const auto preference = preference_kind(result.preference);
     auto admission = traffic_.admit(request, kind, override ? depthd::gateway::TransportPreference::kAuto : preference,
-                                    policy.wifi_enabled);
+                                    policy.wifi_enabled, inventory_.available());
     if (!admission.lease) throw std::runtime_error(admission.reason);
     result.lease = std::move(admission.lease);
     // Allocate the token before taking the memory lock. If its control-block
@@ -1297,7 +1569,7 @@ class StreamAdmission final {
         });
     {
       std::lock_guard lock(memory_mutex_);
-      const auto reservation = std::max(result.maximum_wire_bytes, bytes->retained_size()) * 2U;
+      const auto reservation = std::max({result.maximum_wire_bytes, bytes->retained_size(), paired_retained_bytes}) * 2U;
       constexpr std::size_t maximum = 64U * 1024U * 1024U;
       if (reservation > maximum - memory_bytes_) throw std::runtime_error("bounded session frame memory exhausted");
       memory_bytes_ += reservation;
@@ -1324,12 +1596,15 @@ class StreamAdmission final {
     return std::filesystem::exists(std::filesystem::path("/sys/class/net") / interface / "wireless");
   }
   [[nodiscard]] bool is_usb(const std::string& interface) const {
+    const auto detected = inventory_.path(interface);
+    if (detected == "usb_device" || detected == "usb_host_adapter") return true;
     if (interface == usb_interface_) return true;
     std::error_code error;
     const auto path = std::filesystem::canonical(std::filesystem::path("/sys/class/net") / interface / "device", error);
     return !error && path.string().find("/usb") != std::string::npos;
   }
-  [[nodiscard]] std::string connection_json(const std::string& interface) const {
+  [[nodiscard]] std::string inventory_json() { return inventory_.json(policy_.get()); }
+  [[nodiscard]] std::string connection_json(const std::string& interface, const std::string& local_address) const {
     const bool wifi = is_wifi(interface);
     const bool usb = is_usb(interface);
     const auto& link = wifi ? traffic_configuration_.wifi : usb ? traffic_configuration_.usb_ethernet : traffic_configuration_.ethernet;
@@ -1339,15 +1614,23 @@ class StreamAdmission final {
     const bool override = !options_.engineering_interface.empty() && interface == options_.engineering_interface;
     const auto kind = wifi ? depthd::gateway::TransportKind::kWifi : usb ?
         depthd::gateway::TransportKind::kUsbEthernet : depthd::gateway::TransportKind::kEthernet;
-    const bool permitted = policy.valid && policy.preference != "off" &&
-        (interface != "lo" || override) && (override && !wifi ? true : policy.permits(kind));
-    const auto reason = !policy.valid ? "invalid_transport_policy" : policy.preference == "off" ? "all_products_off" :
-        wifi && !policy.wifi_permission() ? "wifi_disabled" : interface == "lo" && !override ? "unsupported_interface" :
-        !permitted ? "wired_disabled" : "allowed";
+    const auto reason = [&](const bool encoded) -> std::string {
+      if (!policy.valid || policy.preference == "off") return std::string(policy.reason(kind, encoded));
+      if (interface == "lo" && !override) return "unsupported_interface";
+      if (override && !wifi) return "allowed";
+      return std::string(policy.reason(kind, encoded));
+    };
+    const auto raw_reason = reason(false), encoded_reason = reason(true);
+    const bool permitted = raw_reason == "allowed", encoded_permitted = encoded_reason == "allowed";
     return "{\"interface\":\"" + interface + "\",\"kind\":\"" +
         (wifi ? "wifi" : usb ? "usb_ethernet" : interface == "lo" ? "loopback" : "ethernet") +
+        "\",\"path\":\"" + inventory_.path(interface) + "\",\"local_address\":\"" + local_address +
         "\",\"interface_scope\":\"camera\",\"products_permitted\":" + (permitted ? "true" : "false") +
-        ",\"permission_scope\":\"transport_policy\",\"product_policy_reason\":\"" + reason +
+        ",\"raw_products_permitted\":" + (permitted ? "true" : "false") +
+        ",\"encoded_products_permitted\":" + (encoded_permitted ? "true" : "false") +
+        ",\"permission_scope\":\"transport_policy\",\"product_policy_reason\":\"" + raw_reason +
+        "\",\"raw_product_policy_reason\":\"" + raw_reason +
+        "\",\"encoded_product_policy_reason\":\"" + encoded_reason +
         "\",\"qualified_link\":" + (qualified ? "true" : "false") +
         ",\"resource_budget_bytes_per_second\":" + std::to_string(link.qualified_payload_bytes_per_second) +
         ",\"budget_is_measured_capacity\":" + (qualified ? "true" : "false") +
@@ -1371,7 +1654,7 @@ class StreamAdmission final {
         memory_bytes_ += extra; *contract.memory = required;
       }
     }
-    const auto metadata = frame_metadata(*frame.bytes);
+    const auto metadata = frame_metadata(*(contract.paired ? frame.raw_bytes : frame.bytes));
     return identity(metadata, contract.products) == contract.identity &&
         (!contract.qualified || (matches(metadata) && qualification_current()));
   }
@@ -1379,7 +1662,7 @@ class StreamAdmission final {
     const auto policy = policy_.get();
     if (!policy.valid || policy.preference == "off") return false;
     if (contract.transport == depthd::gateway::TransportKind::kWifi)
-      return policy.wifi_permission();
+      return policy.permits(contract.transport, contract.encoded);
     // Wi-Fi-only edits neither change wired preference nor terminate wired leases.
     return policy.preference == contract.preference;
   }
@@ -1479,6 +1762,7 @@ class StreamAdmission final {
   const Arguments& options_;
   std::string qualification_document_;
   TransportPolicyCache& policy_;
+  NetworkInventory inventory_;
   std::string ethernet_interface_{"eth0"}, usb_interface_{"usb0"};
   std::string source_revision_, source_calibration_;
   std::uint64_t source_epoch_{};
@@ -1531,9 +1815,11 @@ class StreamSession final {
   StreamSession(beast::ssl_stream<beast::tcp_stream> stream,
                 FrameSource& source, StreamAdmission& admission,
                 StreamAdmission::Contract contract, Subscription requested,
-                const bool encoded, FrameSource::DemandLease demand)
+                const bool encoded, FrameSource::DemandLease demand,
+                FrameSource::DemandLease preview_demand = {})
       : socket_(std::move(stream)), source_(source), admission_(admission),
         contract_(std::move(contract)), requested_(requested), encoded_(encoded), demand_(std::move(demand)),
+        preview_demand_(std::move(preview_demand)),
         queue_(contract_.maximum_wire_bytes), tick_(socket_.get_executor()),
         write_deadline_(socket_.get_executor()) {}
   ~StreamSession() { finish(); }
@@ -1579,6 +1865,7 @@ class StreamSession final {
     finished_ = true;
     source_.unsubscribe(subscriber_);
     demand_.reset();
+    preview_demand_.reset();
     queue_.close_incomplete();
     beast::error_code ignored;
     cancel_timer(tick_);
@@ -1621,9 +1908,10 @@ class StreamSession final {
   void update() {
     if (finished_) return;
     try {
-      if (stopping.load() || !source_.enabled(encoded_) || !admission_.current_policy(contract_)) { finish(); return; }
+      if (stopping.load() || !source_.enabled(encoded_) ||
+          (contract_.paired && !source_.enabled(true)) || !admission_.current_policy(contract_)) { finish(); return; }
       const auto now = std::chrono::steady_clock::now();
-      auto frame = source_.latest(encoded_, requested_.products);
+      auto frame = source_.latest(encoded_, requested_.products, contract_.paired);
       if (!frame.bytes) {
         if (unavailable_since_ == std::chrono::steady_clock::time_point{}) unavailable_since_ = now;
         if (now - unavailable_since_ >= std::chrono::seconds(3)) { finish(); return; }
@@ -1633,9 +1921,11 @@ class StreamSession final {
       }
       unavailable_since_ = {};
       if (!admission_.current(contract_, frame, encoded_)) { finish(); return; }
+      if (contract_.paired && frame.capture_identity == previous_identity_) previous_ = frame.generation;
       if (frame.generation != previous_ && now >= next_send_) {
         previous_ = frame.generation;
-        if (!encoded_) frame = source_.selected(frame, requested_.products);
+        previous_identity_ = frame.capture_identity;
+        if (!encoded_ && !contract_.paired) frame = source_.selected(frame, requested_.products);
         if (!admission_.charge(contract_, frame.bytes->size())) {
           if (contract_.qualified) { finish(); return; }
         } else {
@@ -1663,11 +1953,13 @@ class StreamSession final {
   Subscription requested_;
   bool encoded_{};
   FrameSource::DemandLease demand_;
+  FrameSource::DemandLease preview_demand_;
   std::chrono::steady_clock::time_point unavailable_since_{};
   depthd::gateway::SessionQueue queue_;
   net::steady_timer tick_, write_deadline_;
   beast::flat_buffer input_;
   std::uint64_t previous_{};
+  std::string previous_identity_;
   std::uint64_t subscriber_{};
   std::chrono::steady_clock::time_point next_send_{};
   bool finished_{};
@@ -1690,7 +1982,8 @@ void await_clients(const std::atomic_size_t& active) noexcept {
                              const Arguments& options, const std::string& claim,
                              Sessions& sessions, FrameSource& source,
                              const FrameSource::Snapshot* admitted_snapshot = nullptr,
-                             const std::string& connection = "{}") {
+                             const std::string& connection = "{}",
+                             const std::string& inventory = "") {
   const auto full_target = std::string_view(request.target());
   const auto path = full_target.substr(0, full_target.find('?'));
   const auto target = path == "/api/v1/frame/latest" || path == "/api/v1/encoded/latest" ? path : full_target;
@@ -1868,7 +2161,7 @@ void await_clients(const std::atomic_size_t& active) noexcept {
                              ",\"wifi_enabled_explicit\":" + (policy.wifi_enabled ? "true" : "false") +
                              ",\"valid\":" + (policy.valid ? "true" : "false") +
                              ",\"transaction\":" + transaction +
-                             ",\"connection\":" + connection + "}\n",
+                             ",\"connection\":" + connection + inventory + "}\n",
                          request.version());
   }
   if (target == "/api/v1/stereo" || target == "/api/v1/exposure" ||
@@ -2092,11 +2385,16 @@ void await_clients(const std::atomic_size_t& active) noexcept {
         "\",\"raw_maximum_wire_bytes\":16777216,\"encoded_maximum_wire_bytes\":4194304,"
         "\"session_memory_budget_bytes\":67108864,\"demand_driven\":true},"
 #if defined(DEPTHD_WITH_IMAGE_ENCODER)
+        "\"paired_stream\":{\"supported\":true,\"path\":\"/api/v1/paired/stream\",\"protocol\":\"NVP1\","
+        "\"maximum_wire_bytes\":20971552,\"association_history_maximum_bytes\":33554432,"
+        "\"association_history_maximum_frames\":16,\"concurrent_lanes\":1,\"lane_selection\":\"image_only_or_matcher\"},"
         "\"encoded_streams\":[\"h264\",\"jpeg\"],"
         "\"encoded_sources\":[\"left_color\",\"right_color\","
         "\"left_rectified\",\"right_rectified\",\"disparity\",\"depth\","
         "\"left_mono\",\"right_mono\",\"left_rgb\",\"right_rgb\",\"left_rectified_rgb\","
         "\"right_rectified_rgb\",\"rectified_stereo\",\"rectified_stereo_rgb\"],"
+#else
+        "\"paired_stream\":{\"supported\":false},"
 #endif
         "\"connection\":" + connection + ",\"active_consumers\":{\"raw\":" +
         std::to_string(consumers.first) + ",\"encoded\":" + std::to_string(consumers.second) + "}," +
@@ -2216,6 +2514,7 @@ void serve(tcp::socket socket, ssl::context& context, const Arguments& options,
   try {
     ConnectionRegistry::Registration registration(connections, socket.native_handle());
     const auto interface = receiving_interface(socket);
+    const auto local_address = socket.local_endpoint().address().to_string();
     const timeval timeout{5, 0};
     if (::setsockopt(socket.native_handle(), SOL_SOCKET, SO_RCVTIMEO,
                      &timeout, sizeof(timeout)) != 0 ||
@@ -2240,6 +2539,7 @@ void serve(tcp::socket socket, ssl::context& context, const Arguments& options,
     const auto websocket_path = websocket_target.substr(0U, websocket_target.find('?'));
     if (websocket::is_upgrade(parser.get()) &&
         (websocket_path == "/api/v1/stream" ||
+         websocket_path == "/api/v1/paired/stream" ||
          websocket_path == "/api/v1/encoded/stream")) {
       if (!valid_origin(parser.get()) ||
           !authenticated(parser.get(), claim, sessions)) {
@@ -2255,26 +2555,36 @@ void serve(tcp::socket socket, ssl::context& context, const Arguments& options,
       bool upgraded{};
       try {
         const bool encoded = websocket_path == "/api/v1/encoded/stream";
+        const bool paired = websocket_path == "/api/v1/paired/stream";
         auto requested = subscription(websocket_target, encoded);
+        if (paired && requested.delivery == "auto") {
+          requested.delivery = "best_effort"; requested.exact = false; requested.automatic = false;
+        }
+        if (paired && requested.delivery != "best_effort")
+          throw std::invalid_argument("paired stream requires best_effort delivery");
 #if defined(DEPTHD_WITH_IMAGE_ENCODER)
         if (encoded && websocket_target.find("cadence_hz=") == std::string_view::npos) {
           requested.cadence_hz = encoding_configuration(options).cadence_hz;
         }
 #endif
         admission.preflight(requested, interface, encoded);
-        auto demand = source.acquire(encoded, requested.products, requested.cadence_hz);
-        auto frame = source.enabled(encoded) ? source.wait_ready(encoded, requested.products) : FrameSource::Snapshot{};
+        auto demand = source.acquire(encoded, requested.products, requested.cadence_hz, paired);
+        auto preview_demand = paired ? source.acquire(true, 0U, requested.cadence_hz) : FrameSource::DemandLease{};
+        auto frame = source.enabled(encoded) && (!paired || source.enabled(true))
+            ? source.wait_ready(encoded, requested.products, std::chrono::seconds(3), paired) : FrameSource::Snapshot{};
         if (!frame.bytes) {
           auto denied = text_response(http::status::service_unavailable, "application/json",
               "{\"error\":\"no complete source frame available\"}\n", parser.get().version());
           http::write(stream, denied);
           return;
         }
-        if (!encoded) frame = source.selected(frame, requested.products);
-        auto contract = admission.admit(requested, interface, frame.bytes, encoded);
+        if (!encoded && !paired) frame = source.selected(frame, requested.products);
+        auto contract = admission.admit(requested, interface, paired ? frame.raw_bytes : frame.bytes,
+                                       encoded, paired ? frame.bytes->size() : 0U,
+                                       paired ? frame.bytes->retained_size() : 0U);
         upgraded = true;
         StreamSession session(std::move(stream), source, admission, std::move(contract),
-                              requested, encoded, std::move(demand));
+                              requested, encoded, std::move(demand), std::move(preview_demand));
         session.run(parser.get(), client_io);
       } catch (const std::invalid_argument&) {
         if (upgraded) return;
@@ -2328,7 +2638,10 @@ void serve(tcp::socket socket, ssl::context& context, const Arguments& options,
           return;
         }
     }
-    auto result = route(parser.get(), options, claim, sessions, source, nullptr, admission.connection_json(interface));
+    const auto inventory = parser.get().method() == http::verb::get && websocket_path == "/api/v1/transport" &&
+        valid_origin(parser.get()) && authenticated(parser.get(), claim, sessions) ? admission.inventory_json() : "";
+    auto result = route(parser.get(), options, claim, sessions, source, nullptr,
+                        admission.connection_json(interface, local_address), inventory);
     const bool reuse = parser.get().keep_alive() && request_count + 1U < 32U &&
         std::chrono::steady_clock::now() - connected_at < std::chrono::seconds(30) &&
         idle.acquire(std::min<std::size_t>(4U, options.maximum_sessions / 4U));

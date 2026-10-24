@@ -1,4 +1,4 @@
-"""Runnable depth/validity examples: snapshot, pixel, display, stream, record, replay."""
+"""Runnable depth/validity and preview examples, with optional exact capture pairing."""
 from __future__ import annotations
 import argparse
 import getpass
@@ -35,7 +35,7 @@ def display(frame,path,near=.3,far=6.):
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('example',choices=('single','pixel','display','stream','record','replay'))
+    parser.add_argument('example',choices=('single','pixel','display','stream','record','replay','preview','paired'))
     parser.add_argument('--url'); parser.add_argument('--ca-file',type=Path); parser.add_argument('--token-file',type=Path)
     parser.add_argument('--input',type=Path,help='NVR1 recording; always labeled saved/replay data')
     parser.add_argument('--output',type=Path)
@@ -45,6 +45,7 @@ def main(argv=None):
     args=parser.parse_args(argv)
     if not 1<=args.frames<=10000: parser.error('--frames must be 1..10000')
     if args.input and (args.url or args.token_file): parser.error('saved input does not take a URL or token')
+    if args.input and args.example in ('preview','paired'): parser.error('preview/paired require live streams')
     if args.example=='replay' and not args.input: parser.error('replay needs --input recording.nvr')
     if args.example in ('record','display') and args.output is None: parser.error('record/display needs a new --output filename')
     manager=None; writer=None; client=None
@@ -57,13 +58,26 @@ def main(argv=None):
             client=NuvoClient(args.url,ca_file=str(args.ca_file),timeout=10)
             token=args.token_file.read_text().strip() if args.token_file else getpass.getpass('Device administrator token (hidden): ')
             client.claim(token)
-            manager=client.frames(products=('depth','validity'),cadence_hz=1,delivery='best_effort')
+            if args.example=='preview':
+                manager=client.encoded_frames(cadence_hz=5)
+            elif args.example=='paired':
+                manager=client.paired_frames(products=('depth','validity'),cadence_hz=2,preview_cadence_hz=2)
+                print('Exact capture pairs only; unmatched captures are dropped. A match is not guaranteed within the timeout.')
+            else:
+                manager=client.frames(products=('depth','validity'),cadence_hz=1,delivery='best_effort')
         count=0
-        target=args.frames if args.example in ('stream','record','replay') else 1
+        target=args.frames if args.example in ('stream','record','replay','preview','paired') else 1
         if args.example=='record': writer=RecordingWriter(args.output)
         with manager as source:
             for frame in source:
                 count+=1
+                if args.example in ('preview','paired'):
+                    picture=frame.encoded if args.example=='paired' else frame
+                    print(f'{picture.identity}: {picture.codec} compressed preview, {len(picture.data)} bytes; not numeric depth.')
+                    if args.example=='preview':
+                        if count>=target: break
+                        continue
+                    frame=frame.frame
                 if writer: writer.write(frame)
                 if args.example=='pixel':
                     value,code=pixel(frame,args.x,args.y)
@@ -76,9 +90,9 @@ def main(argv=None):
                     with args.output.open('xb') as output: output.write(frame.to_bytes())
                 if count>=target: break
         if count==0 or (not args.input and count<target): raise RuntimeError(f'Stream ended after {count} of {target} requested frames; complete recorded frames remain readable. No reconnect or gap filling was attempted.')
-        print(f'Completed {count} associated frame(s). Calibration authority is declared validation, not independent accuracy evidence.')
+        print(f'Completed {count} received item(s). Calibration authority is declared validation, not independent accuracy evidence.')
     except (OSError,ValueError,RuntimeError) as error:
-        parser.exit(1,f'Example failed: {error}\nVerify certificate hostname/trust, SDK credentials, raw output and capture readiness.\n')
+        parser.exit(1,f'Example failed: {error}\nVerify certificate hostname/trust, SDK credentials, required raw/preview outputs and capture readiness.\n')
     finally:
         if writer: writer.close()
         if client is not None: client.close()

@@ -486,6 +486,74 @@ void test_event_publication_without_snapshot_and_inflight_stop() {
           "stopping encoder published a stale in-flight result");
 }
 
+void test_zero_demand_never_warms_codec_and_discards_inflight_result() {
+  using namespace depthd::encoding;
+  auto gate = std::make_shared<EncodeGate>();
+  auto config = Configuration{}; config.codec = Codec::kJpeg;
+  std::atomic<unsigned> factories{}, publications{};
+  AsyncFrameEncoder encoder({}, {}, config, {}, [&](const auto&) {
+    ++factories; return std::make_unique<BlockingEncoder>(gate);
+  }, {}, [&](const auto&, std::uint64_t, std::span<const std::byte> bytes) {
+    if (!bytes.empty()) ++publications;
+  });
+  const ReleaseEncoder release_on_failure{gate};
+  encoder.set_demand(0.0);
+  require(encoder.submit(frame()) == SubmitResult::kDisabled && factories == 0U &&
+          encoder.prepare_capture(frame()->metadata.frame).result == SubmitResult::kDisabled,
+          "zero demand constructed a codec or admitted work");
+  encoder.set_demand(5.0);
+  require(encoder.submit(frame()) == SubmitResult::kAccepted, "first consumer failed to warm encoder");
+  eventually([&] { std::lock_guard lock(gate->mutex); return gate->entered; }, "codec did not begin warm-up");
+  encoder.set_demand(0.0);
+  {
+    std::lock_guard lock(gate->mutex); gate->release = true; gate->condition.notify_all();
+  }
+  eventually([&] { return encoder.stats().stale_discarded == 1U; }, "disconnect published in-flight encoding");
+  require(publications == 0U && encoder.stats().demand_cadence_hz == 0.0,
+          "idle encoder retained active output");
+  encoder.set_demand(5.0);
+  auto next = frame(); ++next->metadata.frame.capture_sequence;
+  next->metadata.frame.capture_time_ns += 1'000'000'000;
+  require(encoder.submit(next) == SubmitResult::kAccepted, "new consumer did not restart encoder");
+  eventually([&] { return publications == 1U; }, "new consumer did not receive fresh encoding");
+  require(factories == 1U, "disconnect needlessly rebuilt the retained codec");
+  encoder.stop();
+}
+
+void test_preview_backend_error_is_reported_without_permanent_demand_or_publication() {
+  using namespace depthd::encoding;
+  auto config = Configuration{};
+  config.codec = Codec::kJpeg;
+  config.source = Source::kLeftRectified;
+  std::atomic<unsigned> attempts{}, publications{};
+  AsyncFrameEncoder encoder({}, {}, config, {}, {}, [&]() -> std::unique_ptr<depthd::RectificationBackend> {
+    if (++attempts == 1U) throw std::runtime_error("preview rectification unavailable");
+    return std::make_unique<PreviewCopyRectifier>();
+  }, [&](const auto&, std::uint64_t, std::span<const std::byte> bytes) {
+    if (!bytes.empty()) ++publications;
+  });
+  auto metadata = frame()->metadata;
+  const auto reader = [](depthd::CameraRole, bool, std::span<std::uint8_t> pixels) {
+    std::fill(pixels.begin(), pixels.end(), 128U);
+  };
+  encoder.set_demand(5.0);
+  require(encoder.submit_capture(metadata, reader) == SubmitResult::kAccepted,
+          "preview backend failure escaped capture submission");
+  eventually([&] { return encoder.stats().failures == 1U; }, "preview backend failure was hidden");
+  require(publications == 0U && encoder.stats().last_error == "preview rectification unavailable",
+          "unavailable preview published output or lost its error");
+  encoder.set_demand(0.0);
+  ++metadata.frame.capture_sequence; metadata.frame.capture_time_ns += 1'000'000'000;
+  require(encoder.submit_capture(metadata, reader) == SubmitResult::kDisabled && attempts == 1U,
+          "expired preview demand kept retrying an unsupported backend");
+  encoder.set_demand(5.0);
+  require(encoder.submit_capture(metadata, reader) == SubmitResult::kAccepted,
+          "new consumer could not retry optional preview backend");
+  eventually([&] { return publications == 1U; }, "preview did not recover after backend became available");
+  require(encoder.stats().last_error.empty(), "preview recovery retained stale error");
+  encoder.stop();
+}
+
 void test_image_completion_does_not_consume_numeric_plan() {
   using namespace depthd::encoding;
   auto config = Configuration{};
@@ -818,6 +886,8 @@ int main() {
   test_capture_plans_and_reload();
   test_image_completion_does_not_consume_numeric_plan();
   test_event_publication_without_snapshot_and_inflight_stop();
+  test_zero_demand_never_warms_codec_and_discards_inflight_result();
+  test_preview_backend_error_is_reported_without_permanent_demand_or_publication();
   test_independent_capture_sources();
   test_preview_bounds_failure_isolation_and_demand_changes();
   test_sycc_full_range_conversion();

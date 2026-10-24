@@ -85,9 +85,9 @@ int main() {
   const std::string encoding =
       read_file(std::string(DEPTHD_SOURCE_DIR) + "/config/encoding.json");
   if (!contains_all(encoding,
-                    {"\"schema_version\":1", "\"mode\":\"raw\"",
-                     "\"codec\":\"h264\"",
-                     "\"source\":\"left_rectified\"", "\"width\":0",
+                    {"\"schema_version\":1", "\"mode\":\"both\"",
+                     "\"codec\":\"jpeg\"",
+                     "\"source\":\"left_color\"", "\"width\":0",
                      "\"height\":0", "\"cadence_hz\":10",
                      "\"bitrate_bps\":4000000", "\"threads\":1",
                      "\"low_latency\":true",

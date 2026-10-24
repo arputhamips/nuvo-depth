@@ -93,19 +93,30 @@ def main() -> None:
                    "right_rectified", "disparity", "depth"):
         assert f'<option value="{source}">' in html
     assert '<option value="left_color">Left camera · color</option>' in html
-    assert "source==='left_color'?'Left color · ISP':'Right color · ISP'" in script
-    assert 'id="viewerEmptyState"' in html and 'Waiting for selected live products.' in html
+    assert 'id="viewerEmptyState"' in html and 'Waiting for compressed preview.' in html
     assert 'id="encodedEmptyState"' in html and 'Waiting for encoded preview' in html
     assert 'tuningPreviewTemplate' not in html and 'outputEncodedCanvas' not in html
     assert 'data-preview-slot' not in html, "one viewer must not clone obsolete preview panels"
-    assert 'id="outputDestination"' in html and 'id="pixelInspector"' in html
+    assert 'id="outputDestination"' not in html and 'id="pixelInspector"' not in html
+    assert 'id="outputPictureEnabled"' in html and 'id="outputDataEnabled"' in html
+    assert '/api/v1/frame/latest' not in script and "'/api/v1/stream'" not in script
+    assert 'nuvo-output-selection' not in script, 'legacy browser selections must not restore raw demand'
     assert 'id="wifiApply"' in html and 'id="wifiConfirm"' in html
+    for identifier in ('outputApplicationDelivery','outputPathChoices','outputPathAddress','outputPathStatus',
+                       'outputUsePicture','wiredPreference','wiredApply','deliveryTransactionState'):
+        assert identifier in parser.ids
+    assert set(re.findall(r'name="outputPath" value="([^"]+)"', html)) == {'ethernet','usb_device','wifi'}
+    assert re.findall(r'name="outputPath" value="[^"]+"><span>([^<]+)<small>([^<]+)</small>', html) == [
+        ('Ethernet', 'Pi Ethernet port'), ('USB 2.0', 'Pi USB-C port'), ('WLAN', 'Pi Wi-Fi connection')]
+    assert '<details id="outputConnectionAdvanced" class="network-advanced">' in html
+    assert 'USB-C device network' not in html
+    assert 'data-transport=' not in html, 'keep one scoped device delivery control instead of duplicate legacy buttons'
     assert 'DIODE' not in html and '/assets/benchmark/' not in html
     assert 'benchmarkGallery' not in script and 'data-benchmark-scene' not in script
     assert '<dialog' not in html and 'type="password"' not in html
     assert 'claimDialog' not in script and 'ownerDialog' not in script
     assert 'needs_owner_password' not in script and '/api/v1/setup/owner' not in script
-    assert 'Disconnected · showing last received products' in script
+    assert 'Disconnected · waiting for device' in script
     for identifier in ('outputPreset','outputAdvanced','outputFrameSummary'):
         assert identifier in parser.ids
     assert 'Depth preview · 8-bit visualization' in html
@@ -138,8 +149,7 @@ def main() -> None:
         subprocess.run([node,str(ROOT/"tests/web_stream_lifecycle_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_shared_settings_test.js")],check=True)
         subprocess.run([node,str(ROOT/"tests/web_calibration_status_test.js")],check=True)
-        subprocess.run([node,str(ROOT/"tests/web_first_use_test.js")],check=True)
-        for asset in ("app.js","device-settings.js","frame-codec.js","first-use.js"):
+        for asset in ("app.js","device-settings.js","frame-codec.js"):
             subprocess.run([node,"--check",str(ROOT/"web"/asset)],check=True)
     print(f"UI contract OK: {len(parser.pages)} pages, {len(parser.ids)} unique IDs")
 

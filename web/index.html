@@ -225,7 +225,7 @@
                 <span id="flowDeliveryState" class="flow-state waiting">Waiting</span>
               </div>
               <h3>Outputs</h3>
-              <p>Choose a named output recipe. First depth includes an aligned camera reference, numeric depth and validity; save a sample with its calibration metadata from Live view.</p>
+              <p>Use Live view for compressed pictures. In Outputs, choose numeric depth with validity and an optional aligned camera reference, then generate connection code for your application.</p>
               <div class="button-row">
                 <button class="secondary" type="button" data-open="viewer">Open live view</button>
                 <button class="secondary" type="button" data-open="network">Choose outputs</button>
@@ -238,37 +238,14 @@
 <div class="page-header"><h1>Live view</h1><span class="scope-label">This browser</span></div>
 <div class="unified-live-layout">
 <div class="live-viewer panel">
-<form id="liveSelectionForm" class="live-toolbar"><label>View<select id="liveRecipe"><option value="camera">Camera image</option><option value="depth">Depth values</option><option value="depth_reference">Depth with camera reference</option><option value="stereo">Stereo check</option><option value="picture">Shared picture preview</option><option value="custom" hidden>Custom data selection</option></select></label><label>Requested frames/s<input id="liveCadence" type="number" min="1" max="60" step="1" value="5"></label><button class="primary" type="submit">View here</button><button id="viewerPause" type="button">Pause</button></form>
-<p id="viewerReceiving" class="receiving-state" role="status">Waiting for the requested selection</p><p id="viewerSource" class="support-text">Source and format appear after a frame is decoded.</p><p id="viewerRate" class="support-text">Requested: 5 frames/s · Receiving: waiting</p>
-<div id="viewerModeNotice" class="notice compact" hidden>Uncompressed network data is off. Choose Shared picture preview here, or explicitly enable data in Device → Advanced preview encoder.</div>
-<div id="viewerEmptyState" class="notice compact" role="status">Waiting for selected live products.</div>
-<div id="selectedProductGrid" class="viewer-grid"></div>
-<div id="viewerPicture" hidden>
-            <figure class="encoded-preview">
-              <figcaption>Compressed picture <span id="encodedFormat">Waiting</span>
-              </figcaption>
-              <div class="sample-canvas">
-                <canvas id="encodedCanvas"></canvas>
-                <div class="sample-overlay preview-empty">
-                  <span id="encodedEmptyState">Waiting for encoded preview</span>
-                </div>
-              </div>
-            </figure>
-            <div class="telemetry">
-              <span id="encodedSequence">Frame —</span>
-              <span id="encodedSize">—</span>
-              <span id="encodedLatency">—</span>
-              <span id="encodedAge">Waiting</span>
-            </div>
-            <p id="encodingError" class="error" role="alert"></p>
-          </div>
-<div id="depthLegend" class="depth-legend" hidden><strong>Depth Z display · metres</strong><div class="depth-scale" aria-label="Depth display scale from 0.2 metres to 12.2 metres"></div><div class="scale-labels"><span>0.2 m · near</span><span>12.2 m · far</span></div><p>Black: invalid. Magenta: valid value outside this display scale. This is a display interval, not a calibrated accuracy range.</p></div>
-<form id="pixelInspector" hidden><fieldset><legend>Inspect a numeric depth pixel</legend><div class="basic-fields"><label>Column x<input id="pixelX" type="number" min="0" step="1" value="0"></label><label>Row y<input id="pixelY" type="number" min="0" step="1" value="0"></label><button type="submit">Inspect pixel</button></div></fieldset><p id="pixelValue" role="status">Click the depth image or enter a pixel coordinate.</p></form>
-<p id="pictureMeasurementNotice" class="support-text" hidden>Numeric value unavailable in this picture preview. Use Depth values for measurement.</p>
-<div id="viewerTelemetry" class="telemetry" hidden><span id="sequence">Frame —</span><span id="validity">Valid —</span><span id="age">Waiting for products</span></div><p id="frameError" class="error" role="alert"></p>
+<form id="liveSelectionForm" class="live-toolbar"><label>Preview frames/s<input id="liveCadence" type="number" min="1" max="60" step="1" value="5"></label><button class="primary" type="submit">Apply preview rate</button><button id="viewerPause" type="button">Pause preview</button></form>
+<p id="viewerReceiving" class="receiving-state" role="status">Waiting for compressed preview</p><p id="viewerSource" class="support-text">Source and format appear after a picture is decoded.</p><p id="viewerConnection" class="support-text"></p><p id="viewerRate" class="support-text">Requested: 5 frames/s · Receiving: waiting</p>
+<div id="viewerPicture"><figure class="encoded-preview"><figcaption>Compressed picture <span id="encodedFormat">Waiting</span></figcaption><div class="sample-canvas"><canvas id="encodedCanvas" width="728" height="544"></canvas><div class="sample-overlay preview-empty"><span id="encodedEmptyState">Waiting for encoded preview</span></div></div></figure><div class="telemetry"><span id="encodedSequence">Frame —</span><span id="encodedSize">—</span><span id="encodedLatency">—</span><span id="encodedAge">Waiting</span></div><p id="encodingError" class="error" role="alert"></p></div>
+<p id="viewerEmptyState" class="support-text" role="status">Waiting for compressed preview.</p><p class="support-text">This browser displays JPEG / H.264 pictures only. For raw images or numeric depth, use My application in Outputs.</p>
+<form id="previewSourceForm" class="live-toolbar"><label>Shared picture source<select id="previewSource"></select></label><button id="previewSourceApply" type="submit" disabled>Apply shared source</button><button id="previewSourceReset" type="button" disabled>Discard source change</button></form><p class="scope-label">Source changes affect every encoded client. Preview rate and Pause preview affect only this browser.</p><p id="previewSourceState" role="status"></p><p id="sharedEncoderActivity" class="support-text">Shared encoder activity unavailable</p>
 <p class="preview-validity" data-live-calibration>Waiting for calibration status</p>
 <details class="network-advanced"><summary>Capture and processing details</summary><div class="preview-metrics"><span data-live-metric="capture">Capture target · — fps</span><span data-live-metric="depth">Depth output · — fps</span><span data-live-metric="compute">Compute · — ms</span></div><p data-live-resolution></p><p>These device rates include other consumers. Pausing this browser releases only its own demand.</p></details>
-<details id="firstDepthGuide" class="network-advanced"><summary>First depth sample</summary><p>Use a textured, well-lit scene. Depth with camera reference includes numeric metres, validity and the aligned left image at 1 frame/s.</p><div class="button-row"><button id="firstDepthStart" class="primary" type="button">Show first depth</button><button id="firstDepthSave" type="button" disabled>Save depth sample</button></div><p id="firstDepthStatus" role="status"></p><p id="firstDepthAuthority" class="support-text"></p><p id="firstDepthError" class="error" role="alert"></p></details>
+
 </div>
 <aside class="camera-depth-controls panel"><h2>Camera &amp; depth</h2><p class="scope-label">Shared device settings · affects all clients</p>
 <label class="profile-choice">Depth profile<select id="depthProfileChoice" disabled><option value="balanced">Balanced</option><option value="fast">Fast</option><option value="wide">Wide search</option><option value="quality">Quality</option><option value="custom">Custom / StereoBM</option></select></label><button id="depthProfileApply" type="button" disabled>Apply depth profile</button><p id="depthProfileState" role="status">Loading matcher settings</p>
@@ -628,7 +605,7 @@
         </form>
         <p id="algorithmError" class="error" role="alert"></p></div></details>
 </aside></div></section>
-<section id="network" class="page"><div class="page-header"><h1>Outputs</h1></div><p class="lede">Choose a result, then apply it to this browser or get connection code for your application.</p>
+<section id="network" class="page"><div class="page-header"><h1>Outputs</h1></div><p class="lede">Choose raw/numeric products and optional compressed pictures for My application. This page creates connection code without starting a browser stream.</p>
 <form id="outputForm" class="settings-form output-settings">
 <div class="output-choice-layout"><div>
 <fieldset><legend>What do you need?</legend><div class="output-task-cards">
@@ -637,16 +614,27 @@
 <label><input type="radio" name="outputTask" value="stereo"><span>Stereo check<small>Aligned pair + disparity</small></span></label>
 </div></fieldset>
 <select id="outputPreset" hidden aria-label="Named output recipe"><option value="camera">Camera image</option><option value="depth">Depth values</option><option value="depth_reference">Depth with camera reference</option><option value="stereo">Stereo check</option><option value="custom">Custom selection</option></select>
-<label>Use these outputs in<select id="outputDestination"><option value="browser">This browser</option><option value="app">My application</option></select></label>
-<label id="outputFormatLabel">Image delivery<select id="outputFormat"><option value="data">Uncompressed image data</option><option value="picture">Shared picture preview · JPEG / H.264</option></select></label>
+<p class="scope-label">My application · independent of the browser preview</p>
+<p id="outputConnection" class="support-text">Reading this browser's camera-side connection…</p>
+<p id="outputBrowserPath" class="support-text">This browser uses its existing connection. To change ports, reconnect through that port's device address; selecting application code below does not move this connection.</p>
+<fieldset id="outputApplicationDelivery"><legend>Connect my application to</legend><div id="outputPathChoices" class="output-path-cards">
+<label><input type="radio" name="outputPath" value="ethernet"><span>Ethernet<small>Pi Ethernet port</small><small data-output-path-state="ethernet">Reading device</small></span></label>
+<label><input type="radio" name="outputPath" value="usb_device"><span>USB 2.0<small>Pi USB-C port</small><small data-output-path-state="usb_device">Reading device</small></span></label>
+<label><input type="radio" name="outputPath" value="wifi"><span>WLAN<small>Pi Wi-Fi connection</small><small data-output-path-state="wifi">Reading device</small></span></label>
+</div><label id="outputPathAddressLabel">Camera address on this connection<select id="outputPathAddress"></select></label><p id="outputPathStatus" class="support-text" role="status"></p><p id="outputWifiAdvice" class="support-text" hidden></p><button id="outputUsePicture" type="button" hidden>Add compressed pictures</button><details id="outputConnectionAdvanced" class="network-advanced"><summary>Advanced connection details</summary><p id="outputPathIdentity" class="support-text"></p><p id="outputUsbDetails" class="support-text" hidden>USB 2.0 data uses the Pi's USB-C port in device mode. The current implementation exposes an ECM virtual network adapter over the USB cable and uses the same API. A compatible host driver and IP addressing are required.</p></details></fieldset>
+<label class="check"><input id="outputDataEnabled" type="checkbox" checked>Include raw / numeric products</label><label class="check"><input id="outputPictureEnabled" type="checkbox">Also include encoded pictures · JPEG / H.264</label><label id="outputPictureRateLabel">Picture frames/s<input id="outputPictureCadence" type="number" min="1" max="60" step="1" value="2" required></label><p id="outputPictureRateNote" class="support-text"></p><p class="support-text">Pictures use the shared encoder source and are not numeric measurements. With both outputs, the SDK pairs only matching capture identities; delivery is best effort and can time out if none match.</p>
 <label id="outputReferenceLabel" class="check"><input id="outputCameraReference" type="checkbox">Include aligned camera image from the same capture</label><p id="outputValidityNote" class="support-text" hidden>Validity is included. Use only valid, finite, positive depth values. The aligned image and depth may use different grids.</p>
-<label>Requested frames/s<input id="outputCadence" type="number" min="1" max="60" step="1" value="5" required></label>
-</div><aside class="selection-review"><h2>You will receive</h2><p id="outputSelectionSummary"></p><p id="outputScope" class="support-text"></p><p id="outputPending" role="status"></p><p id="outputWarning" class="error" role="alert"></p><div class="form-actions"><button id="outputApply" type="submit" class="primary">Apply to this browser</button><button id="outputDiscard" type="button">Discard changes</button></div><p id="outputSaveState" role="status"></p><p id="outputRequested" class="support-text"></p><p id="outputReceiving" class="support-text"></p><pre id="outputRecipe" hidden></pre><button type="button" class="link-button" data-open="viewer">Open Live view</button></aside></div>
+<label>Raw / numeric frames/s<input id="outputCadence" type="number" min="1" max="60" step="1" value="5" required></label>
+</div><aside class="selection-review"><h2>You will receive</h2><p id="outputSelectionSummary"></p><p id="outputScope" class="support-text"></p><p id="outputPending" role="status"></p><p id="outputWarning" class="error" role="alert"></p><div class="form-actions"><button id="outputApply" type="submit" class="primary">Show connection code</button><button id="outputDiscard" type="button">Discard changes</button></div><p id="outputSaveState" role="status"></p><p id="outputRequested" class="support-text"></p><p id="outputReceiving" class="support-text"></p><pre id="outputRecipe" hidden></pre><button type="button" class="link-button" data-open="viewer">Open Live view</button></aside></div>
 <details id="outputAdvanced" class="advanced-card"><summary>Advanced products and delivery</summary><fieldset><legend>Individual data products</legend><div id="outputProductChoices" class="output-product-choices"></div></fieldset><label>Delivery policy<select id="outputDelivery"><option value="auto">Connection aware · Wi-Fi best effort</option><option value="best_effort">Best effort</option><option value="exact">Exact · qualified wired connection</option></select></label><p id="outputBandwidth"></p><p>Depth automatically includes validity. Camera images are ISP output, not sensor Bayer RAW. Disparity is matching-grid pixels; matcher support is binary 0 / 255, not a probability. Products are named, not ordered by checkbox position.</p></details>
 </form>
-<article class="panel delivery-permissions"><h2>Device delivery permissions</h2><p id="outputConnection">Loading connection information…</p><label class="check"><input id="wifiEnabled" type="checkbox" disabled>Allow product streaming over Wi-Fi</label><p class="support-text">Device-wide: applies to uncompressed data and picture previews. Console access and wired permissions remain separate. A master Off preference still disables all product streaming.</p><div class="button-row"><button id="wifiApply" type="button" disabled>Apply Wi-Fi permission</button><button id="wifiConfirm" type="button" hidden>Confirm Wi-Fi permission</button><button id="wifiRollback" type="button" hidden>Undo Wi-Fi change</button></div><p id="wifiState" role="status"></p><p id="wifiError" class="error" role="alert"></p><details class="network-advanced"><summary>Connection details</summary><p id="outputRecommendation"></p><p id="originLabel"></p><p id="outputDeliveryStats"></p></details></article>
+<article class="panel delivery-permissions"><h2>Device delivery permissions</h2><p class="scope-label">Device-wide · affects all clients; does not reroute existing connections</p>
+<div class="delivery-policy-fields"><div><label>Wired delivery preference<select id="wiredPreference" disabled><option value="auto">Automatic</option><option value="ethernet">Ethernet preferred · USB 2.0 also allowed</option><option value="usb">USB 2.0 preferred · Ethernet also allowed</option><option value="both">Ethernet and USB 2.0</option><option value="wifi">Wired outputs disabled</option><option value="off" disabled>All product delivery off</option></select></label><p id="transportState" class="support-text">Loading…</p><p class="support-text">A ready preferred link can cause new wired streams on the other connection to be refused. “Ethernet and USB 2.0” allows either. Choosing an application address above does not change this policy.</p><button id="wiredApply" type="button" disabled>Apply wired preference</button><p id="wiredState" role="status"></p><p id="transportError" class="error" role="alert"></p></div>
+<div><label class="check"><input id="wifiEnabled" type="checkbox" disabled>Allow raw / numeric outputs over WLAN</label><p class="support-text">Compressed pictures remain available over WLAN when this is off. This permission does not change wired delivery. Master Off still blocks all products.</p><button id="wifiApply" type="button" disabled>Apply WLAN raw / numeric permission</button><p id="wifiState" role="status"></p><p id="wifiError" class="error" role="alert"></p></div></div>
+<div class="button-row"><button id="wifiConfirm" type="button" hidden>Confirm delivery permissions</button><button id="wifiRollback" type="button" hidden>Undo delivery change</button></div><p id="deliveryTransactionState" class="support-text" role="status"></p>
+<details class="network-advanced"><summary>Connection details</summary><p id="outputRecommendation"></p><p id="originLabel"></p><p id="outputDeliveryStats"></p></details></article>
 <article class="panel shared-picture-quality"><h2>Shared picture quality</h2><p class="scope-label">Device-wide · affects every compressed-preview client</p><label>Picture quality<select id="pictureQuality" disabled><option value="compact">Smaller pictures</option><option value="balanced">Balanced</option><option value="detail">More detail</option><option value="custom">Current custom setting</option></select></label><p id="pictureQualityDetail" class="support-text">Loading shared encoder settings</p><button id="pictureQualityApply" type="button" disabled>Apply shared picture quality</button><p id="pictureQualityState" role="status"></p><p>Changes compression settings for the existing source and codec. It preserves the rate ceiling and all numeric depth outputs. Actual picture size depends on the scene.</p><button type="button" class="link-button" data-open="streaming">Advanced encoder: source, codec, dimensions and rate</button></article>
-<details class="network-advanced"><summary>Product grids and capture association</summary><p>ISP images → aligned images → disparity → calibrated depth. Side-by-side images place left then right. Numeric depth is optical-axis Z in metres, not Euclidean range. Read each product’s dimensions and grid mapping.</p><p>Products in a data frame share device/run UUID, capture epoch and capture sequence. Picture previews may arrive at a different rate. Associate by complete capture identity, not arrival time.</p><p id="outputFrameSummary">Actual product dimensions appear after a frame arrives.</p></details>
+<details class="network-advanced"><summary>Product grids and capture association</summary><p>ISP images → aligned images → disparity → calibrated depth. Side-by-side images place left then right. Numeric depth is optical-axis Z in metres, not Euclidean range. Read each product’s dimensions and grid mapping.</p><p>Products in a data frame share device/run UUID, capture epoch and capture sequence. Picture previews may arrive at a different rate. Associate by complete capture identity, not arrival time.</p><p id="outputFrameSummary">Application frames report each product’s actual dimensions and capture identity.</p></details>
 </section>
 <section id="device" class="page"><div class="page-header"><h1>Device</h1></div><p class="lede">Calibration, health, software and shared device configuration.</p><details id="calibration" class="device-section"><summary>Calibration</summary><div class="section-content"><article class="panel" aria-label="Calibration readiness">
           <h2 id="calibrationReadinessTitle">Status unavailable/error</h2>
@@ -659,6 +647,14 @@
         <details class="notice calibration-boundary"><summary>Accuracy boundary · preview is for positioning only</summary><p>Detection and solving always use a synchronized, unrectified, full-profile luma pair captured directly from both ISPs—never the compressed preview.</p></details>
         <div class="steps calibration-steps"><b data-calibration-step="setup">1 Target & profile</b><b data-calibration-step="capture">2 Capture coverage</b><b data-calibration-step="solve">3 Solve & inspect</b><b data-calibration-step="activate">4 Save or activate</b></div>
 
+              <figure class="encoded-preview calibration-preview"><figcaption>Encoded positioning preview <span id="calibrationPreviewSideLabel">Waiting for a decoded picture</span></figcaption><div class="calibration-stage sample-canvas"><canvas id="calibrationCanvas" width="728" height="544"></canvas><div class="sample-overlay preview-empty"><span id="calibrationPreviewEmpty">Waiting for compressed preview</span></div><div class="target-guide" aria-hidden="true"><span>Keep the whole board visible</span></div></div></figure>
+              <div class="button-row calibration-controls">
+                <button id="calibrationPause" type="button">Pause preview</button><button id="calibrationEnablePreview" class="primary" type="button">Apply shared positioning source</button>
+                <label>View<select id="calibrationPreviewSide"><option value="left_color">Left camera · color</option><option value="right_color">Right camera · color</option></select></label>
+                <button id="calibrationRestorePreview" type="button" disabled>Restore previous source</button>
+
+              </div>
+<p id="calibrationConnection" class="support-text"></p><p id="calibrationEncoderActivity" class="support-text"></p><p class="scope-label">Positioning preview only. Applying a source changes the shared encoder for all clients. Calibration capture uses synchronized ISP data separately.</p>
         <form id="calibrationSetupForm" class="settings-form calibration-setup">
           <h2 class="form-title"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-focus"/></svg>Profile identity</h2>
           <label>Capture profile ID <small>Uses the active device capture profile</small><input id="calibrationPresetId" value="" readonly required></label>
@@ -692,13 +688,7 @@
         <div id="calibrationWorkspace" hidden>
           <div class="calibration-layout">
             <div>
-              <figure class="encoded-preview calibration-preview"><figcaption>Encoded positioning preview <span id="calibrationPreviewSideLabel">Left color · ISP</span></figcaption><div class="calibration-stage"><canvas id="calibrationCanvas" width="728" height="544"></canvas><div class="target-guide" aria-hidden="true"><span>Keep the whole board visible</span></div></div></figure>
-              <div class="button-row calibration-controls">
-                <button id="calibrationEnablePreview" class="primary" type="button">Enable positioning preview</button>
-                <label>View<select id="calibrationPreviewSide"><option value="left_color">Left camera · color</option><option value="right_color">Right camera · color</option></select></label>
-                <button id="calibrationRestorePreview" type="button" disabled>Restore stream settings</button>
-                <button id="calibrationCapture" class="primary" type="button">Capture synchronized raw pair</button>
-              </div>
+              <button id="calibrationCapture" class="primary" type="button">Capture synchronized raw pair</button>
               <p class="endpoint">Move through the whole field, vary distance, and tilt the board about both axes. Hold still before each capture; avoid glare and motion blur.</p>
               <p id="calibrationCaptureState" role="status"></p><p id="calibrationError" class="error" role="alert"></p>
             </div>
@@ -752,22 +742,23 @@
               <svg class="icon" aria-hidden="true" focusable="false">
                 <use href="#icon-stream"></use>
               </svg>Device-wide preview and network delivery</h2>
-            <p class="apply-note">These settings affect every network client. The device has one shared preview encoder; choose what this browser receives on Outputs.</p>
+            <p class="apply-note">These settings affect every network client. The device has one shared encoder. Global pause affects every encoded client; local Pause preview in Live view affects only this browser.</p>
             <input id="streamMode" type="hidden" value="both">
             <label class="check toggle">
               <input id="streamEncoderEnabled" type="checkbox">
               <span>
-                <b>Compressed preview encoder</b>
-                <small>Shared H.264 or MJPEG visualization for all preview clients</small>
+                <b>Enable encoded output on demand</b>
+                <small>Uncheck and apply to pause the shared encoder globally for benchmarking. External encoded clients also stop receiving pictures.</small>
               </span>
             </label>
-            <label class="check toggle">
+            <details class="network-advanced"><summary>Advanced application delivery compatibility</summary><label class="check toggle">
               <input id="streamRawEnabled" type="checkbox">
               <span>
                 <b>Uncompressed network data</b>
-                <small>Images and numeric products for browser/HTTPS SDK clients. Local socket delivery is independent.</small>
+                <small>Images and numeric products for application clients. Local socket delivery is independent.</small>
               </span>
             </label>
+            </details>
             <div id="encoderSettings" class="form-group">
               <label>Codec<select id="streamCodec">
                   <option value="h264">H.264 · independent frames</option>
@@ -901,12 +892,11 @@
               <p class="endpoint" id="encodedEndpoint"></p>
             </details>
           </form>
-</div></div></details><details class="network-advanced"><summary>Connection preference and safe rollback</summary><div class="settings"><article><h2>Connection preference</h2><p id="transportState">Loading…</p><div class="button-row"><button type="button" class="primary" data-transport="auto">Automatic</button><button type="button" class="primary" data-transport="wifi">WiFi only</button><button type="button" class="primary" data-transport="ethernet">Ethernet preferred</button><button type="button" class="primary" data-transport="usb">USB preferred</button><button type="button" class="primary" data-transport="both">Ethernet and USB</button><button type="button" class="secondary" data-transport="off">Disable data output</button></div><p class="error" id="transportError"></p><button id="confirmTransport" class="primary">Confirm new connection</button></article><article><h2>Safe rollback</h2><p>A changed preference is provisional for 60 seconds. Confirm through the new path or restore the previous setting.</p><button id="rollbackTransport" class="primary">Roll back</button></article></div></details></section>
+</div></div></details><p><button type="button" class="secondary" data-open="network">Manage output delivery paths and permissions</button></p></section>
     </main>
   </div>
   <script src="/frame-codec.js" defer></script>
   <script src="/device-settings.js" defer></script>
-  <script src="/first-use.js" defer></script>
   <script src="/app.js" defer></script>
 
 </body>

@@ -25,25 +25,46 @@ zero trigger/requeue errors, and matched left/right reported exposure values.
 ## No browser image
 
 1. Check **Overview** health, then open **Live view** and confirm fresh frames.
-2. Check the viewer's representation and the **Receiving** label. A draft
-   selection under Outputs has not yet changed the requested subscription.
-3. For numeric/image products, enable **Uncompressed network data**. For a
-   compressed picture, enable **Compressed preview encoder** under Device and
-   choose the picture preview in Outputs. Live H.264 requires keyframe interval
-   1 so every image is independent.
+2. Check the viewer's codec, source, connection and **Receiving** label, then
+   resume a paused preview. Outputs only prepares application recipes and does
+   not start browser raw/numeric streams.
+3. Enable the shared preview encoder if it is globally paused. Live H.264
+   requires keyframe interval 1 so every image is independent. The default is
+   on-demand JPEG; enabled does not mean it runs without consumers.
 4. If settings appear stale, reload the page and verify
    `GET /api/v1/encoding`; configuration is device authority, not browser state.
 5. Inspect `journalctl -u nuvo-gateway.service -u nuvo-depthd-native.service`.
 
-If the camera-side link is Wi-Fi, inspect **Allow product streaming over Wi-Fi**
-under Outputs. When disabled, both numeric/image streams and compressed pictures
-are blocked, although the console can still load. A successfully loaded console
-does not prove data permission. A master Off preference also blocks every link.
+The raw/numeric WLAN checkbox under Outputs does not block browser previews or
+application encoded streams. If raw/numeric SDK requests fail on WLAN, check
+that permission. A master Off preference or invalid policy still blocks every
+product link. A successfully loaded console alone does not prove product readiness.
 Changing a preference does not migrate an existing connection; reconnect to the
 appropriate camera address. USB means USB Ethernet.
 
+For application delivery, inspect the selected path's readiness and address in
+**Outputs**. A camera link can be ready while its address is
+unreachable from the application computer. Regenerate the recipe after address
+changes, and verify its reported camera-side path before requesting frames.
+`connect_address` changes the TCP destination while preserving TLS hostname
+verification; an incorrect certificate hostname still fails.
+
+USB-C device networking needs a controller, gadget setup, a connected compatible
+host and IP addresses. **USB preferred** does not perform that setup. A USB
+Ethernet dongle is a host adapter, not evidence of USB-C device mode. The current
+gadget is ECM-only; binding it does not configure DHCP or guarantee Windows
+driver support. Missing status data is reported as unknown rather than ready.
+
 The encoder endpoint intentionally returns HTTP 503 when monitoring encoding is
 off. The raw endpoint intentionally returns HTTP 503 in encoded-only mode.
+
+If encoding continues after pausing a browser preview, check for other encoded
+consumers. `preview_demand_cadence_hz`, `encoding_active` and encoder counters in
+health distinguish idle from active work. Navigate all browser views to Overview
+and close application encoded streams before measuring an idle baseline. An
+in-flight encode may finish as demand is released; sustained counter growth
+after the last consumer leaves is not expected. Camera capture may continue
+while encoding, matching and raw serialization are idle.
 
 ## Flicker isolation
 
@@ -103,7 +124,7 @@ sudo systemctl --no-pager --full status nuvo-depthd-native.service \
 ```
 
 Configuration updates are atomic. If a newly selected connection path fails,
-use the Connections page rollback within 60 seconds. For package failure, retry
+use the Outputs delivery-permission rollback within 60 seconds. For package failure, retry
 the same verified signed cohort and inspect `sudo dpkg --audit`. A package
 downgrade is not a tested recovery procedure; do not overwrite individual files
 or mix versions. Per-unit identity and calibration live under

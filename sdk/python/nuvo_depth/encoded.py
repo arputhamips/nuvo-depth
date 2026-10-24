@@ -4,6 +4,8 @@ from dataclasses import dataclass
 import json
 import struct
 
+from .frame import _normalize_uuid
+
 MAX_ENCODED_METADATA = 64 * 1024
 MAX_ENCODED_PAYLOAD = 32 * 1024 * 1024
 HEADER = struct.Struct(">4sHHIQQI")
@@ -23,6 +25,23 @@ class EncodedFrame:
     @property
     def capture_sequence(self) -> int:
         return int(self.metadata["capture_sequence"])
+
+    @property
+    def capture_epoch(self) -> int:
+        return int(self.metadata["capture_epoch"])
+
+    @property
+    def device_uuid(self) -> str:
+        return _normalize_uuid(self.metadata["device_uuid"]) if "device_uuid" in self.metadata else ""
+
+    @property
+    def run_uuid(self) -> str:
+        return _normalize_uuid(self.metadata["run_uuid"]) if "run_uuid" in self.metadata else ""
+
+    @property
+    def identity(self) -> tuple[str, str, int, int]:
+        """Full capture identity; legacy envelopes may omit UUIDs."""
+        return self.device_uuid, self.run_uuid, self.capture_epoch, self.capture_sequence
 
 
 def decode_encoded_frame(wire_bytes: bytes) -> EncodedFrame:
@@ -44,6 +63,13 @@ def decode_encoded_frame(wire_bytes: bytes) -> EncodedFrame:
     required={"schema_version","capture_epoch","capture_sequence","capture_time_ns","source","codec","mime_type","width","height","keyframe"}
     if not isinstance(metadata, dict) or metadata.get("schema_version") != 1 or not required.issubset(metadata):
         raise ValueError("encoded frame metadata is invalid")
+    for name in ("device_uuid", "run_uuid"):
+        if name in metadata:
+            _normalize_uuid(metadata[name])
+    for name in ("capture_epoch", "capture_sequence", "capture_time_ns"):
+        value = metadata[name]
+        if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value < 1 << 64:
+            raise ValueError("invalid encoded capture identity metadata")
     if not isinstance(metadata["keyframe"], bool) or bool(flags & 1) != metadata["keyframe"]:
         raise ValueError("encoded keyframe metadata disagrees with its header")
     if (metadata["codec"] not in {"jpeg", "h264"}

@@ -52,11 +52,18 @@ Or [order Vision One from NuvoHardware](https://nuvohardware.com/).
 
 The development console uses a sidebar with **Overview**, **Live view**,
 **Outputs**, and **Device**. Overview shows device health, calibration and
-performance without starting a product stream. Live view identifies whether it
-is showing a compressed picture or rendering numeric/image products. Outputs
-selects a browser subscription or an application recipe; depth includes its
-validity mask. Device-wide Wi-Fi product
-permission is separate from that local selection and from Wi-Fi network setup.
+performance without starting a product stream. Browser views use compressed
+pictures and identify their codec, source and actual camera connection. Preview
+rectangles remain visible when paused or disconnected. Outputs configures
+application recipes for raw images, numeric depth with validity, encoded images,
+or numeric/raw data alongside encoded images. The WLAN checkbox permits only
+raw/numeric products; compressed pictures remain available when it is off.
+Encoding runs only while a visible browser preview or an application requests
+encoded frames. Pausing or leaving a preview releases that browser's demand.
+Application delivery has three choices: **Ethernet** through the Pi's Ethernet
+port, **USB 2.0** through its USB-C port, and **WLAN** through Wi-Fi. Each shows
+its address and readiness. Browser status identifies the connection actually
+in use; USB protocol and TLS details are under Advanced connection details.
 See the [versioned console guide](docs/user-guide.md) for the controls and scopes.
 These source changes do not change the approved public release above.
 
