@@ -112,7 +112,9 @@ class LocalFrames:
         self.connections = set()
         self.handlers = []
         self.encoded_path = Path(path).parent / "encoded.nve"
-        self.auto_encode = True
+        self.encoding_lock = threading.Lock()
+        self._auto_encode = True
+        self.before_encode_publish = None
         self.encoded_bytes = None
         self.encoded_cursor = bytes(32)
         self.encoded_sequence = 0
@@ -141,24 +143,45 @@ class LocalFrames:
             self.cursor = bytes((run,)) + bytes(15) + struct.pack(">QQ", 1, sequence)
             self.condition.notify_all()
 
+    @property
+    def auto_encode(self):
+        return self._auto_encode
+
+    @auto_encode.setter
+    def auto_encode(self, enabled):
+        # A test must not replace/remove a fixture while a previously admitted
+        # encoder write can still recreate it. Setting False waits for that write.
+        with self.encoding_lock:
+            self._auto_encode = enabled
+
+    def invalidate_encoded(self):
+        with self.encoding_lock:
+            self._auto_encode = False
+            self.encoded_path.unlink(missing_ok=True)
+        with self.condition:
+            if not self.condition.wait_for(lambda: self.encoded_bytes is None, timeout=2):
+                raise TimeoutError('fixture encoder did not acknowledge invalidation')
+
     def encode(self):
         previous = None
         while not self.stopping:
-            if self.auto_encode and self.demand()[2]:
-                temporary = self.encoded_path.with_suffix(".tmp")
-                temporary.write_bytes(encoded_frame(self.encoded_sequence + 1)); temporary.replace(self.encoded_path)
-            try:
-                modified = self.encoded_path.stat().st_mtime_ns
-                value = self.encoded_path.read_bytes()
-            except FileNotFoundError:
-                modified, value = None, None
-            if modified != previous:
-                with self.condition:
-                    self.encoded_sequence += 1
-                    self.encoded_cursor = bytes((2,)) + bytes(15) + struct.pack(">QQ", 1, self.encoded_sequence)
-                    self.encoded_bytes = value
-                    self.condition.notify_all()
-                previous = modified
+            with self.encoding_lock:
+                if self.auto_encode and self.demand()[2]:
+                    if self.before_encode_publish is not None: self.before_encode_publish()
+                    temporary = self.encoded_path.with_suffix(".tmp")
+                    temporary.write_bytes(encoded_frame(self.encoded_sequence + 1)); temporary.replace(self.encoded_path)
+                try:
+                    modified = self.encoded_path.stat().st_mtime_ns
+                    value = self.encoded_path.read_bytes()
+                except FileNotFoundError:
+                    modified, value = None, None
+                if modified != previous:
+                    with self.condition:
+                        self.encoded_sequence += 1
+                        self.encoded_cursor = bytes((2,)) + bytes(15) + struct.pack(">QQ", 1, self.encoded_sequence)
+                        self.encoded_bytes = value
+                        self.condition.notify_all()
+                    previous = modified
             time.sleep(.05)
 
     def serve(self):
@@ -1417,9 +1440,8 @@ class GatewayIntegrationTest(unittest.TestCase):
             time.sleep(.2)
             with self.open("/api/v1/encoded/latest", headers={"Authorization": f"Bearer {self.token}"}) as response:
                 self.assertTrue(response.read().startswith(b"NVE1"))
-            self.local.auto_encode = False
-            encoded.unlink()
-            time.sleep(.2)
+            self.wait_demand((0,0,0))
+            self.local.invalidate_encoded()
             with self.assertRaises(urllib.error.HTTPError) as missing:
                 self.open("/api/v1/encoded/latest", headers={"Authorization": f"Bearer {self.token}"})
             self.assertEqual(missing.exception.code, 503)
@@ -1442,6 +1464,40 @@ class GatewayIntegrationTest(unittest.TestCase):
             encoded.write_bytes(encoded_frame())
             self.local.publish(25, run=3)
             time.sleep(.4)
+
+    def test_fixture_invalidation_waits_for_already_admitted_encoder_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            local=LocalFrames(Path(directory)/'data.sock')
+            entered=threading.Event();release=threading.Event()
+            invalidating=threading.Event();removed=threading.Event();errors=[]
+            def blocked_write():
+                entered.set()
+                if not release.wait(timeout=3): raise TimeoutError('test did not release fixture writer')
+            def invalidate():
+                invalidating.set()
+                try: local.invalidate_encoded()
+                except Exception as error: errors.append(error)
+                finally: removed.set()
+            removal=None
+            try:
+                with local.encoding_lock: local.before_encode_publish=blocked_write
+                with local.condition: local.subscriptions['test-demand']=(0,0,1)
+                self.assertTrue(entered.wait(timeout=2),'fixture did not admit the blocked write')
+                removal=threading.Thread(target=invalidate);removal.start()
+                self.assertTrue(invalidating.wait(timeout=1))
+                self.assertFalse(removed.wait(timeout=.05),'invalidation overtook an admitted encoder write')
+                release.set()
+                self.assertTrue(removed.wait(timeout=2),'invalidation did not wait for and remove the publication')
+                self.assertEqual(errors,[])
+                self.assertFalse(local.encoded_path.exists())
+                self.assertIsNone(local.encoded_bytes)
+                self.assertFalse(local.auto_encode)
+                # Retained demand cannot resurrect an invalidated publication.
+                self.assertEqual(local.demand(),(0,0,1))
+            finally:
+                release.set()
+                if removal: removal.join(timeout=3)
+                local.close()
 
     def test_transport_partial_wifi_patch_roundtrip_and_control_remain_available(self):
         configuration=self.config_root/'transport.json'
