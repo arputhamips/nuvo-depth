@@ -611,7 +611,7 @@
     return {dirty:key(requested)!==key(draft),phase:matches?'receiving':'requested',
       requested:outputSelectionLabel(requested),receiving:received?.label||null};
   }
-  const DELIVERY_PATHS=Object.freeze({ethernet:'Ethernet port',usb_device:'USB-C device network',wifi:'Wi-Fi'});
+  const DELIVERY_PATHS=Object.freeze({ethernet:'Ethernet',usb_device:'USB 2.0',wifi:'WLAN'});
   function deliveryPathModel(transport,path){
     const entry=transport?.paths?.[path];
     if(!entry)return {discovered:false,addresses:[],ready:false,reason:'Path discovery unavailable. This recipe uses the current console address.'};
@@ -626,7 +626,7 @@
         addresses.push({address:ip.address,interface:network.name});
       }
     }
-    const states={unavailable:path==='usb_device'?'USB device network setup required':'Interface unavailable',disconnected:'No active link',no_address:'No address served by this gateway',unknown:'Readiness unknown',available:'Camera link and gateway address ready'};
+    const states={unavailable:path==='usb_device'?'USB 2.0 setup required':'Interface unavailable',disconnected:'No active link',no_address:'No address served by this gateway',unknown:'Readiness unknown',available:'Camera connection ready'};
     const permitted=entry.products_permitted===true;
     const reason=(entry.state==='available'&&!addresses.length?'No usable address for application code':states[entry.state]||'Readiness unknown')+(!permitted?' · product delivery blocked by device permissions':'');
     return {discovered:true,addresses,ready:entry.state==='available'&&addresses.length>0&&permitted,reason,state:entry.state,permitted};

@@ -57,9 +57,10 @@ is showing a compressed picture or rendering numeric/image products. Outputs
 selects a browser subscription or an application recipe; depth includes its
 validity mask. Device-wide Wi-Fi product
 permission is separate from that local selection and from Wi-Fi network setup.
-Application delivery choices show detected Ethernet, USB-C device-network and
-Wi-Fi paths, with their addresses and readiness. Browser status identifies the
-connection actually in use.
+Application delivery has three choices: **Ethernet** through the Pi's Ethernet
+port, **USB 2.0** through its USB-C port, and **WLAN** through Wi-Fi. Each shows
+its address and readiness. Browser status identifies the connection actually
+in use; USB protocol and TLS details are under Advanced connection details.
 See the [versioned console guide](docs/user-guide.md) for the controls and scopes.
 These source changes do not change the approved public release above.
 

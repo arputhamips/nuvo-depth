@@ -174,6 +174,10 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
     await page.click('[name="outputProduct"][value="validity"]');
     assert(await page.isChecked('[name="outputProduct"][value="validity"]'),'numeric depth always includes its valid-pixel mask');
     await page.selectOption('#outputDestination','app');
+    assert.deepEqual(await page.locator('#outputPathChoices label span').evaluateAll(spans=>spans.map(span=>[span.firstChild.textContent.trim(),span.querySelector('small').textContent])),[
+      ['Ethernet','Pi Ethernet port'],['USB 2.0','Pi USB-C port'],['WLAN','Pi Wi-Fi connection']]);
+    assert.equal(await page.locator('#outputConnectionAdvanced').evaluate(element=>element.open),false);
+    assert(await page.isHidden('#outputPathIdentity'),'TCP/TLS implementation details start collapsed');
     await page.check('[name="outputPath"][value="ethernet"]');await page.selectOption('#outputPathAddress','192.0.2.10');
     const activeSelection=await page.evaluate(()=>JSON.stringify(outputSettings)),writes=requests.configurationWrites.length;
     const rawStart=requests.raw.length,encodedStart=requests.encoded;
@@ -189,6 +193,11 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
     checks.push('deterministic recipe rates','depth automatically includes validity','recipe does not change subscriptions or device settings','recipe survives refresh and invalidates on edit');
 
     await page.check('[name="outputPath"][value="usb_device"]');
+    assert(await page.isHidden('#outputUsbDetails'),'USB implementation details stay out of the main selector');
+    await page.locator('#outputConnectionAdvanced > summary').click();
+    assert(await page.isVisible('#outputUsbDetails'));assert.match(await page.textContent('#outputUsbDetails'),/ECM virtual network adapter/);
+    await page.locator('#outputConnectionAdvanced > summary').click();
+    checks.push('exactly three physical delivery choices with protocol details collapsed');
     assert(await page.isDisabled('#outputApply'),'unprovisioned USB cannot offer a connection recipe');
     assert.equal(await page.locator('#outputPathAddress option[value]:not([value=""])').count(),0);
     assert.match(await page.textContent('#outputPathStatus'),/USB|setup|unavailable|controller/i);

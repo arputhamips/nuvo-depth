@@ -104,6 +104,10 @@ def main() -> None:
                        'outputUsePicture','wiredPreference','wiredApply','deliveryTransactionState'):
         assert identifier in parser.ids
     assert set(re.findall(r'name="outputPath" value="([^"]+)"', html)) == {'ethernet','usb_device','wifi'}
+    assert re.findall(r'name="outputPath" value="[^"]+"><span>([^<]+)<small>([^<]+)</small>', html) == [
+        ('Ethernet', 'Pi Ethernet port'), ('USB 2.0', 'Pi USB-C port'), ('WLAN', 'Pi Wi-Fi connection')]
+    assert '<details id="outputConnectionAdvanced" class="network-advanced">' in html
+    assert 'USB-C device network' not in html
     assert 'data-transport=' not in html, 'keep one scoped device delivery control instead of duplicate legacy buttons'
     assert 'DIODE' not in html and '/assets/benchmark/' not in html
     assert 'benchmarkGallery' not in script and 'data-benchmark-scene' not in script

@@ -117,7 +117,7 @@ function outputApplicationTarget(){
 function updateOutputDelivery(draft,app){
   const D=window.NuvoDeviceSettings,c=capabilities?.connection||transportState?.connection;
   const labels={...D.DELIVERY_PATHS,usb_host_adapter:'USB network adapter · not USB-C device mode',other:'Other camera-side connection'};
-  $('outputConnection').textContent=c?`This browser’s camera endpoint: ${labels[c.path]||c.kind?.replaceAll('_',' ')||'Unknown path'} · ${c.interface||'interface unknown'}${c.local_address?' · '+c.local_address:''}`:'This browser’s camera endpoint: connection discovery unavailable';
+  $('outputConnection').textContent=c?`This browser’s camera connection: ${labels[c.path]||c.kind?.replaceAll('_',' ')||'Unknown path'} · ${c.interface||'interface unknown'}${c.local_address?' · '+c.local_address:''}`:'This browser’s camera connection: connection discovery unavailable';
   $('outputBrowserPath').hidden=app;$('outputApplicationDelivery').hidden=!app;
   if(!outputDeliveryPath)outputDeliveryPath=D.DELIVERY_PATHS[c?.path]?c.path:'ethernet';
   document.querySelectorAll('[name="outputPath"]').forEach(input=>input.checked=input.value===outputDeliveryPath);
@@ -139,8 +139,8 @@ function updateOutputDelivery(draft,app){
   if(app&&draft.preview&&encoding?.mode==='raw')error='The shared picture encoder is off. Enable it explicitly in Device → Advanced preview encoder.';
   if(app&&draft.enabled&&encoding?.mode==='encoded')error='Uncompressed network data is off. Enable it explicitly in Device → Advanced preview encoder.';
   if(app&&draft.enabled&&draft.delivery==='exact'&&outputDeliveryPath==='wifi')error='Wi-Fi uses best-effort delivery. Choose Best effort in Advanced products and delivery.';
-  $('outputPathStatus').textContent=error||(!model.discovered?model.reason:'Camera endpoint ready. Application reachability and certificate trust are checked when the code connects.');
-  if(outputDeliveryPath==='usb_device')$('outputPathStatus').textContent+=' USB-C device mode supplies a USB network interface, not a webcam stream. Host network-driver support is required.';
+  $('outputPathStatus').textContent=error||(!model.discovered?model.reason:'Camera connection ready. Choose an address your application can reach.');
+  $('outputUsbDetails').hidden=outputDeliveryPath!=='usb_device';
   $('outputPathIdentity').textContent=`${origin.protocol==='https:'?'TLS device identity':'Development console (HTTP)'}: ${location.origin}. The selected IP sets the application TCP destination; client and OS routing still apply. TLS verification and this browser connection stay unchanged.`;
   $('outputWifiAdvice').hidden=!app||outputDeliveryPath!=='wifi';
   $('outputWifiAdvice').textContent=draft.enabled?'Numeric depth stays numeric over Wi-Fi. Requested rate must fit the link; a compressed picture can be chosen separately for viewing.':`Shared ${encoding?.codec?.toUpperCase()||'JPEG / H.264'} picture · ${encoding?.source?.replaceAll('_',' ')||'source not loaded'}. This is a visualization, not numeric depth.`;
@@ -380,7 +380,7 @@ function renderDeliveryPermissions(){
   $('wifiConfirm').hidden=!pending;$('wifiRollback').hidden=!(pending||expired);
   $('wifiConfirm').disabled=deliveryPolicyBusy;$('wifiRollback').disabled=deliveryPolicyBusy;
   $('transportState').textContent=`Configured preference: ${state?.preference||'unknown'}. Preferences do not select the application's address.`;
-  $('wifiState').textContent=wifiDirty?'Editing Wi-Fi permission · not applied':!supported?'Separate Wi-Fi permission requires an updated gateway.':`Wi-Fi permission: ${state.wifi_enabled?'allowed':'blocked'}${state.preference==='off'?' · master Off still blocks all product delivery':''}.`;
+  $('wifiState').textContent=wifiDirty?'Editing WLAN permission · not applied':!supported?'Separate WLAN permission requires an updated gateway.':`WLAN permission: ${state.wifi_enabled?'allowed':'blocked'}${state.preference==='off'?' · master Off still blocks all product delivery':''}.`;
   $('wiredState').textContent=wiredDirty?'Editing wired preference · not applied':'Wired preference unchanged';
   const transaction=state?.transaction?.status;
   $('deliveryTransactionState').textContent=pending?'Device-wide change is provisional. Confirm it or undo; it rolls back after 60 seconds.':expired?'The change expired. Undo it or refresh the restored device policy.':transaction==='confirmed'?'Delivery permissions confirmed device-wide.':transaction==='rolled_back'?'Previous delivery permissions restored.':state?.transaction===null?'Pending-change status unavailable.':'No provisional delivery change.';

@@ -22,8 +22,9 @@ not every network segment between the camera and the application.
 
 ### Choose a device connection
 
-In **Outputs → My application**, choose **Ethernet port**, **USB-C device network**
-or **Wi-Fi**. The console reports detected interfaces and addresses, and explains
+In **Outputs → My application**, choose **Ethernet** (Pi Ethernet port),
+**USB 2.0** (Pi USB-C port), or **WLAN** (Pi Wi-Fi connection).
+The console reports detected interfaces and addresses, and explains
 missing setup or permission. A ready camera interface does not prove that the
 application computer can reach it. Generated code verifies the selected
 camera-side path, interface and address before requesting products.
@@ -57,11 +58,13 @@ not fall back to another interface. Certificate trust, hostname verification,
 session authentication and product permissions still apply. For IPv6, use an
 unscoped literal only when the gateway reports that it listens on that address.
 
-Choosing Wi-Fi does not compress numeric arrays. Use its explicit compressed
+Choosing WLAN does not compress numeric arrays. Use its explicit compressed
 picture option for JPEG/H.264 viewing, or retain numeric products and select a
 suitable rate. The shared encoder must already be enabled for picture delivery.
-USB-C device networking uses the same API over ECM; gadget configuration alone
-does not assign addresses or guarantee host-driver support.
+The USB 2.0 choice uses the same API over an ECM virtual network adapter carried
+by the USB-C cable. These protocol details are under **Advanced connection
+details** in the console. Gadget configuration alone does not assign addresses
+or guarantee host-driver support.
 
 The core Python SDK and examples require Python 3.11+ and the standard library.
 The candidate CI matrix covers Linux and Windows with Python 3.11 and 3.13.

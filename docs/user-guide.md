@@ -267,7 +267,7 @@ processing. Gigabit Ethernet is the normal remote path. USB Ethernet remains a
 qualified transport option only after the product VID/PID, power design, and
 target-host compatibility gates pass.
 
-## Wi-Fi, Ethernet and USB Ethernet
+## Ethernet, USB 2.0 and WLAN
 
 All three links use the same HTTPS/WebSocket gateway and product names. USB here
 means **USB Ethernet**, not a USB webcam or separate raw-image protocol. The
@@ -281,9 +281,14 @@ console. Application mode adds **Connect my application to**:
 
 | Connection | What it carries | What must be ready |
 | --- | --- | --- |
-| Ethernet port | Selected images or numeric products; shared pictures are also supported | Camera Ethernet link and a reachable address |
-| USB-C device network | The same selected products over USB Ethernet | Device-mode setup, compatible host, USB link and IP addressing |
-| Wi-Fi | Selected products, with an explicit compressed-picture option to reduce picture bandwidth | Camera Wi-Fi connection and product permission |
+| Ethernet · Pi Ethernet port | Selected images or numeric products; shared pictures are also supported | Camera Ethernet link and a reachable address |
+| USB 2.0 · Pi USB-C port | The same selected products over the USB cable | Device-mode setup, compatible host, USB link and IP addressing |
+| WLAN · Pi Wi-Fi connection | Selected products, with an explicit compressed-picture option to reduce picture bandwidth | Camera Wi-Fi connection and product permission |
+
+These are the three physical delivery choices. USB is not an extra Ethernet
+port: its current data protocol uses an ECM virtual network adapter over the
+USB cable. Protocol and TLS details are collapsed under **Advanced connection
+details** rather than used as the output names.
 
 Each application choice shows the detected interface, readiness and available
 addresses. If more than one usable address is reported, choose the address the
@@ -295,14 +300,14 @@ which camera interface it reached before requesting products. See the
 
 USB-C status distinguishes controller/setup problems, an unplugged host and
 missing IP addressing. A USB Ethernet adapter plugged into a host port is not
-the USB-C device network. The current Nuvo gadget uses ECM and does not assign
+the Pi's USB-C output. The current Nuvo gadget uses ECM and does not assign
 addresses automatically. Windows compatibility must be established for this
 ECM implementation; do not assume the Windows support of Raspberry Pi's
 separate ECM/RNDIS package applies. Raspberry Pi documents the Pi 5 USB-C device
 connection and host requirements in its
 [USB gadget guide](https://www.raspberrypi.com/news/usb-gadget-mode-in-raspberry-pi-os-ssh-over-usb/).
 
-Selecting Wi-Fi preserves numeric depth. **Use compressed picture instead** is
+Selecting WLAN preserves numeric depth. **Use compressed picture instead** is
 a separate choice that selects the shared JPEG/H.264 picture; it is not a
 compressed float-depth array. The source and encoder state remain visible, and
 enabling or changing the shared encoder requires an explicit device action.
@@ -313,7 +318,7 @@ configure USB device mode or change the independent Wi-Fi permission. The
 current browser connection label changes only when an actual new connection
 uses that path.
 
-**Allow product streaming over Wi-Fi** is a separate device-wide permission for
+**Allow product streaming over WLAN (Wi-Fi)** is a separate device-wide permission for
 both compressed pictures and uncompressed products on the camera's Wi-Fi link.
 Disabling it blocks those products while keeping console/control access and
 permitted wired clients available. It does not disable the radio, configure an
