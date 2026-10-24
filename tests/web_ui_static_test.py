@@ -100,6 +100,11 @@ def main() -> None:
     assert 'data-preview-slot' not in html, "one viewer must not clone obsolete preview panels"
     assert 'id="outputDestination"' in html and 'id="pixelInspector"' in html
     assert 'id="wifiApply"' in html and 'id="wifiConfirm"' in html
+    for identifier in ('outputApplicationDelivery','outputPathChoices','outputPathAddress','outputPathStatus',
+                       'outputUsePicture','wiredPreference','wiredApply','deliveryTransactionState'):
+        assert identifier in parser.ids
+    assert set(re.findall(r'name="outputPath" value="([^"]+)"', html)) == {'ethernet','usb_device','wifi'}
+    assert 'data-transport=' not in html, 'keep one scoped device delivery control instead of duplicate legacy buttons'
     assert 'DIODE' not in html and '/assets/benchmark/' not in html
     assert 'benchmarkGallery' not in script and 'data-benchmark-scene' not in script
     assert '<dialog' not in html and 'type="password"' not in html

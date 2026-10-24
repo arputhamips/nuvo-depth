@@ -6,6 +6,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "depthd/ipc_v2.hpp"
@@ -18,6 +19,16 @@ enum class TransportKind : std::uint8_t {
   kUsbEthernet = 2,
   kWifi = 3,
 };
+
+using TransportMask = std::uint8_t;
+[[nodiscard]] constexpr TransportMask transport_bit(TransportKind kind) {
+  return static_cast<TransportMask>(1U << (static_cast<unsigned>(kind) - 1U));
+}
+inline constexpr TransportMask kAllTransports = 7U;
+
+[[nodiscard]] std::string_view network_path(bool loopback, bool wireless,
+    std::string_view kernel_device, std::string_view kernel_network,
+    bool bound_gadget_interface);
 
 enum class TransportPreference : std::uint8_t {
   kEthernetPreferred = 1,
@@ -112,7 +123,8 @@ class AdmissionController final {
   [[nodiscard]] AdmissionResult admit(const SubscriptionRequest& request,
                                       TransportKind connected_transport,
                                       std::optional<TransportPreference> preference = {},
-                                      std::optional<bool> wifi_enabled = {});
+                                      std::optional<bool> wifi_enabled = {},
+                                      TransportMask available_alternatives = kAllTransports);
   [[nodiscard]] AdmissionStats stats() const noexcept;
 
  private:

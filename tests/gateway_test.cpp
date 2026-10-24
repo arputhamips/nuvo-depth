@@ -290,6 +290,45 @@ void test_independent_wifi_permission_preserves_wired_policy() {
           "invalid preference was treated as permitted Wi-Fi");
 }
 
+void test_absent_preferred_interface_does_not_block_connected_wired_transport() {
+  using depthd::gateway::TransportKind;
+  using depthd::gateway::TransportPreference;
+  depthd::gateway::AdmissionController controller(configuration(TransportPreference::kUsbPreferred));
+  const auto ethernet_only = depthd::gateway::transport_bit(TransportKind::kEthernet);
+  auto wired = controller.admit(request(1000U, 1.0), TransportKind::kEthernet, {}, {}, ethernet_only);
+  require(wired.lease.has_value(), "absent USB interface blocked a connected Ethernet client");
+  auto prefer_usb = controller.admit(request(1000U, 1.0), TransportKind::kEthernet, {}, {}, depthd::gateway::kAllTransports);
+  require(!prefer_usb.lease && prefer_usb.compatible_alternatives.size() == 1U &&
+          prefer_usb.compatible_alternatives.front() == TransportKind::kUsbEthernet,
+          "available preferred USB stopped enforcing wired preference");
+  require(wired.lease->transport() == TransportKind::kEthernet && controller.stats().ethernet_sessions == 1U,
+          "availability update invalidated an already admitted lease");
+  auto impossible = controller.admit(request(8'000'000U, 60.0), TransportKind::kEthernet, {}, {}, 0U);
+  require(!impossible.lease && impossible.compatible_alternatives.empty(),
+          "admission advertised a nonexistent reconnect alternative");
+}
+
+void test_device_mode_is_not_inferred_from_usb_host_networking() {
+  using depthd::gateway::network_path;
+  require(network_path(false, false, "/sys/devices/platform/1000480000.usb/gadget", "", false) == "usb_device",
+          "gadget classification incorrectly depended on a /usb ancestry component");
+  require(network_path(false, false, "/sys/devices/platform/axi/usb/gadget", "", false) == "usb_device",
+          "kernel gadget device evidence was ignored");
+  require(network_path(false, false, "", "/sys/devices/platform/usb/gadget/net/usb0", false) == "usb_device",
+          "kernel gadget netdev evidence was ignored");
+  require(network_path(false, false, "", "", true) == "usb_device",
+          "bound configfs network-function evidence was ignored");
+  require(network_path(false, false, "/sys/devices/pci/usb1/1-1", "", false) == "usb_host_adapter",
+          "USB host adapter was mislabeled USB-C device mode");
+  require(network_path(false, true, "/sys/devices/pci/usb1/1-1", "", false) == "wifi",
+          "USB wireless adapter was mislabeled USB Ethernet");
+  require(network_path(true, false, "", "", false) == "other" &&
+          network_path(false, false, "", "/sys/devices/virtual/net/eth0", false) == "other",
+          "interface name or virtual interface was treated as physical port evidence");
+  require(network_path(false, false, "/sys/devices/platform/ethernet", "", false) == "ethernet",
+          "physical Ethernet evidence was ignored");
+}
+
 }  // namespace
 
 int main() {
@@ -301,6 +340,8 @@ int main() {
     test_connection_cannot_reserve_another_interface();
     test_wifi_resource_admission_and_selection();
     test_independent_wifi_permission_preserves_wired_policy();
+    test_absent_preferred_interface_does_not_block_connected_wired_transport();
+    test_device_mode_is_not_inferred_from_usb_host_networking();
     test_serialized_storage_is_shared_and_complete();
     std::cout << "gateway_test: pass\n";
     return EXIT_SUCCESS;

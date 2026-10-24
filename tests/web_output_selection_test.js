@@ -143,4 +143,48 @@ assert.equal(demand.rawPreviewPage(),false,'Overview must not request image or n
 assert.equal(demand.encodedPreviewPage(),false,'Overview must not request compressed pictures, even with calibration open elsewhere');
 for(const page of ['viewer','network']){demand.selectedPage=page;assert.equal(demand.rawPreviewPage(),true);assert.equal(demand.encodedPreviewPage(),true);}
 demand.selectedPage='device';assert.equal(demand.rawPreviewPage(),false);assert.equal(demand.encodedPreviewPage(),true,'calibration keeps its explicit positioning preview');
-console.log('Web output recipes, requested/received state, image rendering and demand lifecycle tests passed');
+
+const transportInventory={listener:{port:7443},paths:{
+  ethernet:{state:'available',products_permitted:true,interfaces:[{name:'eth0',admin_up:true,carrier:true,addresses:[{address:'192.0.2.10',family:'ipv4',gateway_listening:true},{address:'2001:db8::10',family:'ipv6',gateway_listening:false}]}]},
+  usb_device:{state:'unavailable',products_permitted:true,provisioned:false,bound:false,host_connected:false,interfaces:[]},
+  wifi:{state:'available',products_permitted:false,interfaces:[{name:'wlan0',admin_up:true,carrier:true,addresses:[{address:'198.51.100.20',family:'ipv4',gateway_listening:true}]}]}}};
+assert.deepEqual(D.deliveryPathModel(transportInventory,'ethernet').addresses,[{address:'192.0.2.10',interface:'eth0'}],'only addresses served by this gateway enter a recipe');
+assert.equal(D.deliveryPathModel(transportInventory,'ethernet').ready,true);
+const mixedInterfaces={paths:{ethernet:{state:'available',products_permitted:true,interfaces:[
+  ...transportInventory.paths.ethernet.interfaces,
+  {name:'eth1',admin_up:false,carrier:true,addresses:[{family:'ipv4',address:'192.0.2.21',gateway_listening:true}]},
+  {name:'eth2',admin_up:true,carrier:false,addresses:[{family:'ipv4',address:'192.0.2.22',gateway_listening:true}]},
+  {name:'eth3',admin_up:true,carrier:null,addresses:[{family:'ipv4',address:'192.0.2.23',gateway_listening:true}]}]}}};
+assert.deepEqual(D.deliveryPathModel(mixedInterfaces,'ethernet').addresses,[{address:'192.0.2.10',interface:'eth0'}],'one ready interface cannot make down or unknown-carrier interfaces selectable');
+for(const address of ['fe80::1','FEA0::2','febf::3','fe80::1%eth0']){
+  const scoped={paths:{ethernet:{state:'available',products_permitted:true,interfaces:[{name:'eth0',admin_up:true,carrier:true,addresses:[{family:'ipv6',address,gateway_listening:true}]}]}}};
+  assert.equal(D.deliveryPathModel(scoped,'ethernet').ready,false);assert.deepEqual(D.deliveryPathModel(scoped,'ethernet').addresses,[]);
+  assert.match(D.deliveryPathModel(scoped,'ethernet').reason,/No usable address/,'link-local-only inventory must not promise an unscoped SDK route');
+}
+
+assert.match(D.deliveryPathModel(transportInventory,'usb_device').reason,/setup required/);
+assert.equal(D.deliveryPathModel(transportInventory,'wifi').ready,false,'link readiness does not override device permission');
+assert.match(D.deliveryPathModel(transportInventory,'wifi').reason,/blocked/);
+assert.equal(D.deliveryPathModel({},'ethernet').discovered,false,'old gateways must not invent alternate endpoints');
+for(const state of ['disconnected','no_address','unknown'])assert.equal(D.deliveryPathModel({paths:{ethernet:{...transportInventory.paths.ethernet,state}}},'ethernet').ready,false,'address alone does not prove an active link');
+const endpoint={origin:'https://camera.local:7443',path:'ethernet',interface:'eth0',address:'192.0.2.10'};
+const routedCode=D.outputApplicationRecipe(depth,endpoint);
+assert.match(routedCode,/NuvoClient\("https:\/\/camera.local:7443", ca_file="device.crt", connect_address="192.0.2.10"\)/);
+assert(routedCode.indexOf('client.claim(os.environ["NUVO_TOKEN"])')<routedCode.indexOf('client.capabilities()'),'authenticate before inspecting the connection');
+for(const [key,value] of [['path','ethernet'],['interface','eth0'],['local_address','192.0.2.10']]){
+  assert(routedCode.includes('connection.get('+JSON.stringify(key)+') != '+JSON.stringify(value)));
+}
+assert(routedCode.indexOf('client.capabilities()')<routedCode.indexOf('client.frames('),'verify actual path before creating product demand');
+assert.match(routedCode,/"depth", "validity"/,'selecting a network path retains numeric depth');
+assert(!routedCode.includes('verify=False')&&!routedCode.includes('CERT_NONE'));
+const wifiDepthCode=D.outputApplicationRecipe(depth,{...endpoint,path:'wifi',interface:'wlan0',address:'198.51.100.20'});
+assert(wifiDepthCode.includes('client.frames(')&&!wifiDepthCode.includes('latest_encoded()'),'Wi-Fi does not silently convert measurements to pictures');
+assert.match(D.outputApplicationRecipe(D.outputRecipe('picture'),endpoint),/client.latest_encoded\(\)/);
+const olderCode=D.outputApplicationRecipe(depth,{origin:endpoint.origin});
+assert(!olderCode.includes('connect_address='));assert.match(olderCode,/Path discovery unavailable/);
+assert.match(D.outputApplicationRecipe(depth,{...endpoint,origin:'http://127.0.0.1:1234'}),/os.environ\["NUVO_DEVICE_URL"\]/,'HTTP fixtures never fabricate an HTTPS certificate identity');
+for(const wifi_enabled of [true,false])assert.deepEqual(D.wiredTransportPatch('usb',{wifi_enabled}),{preference:'usb',wifi_enabled},'wired changes preserve effective Wi-Fi permission, including legacy configuration');
+assert.throws(()=>D.wiredTransportPatch('both',{}),/Read the current Wi-Fi/);
+assert.throws(()=>D.wiredTransportPatch('off',{wifi_enabled:true}),/local device confirmation/);
+
+console.log('Web output recipes, verified delivery endpoints, state and demand lifecycle tests passed');

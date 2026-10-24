@@ -611,11 +611,49 @@
     return {dirty:key(requested)!==key(draft),phase:matches?'receiving':'requested',
       requested:outputSelectionLabel(requested),receiving:received?.label||null};
   }
-  function outputApplicationRecipe(value){
+  const DELIVERY_PATHS=Object.freeze({ethernet:'Ethernet port',usb_device:'USB-C device network',wifi:'Wi-Fi'});
+  function deliveryPathModel(transport,path){
+    const entry=transport?.paths?.[path];
+    if(!entry)return {discovered:false,addresses:[],ready:false,reason:'Path discovery unavailable. This recipe uses the current console address.'};
+    const addresses=[];
+    for(const network of entry.interfaces||[]){
+      if(network.admin_up!==true||network.carrier!==true)continue;
+      for(const ip of network.addresses||[]){
+        if(ip.gateway_listening!==true||typeof ip.address!=='string'||typeof network.name!=='string')continue;
+        const ipv6=ip.family==='ipv6'||ip.address.includes(':');
+        const linkLocal=ipv6&&(parseInt(ip.address.split(':')[0],16)&0xffc0)===0xfe80;
+        if(ip.scope_required===true||linkLocal||ip.address.includes('%'))continue;
+        addresses.push({address:ip.address,interface:network.name});
+      }
+    }
+    const states={unavailable:path==='usb_device'?'USB device network setup required':'Interface unavailable',disconnected:'No active link',no_address:'No address served by this gateway',unknown:'Readiness unknown',available:'Camera link and gateway address ready'};
+    const permitted=entry.products_permitted===true;
+    const reason=(entry.state==='available'&&!addresses.length?'No usable address for application code':states[entry.state]||'Readiness unknown')+(!permitted?' · product delivery blocked by device permissions':'');
+    return {discovered:true,addresses,ready:entry.state==='available'&&addresses.length>0&&permitted,reason,state:entry.state,permitted};
+  }
+  function wiredTransportPatch(preference,transport){
+    if(!['auto','ethernet','usb','both','wifi'].includes(preference))throw new Error('Choose a supported wired preference. Turning all outputs off requires local device confirmation.');
+    if(typeof transport?.wifi_enabled!=='boolean')throw new Error('Read the current Wi-Fi permission before changing wired delivery.');
+    return {preference,wifi_enabled:transport.wifi_enabled};
+  }
+  function outputApplicationRecipe(value,target){
     const rate=value.enabled?value.cadence_hz:value.preview_cadence_hz;
-    if(!value.enabled&&value.preview)return '# Use an authenticated NuvoClient. The source is shared device-wide.\n# Snapshot only; latest_encoded() does not accept a cadence option.\nframe = client.latest_encoded()\n# JPEG / H.264 picture; original numeric depth is unavailable.\n# For a persistent stream: /api/v1/encoded/stream?cadence_hz='+rate;
     const products=value.products.map(p=>JSON.stringify(p)).join(', ')+(value.products.length===1?',':'');
-    return '# Use an authenticated NuvoClient with verified TLS.\nwith client.frames(products=('+products+'), cadence_hz='+rate+',\n                   delivery='+JSON.stringify(value.delivery)+') as frames:\n    for frame in frames:\n        print(frame.capture_sequence, frame.products.keys())'+(value.products.includes('depth')?'\n        # Accept depth only where validity == 1 and Z is finite and positive.':'');
+    const body=!value.enabled&&value.preview?'# Snapshot only; latest_encoded() does not accept a cadence option.\nframe = client.latest_encoded()\n# JPEG / H.264 picture from the shared source; numeric depth is unavailable.\n# For a persistent stream: /api/v1/encoded/stream?cadence_hz='+rate:
+      'with client.frames(products=('+products+'), cadence_hz='+rate+',\n                   delivery='+JSON.stringify(value.delivery)+') as frames:\n    for frame in frames:\n        print(frame.capture_sequence, frame.products.keys())'+(value.products.includes('depth')?'\n        # Accept depth only where validity == 1 and Z is finite and positive.':'');
+    if(!target)return '# Use an authenticated NuvoClient with verified TLS.\n'+body;
+    const direct=target.address&&target.interface&&DELIVERY_PATHS[target.path];
+    const secure=String(target.origin).startsWith('https://');
+    const origin=secure?JSON.stringify(target.origin):'os.environ["NUVO_DEVICE_URL"]';
+    let code='import os\nfrom nuvo_depth import NuvoClient\n\n# Trust the device certificate; keep hostname verification enabled.\n';
+    if(!secure)code+='# This development console uses HTTP. Set NUVO_DEVICE_URL to the verified HTTPS device URL.\n';
+    if(!direct)code+='# Path discovery unavailable: the current console URL does not select a physical interface.\n';
+    code+='with NuvoClient('+origin+', ca_file="device.crt"'+(direct?', connect_address='+JSON.stringify(target.address):'')+') as client:\n    client.claim(os.environ["NUVO_TOKEN"])\n';
+    if(direct){
+      code+='    connection = client.capabilities()["connection"]\n';
+      for(const [key,expected] of [['path',target.path],['interface',target.interface],['local_address',target.address]])code+='    if connection.get('+JSON.stringify(key)+') != '+JSON.stringify(expected)+':\n        raise RuntimeError("Connected device '+key+' does not match the selected delivery path")\n';
+    }
+    return code+body.split('\n').map(line=>'    '+line).join('\n');
   }
   function pictureQualityConfiguration(config,choice){
     const preset={compact:{jpeg_quality:45,bitrate_bps:1000000},balanced:{jpeg_quality:70,bitrate_bps:4000000},detail:{jpeg_quality:90,bitrate_bps:8000000}}[choice];
@@ -623,5 +661,5 @@
     return {...config,...(config.codec==='jpeg'?{jpeg_quality:preset.jpeg_quality}:{bitrate_bps:preset.bitrate_bps})};
   }
   return Object.freeze({DEFINITIONS,validate,validateOutputSelection,outputFrameBytes,values,configuration,request,saveDraft,loadDraft,clearDraft,
-    OUTPUT_RECIPES,outputRecipe,normalizeOutputSelection,outputRecipeName,outputSelectionLabel,outputSelectionStatus,outputApplicationRecipe,pictureQualityConfiguration});
+    OUTPUT_RECIPES,outputRecipe,normalizeOutputSelection,outputRecipeName,outputSelectionLabel,outputSelectionStatus,outputApplicationRecipe,DELIVERY_PATHS,deliveryPathModel,wiredTransportPatch,pictureQualityConfiguration});
 });

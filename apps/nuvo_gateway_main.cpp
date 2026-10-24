@@ -28,6 +28,7 @@
 #include <vector>
 #include <ifaddrs.h>
 #include <arpa/inet.h>
+#include <net/if.h>
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/asio.hpp>
@@ -1203,6 +1204,171 @@ class FrameSource final {
   std::unordered_map<depthd::ipc_v2::ProductMask, std::shared_ptr<const Bytes>> subsets_;
 };
 
+class NetworkInventory final {
+ public:
+  struct Address { std::string family, address; bool listening{}, scope_required{}; };
+  struct Interface {
+    std::string name, path{"other"}; bool up{}; std::optional<bool> carrier;
+    std::vector<Address> addresses;
+    [[nodiscard]] std::string state() const {
+      if (!up || carrier == false) return "disconnected";
+      if (!carrier) return "unknown";
+      return std::any_of(addresses.begin(), addresses.end(), [](const auto& a) { return a.listening; })
+          ? "available" : "no_address";
+    }
+  };
+  explicit NetworkInventory(const Arguments& options) : options_(options) {}
+  [[nodiscard]] std::vector<Interface> get() const {
+    std::lock_guard lock(mutex_);
+    const auto now = std::chrono::steady_clock::now();
+    if (now < next_scan_) return interfaces_;
+    next_scan_ = now + std::chrono::seconds(2);
+    interfaces_.clear(); scan_ok_ = false;
+    ifaddrs* addresses{};
+    if (::getifaddrs(&addresses) != 0) return interfaces_;
+    std::unique_ptr<ifaddrs, decltype(&::freeifaddrs)> owner(addresses, &::freeifaddrs);
+    const auto listener = net::ip::make_address(options_.address);
+    for (auto* item = addresses; item; item = item->ifa_next) {
+      const std::string name(item->ifa_name);
+      if (name.empty() || name.size() > 15U || name.find_first_not_of(
+          "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-") != std::string::npos) continue;
+      auto found = std::find_if(interfaces_.begin(), interfaces_.end(), [&](const auto& value) { return value.name == name; });
+      if (found == interfaces_.end()) {
+        if (interfaces_.size() >= 64U) continue;
+        Interface value; value.name = name; value.up = (item->ifa_flags & IFF_UP) != 0;
+        const auto sys = std::filesystem::path("/sys/class/net") / name;
+        std::error_code error;
+        const auto device = std::filesystem::canonical(sys / "device", error).string();
+        const auto net_path = std::filesystem::canonical(sys, error).string();
+        value.path = depthd::gateway::network_path((item->ifa_flags & IFF_LOOPBACK) != 0,
+            std::filesystem::exists(sys / "wireless", error), device, net_path, usb_interfaces_.contains(name));
+        // Virtual interfaces are not evidence of a physical Ethernet port.
+        const auto carrier = scalar(sys / "carrier");
+        if (carrier == "1") value.carrier = true;
+        else if (carrier == "0") value.carrier = false;
+        interfaces_.push_back(std::move(value)); found = std::prev(interfaces_.end());
+      }
+      if (!item->ifa_addr || found->addresses.size() >= 16U) continue;
+      const auto family = item->ifa_addr->sa_family;
+      if (family != AF_INET && family != AF_INET6) continue;
+      char literal[INET6_ADDRSTRLEN]{};
+      const void* bytes = family == AF_INET ? static_cast<const void*>(&reinterpret_cast<sockaddr_in*>(item->ifa_addr)->sin_addr)
+          : static_cast<const void*>(&reinterpret_cast<sockaddr_in6*>(item->ifa_addr)->sin6_addr);
+      if (!::inet_ntop(family, bytes, literal, sizeof(literal))) continue;
+      const auto address = net::ip::make_address(literal);
+      const bool same_family = address.is_v4() == listener.is_v4();
+      found->addresses.push_back({family == AF_INET ? "ipv4" : "ipv6", literal,
+          same_family && (listener.is_unspecified() || listener == address),
+          address.is_v6() && address.to_v6().is_link_local()});
+    }
+    scan_ok_ = true;
+    return interfaces_;
+  }
+  [[nodiscard]] std::string path(const std::string& name) const {
+    for (const auto& value : get()) if (value.name == name) return value.path;
+    return "other";
+  }
+  [[nodiscard]] depthd::gateway::TransportMask available() const {
+    depthd::gateway::TransportMask result{};
+    for (const auto& value : get()) {
+      if (value.state() != "available") continue;
+      using Kind = depthd::gateway::TransportKind;
+      if (value.path == "ethernet") result |= depthd::gateway::transport_bit(Kind::kEthernet);
+      else if (value.path == "usb_device" || value.path == "usb_host_adapter") result |= depthd::gateway::transport_bit(Kind::kUsbEthernet);
+      else if (value.path == "wifi") result |= depthd::gateway::transport_bit(Kind::kWifi);
+    }
+    return result;
+  }
+  [[nodiscard]] std::string json(const TransportPolicy& policy) {
+    refresh_usb();
+    const auto interfaces = get();
+    std::lock_guard lock(mutex_);
+    const auto listener = net::ip::make_address(options_.address);
+    std::string result = ",\"listener\":{\"address\":\"" + options_.address + "\",\"port\":" +
+        std::to_string(options_.port) + ",\"family\":\"" + (listener.is_v4() ? "ipv4" : "ipv6") + "\"},\"paths\":{";
+    bool first_path = true;
+    for (const std::string key : {"ethernet", "usb_device", "wifi"}) {
+      using Kind = depthd::gateway::TransportKind;
+      const auto kind = key == "wifi" ? Kind::kWifi : key == "usb_device" ? Kind::kUsbEthernet : Kind::kEthernet;
+      std::string rows, state = !scan_ok_ || (key == "usb_device" && !usb_controller_) ? "unknown" : "unavailable";
+      int priority{};
+      for (const auto& value : interfaces) {
+        if (value.path != key) continue;
+        const auto candidate = value.state();
+        const int rank = candidate == "available" ? 4 : candidate == "no_address" ? 3 : candidate == "unknown" ? 2 : 1;
+        if (rank > priority) { state = candidate; priority = rank; }
+        if (!rows.empty()) rows += ',';
+        rows += "{\"name\":\"" + value.name + "\",\"admin_up\":" + boolean(value.up) +
+            ",\"carrier\":" + boolean(value.carrier) + ",\"addresses\":[";
+        bool first_address = true;
+        for (const auto& address : value.addresses) {
+          if (!first_address) rows += ',';
+          first_address = false;
+          rows += "{\"family\":\"" + address.family + "\",\"address\":\"" + address.address +
+              "\",\"gateway_listening\":" + boolean(address.listening) +
+              ",\"scope_required\":" + boolean(address.scope_required) + "}";
+        }
+        rows += "]}";
+      }
+      if (!first_path) result += ',';
+      first_path = false;
+      result += "\"" + key + "\":{\"state\":\"" + state + "\",\"policy_kind\":\"" +
+          (key == "usb_device" ? "usb_ethernet" : key) + "\",\"products_permitted\":" +
+          boolean(policy.permits(kind)) + ",\"interfaces\":[" + rows + "]";
+      if (key == "usb_device") result += ",\"provisioned\":" + boolean(usb_provisioned_) +
+          ",\"controller_present\":" + boolean(usb_controller_) + ",\"bound\":" + boolean(usb_bound_) +
+          ",\"host_connected\":" + boolean(usb_connected_);
+      result += "}";
+    }
+    return result + "}";
+  }
+ private:
+  [[nodiscard]] static std::string scalar(const std::filesystem::path& path) {
+    std::ifstream input(path); std::string value;
+    if (input) std::getline(input, value);
+    return value;
+  }
+  [[nodiscard]] static std::string boolean(const std::optional<bool> value) {
+    return value ? (*value ? "true" : "false") : "null";
+  }
+  void refresh_usb() {
+    // Privileged observation is confined to the inventory endpoint. Stream
+    // admission and per-request connection labels only consult cached evidence.
+    std::unique_lock rpc_lock(usb_rpc_mutex_, std::try_to_lock);
+    if (!rpc_lock || std::chrono::steady_clock::now() < next_usb_) return;
+    next_usb_ = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    std::optional<bool> provisioned, controller, bound, connected;
+    std::unordered_set<std::string> names;
+    try {
+      const auto reply = system_agent(options_, "{\"operation\":\"usb.status\"}", 2);
+      if (agent_succeeded(reply)) {
+        const auto document = parse_json(std::string(reply.begin(), reply.end()));
+        const auto field = [&](const char* name) -> std::optional<bool> {
+          const auto value = document.get<std::string>(std::string("result.") + name, "null");
+          if (value == "true") return true;
+          if (value == "false") return false;
+          return {};
+        };
+        provisioned = field("provisioned"); controller = field("controller_present");
+        bound = field("bound"); connected = field("host_connected");
+        if (bound == true) for (const auto& entry : document.get_child("result.interfaces")) names.insert(entry.second.get_value<std::string>());
+      }
+    } catch (const std::exception&) {}
+    std::lock_guard lock(mutex_);
+    usb_provisioned_ = provisioned; usb_controller_ = controller; usb_bound_ = bound; usb_connected_ = connected;
+    usb_interfaces_ = std::move(names); next_scan_ = {};
+  }
+  const Arguments& options_;
+  mutable std::mutex mutex_;
+  mutable std::vector<Interface> interfaces_;
+  mutable std::chrono::steady_clock::time_point next_scan_{};
+  mutable bool scan_ok_{};
+  std::optional<bool> usb_provisioned_, usb_controller_, usb_bound_, usb_connected_;
+  std::unordered_set<std::string> usb_interfaces_;
+  std::mutex usb_rpc_mutex_;
+  std::chrono::steady_clock::time_point next_usb_{};
+};
+
 class StreamAdmission final {
  public:
   struct Contract {
@@ -1216,7 +1382,7 @@ class StreamAdmission final {
     depthd::gateway::TransportKind transport{};
     std::string label;
   };
-  explicit StreamAdmission(const Arguments& options, TransportPolicyCache& policy) : options_(options), policy_(policy),
+  explicit StreamAdmission(const Arguments& options, TransportPolicyCache& policy) : options_(options), policy_(policy), inventory_(options),
       qualification_configuration_(qualification(options)),
       traffic_configuration_(effective_configuration(options)), traffic_(traffic_configuration_) {}
 
@@ -1281,7 +1447,7 @@ class StreamAdmission final {
         depthd::wire::kHardMaximumMetadataBytes, requested.cadence_hz, false, false};
     const auto preference = preference_kind(result.preference);
     auto admission = traffic_.admit(request, kind, override ? depthd::gateway::TransportPreference::kAuto : preference,
-                                    policy.wifi_enabled);
+                                    policy.wifi_enabled, inventory_.available());
     if (!admission.lease) throw std::runtime_error(admission.reason);
     result.lease = std::move(admission.lease);
     // Allocate the token before taking the memory lock. If its control-block
@@ -1324,12 +1490,15 @@ class StreamAdmission final {
     return std::filesystem::exists(std::filesystem::path("/sys/class/net") / interface / "wireless");
   }
   [[nodiscard]] bool is_usb(const std::string& interface) const {
+    const auto detected = inventory_.path(interface);
+    if (detected == "usb_device" || detected == "usb_host_adapter") return true;
     if (interface == usb_interface_) return true;
     std::error_code error;
     const auto path = std::filesystem::canonical(std::filesystem::path("/sys/class/net") / interface / "device", error);
     return !error && path.string().find("/usb") != std::string::npos;
   }
-  [[nodiscard]] std::string connection_json(const std::string& interface) const {
+  [[nodiscard]] std::string inventory_json() { return inventory_.json(policy_.get()); }
+  [[nodiscard]] std::string connection_json(const std::string& interface, const std::string& local_address) const {
     const bool wifi = is_wifi(interface);
     const bool usb = is_usb(interface);
     const auto& link = wifi ? traffic_configuration_.wifi : usb ? traffic_configuration_.usb_ethernet : traffic_configuration_.ethernet;
@@ -1346,6 +1515,7 @@ class StreamAdmission final {
         !permitted ? "wired_disabled" : "allowed";
     return "{\"interface\":\"" + interface + "\",\"kind\":\"" +
         (wifi ? "wifi" : usb ? "usb_ethernet" : interface == "lo" ? "loopback" : "ethernet") +
+        "\",\"path\":\"" + inventory_.path(interface) + "\",\"local_address\":\"" + local_address +
         "\",\"interface_scope\":\"camera\",\"products_permitted\":" + (permitted ? "true" : "false") +
         ",\"permission_scope\":\"transport_policy\",\"product_policy_reason\":\"" + reason +
         "\",\"qualified_link\":" + (qualified ? "true" : "false") +
@@ -1479,6 +1649,7 @@ class StreamAdmission final {
   const Arguments& options_;
   std::string qualification_document_;
   TransportPolicyCache& policy_;
+  NetworkInventory inventory_;
   std::string ethernet_interface_{"eth0"}, usb_interface_{"usb0"};
   std::string source_revision_, source_calibration_;
   std::uint64_t source_epoch_{};
@@ -1690,7 +1861,8 @@ void await_clients(const std::atomic_size_t& active) noexcept {
                              const Arguments& options, const std::string& claim,
                              Sessions& sessions, FrameSource& source,
                              const FrameSource::Snapshot* admitted_snapshot = nullptr,
-                             const std::string& connection = "{}") {
+                             const std::string& connection = "{}",
+                             const std::string& inventory = "") {
   const auto full_target = std::string_view(request.target());
   const auto path = full_target.substr(0, full_target.find('?'));
   const auto target = path == "/api/v1/frame/latest" || path == "/api/v1/encoded/latest" ? path : full_target;
@@ -1868,7 +2040,7 @@ void await_clients(const std::atomic_size_t& active) noexcept {
                              ",\"wifi_enabled_explicit\":" + (policy.wifi_enabled ? "true" : "false") +
                              ",\"valid\":" + (policy.valid ? "true" : "false") +
                              ",\"transaction\":" + transaction +
-                             ",\"connection\":" + connection + "}\n",
+                             ",\"connection\":" + connection + inventory + "}\n",
                          request.version());
   }
   if (target == "/api/v1/stereo" || target == "/api/v1/exposure" ||
@@ -2216,6 +2388,7 @@ void serve(tcp::socket socket, ssl::context& context, const Arguments& options,
   try {
     ConnectionRegistry::Registration registration(connections, socket.native_handle());
     const auto interface = receiving_interface(socket);
+    const auto local_address = socket.local_endpoint().address().to_string();
     const timeval timeout{5, 0};
     if (::setsockopt(socket.native_handle(), SOL_SOCKET, SO_RCVTIMEO,
                      &timeout, sizeof(timeout)) != 0 ||
@@ -2328,7 +2501,10 @@ void serve(tcp::socket socket, ssl::context& context, const Arguments& options,
           return;
         }
     }
-    auto result = route(parser.get(), options, claim, sessions, source, nullptr, admission.connection_json(interface));
+    const auto inventory = parser.get().method() == http::verb::get && websocket_path == "/api/v1/transport" &&
+        valid_origin(parser.get()) && authenticated(parser.get(), claim, sessions) ? admission.inventory_json() : "";
+    auto result = route(parser.get(), options, claim, sessions, source, nullptr,
+                        admission.connection_json(interface, local_address), inventory);
     const bool reuse = parser.get().keep_alive() && request_count + 1U < 32U &&
         std::chrono::steady_clock::now() - connected_at < std::chrono::seconds(30) &&
         idle.acquire(std::min<std::size_t>(4U, options.maximum_sessions / 4U));

@@ -269,3 +269,29 @@ The gateway applies permission to compressed and uncompressed product endpoints
 and active sessions. Console/control access is retained. Invalid policy files
 block product delivery rather than enabling a fallback link. A policy change
 does not move a TCP connection between Ethernet, USB Ethernet and Wi-Fi.
+
+The development gateway adds read-only discovery to `GET /api/v1/transport`:
+
+- `listener` reports the configured gateway address, port and address family.
+- `paths` has `ethernet`, `usb_device` and `wifi` entries. Each includes `state`
+  (`unavailable`, `disconnected`, `no_address`, `available` or `unknown`),
+  `products_permitted`, `policy_kind`, and detected `interfaces`. Interface
+  entries include `name`, `admin_up`, `carrier` and `addresses`; each address has
+  `family`, `address`, `gateway_listening` and `scope_required`. IPv6 link-local
+  addresses require a client-specific scope and are omitted from generated
+  direct-address recipes, as are addresses on down or disconnected interfaces.
+- USB discovery adds `provisioned`, `controller_present`, `bound` and
+  `host_connected`. Unknown status is not treated as readiness. Discovery never
+  configures a gadget, assigns addresses or changes host drivers.
+- `connection.path` distinguishes `ethernet`, `usb_device`, `wifi`,
+  `usb_host_adapter` and `other`; `connection.local_address` identifies the
+  accepted socket address. These fields also appear in capabilities. Existing
+  `connection.kind` and `interface` remain compatible.
+
+`available` describes the camera's link and listening address, not guaranteed
+reachability from an arbitrary client. Only device-gadget evidence identifies
+`usb_device`; a host USB adapter or a name such as `usb0` alone is insufficient.
+Generated application recipes use a reported listening address and retain the
+certificate hostname. The console sends the effective `wifi_enabled` value
+alongside a wired-preference edit, preserving independent Wi-Fi permission even
+when the existing file used legacy omission semantics.

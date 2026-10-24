@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import http.cookiejar
 import http.client
+import ipaddress
 import array
 import fcntl
 import json
@@ -254,6 +255,7 @@ class ConfigurationAgent:
         self.root=root
         self.stopping=False
         self.before_write=None
+        self.operations=[]
         self.listener=socket.socket(socket.AF_UNIX,socket.SOCK_SEQPACKET)
         self.listener.bind(str(path)); self.listener.listen(8); self.listener.settimeout(.1)
         self.worker=threading.Thread(target=self.serve,daemon=True); self.worker.start()
@@ -264,6 +266,7 @@ class ConfigurationAgent:
             except socket.timeout: continue
             with connection:
                 request=json.loads(connection.recv(8192))
+                self.operations.append(request['operation'])
                 try:
                     if self.before_write:
                         callback,self.before_write=self.before_write,None
@@ -281,6 +284,8 @@ class ConfigurationAgent:
                     elif request['operation']=='transport.stage':
                         result=self.module.stage_transport(self.root,request.get('preference'),
                             request.get('physical_confirmation',False),request.get('wifi_enabled'))
+                    elif request['operation']=='usb.status':
+                        result=self.module.usb_status(self.root)
                     elif request['operation'] in {'transport.confirm','transport.rollback','transport.status'}:
                         operation=request['operation'].split('.')[1]
                         name='transport_status' if operation=='status' else operation+'_transport'
@@ -1357,6 +1362,42 @@ class GatewayIntegrationTest(unittest.TestCase):
                 if value is None:path.unlink(missing_ok=True)
                 else:path.write_bytes(value)
             time.sleep(.3)
+
+    def test_transport_inventory_is_observed_read_only_and_not_a_per_frame_rpc(self):
+        with NuvoClient(self.origin,ca_file=self.certificate) as client:
+            client.claim(self.token)
+            value=json.loads(client._request('/api/v1/transport'))
+            self.assertEqual(value['listener'],{'address':'127.0.0.1','port':self.port,'family':'ipv4'})
+            self.assertEqual(value['connection']['local_address'],'127.0.0.1')
+            self.assertEqual(value['connection']['path'],'other','loopback must not claim a physical port')
+            self.assertEqual(set(value['paths']),{'ethernet','usb_device','wifi'})
+            for path,kind in (('ethernet','ethernet'),('usb_device','usb_ethernet'),('wifi','wifi')):
+                state=value['paths'][path]
+                self.assertEqual(state['policy_kind'],kind)
+                self.assertIn(state['state'],{'available','unavailable','disconnected','no_address','unknown'})
+                self.assertIsInstance(state['products_permitted'],bool)
+                for interface in state['interfaces']:
+                    self.assertNotEqual(interface['name'],'lo')
+                    self.assertIsInstance(interface['admin_up'],bool)
+                    self.assertIn(interface['carrier'],(True,False,None))
+                    for address in interface['addresses']:
+                        self.assertIn(address['family'],{'ipv4','ipv6'})
+                        self.assertEqual(address['gateway_listening'],address['family']=='ipv4' and address['address']=='127.0.0.1')
+                        self.assertEqual(address['scope_required'],address['family']=='ipv6' and ipaddress.ip_address(address['address']).is_link_local)
+            for name in ('provisioned','controller_present','bound','host_connected'):
+                self.assertIs(value['paths']['usb_device'][name],False,'empty fixture root must not claim gadget readiness')
+            usb_calls=self.agent.operations.count('usb.status')
+            self.assertGreater(usb_calls,0)
+            for index in range(3):
+                self.local.publish(501+index)
+                client.latest(products=['left_mono'])
+                client.latest_encoded()
+                capabilities=client.capabilities()
+                self.assertEqual(capabilities['connection']['local_address'],'127.0.0.1')
+                self.assertEqual(capabilities['connection']['path'],'other')
+            self.assertEqual(self.agent.operations.count('usb.status'),usb_calls,
+                             'product delivery/capabilities must not invoke privileged USB discovery')
+            self.assertFalse((self.agent.root/'etc/nuvo-depth/usb-gadget.json').exists())
 
     def test_transport_wifi_toggle_preserves_raw_and_encoded_sessions_but_master_off_closes_idle_sources(self):
         configuration=self.config_root/'transport.json'

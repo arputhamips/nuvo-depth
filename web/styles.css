@@ -701,3 +701,19 @@ nav a { text-decoration: none; }
 
 .profile-choice,.shared-picture-quality > label { display:flex; flex-direction:column; gap:8px; margin:12px 0; max-width:420px; }
 .shared-picture-quality { margin-top:20px; }
+
+.output-path-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.output-path-cards label { display:flex; align-items:flex-start; gap:8px; padding:10px; border:1px solid var(--input-line); border-radius:var(--radius-sm); }
+.output-path-cards label:has(input:checked) { background:var(--nav-active-bg); border-color:var(--brand-blue); }
+.output-path-cards input { flex:none; width:16px; margin-top:3px; }
+.output-path-cards span { min-width:0; font-size:12px; }
+.output-path-cards small { display:block; margin-top:5px; color:var(--muted); font-size:11px; }
+#outputApplicationDelivery > label { display:flex; flex-direction:column; gap:6px; margin-top:12px; }
+#outputPathIdentity,#outputConnection { overflow-wrap:anywhere; }
+.delivery-policy-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; margin:16px 0; }
+.delivery-policy-fields > div { min-width:0; }
+.delivery-policy-fields select { width:100%; }
+.delivery-policy-fields > div > label { display:flex; flex-direction:column; gap:8px; }
+.delivery-policy-fields > div > label.check { flex-direction:row; align-items:center; }
+.delivery-policy-fields .check input { width:auto; }
+@media(max-width:700px) { .output-path-cards,.delivery-policy-fields { grid-template-columns:1fr; }.output-path-cards small { margin-top:2px; } }

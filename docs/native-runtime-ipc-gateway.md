@@ -151,13 +151,26 @@ acquires the requested source demand, waits boundedly for matching products,
 then admits their selected payload plus the
 64 KiB metadata ceiling. Each accepted socket is matched to its actual local
 network interface. A connection on USB cannot reserve Ethernet capacity. When
-the preferred qualified interface can admit a request arriving on the other
-interface, the request is rejected with a reconnect alternative. `both` permits
+the preferred available interface can admit a request arriving on the other
+interface, the request is rejected with a reconnect alternative. Preferred and
+alternative links must also have an observed active interface and listening
+address; a configured byte budget alone does not make an absent USB link
+available. Availability changes do not invalidate existing leases. `both` permits
 either wired interface; `off` disables data. Disabling Wi-Fi closes/refuses
 Wi-Fi numeric and compressed-picture streams without interrupting permitted
 wired streams or authenticated console/control access. Preference changes
 revalidate affected contracts; clients reconnect where their contract requires
 it. A parsed policy cache keeps repeated file reads out of the frame path.
+
+`GET /api/v1/transport` also reports detected delivery paths and gateway
+addresses. A two-second interface cache supplies admission availability and
+connection labels. Read-only USB status is requested through the system agent
+only for authenticated transport discovery, at most once every five seconds;
+that RPC does not run in frame delivery or hold the interface-cache lock.
+USB gadget evidence distinguishes the USB-C device network from host USB
+Ethernet adapters. The accepted local address and its owning interface are
+reported, without claiming knowledge of every physical hop or client route.
+See [the discovery fields](config-schema.md#runtime-network-product-permission).
 
 Exact source and link evidence is read at startup from
 `/etc/nuvo-depth/gateway-qualification.json`, or `--qualification-file PATH`.

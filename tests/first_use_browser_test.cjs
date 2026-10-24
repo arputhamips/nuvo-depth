@@ -4,6 +4,17 @@ const {chromium}=require(process.env.NUVO_PLAYWRIGHT_MODULE||'playwright-core');
 const root=path.resolve(__dirname,'..'),out=path.join(root,'output/first-use-browser');fs.mkdirSync(out,{recursive:true});
 let sequence=0,invalid=false,pending=false,readinessOverride=null,holdFrames=false;
 const requests={raw:[],encoded:0,configurationWrites:[]};
+// Synthetic inventory for UI state coverage only; the real-gateway suite uses host discovery.
+const fixtureAddress=address=>({family:address.includes(':')?'ipv6':'ipv4',address,gateway_listening:true,scope_required:false});
+const fixtureInterface=(name,addresses)=>({name,admin_up:true,carrier:true,addresses:addresses.map(fixtureAddress)});
+const defaultPaths=()=>({
+  ethernet:{state:'available',interfaces:[fixtureInterface('eth0',['192.0.2.10','192.0.2.11'])],products_permitted:true,policy_kind:'ethernet'},
+  usb_device:{state:'unavailable',interfaces:[],products_permitted:true,policy_kind:'usb_ethernet',provisioned:false,controller_present:false,bound:false,host_connected:false},
+  wifi:{state:'available',interfaces:[fixtureInterface('wlan0',['198.51.100.20'])],products_permitted:true,policy_kind:'wifi'}
+});
+let fixturePaths=defaultPaths();
+const defaultConnection=()=>({kind:'ethernet',path:'ethernet',interface:'eth0',local_address:'192.0.2.10',interface_scope:'camera',products_permitted:true,qualified_link:false,budget_is_measured_capacity:false,resource_budget_bytes_per_second:20000000});
+let fixtureConnection=defaultConnection();
 const encoding=JSON.parse(fs.readFileSync(path.join(root,'config/encoding.json')));encoding.mode='raw';
 const jpeg=Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAMABADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDzHSfCnT93+ldnpPhTp+7/AErttJ062+X5K7PSdOtuPkrzsdndTUy4V4iq+6f/2Q==','base64');
 const encodingRevision=()=>crypto.createHash('sha256').update(JSON.stringify(encoding)).digest('hex');
@@ -32,7 +43,7 @@ const server=http.createServer((request,response)=>{
   if(url.pathname==='/api/v1/session')return json({csrf:'f'.repeat(64)});
   if(url.pathname==='/api/v1/setup/status')return json({result:{schema_version:1,display_name:'First-use test fixture',phase:'installed',calibration_state:'pending',engineering:!pending,calibration_readiness:readinessOverride||{state:pending?'calibration_needed':'preview_enabled',label:pending?'Calibration needed':'Preview enabled',message:pending?'Capture is waiting for calibration or explicit preview.':'Distance accuracy remains unverified.',next_action:pending?'Import calibration or deliberately enable preview.':'Continue evaluation or import accepted calibration.',accepted:false}}});
   if(url.pathname==='/api/v1/health')return pending?json({error:'capture waiting for calibration'},503):json({...metadataBase,status:'running',capture_sequence:sequence,image_width:728,image_height:544,depth_width:728,depth_height:544,capture_target_hz:10,processing_ms:42,depth_published:sequence,exposure_mode:'manual',stereo_backend:'cpu_sgbm'});
-  if(url.pathname==='/api/v1/capabilities')return json({products:['left_rectified','right_rectified','depth','disparity','validity','left_mono'],connection:{kind:'unknown',interface:'lo',qualified_link:false,budget_is_measured_capacity:false,resource_budget_bytes_per_second:20000000}});
+  if(url.pathname==='/api/v1/capabilities')return json({products:['left_rectified','right_rectified','depth','disparity','validity','left_mono'],connection:fixtureConnection});
   if(url.pathname==='/api/v1/encoding'){
     if(request.method==='POST'){
       requests.configurationWrites.push(url.pathname);
@@ -43,7 +54,8 @@ const server=http.createServer((request,response)=>{
     response.writeHead(200,{'content-type':'application/json',ETag:`"${encodingRevision()}"`});return response.end(JSON.stringify(encoding));
   }
   if(url.pathname==='/api/v1/stereo'||url.pathname==='/api/v1/exposure')return json(JSON.parse(fs.readFileSync(path.join(root,'config',url.pathname.endsWith('stereo')?'stereo.json':'exposure.json'))));
-  if(url.pathname==='/api/v1/transport')return json({preference:'auto',active:'ethernet'});
+  if(url.pathname==='/api/v1/transport')return json({fixture:true,preference:'auto',wifi_enabled:true,wifi_enabled_explicit:true,transaction:{status:'no_pending_change'},connection:fixtureConnection,listener:{address:'0.0.0.0',port:server.address().port,family:'ipv4'},paths:fixturePaths});
+  if(url.pathname.startsWith('/api/v1/transport/')&&request.method==='POST')requests.configurationWrites.push(url.pathname);
   if(url.pathname==='/api/v1/frame/latest'){
     requests.raw.push({products:url.searchParams.get('products'),cadence:Number(url.searchParams.get('cadence_hz'))});
     if(encoding.mode==='encoded')return json({error:'Uncompressed network data is off'},403);
@@ -162,6 +174,7 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
     await page.click('[name="outputProduct"][value="validity"]');
     assert(await page.isChecked('[name="outputProduct"][value="validity"]'),'numeric depth always includes its valid-pixel mask');
     await page.selectOption('#outputDestination','app');
+    await page.check('[name="outputPath"][value="ethernet"]');await page.selectOption('#outputPathAddress','192.0.2.10');
     const activeSelection=await page.evaluate(()=>JSON.stringify(outputSettings)),writes=requests.configurationWrites.length;
     const rawStart=requests.raw.length,encodedStart=requests.encoded;
     await page.click('#outputApply');assert(await page.isVisible('#outputRecipe'));
@@ -172,7 +185,83 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
     assert.equal(requests.configurationWrites.length,writes);assert.equal(requests.encoded,encodedStart);
     assert(requests.raw.slice(rawStart).every(value=>value.products==='left_mono'),'connection code must not start its selected products');
     await page.fill('#outputCadence','3');assert(await page.isHidden('#outputRecipe'),'edited inputs invalidate old connection code');
+    assert.match(await page.textContent('#outputRecipe'),/connect_address=.*192\.0\.2\.10/);
     checks.push('deterministic recipe rates','depth automatically includes validity','recipe does not change subscriptions or device settings','recipe survives refresh and invalidates on edit');
+
+    await page.check('[name="outputPath"][value="usb_device"]');
+    assert(await page.isDisabled('#outputApply'),'unprovisioned USB cannot offer a connection recipe');
+    assert.equal(await page.locator('#outputPathAddress option[value]:not([value=""])').count(),0);
+    assert.match(await page.textContent('#outputPathStatus'),/USB|setup|unavailable|controller/i);
+    assert.match(await page.textContent('#outputConnection'),/eth0/,'choosing USB does not change the observed browser path');
+    await page.check('[name="outputPath"][value="wifi"]');
+    assert(await page.isChecked('[name="outputTask"][value="depth"]'),'Wi-Fi selection preserves numeric output');
+    assert(await page.isChecked('[name="outputProduct"][value="validity"]'));
+    assert(await page.isVisible('#outputUsePicture'));
+    await page.click('#outputApply');
+    assert.match(await page.textContent('#outputRecipe'),/connect_address=.*198\.51\.100\.20/);
+    assert.match(await page.textContent('#outputRecipe'),/client\.frames/);
+    await page.click('#outputUsePicture');
+    assert.equal(await page.inputValue('#outputFormat'),'picture');
+    assert(await page.isDisabled('#outputApply'),'picture code must explain that the shared encoder is off');
+    assert.match(await page.textContent('#outputPathStatus'),/encoder|preview|picture/i);
+    assert.equal(requests.configurationWrites.length,writes,'choosing a path or picture never changes shared configuration');
+    assert.equal(requests.encoded,encodedStart,'app drafts never subscribe the browser to pictures');
+    encoding.mode='both';encoding.codec='jpeg';await page.evaluate(()=>refreshEncoding());
+    await page.click('#outputApply');
+    assert.match(await page.textContent('#outputRecipe'),/latest_encoded|encoded_frames/);
+    await page.check('[name="outputPath"][value="ethernet"]');
+    await page.selectOption('#outputPathAddress','192.0.2.11');
+    assert.equal(await page.inputValue('#outputFormat'),'picture','changing path preserves the explicit representation');
+    await page.evaluate(()=>refreshTransport());
+    await page.click('nav [data-page="overview"]');await page.click('nav [data-page="network"]');
+    assert.equal(await page.inputValue('#outputPathAddress'),'192.0.2.11');
+    assert.equal(await page.inputValue('#outputFormat'),'picture');
+    assert.equal(await page.inputValue('#outputDestination'),'app');
+    fixturePaths.ethernet.interfaces[0].addresses=fixturePaths.ethernet.interfaces[0].addresses.filter(item=>item.address!=='192.0.2.11');
+    await page.evaluate(()=>refreshTransport());
+    assert(await page.isDisabled('#outputApply'),'removed IP cannot remain a usable connection target');
+    assert(await page.locator('#outputPathAddress').evaluate(select=>select.selectedOptions[0]?.disabled),'removed address must be marked unavailable without silently selecting another target');
+    assert(await page.isHidden('#outputRecipe'),'inventory changes invalidate generated connection code');
+    fixturePaths.usb_device={state:'available',interfaces:[fixtureInterface('usb0',['203.0.113.30'])],products_permitted:true,policy_kind:'usb_ethernet',provisioned:true,controller_present:true,bound:true,host_connected:true};
+    await page.evaluate(()=>refreshTransport());await page.check('[name="outputPath"][value="usb_device"]');
+    await page.selectOption('#outputPathAddress','203.0.113.30');await page.click('#outputApply');
+    assert.match(await page.textContent('#outputRecipe'),/connect_address=.*203\.0\.113\.30/);
+    assert.match(await page.textContent('#outputRecipe'),/usb_device/);
+    fixturePaths=defaultPaths();fixtureConnection={...defaultConnection(),kind:'usb_ethernet',path:'usb_host_adapter',interface:'enxfixture',local_address:'192.0.2.99'};
+    await page.evaluate(async()=>{await refreshTransport();await refreshCapabilities();});
+    assert.match(await page.textContent('#outputConnection'),/adapter.*not USB-C device/i);
+    assert(await page.isDisabled('#outputApply'),'USB host adapter cannot make USB-C device delivery available');
+    fixtureConnection=defaultConnection();fixturePaths=defaultPaths();
+    fixturePaths.ethernet.interfaces[0].addresses.forEach(address=>address.gateway_listening=false);
+    await page.evaluate(async()=>{await refreshTransport();await refreshCapabilities();});
+    await page.check('[name="outputPath"][value="ethernet"]');
+    assert(await page.isDisabled('#outputApply'),'an interface address without a listening gateway is not a usable path');
+    fixturePaths=defaultPaths();
+    fixturePaths.ethernet.interfaces.push(
+      {...fixtureInterface('eth1',['192.0.2.21']),admin_up:false},
+      {...fixtureInterface('eth2',['192.0.2.22']),carrier:false},
+      {...fixtureInterface('eth3',['192.0.2.23']),carrier:null},
+      fixtureInterface('eth4',['fe80::20','fe90::21','fe80::22%eth4'])
+    );
+    fixturePaths.ethernet.interfaces[0].addresses.push({...fixtureAddress('2001:db8::20'),scope_required:true});
+    await page.evaluate(()=>refreshTransport());
+    assert.deepEqual(await page.locator('#outputPathAddress option:not(:disabled)').evaluateAll(options=>options.map(option=>option.value).filter(Boolean)),['192.0.2.10','192.0.2.11'],'each offered address needs its own active interface and must not need a client scope');
+    await page.selectOption('#outputPathAddress','192.0.2.10');
+    fixturePaths.ethernet.interfaces[0].addresses=[fixtureAddress('febf::25')];
+    await page.evaluate(()=>refreshTransport());
+    assert(await page.isDisabled('#outputApply'),'a ready path with only scoped or inactive addresses cannot generate code');
+    assert.equal(await page.locator('#outputPathAddress option:not(:disabled)').evaluateAll(options=>options.filter(option=>option.value).length),0);
+    assert.match(await page.textContent('#outputPathStatus'),/No usable address/);
+    checks.push('each application address requires its own active link and no client scope');
+    fixturePaths=undefined;await page.evaluate(()=>refreshTransport());
+    await page.click('#outputApply');
+    assert.match(await page.textContent('#outputRecipe'),/Path discovery unavailable/);
+    assert.doesNotMatch(await page.textContent('#outputRecipe'),/connect_address=/,'older gateways must not invent a direct path address');
+    checks.push('older gateway fallback explicitly lacks physical path selection');
+    assert.equal(requests.configurationWrites.length,writes);
+    assert.equal(await page.evaluate(()=>JSON.stringify(outputSettings)),activeSelection,'all path recipes leave this browser subscription unchanged');
+    fixturePaths=defaultPaths();encoding.mode='raw';await page.evaluate(async()=>{await refreshTransport();await refreshEncoding();});
+    checks.push('explicit Ethernet USB and Wi-Fi recipe targets','unavailable USB cannot masquerade as connected','Wi-Fi picture selection is explicit and requires an encoder','path and representation drafts survive navigation','removed addresses invalidate recipes','USB host adapter is not USB-C device mode','only listening addresses can generate path recipes');
 
     // A hash change on the old document still uses its last-known raw configuration.
     // Isolate cold startup and count all raw attempts made by the new document.
@@ -228,8 +317,10 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
         await page.click(`nav [data-page="${destination}"]`);
         await page.waitForFunction(()=>window.scrollY<=1);
         assert(await page.locator('nav [data-page]').evaluateAll(items=>items.every(item=>{const r=item.getBoundingClientRect();return r.height>=44&&r.width>=44&&r.left>=0&&r.right<=innerWidth+1})),`all four mobile destinations must remain reachable at ${width}px`);
+        if(destination==='network')await page.selectOption('#outputDestination','app');
         assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),`${destination} must fit ${width}px in ${theme}`);
         await page.screenshot({path:path.join(out,`${destination}-${width}-${theme}.png`),fullPage:false});
+        if(destination==='network')await page.locator('#outputApplicationDelivery').screenshot({path:path.join(out,`delivery-paths-${width}-${theme}.png`)});
       }
     }
     for(const width of [320,390]){
@@ -250,7 +341,7 @@ server.on('upgrade',(request,socket)=>{socket.on('error',()=>{});socket.end('HTT
     await page.goto(url+'#calibration');assert.match(await page.textContent('#calibrationReadinessMessage'),/another device/);assert.match(await page.textContent('#calibrationReadinessAction'),/original compatible bundle/);
     const advanced=page.locator('details.calibration-board').filter({hasText:'Advanced geometry and qualification parameters'});assert.equal(await advanced.getAttribute('open'),null);
     checks.push('pending calibration','accepted calibration with unavailable camera','specific readiness recovery','advanced calibration collapsed');
-    assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'results.json'),JSON.stringify({fixture:true,network_policy:'not simulated; real gateway/Pi suites cover admission',checks,pageErrors:errors},null,2));
+    assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'results.json'),JSON.stringify({fixture:true,network_policy:'synthetic path inventory for UI only; real gateway/Pi suites cover discovery and admission',checks,pageErrors:errors},null,2));
     console.log(`Browser unified-console and first-use journeys: ${checks.length} fixture checks passed; no page errors.`);
   }catch(error){
     await page?.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});

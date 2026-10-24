@@ -50,7 +50,7 @@ Overview; existing links to Live view and individual settings still work.
 | --- | --- | --- |
 | Overview | Device health, applied configuration, calibration, performance and setup guidance | Health monitoring only; starts no product stream |
 | Live view | One primary viewer, camera/exposure controls and depth profile with advanced matcher tuning | Viewing is local; camera and matcher settings affect the device |
-| Outputs | Choose products, representation and rate; review a browser subscription or application recipe; manage Wi-Fi product permission | Browser selection is local; Wi-Fi permission is device-wide |
+| Outputs | Choose products, representation, rate and application connection; review the browser's actual connection; manage delivery permissions | Browser selection and application recipe are local; delivery permissions are device-wide |
 | Device | Calibration, diagnostics, updates and advanced shared preview encoder settings | Device-wide |
 
 Profiles select a set of matcher parameters; they are not another output or
@@ -274,6 +274,44 @@ means **USB Ethernet**, not a USB webcam or separate raw-image protocol. The
 connection indicator describes the **camera's interface**. A computer connected
 by Wi-Fi to a router can still reach the camera through Ethernet; the console
 cannot establish the entire end-to-end route from its accepted socket.
+
+Under **Outputs**, first choose the result and whether it is for **This browser**
+or **My application**. Browser mode shows the connection already carrying the
+console. Application mode adds **Connect my application to**:
+
+| Connection | What it carries | What must be ready |
+| --- | --- | --- |
+| Ethernet port | Selected images or numeric products; shared pictures are also supported | Camera Ethernet link and a reachable address |
+| USB-C device network | The same selected products over USB Ethernet | Device-mode setup, compatible host, USB link and IP addressing |
+| Wi-Fi | Selected products, with an explicit compressed-picture option to reduce picture bandwidth | Camera Wi-Fi connection and product permission |
+
+Each application choice shows the detected interface, readiness and available
+addresses. If more than one usable address is reported, choose the address the
+application can reach. **Show connection code** creates a recipe for that path;
+it does not start an application or change the current browser stream. The SDK
+uses the selected address while still verifying the device hostname, and checks
+which camera interface it reached before requesting products. See the
+[SDK connection example](sdk-examples.md#choose-a-device-connection).
+
+USB-C status distinguishes controller/setup problems, an unplugged host and
+missing IP addressing. A USB Ethernet adapter plugged into a host port is not
+the USB-C device network. The current Nuvo gadget uses ECM and does not assign
+addresses automatically. Windows compatibility must be established for this
+ECM implementation; do not assume the Windows support of Raspberry Pi's
+separate ECM/RNDIS package applies. Raspberry Pi documents the Pi 5 USB-C device
+connection and host requirements in its
+[USB gadget guide](https://www.raspberrypi.com/news/usb-gadget-mode-in-raspberry-pi-os-ssh-over-usb/).
+
+Selecting Wi-Fi preserves numeric depth. **Use compressed picture instead** is
+a separate choice that selects the shared JPEG/H.264 picture; it is not a
+compressed float-depth array. The source and encoder state remain visible, and
+enabling or changing the shared encoder requires an explicit device action.
+
+The wired delivery preference is a separate device setting. Apply, confirm or
+undo it explicitly. A preference does not reroute an existing TCP connection,
+configure USB device mode or change the independent Wi-Fi permission. The
+current browser connection label changes only when an actual new connection
+uses that path.
 
 **Allow product streaming over Wi-Fi** is a separate device-wide permission for
 both compressed pictures and uncompressed products on the camera's Wi-Fi link.

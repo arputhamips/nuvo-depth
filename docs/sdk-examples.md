@@ -20,6 +20,49 @@ your client; reconnect to an appropriate reachable address to change links.
 The gateway's connection description identifies the camera-side interface,
 not every network segment between the camera and the application.
 
+### Choose a device connection
+
+In **Outputs → My application**, choose **Ethernet port**, **USB-C device network**
+or **Wi-Fi**. The console reports detected interfaces and addresses, and explains
+missing setup or permission. A ready camera interface does not prove that the
+application computer can reach it. Generated code verifies the selected
+camera-side path, interface and address before requesting products.
+
+The development SDK accepts `connect_address` to dial the chosen numeric IP
+while retaining the certificate hostname in the URL. It uses the same address
+for HTTPS snapshots, control requests and WebSocket frames. This avoids relying
+on a multi-interface hostname resolving to the preferred port. The default
+client remains compatible; install the SDK from this build to use the new
+argument.
+
+```python
+from getpass import getpass
+from nuvo_depth import NuvoClient
+
+with NuvoClient("https://YOUR-PI-HOSTNAME.local:7443", ca_file="device.crt",
+                connect_address="192.0.2.10") as client:  # Replace with the reported camera IP.
+    client.claim(getpass("Device administrator token: "))
+    connection = client.capabilities()["connection"]
+    if connection.get("path") != "ethernet" or connection.get("local_address") != "192.0.2.10":
+        raise RuntimeError("The selected camera connection was not reached")
+    with client.frames(products=("depth", "validity"), cadence_hz=2,
+                       delivery="best_effort") as frames:
+        for frame in frames:
+            print(frame.capture_sequence, frame.products.keys())
+```
+
+The numeric address must be reachable from the application. Direct-address
+clients bypass HTTP proxy environment settings and reject redirects; they do
+not fall back to another interface. Certificate trust, hostname verification,
+session authentication and product permissions still apply. For IPv6, use an
+unscoped literal only when the gateway reports that it listens on that address.
+
+Choosing Wi-Fi does not compress numeric arrays. Use its explicit compressed
+picture option for JPEG/H.264 viewing, or retain numeric products and select a
+suitable rate. The shared encoder must already be enabled for picture delivery.
+USB-C device networking uses the same API over ECM; gadget configuration alone
+does not assign addresses or guarantee host-driver support.
+
 The core Python SDK and examples require Python 3.11+ and the standard library.
 The candidate CI matrix covers Linux and Windows with Python 3.11 and 3.13.
 NumPy and Python OpenCV are optional application choices, not SDK requirements.
@@ -45,7 +88,8 @@ Acquire the unit's public `device.crt` from
 `/var/lib/nuvo-depth/identity/device.crt` over authenticated SSH. Compare its SHA-256
 fingerprint against trusted setup material on that same unit. Use its actual
 certificate hostname in the URL. An IP fallback requires a matching certificate
-SAN or a local hosts entry mapping the certificate hostname to the verified IP;
+SAN, `connect_address` with the original certificate hostname, or a local hosts
+entry mapping the certificate hostname to the verified IP;
 changing the URL to an arbitrary IP does not authorize a hostname mismatch.
 If a certificate changes unexpectedly, re-establish identity before replacing
 trust. Do not disable certificate or hostname validation.

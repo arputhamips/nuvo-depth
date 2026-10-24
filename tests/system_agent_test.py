@@ -137,6 +137,15 @@ class SystemAgentTest(unittest.TestCase):
         self.assertEqual(run.call_args.args[0],["/usr/bin/nuvoctl","transport","status"])
 
     @mock.patch.object(module.subprocess,"run")
+    def test_usb_status_is_read_only_fixed_argv(self,run):
+        run.return_value=mock.Mock(returncode=0,stdout='{"bound":false}',stderr="")
+        self.assertFalse(module.execute({'operation':'usb.status'})['result']['bound'])
+        self.assertEqual(run.call_args.args[0],['/usr/bin/nuvoctl','usb','status'])
+        for request in ({'operation':'usb.status','path':'/arbitrary'},
+                        {'operation':'usb.status','apply':True},{'operation':'usb.configure'}):
+            with self.assertRaises(ValueError):module.execute(request)
+
+    @mock.patch.object(module.subprocess,"run")
     def test_encoding_update_uses_fixed_validated_argv(self,run):
         run.return_value=mock.Mock(returncode=0,stdout='{"codec":"h264"}',stderr="")
         value={"schema_version":1,"mode":"both","codec":"h264","source":"left_rectified",

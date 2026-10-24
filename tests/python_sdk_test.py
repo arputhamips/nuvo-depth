@@ -146,11 +146,12 @@ class SdkTest(unittest.TestCase):
                 frames=iter(reader);self.assertEqual(next(frames).to_bytes(),first.to_bytes())
                 with self.assertRaisesRegex(ValueError,"truncated recording frame"):next(frames)
 
-    def mock_client(self, sock, *, timeout=5):
+    def mock_client(self, sock, *, timeout=5, connect_address=None):
         context = Mock()
         context.wrap_socket.return_value = sock
         with patch.object(client_module.ssl, "create_default_context", return_value=context):
-            client = NuvoClient("https://nuvo.test:17443", timeout=timeout)
+            client = NuvoClient("https://nuvo.test:17443", timeout=timeout,
+                                connect_address=connect_address)
         client._csrf = "csrf-token"
         client._cookies.set_cookie(http.cookiejar.Cookie(
             version=0, name="nuvo_session", value="session-token", port=None,
@@ -335,6 +336,23 @@ class SdkTest(unittest.TestCase):
         self.assertIn(b"Cookie: nuvo_session=session-token\r\n", sock.sent[0])
         self.assertEqual(sent_control(sock.sent[-1]), (8, struct.pack(">H", 1000)))
         self.assertTrue(sock.closed)
+
+    def test_selected_address_routes_websocket_without_changing_device_identity(self):
+        sock = MockSocket(websocket_frame(sample()))
+        client, context = self.mock_client(sock, connect_address='192.0.2.42')
+        with patch.object(client_module.socket, 'create_connection', return_value=sock) as connect:
+            with client.frames(products=('left_rectified',), cadence_hz=2) as stream:
+                self.assertEqual(next(stream).capture_sequence, 3)
+        self.assertEqual(connect.call_args.args[0], ('192.0.2.42', 17443))
+        context.wrap_socket.assert_called_once_with(sock, server_hostname='nuvo.test')
+        self.assertIn(b'Host: nuvo.test:17443\r\n', sock.sent[0])
+        self.assertTrue(sock.closed)
+
+    def test_connect_address_requires_a_numeric_unscoped_ip(self):
+        for address in ('', 'nuvo.test', 'https://192.0.2.1', '192.0.2.1:7443',
+                        '[::1]', 'fe80::1%usb0', True, 123):
+            with self.subTest(address=address), self.assertRaisesRegex(ValueError, 'connect_address'):
+                NuvoClient('https://nuvo.test', connect_address=address)
 
     def test_fragmented_stream_handles_ping_and_explicit_ping_and_close(self):
         wire = sample()

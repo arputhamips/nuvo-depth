@@ -42,6 +42,19 @@ does not prove data permission. A master Off preference also blocks every link.
 Changing a preference does not migrate an existing connection; reconnect to the
 appropriate camera address. USB means USB Ethernet.
 
+For application delivery, inspect the selected path's readiness and address in
+**Outputs → My application**. A camera link can be ready while its address is
+unreachable from the application computer. Regenerate the recipe after address
+changes, and verify its reported camera-side path before requesting frames.
+`connect_address` changes the TCP destination while preserving TLS hostname
+verification; an incorrect certificate hostname still fails.
+
+USB-C device networking needs a controller, gadget setup, a connected compatible
+host and IP addresses. **USB preferred** does not perform that setup. A USB
+Ethernet dongle is a host adapter, not evidence of USB-C device mode. The current
+gadget is ECM-only; binding it does not configure DHCP or guarantee Windows
+driver support. Missing status data is reported as unknown rather than ready.
+
 The encoder endpoint intentionally returns HTTP 503 when monitoring encoding is
 off. The raw endpoint intentionally returns HTTP 503 in encoded-only mode.
 
@@ -103,7 +116,7 @@ sudo systemctl --no-pager --full status nuvo-depthd-native.service \
 ```
 
 Configuration updates are atomic. If a newly selected connection path fails,
-use the Connections page rollback within 60 seconds. For package failure, retry
+use the Outputs delivery-permission rollback within 60 seconds. For package failure, retry
 the same verified signed cohort and inspect `sudo dpkg --audit`. A package
 downgrade is not a tested recovery procedure; do not overwrite individual files
 or mix versions. Per-unit identity and calibration live under

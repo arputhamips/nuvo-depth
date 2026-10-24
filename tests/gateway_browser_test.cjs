@@ -54,6 +54,13 @@ const update=value=>fs.writeFileSync(local(manifest.control_file),JSON.stringify
     const selection=await page.evaluate(()=>JSON.stringify(outputSettings));
     const encodingBefore=await get('/api/v1/encoding'),transportBefore=await get('/api/v1/transport');
     assert.equal(typeof transportBefore.wifi_enabled,'boolean','fixture must use the production Wi-Fi policy API');
+    assert.equal(transportBefore.listener.address,'127.0.0.1');
+    assert.equal(transportBefore.listener.port,Number(new URL(manifest.origin).port));
+    assert.equal(transportBefore.connection.path,'other');
+    assert.equal(transportBefore.connection.local_address,'127.0.0.1');
+    assert.deepEqual(Object.keys(transportBefore.paths).sort(),['ethernet','usb_device','wifi']);
+    assert(Object.values(transportBefore.paths).every(path=>path.interfaces.every(iface=>iface.addresses.every(address=>typeof address.scope_required==='boolean'))),'discovered addresses must declare whether the client needs an IPv6 scope');
+    assert(Object.values(transportBefore.paths).every(path=>path.interfaces.every(iface=>iface.addresses.every(address=>!address.gateway_listening))),'loopback-only fixture must not advertise physical addresses as listening');
     await page.waitForFunction(()=>!document.querySelector('#wifiEnabled').disabled);
     await page.evaluate(()=>window.fixturePreviousSocket=rawSocket);
     const beforeWifi=await page.evaluate(()=>lastSequence);
@@ -67,12 +74,30 @@ const update=value=>fs.writeFileSync(local(manifest.control_file),JSON.stringify
     assert.deepEqual(await get('/api/v1/encoding'),encodingBefore);
     await page.reload();await page.waitForFunction(()=>document.querySelector('#connection').textContent==='Connected');
     await page.waitForFunction(()=>!document.querySelector('#wifiConfirm').hidden);
-    assert.match(await page.textContent('#wifiState'),/provisional|pending/i,'a provisional device policy remains visible after reload');
+    assert.match(await page.textContent('#deliveryTransactionState'),/provisional|pending/i,'a provisional device policy remains visible after reload');
     await page.click('#wifiConfirm');await page.waitForFunction(()=>document.querySelector('#wifiConfirm').hidden);
     await page.locator('#wifiEnabled').setChecked(transportBefore.wifi_enabled);await page.click('#wifiApply');
     await page.waitForFunction(()=>!document.querySelector('#wifiConfirm').hidden);await page.click('#wifiConfirm');
     await page.waitForFunction(()=>document.querySelector('#wifiConfirm').hidden);
     assert.equal((await get('/api/v1/transport')).wifi_enabled,transportBefore.wifi_enabled);
+    const preferenceDraft=transportBefore.preference==='ethernet'?'usb':'ethernet';
+    await page.locator('#wifiEnabled').setChecked(!transportBefore.wifi_enabled);
+    await page.selectOption('#wiredPreference',preferenceDraft);await page.click('#wiredApply');
+    await page.waitForFunction(()=>!document.querySelector('#wifiConfirm').hidden);
+    const stagedWired=await get('/api/v1/transport');
+    assert.equal(stagedWired.preference,preferenceDraft);
+    assert.equal(stagedWired.wifi_enabled,transportBefore.wifi_enabled,'wired preference preserves configured Wi-Fi permission, not its unapplied draft');
+    assert.equal(await page.isChecked('#wifiEnabled'),!transportBefore.wifi_enabled,'wired staging preserves the separate Wi-Fi draft');
+    await page.click('#wifiConfirm');await page.waitForFunction(()=>document.querySelector('#wifiConfirm').hidden);
+    assert.equal(await page.isChecked('#wifiEnabled'),!transportBefore.wifi_enabled,'confirming wired policy must not discard the Wi-Fi draft');
+    await page.locator('#wifiEnabled').setChecked(transportBefore.wifi_enabled);
+    await page.selectOption('#wiredPreference',transportBefore.preference);await page.click('#wiredApply');
+    await page.waitForFunction(()=>!document.querySelector('#wifiConfirm').hidden);await page.click('#wifiConfirm');
+    await page.waitForFunction(()=>document.querySelector('#wifiConfirm').hidden);
+    await page.waitForFunction(()=>rawSocket?.readyState===WebSocket.OPEN);
+    assert.deepEqual(await get('/api/v1/encoding'),encodingBefore);
+    assert.equal(await page.evaluate(()=>JSON.stringify(outputSettings)),selection);
+    checks.push('actual listener and camera-side connection are reported','wired policy preserves configured Wi-Fi permission and its separate draft');
     update({state:'preview_enabled',run:2,gateway_restart:0,transport_off:true});
     await page.waitForFunction(async()=>(await (await fetch('/api/v1/transport')).json()).preference==='off');
     await page.evaluate(()=>refreshCapabilities());
@@ -89,13 +114,16 @@ const update=value=>fs.writeFileSync(local(manifest.control_file),JSON.stringify
     await task('camera');await page.selectOption('#outputDestination','app');
     const recipeSelection=await page.evaluate(()=>JSON.stringify(outputSettings));
     await page.evaluate(()=>window.fixturePreviousSocket=rawSocket);
-    await page.click('#outputApply');assert(await page.isVisible('#outputRecipe'));
-    await page.evaluate(()=>refreshCapabilities());assert(await page.isVisible('#outputRecipe'));
+    await page.check('[name="outputPath"][value="ethernet"]');
+    assert(await page.isDisabled('#outputApply'),'loopback-only gateway cannot generate an Ethernet path connection recipe');
+    assert.equal(await page.locator('#outputPathAddress option[value]:not([value=""])').count(),0);
+    await page.evaluate(()=>refreshCapabilities());
+    assert(await page.isDisabled('#outputApply'));
     assert.equal(await page.evaluate(()=>JSON.stringify(outputSettings)),recipeSelection);
-    assert(await page.evaluate(()=>rawSocket===window.fixturePreviousSocket),'generating code must not restart the browser stream');
+    assert(await page.evaluate(()=>rawSocket===window.fixturePreviousSocket),'draft delivery paths must not restart the browser stream');
     assert.deepEqual(await get('/api/v1/encoding'),encodingBefore);
     await page.selectOption('#outputDestination','browser');await page.click('#outputDiscard');
-    checks.push('application recipe has no subscription or shared-encoder side effects');
+    checks.push('unavailable application paths have no subscription or shared-encoder side effects');
 
     await page.selectOption('#pictureQuality','compact');
     const desiredQuality=encodingBefore.codec==='jpeg'?45:1000000;
@@ -175,6 +203,7 @@ const update=value=>fs.writeFileSync(local(manifest.control_file),JSON.stringify
       for(const destination of ['overview','viewer','network','device']){
         await page.click(`nav [data-page="${destination}"]`);
         await page.waitForFunction(()=>window.scrollY<=1);
+        if(destination==='network')await page.selectOption('#outputDestination','app');
         assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+2),`${destination} must fit ${width}px in ${theme}`);
         await page.screenshot({path:path.join(out,`${destination}-${width}-${theme}.png`),fullPage:false});
       }

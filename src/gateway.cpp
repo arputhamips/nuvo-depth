@@ -77,6 +77,17 @@ struct Utilization {
 
 }  // namespace
 
+std::string_view network_path(const bool loopback, const bool wireless,
+    const std::string_view kernel_device, const std::string_view kernel_network,
+    const bool bound_gadget_interface) {
+  if (loopback) return "other";
+  if (wireless) return "wifi";
+  if (bound_gadget_interface || kernel_device.ends_with("/gadget") ||
+      kernel_network.find("/gadget/net/") != std::string_view::npos) return "usb_device";
+  if (kernel_device.find("/usb") != std::string_view::npos) return "usb_host_adapter";
+  return kernel_device.empty() ? "other" : "ethernet";
+}
+
 bool transport_permitted(const TransportPreference preference,
                          const TransportKind transport,
                          const std::optional<bool> wifi_enabled) {
@@ -208,7 +219,8 @@ AdmissionResult AdmissionController::admit(const SubscriptionRequest& request) {
 AdmissionResult AdmissionController::admit(
     const SubscriptionRequest& request, const TransportKind connected_transport,
     const std::optional<TransportPreference> preference,
-    const std::optional<bool> wifi_enabled) {
+    const std::optional<bool> wifi_enabled,
+    const TransportMask available_alternatives) {
   validate(request);
   const auto rate = required_rate(request);
   AdmissionResult result;
@@ -220,6 +232,7 @@ AdmissionResult AdmissionController::admit(
       policy != TransportPreference::kAuto && !order.empty() &&
       !(connected_transport == TransportKind::kWifi && wifi.value_or(false)) &&
       order.front() != connected_transport &&
+      (available_alternatives & transport_bit(order.front())) != 0U &&
       can_admit(transport_config(state_->configuration, order.front()),
                 utilization(*state_, order.front()), request, rate);
   if (!preferred_available &&
@@ -240,7 +253,7 @@ AdmissionResult AdmissionController::admit(
     }
   }
   for (const auto kind : order) {
-    if (kind != connected_transport &&
+    if (kind != connected_transport && (available_alternatives & transport_bit(kind)) != 0U &&
         can_admit(transport_config(state_->configuration, kind),
                   utilization(*state_, kind), request, rate)) {
       result.compatible_alternatives.push_back(kind);

@@ -72,7 +72,8 @@ let capabilities = null;
 let outputSettings = window.NuvoDeviceSettings.outputRecipe('camera');
 let outputReception = null, viewerPaused = false, displayedNumericFrame = null;
 let receivingTimes = [], initialEncodingLoaded = false;
-let wifiDirty=false, transportState=null;
+let wifiDirty=false, wiredDirty=false, transportState=null, deliveryPolicyBusy=false;
+let outputDeliveryPath='', lastRecipeTarget='';
 let pictureQualityDirty=false, pictureQualityBusy=false;
 try {
   const saved=JSON.parse(localStorage.getItem('nuvo-output-selection')||'null');
@@ -108,6 +109,46 @@ function fillOutputDraft(value){
   $('outputCameraReference').checked=name==='depth_reference';
   $('outputAdvanced').open=name==='custom';
 }
+function outputApplicationTarget(){
+  if(!transportState?.paths)return {origin:location.origin};
+  const option=$('outputPathAddress').selectedOptions[0];
+  return {origin:location.origin,path:outputDeliveryPath,address:option?.value||'',interface:option?.dataset.interface||''};
+}
+function updateOutputDelivery(draft,app){
+  const D=window.NuvoDeviceSettings,c=capabilities?.connection||transportState?.connection;
+  const labels={...D.DELIVERY_PATHS,usb_host_adapter:'USB network adapter · not USB-C device mode',other:'Other camera-side connection'};
+  $('outputConnection').textContent=c?`This browser’s camera endpoint: ${labels[c.path]||c.kind?.replaceAll('_',' ')||'Unknown path'} · ${c.interface||'interface unknown'}${c.local_address?' · '+c.local_address:''}`:'This browser’s camera endpoint: connection discovery unavailable';
+  $('outputBrowserPath').hidden=app;$('outputApplicationDelivery').hidden=!app;
+  if(!outputDeliveryPath)outputDeliveryPath=D.DELIVERY_PATHS[c?.path]?c.path:'ethernet';
+  document.querySelectorAll('[name="outputPath"]').forEach(input=>input.checked=input.value===outputDeliveryPath);
+  document.querySelectorAll('[data-output-path-state]').forEach(item=>item.textContent=D.deliveryPathModel(transportState,item.dataset.outputPathState).reason);
+  const model=D.deliveryPathModel(transportState,outputDeliveryPath),select=$('outputPathAddress');
+  const optionsKey=JSON.stringify([outputDeliveryPath,model.addresses]);
+  if(select.dataset.optionsKey!==optionsKey){
+    const previous=select.value;select.replaceChildren();
+    for(const item of model.addresses){const option=document.createElement('option');option.value=item.address;option.dataset.interface=item.interface;option.textContent=`${item.address} · ${item.interface}`;select.append(option);}
+    if(previous&&!model.addresses.some(item=>item.address===previous)){const option=document.createElement('option');option.value=previous;option.textContent=previous+' · no longer reported';option.disabled=true;select.append(option);}
+    if(previous)select.value=previous;select.dataset.optionsKey=optionsKey;
+  }
+  $('outputPathAddressLabel').hidden=!model.discovered||!model.addresses.length;select.disabled=!model.ready;
+  const target=outputApplicationTarget();
+  let error=model.discovered&&!model.ready?model.reason:'';
+  if(model.discovered&&model.ready&&!model.addresses.some(item=>item.address===target.address&&item.interface===target.interface))error='Choose a currently reported camera address.';
+  const origin=new URL(location.origin),port=Number(origin.port||(origin.protocol==='https:'?443:80));
+  if(model.discovered&&transportState.listener?.port&&port!==transportState.listener.port)error='Open the direct device HTTPS console to generate this route. Its gateway port differs from this console address.';
+  if(app&&draft.preview&&encoding?.mode==='raw')error='The shared picture encoder is off. Enable it explicitly in Device → Advanced preview encoder.';
+  if(app&&draft.enabled&&encoding?.mode==='encoded')error='Uncompressed network data is off. Enable it explicitly in Device → Advanced preview encoder.';
+  if(app&&draft.enabled&&draft.delivery==='exact'&&outputDeliveryPath==='wifi')error='Wi-Fi uses best-effort delivery. Choose Best effort in Advanced products and delivery.';
+  $('outputPathStatus').textContent=error||(!model.discovered?model.reason:'Camera endpoint ready. Application reachability and certificate trust are checked when the code connects.');
+  if(outputDeliveryPath==='usb_device')$('outputPathStatus').textContent+=' USB-C device mode supplies a USB network interface, not a webcam stream. Host network-driver support is required.';
+  $('outputPathIdentity').textContent=`${origin.protocol==='https:'?'TLS device identity':'Development console (HTTP)'}: ${location.origin}. The selected IP sets the application TCP destination; client and OS routing still apply. TLS verification and this browser connection stay unchanged.`;
+  $('outputWifiAdvice').hidden=!app||outputDeliveryPath!=='wifi';
+  $('outputWifiAdvice').textContent=draft.enabled?'Numeric depth stays numeric over Wi-Fi. Requested rate must fit the link; a compressed picture can be chosen separately for viewing.':`Shared ${encoding?.codec?.toUpperCase()||'JPEG / H.264'} picture · ${encoding?.source?.replaceAll('_',' ')||'source not loaded'}. This is a visualization, not numeric depth.`;
+  $('outputUsePicture').hidden=!app||outputDeliveryPath!=='wifi'||!draft.enabled;
+  if(!$('outputRecipe').hidden&&(lastRecipeTarget!==JSON.stringify(target)||error))$('outputRecipe').hidden=true;
+  $('outputApply').disabled=app&&!!error;
+  return {target,error,discovered:model.discovered};
+}
 function updateOutputBudget() {
   const draft=outputDraft(),products=draft.products,cadence=draft.cadence_hz,connection=capabilities?.connection;
   const width=lastHealth?.image_width||728,height=lastHealth?.image_height||544;
@@ -115,12 +156,14 @@ function updateOutputBudget() {
   const budget=connection?.resource_budget_bytes_per_second,over=draft.enabled&&budget&&estimate.bytes_per_second>budget;
   const exactUnavailable=draft.enabled&&draft.delivery==='exact'&&connection&&!connection.qualified_link;
   const name=window.NuvoDeviceSettings.outputRecipeName(draft),app=$('outputDestination').value==='app';
+  const route=updateOutputDelivery(draft,app);
   $('outputFormatLabel').hidden=!['camera','picture','custom'].includes(name);
   $('outputReferenceLabel').hidden=!['depth','depth_reference'].includes(name);
   $('outputValidityNote').hidden=!products.includes('depth');
   $('outputBandwidth').textContent=draft.enabled?`${(estimate.bytes_per_second/1048576).toFixed(2)} MiB/s estimate · image grid ${width} × ${height} · depth grid ${lastHealth?.depth_width||width} × ${lastHealth?.depth_height||height}`:'Compressed size varies with the scene and device encoder settings.';
   const pictureSource=encoding?`${encoding.source.replaceAll('_',' ')} · ${encoding.codec.toUpperCase()}`:'source not loaded';
   $('outputSelectionSummary').textContent=draft.enabled?`${window.NuvoDeviceSettings.outputSelectionLabel(draft)} · ${cadence} frames/s${products.includes('depth')?' · numeric metres':''}`:`Shared picture: ${pictureSource} · up to ${cadence} frames/s`;
+  if(app&&route.discovered)$('outputSelectionSummary').textContent+=` · ${window.NuvoDeviceSettings.DELIVERY_PATHS[route.target.path]}${route.target.address?' · '+route.target.address:''}`;
   $('outputScope').textContent=app?'Connection code only. Generating a recipe does not change this browser, the device encoder or another application.':draft.preview?'This browser requests the existing shared picture. It does not change its source, quality or other clients.':'Only this browser subscription changes. Other clients keep their own selections.';
   $('outputApply').textContent=app?'Show connection code':'Apply to this browser';
   const state=window.NuvoDeviceSettings.outputSelectionStatus(outputSettings,draft,outputReception);
@@ -128,7 +171,7 @@ function updateOutputBudget() {
   $('outputDiscard').disabled=!state.dirty;
   $('outputRequested').textContent=`Requested in this browser: ${state.requested} · ${outputSettings.enabled?outputSettings.cadence_hz:outputSettings.preview_cadence_hz} frames/s`;
   $('outputReceiving').textContent=receivingStatus();
-  $('outputWarning').textContent=exactUnavailable?'Exact delivery is not qualified on this connection. Choose Best effort or a qualified wired connection.':over?'This selection exceeds the camera connection budget. Reduce the requested rate or choose fewer products.':draft.preview&&encoding?.mode==='raw'?'The shared picture encoder is off. Enable it explicitly in Device → Advanced preview encoder.':draft.enabled&&encoding?.mode==='encoded'?'The device currently serves pictures only. Enable Uncompressed network data in Device to receive these products.':'';
+  $('outputWarning').textContent=app?route.error:exactUnavailable?'Exact delivery is not qualified on this connection. Choose Best effort or a qualified wired connection.':over?'This selection exceeds the camera connection budget. Reduce the requested rate or choose fewer products.':draft.preview&&encoding?.mode==='raw'?'The shared picture encoder is off. Enable it explicitly in Device → Advanced preview encoder.':draft.enabled&&encoding?.mode==='encoded'?'The device currently serves pictures only. Enable Uncompressed network data in Device to receive these products.':'';
 }
 function outputLimits(){return {width:lastHealth?.image_width||lastHealth?.depth_width||728,height:lastHealth?.image_height||lastHealth?.depth_height||544,
   matchingWidth:lastHealth?.depth_width,matchingHeight:lastHealth?.depth_height,
@@ -170,6 +213,11 @@ function initializeOutputControls() {
   });
   $('outputForm').addEventListener('input',()=>{$('outputSaveState').textContent='';$('outputRecipe').hidden=true;updateOutputBudget();});
   $('outputForm').addEventListener('change',()=>{$('outputRecipe').hidden=true;updateOutputBudget();});
+  document.querySelectorAll('[name="outputPath"]').forEach(input=>input.addEventListener('change',()=>{
+    outputDeliveryPath=input.value;$('outputPathAddress').replaceChildren();delete $('outputPathAddress').dataset.optionsKey;
+    $('outputRecipe').hidden=true;updateOutputBudget();
+  }));
+  $('outputUsePicture').addEventListener('click',()=>choose('picture'));
   $('outputDiscard').addEventListener('click',()=>{fillOutputDraft(outputSettings);$('outputRecipe').hidden=true;$('outputSaveState').textContent='Draft discarded';updateOutputBudget();});
   $('outputForm').addEventListener('submit',event=>{
     event.preventDefault();
@@ -177,7 +225,8 @@ function initializeOutputControls() {
       const candidate=outputDraft();
       if($('outputDestination').value==='app'){
         window.NuvoDeviceSettings.validateOutputSelection(candidate,{...outputLimits(),rawEnabled:true,qualified:true,bytesPerSecond:Number.MAX_SAFE_INTEGER},OUTPUT_PRODUCTS);
-        $('outputRecipe').textContent=window.NuvoDeviceSettings.outputApplicationRecipe(candidate);$('outputRecipe').hidden=false;
+        const route=updateOutputDelivery(candidate,true);if(route.error)throw new Error(route.error);
+        $('outputRecipe').textContent=window.NuvoDeviceSettings.outputApplicationRecipe(candidate,route.target);lastRecipeTarget=JSON.stringify(route.target);$('outputRecipe').hidden=false;
         $('outputSaveState').textContent='Connection code ready · browser selection unchanged';
       }else commitOutputSelection(candidate);
     }catch(error){$('outputWarning').textContent=error.message;}
@@ -194,8 +243,7 @@ async function refreshCapabilities() {
     const before=capabilities?.connection?.products_permitted;
     capabilities=await (await api('/api/v1/capabilities')).json();
     const c=capabilities.connection;
-    $('outputConnection').textContent=`Camera connection: ${c.kind.replaceAll('_',' ')} · ${c.interface}`;
-    $('outputRecommendation').textContent=`${(c.resource_budget_bytes_per_second/1048576).toFixed(1)} MiB/s ${c.budget_is_measured_capacity?'measured capacity':'resource budget'}. Wi-Fi is best effort. USB means USB Ethernet. This identifies the camera-side link, not every segment to this browser.`;
+    $('outputRecommendation').textContent=`${(c.resource_budget_bytes_per_second/1048576).toFixed(1)} MiB/s ${c.budget_is_measured_capacity?'measured capacity':'resource budget'} for this browser connection. Wi-Fi is best effort. Camera-side interface detection does not identify every network segment to this browser.`;
     updateOutputBudget();
     if(typeof before==='boolean'&&before!==c.products_permitted)restartStreams();
   } catch(error){$('outputConnection').textContent='Connection information unavailable';}
@@ -317,45 +365,44 @@ function renderCalibrationReadiness(){
 
 async function refreshTransport() {
   try {
-    const state = await (await api('/api/v1/transport')).json();
-    transportState=state;
-    $('transportState').textContent = `Current preference: ${state.preference}`;
-    $('transportError').textContent = '';
-    const supported=typeof state.wifi_enabled==='boolean';
-    if(!wifiDirty)$('wifiEnabled').checked=state.wifi_enabled===true;
-    $('wifiEnabled').disabled=!supported;$('wifiApply').disabled=!supported||!wifiDirty;
-    const pending=state.transaction?.status==='pending',expired=state.transaction?.status==='expired';
-    $('wifiConfirm').hidden=!pending;$('wifiRollback').hidden=!(pending||expired);
-    $('wifiApply').disabled=!supported||!wifiDirty||pending;
-    $('wifiState').textContent=!supported?'Separate Wi-Fi permission requires an updated gateway.':pending?'A device transport change is provisional. Confirm it or undo; it rolls back after 60 seconds.':expired?'The pending transport change expired. Undo it or refresh the restored policy.':`Wi-Fi permission: ${state.wifi_enabled?'allowed':'blocked'}${state.preference==='off'?' · master Off still blocks all product streaming':''}.${state.transaction===null?' Pending-change status unavailable.':''}`;
-  } catch (error) { $('transportState').textContent = 'Connection preference unavailable'; $('transportError').textContent = error.message; }
+    transportState=await(await api('/api/v1/transport')).json();
+    renderDeliveryPermissions();updateOutputBudget();
+  } catch(error){$('transportState').textContent='Delivery permission status unavailable';$('transportError').textContent=error.message;}
 }
-
-$('wifiEnabled').addEventListener('change',()=>{wifiDirty=$('wifiEnabled').checked!==transportState?.wifi_enabled;$('wifiApply').disabled=!wifiDirty||transportState?.transaction?.status==='pending';$('wifiState').textContent=wifiDirty?'Editing Wi-Fi permission · not applied':'No pending permission changes';});
-async function wifiAction(operation){
-  $('wifiError').textContent='';$('wifiApply').disabled=true;
+function renderDeliveryPermissions(){
+  const state=transportState,supported=typeof state?.wifi_enabled==='boolean';
+  const pending=state?.transaction?.status==='pending',expired=state?.transaction?.status==='expired';
+  if(!wifiDirty)$('wifiEnabled').checked=state?.wifi_enabled===true;
+  if(!wiredDirty)$('wiredPreference').value=state?.preference||'auto';
+  $('wifiEnabled').disabled=!supported||deliveryPolicyBusy;$('wiredPreference').disabled=!supported||deliveryPolicyBusy;
+  $('wifiApply').disabled=!supported||!wifiDirty||pending||deliveryPolicyBusy;
+  $('wiredApply').disabled=!supported||!wiredDirty||pending||deliveryPolicyBusy||$('wiredPreference').value==='off';
+  $('wifiConfirm').hidden=!pending;$('wifiRollback').hidden=!(pending||expired);
+  $('wifiConfirm').disabled=deliveryPolicyBusy;$('wifiRollback').disabled=deliveryPolicyBusy;
+  $('transportState').textContent=`Configured preference: ${state?.preference||'unknown'}. Preferences do not select the application's address.`;
+  $('wifiState').textContent=wifiDirty?'Editing Wi-Fi permission · not applied':!supported?'Separate Wi-Fi permission requires an updated gateway.':`Wi-Fi permission: ${state.wifi_enabled?'allowed':'blocked'}${state.preference==='off'?' · master Off still blocks all product delivery':''}.`;
+  $('wiredState').textContent=wiredDirty?'Editing wired preference · not applied':'Wired preference unchanged';
+  const transaction=state?.transaction?.status;
+  $('deliveryTransactionState').textContent=pending?'Device-wide change is provisional. Confirm it or undo; it rolls back after 60 seconds.':expired?'The change expired. Undo it or refresh the restored device policy.':transaction==='confirmed'?'Delivery permissions confirmed device-wide.':transaction==='rolled_back'?'Previous delivery permissions restored.':state?.transaction===null?'Pending-change status unavailable.':'No provisional delivery change.';
+}
+$('wifiEnabled').addEventListener('change',()=>{wifiDirty=$('wifiEnabled').checked!==transportState?.wifi_enabled;renderDeliveryPermissions();});
+$('wiredPreference').addEventListener('change',()=>{wiredDirty=$('wiredPreference').value!==transportState?.preference;renderDeliveryPermissions();});
+async function deliveryPolicyAction(operation,scope){
+  if(deliveryPolicyBusy)return;
+  const errorId=scope==='wired'?'transportError':'wifiError';$(errorId).textContent='';
   try{
-    await api('/api/v1/transport/'+operation,{method:'POST',headers:{'Content-Type':'application/json'},body:operation==='stage'?JSON.stringify({wifi_enabled:$('wifiEnabled').checked}):''});
-    wifiDirty=false;
+    const patch=operation!=='stage'?null:scope==='wired'?window.NuvoDeviceSettings.wiredTransportPatch($('wiredPreference').value,transportState):{wifi_enabled:$('wifiEnabled').checked};
+    deliveryPolicyBusy=true;renderDeliveryPermissions();
+    await api('/api/v1/transport/'+operation,{method:'POST',headers:{'Content-Type':'application/json'},body:patch?JSON.stringify(patch):''});
+    if(operation==='stage'){if(scope==='wired')wiredDirty=false;else wifiDirty=false;}
     await refreshTransport();await refreshCapabilities();
-  }catch(error){$('wifiError').textContent=error.message;$('wifiApply').disabled=!wifiDirty;}
+  }catch(error){$(errorId).textContent=error.message;}
+  finally{deliveryPolicyBusy=false;renderDeliveryPermissions();}
 }
-$('wifiApply').addEventListener('click',()=>wifiAction('stage'));
-$('wifiConfirm').addEventListener('click',()=>wifiAction('confirm'));
-$('wifiRollback').addEventListener('click',()=>wifiAction('rollback'));
-
-async function transportAction(path, body) {
-  $('transportError').textContent = '';
-  try {
-    await api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:body ? JSON.stringify(body) : ''});
-    await refreshTransport();
-  } catch (error) { $('transportError').textContent = error.message; }
-}
-document.querySelectorAll('[data-transport]').forEach(button => {
-  button.onclick = () => transportAction('/api/v1/transport/stage',{preference:button.dataset.transport});
-});
-$('confirmTransport').onclick = () => transportAction('/api/v1/transport/confirm');
-$('rollbackTransport').onclick = () => transportAction('/api/v1/transport/rollback');
+$('wifiApply').addEventListener('click',()=>deliveryPolicyAction('stage','wifi'));
+$('wiredApply').addEventListener('click',()=>deliveryPolicyAction('stage','wired'));
+$('wifiConfirm').addEventListener('click',()=>deliveryPolicyAction('confirm'));
+$('wifiRollback').addEventListener('click',()=>deliveryPolicyAction('rollback'));
 
 function showEncodingConfig(value) {
   $('streamMode').value=value.mode; $('streamCodec').value=value.codec;

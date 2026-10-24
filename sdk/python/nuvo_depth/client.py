@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import http.cookiejar
+import http.client
 import base64
 import hashlib
+import ipaddress
 import json
 import math
 import os
@@ -25,6 +27,30 @@ _MAX_FRAME = MAX_PAYLOAD + MAX_METADATA + 32
 _MAX_UPGRADE_HEADERS = 16 * 1024
 _WEBSOCKET_GUID = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 _DEFAULT_PRODUCTS = tuple(PRODUCT_FORMATS)[:6]
+
+
+class _DirectAddressHTTPSHandler(urllib.request.HTTPSHandler):
+    def __init__(self, context: ssl.SSLContext, address: str):
+        super().__init__(context=context)
+        self.address = address
+
+    def https_open(self, request):
+        def connection(host, **options):
+            result = http.client.HTTPSConnection(host, **options)
+            # Change only the TCP destination. HTTPSConnection still owns TLS
+            # verification, SNI and the Host header for the original URL.
+            result._create_connection = lambda target, timeout, source_address: socket.create_connection(
+                (self.address, target[1]), timeout, source_address
+            )
+            return result
+        return self.do_open(connection, request, context=self._context)
+
+
+class _NoDirectAddressRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, new_url):
+        raise urllib.error.HTTPError(request.full_url, code,
+                                     'Direct device connections do not follow redirects',
+                                     headers, response)
 
 
 def _subscription_path(path: str, cadence_hz: float | None,
@@ -141,7 +167,8 @@ class _FrameStream(Iterator[FrameSet]):
         ).encode("ascii")
         self._set_deadline()
         raw_socket = socket.create_connection(
-            (parsed.hostname, parsed.port or 443), timeout=self._remaining()
+            (self._client._connect_address or parsed.hostname, parsed.port or 443),
+            timeout=self._remaining()
         )
         try:
             raw_socket.settimeout(self._remaining())
@@ -315,9 +342,15 @@ class _FrameStream(Iterator[FrameSet]):
 
 
 class NuvoClient:
-    """Authenticated HTTPS client for WiFi, Ethernet, and USB Ethernet."""
+    """Authenticated HTTPS client for WiFi, Ethernet, and USB Ethernet.
 
-    def __init__(self, base_url: str, *, ca_file: str | None = None, timeout: float = 5.0):
+    connect_address selects a literal device IP for both HTTPS and WebSockets.
+    base_url remains the verified TLS/HTTP identity. Direct-address connections
+    bypass environment proxies and reject redirects rather than changing paths.
+    """
+
+    def __init__(self, base_url: str, *, ca_file: str | None = None, timeout: float = 5.0,
+                 connect_address: str | None = None):
         parsed = urllib.parse.urlsplit(base_url)
         if (parsed.scheme != "https" or not parsed.hostname or parsed.username
                 or parsed.password or parsed.query or parsed.fragment
@@ -325,18 +358,29 @@ class NuvoClient:
             raise ValueError("Nuvo devices require an https:// URL")
         if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("Nuvo client timeout must be finite and positive")
+        if connect_address is not None:
+            if not isinstance(connect_address, str) or '%' in connect_address:
+                raise ValueError('connect_address must be a numeric, unscoped IP address')
+            try:
+                connect_address = str(ipaddress.ip_address(connect_address))
+            except ValueError as error:
+                raise ValueError('connect_address must be a numeric, unscoped IP address') from error
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self._connect_address = connect_address
         context = ssl.create_default_context(cafile=ca_file)
         self._context = context
         self._cookies = http.cookiejar.CookieJar()
         self._csrf = ""
         self._close_confirmed = True
         self._configuration_receipts: dict[str, dict[str, str]] = {}
-        self._opener = urllib.request.build_opener(
-            urllib.request.HTTPCookieProcessor(self._cookies),
-            urllib.request.HTTPSHandler(context=context),
-        )
+        handlers = [urllib.request.HTTPCookieProcessor(self._cookies)]
+        if connect_address is None:
+            handlers.append(urllib.request.HTTPSHandler(context=context))
+        else:
+            handlers.extend([urllib.request.ProxyHandler({}), _NoDirectAddressRedirects(),
+                             _DirectAddressHTTPSHandler(context, connect_address)])
+        self._opener = urllib.request.build_opener(*handlers)
 
     def close(self) -> bool:
         """Release this session and clear local authorization; safe to repeat.
