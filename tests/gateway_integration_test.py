@@ -179,7 +179,7 @@ class LocalFrames:
                     if not request: break
                     if len(request) == 20 and request[:4] == b"NVS2":
                         mask, raw, preview, reserved = struct.unpack_from(">IIII", request, 4)
-                        if reserved: break
+                        if reserved & ~1: break
                         with self.condition:
                             self.subscriptions[connection] = (mask, raw / 1000, preview / 1000)
                             self.subscription_updates.append(self.subscriptions[connection])
@@ -597,7 +597,7 @@ class GatewayIntegrationTest(unittest.TestCase):
         return cls.client.open(request,timeout=5)
 
     def test_local_ui_assets(self):
-        for asset in ("app.js", "device-settings.js", "frame-codec.js", "first-use.js"):
+        for asset in ("app.js", "device-settings.js", "frame-codec.js"):
             with self.open("/" + asset) as response:
                 self.assertEqual(response.headers.get_content_type(), "text/javascript")
                 self.assertEqual(response.read(), (self.web / asset).read_bytes())
@@ -664,14 +664,9 @@ class GatewayIntegrationTest(unittest.TestCase):
                     result.append(decode_encoded_frame(response.read()))
             else:
                 client = NuvoClient(self.origin, ca_file=self.certificate)
-                client._cookies, client._csrf = self.cookies, "existing-test-session"
-                with _FrameStream(client, "/api/v1/encoded/stream?cadence_hz=5") as stream:
-                    first, second = stream._read_exact(2)
-                    self.assertEqual(first, 0x82)
-                    length = second & 127
-                    if length == 126: length = struct.unpack(">H", stream._read_exact(2))[0]
-                    elif length == 127: length = struct.unpack(">Q", stream._read_exact(8))[0]
-                    result.append(decode_encoded_frame(stream._read_exact(length)))
+                client.claim(self.token)
+                with client.encoded_frames(cadence_hz=5) as stream:
+                    result.append(next(stream))
         except Exception as error:
             result.append(error)
 
@@ -842,6 +837,150 @@ class GatewayIntegrationTest(unittest.TestCase):
         finally:
             self.local.stale_frames = False
         self.wait_demand((0, 0, 0))
+
+    def test_encoded_consumers_preserve_external_demand_and_release_last_consumer(self):
+        previous=self.local.parameters
+        self.wait_demand((0, 0, 0))
+        with NuvoClient(self.origin, ca_file=self.certificate) as client:
+            client.claim(self.token)
+            with client.frames(products=['left_mono'], cadence_hz=2) as raw:
+                next(raw)
+                with client.encoded_frames(cadence_hz=2) as application:
+                    next(application)
+                    self.wait_demand((1 << 6, 2, 2))
+                    with client.encoded_frames(cadence_hz=5) as browser:
+                        next(browser)
+                        self.wait_demand((1 << 6, 2, 5))
+                        counts=client.capabilities()['active_consumers']
+                        self.assertEqual(counts, {'raw':1, 'encoded':2})
+                    self.wait_demand((1 << 6, 2, 2))
+                    self.assertIsNotNone(next(application))
+                    # One-shot preview demand disappears after its response,
+                    # without removing the application's persistent demand.
+                    self.assertIsNotNone(client.latest_encoded())
+                    self.wait_demand((1 << 6, 2, 2))
+                self.wait_demand((1 << 6, 2, 0))
+                self.local.publish(601)
+                self.assertEqual(next(raw).capture_sequence, 601)
+                time.sleep(.25)
+                encoded_before=self.local.encoded_sequence
+                time.sleep(.25)
+                self.assertEqual(self.local.encoded_sequence, encoded_before,
+                                 'last encoded consumer left native preview demand running')
+        self.wait_demand((0, 0, 0))
+        self.local.publish(*previous)
+
+    def test_public_paired_stream_matches_capture_identity_and_releases_both_demands(self):
+        previous=self.local.parameters
+        self.wait_demand((0, 0, 0))
+        self.local.auto_encode=False
+        time.sleep(.1)
+        try:
+            self.local.publish(701, run=2)
+            self.write_encoded_fixture(encoded_frame(701))
+            with NuvoClient(self.origin, ca_file=self.certificate, timeout=2) as client:
+                client.claim(self.token)
+                with client.paired_frames(products=['depth','validity'], cadence_hz=2) as pairs:
+                    pair=next(pairs)
+                    self.assertEqual(pair.frame.identity, pair.encoded.identity)
+                    self.assertEqual(pair.frame.capture_sequence, 701)
+                    self.assertEqual(set(pair.frame.products), {'depth','validity'})
+                    self.wait_demand(((1 << 3) | (1 << 5), 2, 2))
+            self.wait_demand((0, 0, 0))
+        finally:
+            self.local.auto_encode=True
+            self.local.publish(*previous)
+
+    def test_paired_stream_keeps_capture_association_with_faster_browser(self):
+        self.wait_demand((0,0,0))
+        previous=self.local.parameters
+        self.local.auto_encode=False
+        time.sleep(.1)
+        stopped=threading.Event()
+        self.local.publish(900)
+        def capture():
+            sequence=900
+            pending=[]
+            while not stopped.is_set():
+                sequence+=1
+                temporary=self.local.encoded_path.with_suffix('.paired')
+                temporary.write_bytes(encoded_frame(sequence));temporary.replace(self.local.encoded_path)
+                if sequence % 5 == 0: pending.append((sequence+2,sequence))
+                if pending and pending[0][0] <= sequence:
+                    self.local.publish(pending.pop(0)[1])
+                stopped.wait(.1)
+        producer=threading.Thread(target=capture);producer.start()
+        try:
+            with NuvoClient(self.origin,ca_file=self.certificate,timeout=3) as client:
+                client.claim(self.token)
+                with client.encoded_frames(cadence_hz=10) as browser:
+                    next(browser);time.sleep(.17)
+                    with client.paired_frames(products=['depth','validity'],cadence_hz=2) as pairs:
+                        identities=[]
+                        for _ in range(4):
+                            pair=next(pairs)
+                            self.assertEqual(pair.frame.identity,pair.encoded.identity)
+                            identities.append(pair.identity)
+                        self.assertEqual(len(set(identities)),4)
+                        self.wait_demand(((1 << 3) | (1 << 5),2,10))
+                    self.wait_demand((0,0,10))
+                    self.assertIsNotNone(next(browser))
+            self.wait_demand((0,0,0))
+        finally:
+            stopped.set();producer.join(timeout=2)
+            self.local.auto_encode=True
+            self.local.publish(*previous)
+
+    def test_paired_processing_lane_is_explicit_and_failed_join_preserves_existing_pair(self):
+        self.wait_demand((0,0,0));previous=self.local.parameters
+        self.local.auto_encode=False;time.sleep(.1)
+        try:
+            self.local.publish(801,run=2);self.write_encoded_fixture(encoded_frame(801))
+            with NuvoClient(self.origin,ca_file=self.certificate,timeout=3) as client:
+                client.claim(self.token)
+                self.assertEqual(client.capabilities()['paired_stream']['concurrent_lanes'],1)
+                with client.paired_frames(products=['left_mono'],cadence_hz=2) as images:
+                    self.assertEqual(next(images).frame.capture_sequence,801)
+                    with self.assertRaises(ConnectionError) as busy:
+                        with client.paired_frames(products=['depth'],cadence_hz=2):pass
+                    self.assertIn('409',str(busy.exception))
+                    self.assertEqual(client.capabilities()['active_consumers'],{'raw':1,'encoded':1})
+                    self.local.publish(802,run=2);self.write_encoded_fixture(encoded_frame(802))
+                    self.assertEqual(next(images).frame.capture_sequence,802)
+                self.wait_demand((0,0,0))
+                self.local.publish(803,run=2);self.write_encoded_fixture(encoded_frame(803))
+                with client.paired_frames(products=['depth'],cadence_hz=2) as first:
+                    next(first)
+                    with client.paired_frames(products=['depth','validity'],cadence_hz=2) as second:
+                        self.assertEqual(next(second).frame.capture_sequence,803)
+                        self.assertEqual(client.capabilities()['active_consumers'],{'raw':2,'encoded':2})
+                        self.local.publish(804,run=2);self.write_encoded_fixture(encoded_frame(804))
+                        self.assertEqual(next(first).frame.capture_sequence,804,
+                            'raw union refresh resent the same full capture identity')
+            self.wait_demand((0,0,0))
+        finally:
+            self.local.auto_encode=True;self.local.publish(*previous)
+
+    def test_paired_history_does_not_fall_back_to_old_run_after_new_raw_scope(self):
+        self.wait_demand((0,0,0));previous=self.local.parameters
+        self.local.auto_encode=False;time.sleep(.1)
+        try:
+            self.local.publish(811,run=2);self.write_encoded_fixture(encoded_frame(811))
+            with NuvoClient(self.origin,ca_file=self.certificate,timeout=4) as client:
+                client.claim(self.token)
+                with client.paired_frames(products=['depth'],cadence_hz=2) as original:
+                    next(original)
+                    self.local.publish(812,run=3)
+                    self.assertEqual(client.latest(products=['depth']).metadata['run_uuid'],'03'+'00'*15)
+                    # Keep old encoded data fresh: a stale-time filter alone
+                    # must not hide a failure to invalidate the previous run.
+                    self.write_encoded_fixture(encoded_frame(811))
+                    with self.assertRaises(ConnectionError) as unavailable:
+                        with client.paired_frames(products=['depth'],cadence_hz=2):pass
+                    self.assertIn('503',str(unavailable.exception))
+            self.wait_demand((0,0,0))
+        finally:
+            self.local.auto_encode=True;self.local.publish(*previous)
 
     def test_stale_cached_frame_keeps_demand_until_fresh_capture(self):
         self.wait_demand((0, 0, 0))
@@ -1332,6 +1471,9 @@ class GatewayIntegrationTest(unittest.TestCase):
                     self.assertEqual(staged['preference'],'usb');self.assertIs(staged['wifi_enabled'],enabled)
                     current=call(client,'')
                     self.assertIs(current['wifi_enabled'],enabled);self.assertTrue(current['wifi_enabled_explicit'])
+                    self.assertIs(current['paths']['wifi']['raw_products_permitted'],enabled)
+                    self.assertTrue(current['paths']['wifi']['encoded_products_permitted'])
+                    self.assertEqual(current['paths']['wifi']['encoded_product_policy_reason'],'allowed')
                     self.assertEqual(current['transaction']['status'],'pending')
                     self.assertEqual(current['transaction']['expires_unix_ns'],staged['expires_unix_ns'])
                     with self.assertRaises(urllib.error.HTTPError) as pending:
@@ -1376,6 +1518,9 @@ class GatewayIntegrationTest(unittest.TestCase):
                 self.assertEqual(state['policy_kind'],kind)
                 self.assertIn(state['state'],{'available','unavailable','disconnected','no_address','unknown'})
                 self.assertIsInstance(state['products_permitted'],bool)
+                self.assertEqual(state['products_permitted'],state['raw_products_permitted'])
+                self.assertEqual(state['product_policy_reason'],state['raw_product_policy_reason'])
+                self.assertIsInstance(state['encoded_products_permitted'],bool)
                 for interface in state['interfaces']:
                     self.assertNotEqual(interface['name'],'lo')
                     self.assertIsInstance(interface['admin_up'],bool)
@@ -1440,6 +1585,10 @@ class GatewayIntegrationTest(unittest.TestCase):
                 self.assertTrue(policy['wifi_enabled'])
                 self.assertFalse(policy['connection']['products_permitted'])
                 self.assertEqual(policy['connection']['product_policy_reason'],'all_products_off')
+                for state in (policy['connection'], *policy['paths'].values()):
+                    self.assertFalse(state['raw_products_permitted'])
+                    self.assertFalse(state['encoded_products_permitted'])
+                    self.assertEqual(state['encoded_product_policy_reason'],'all_products_off')
                 self.assertIsNotNone(client.capabilities())
                 self.assertIsNotNone(client.encoding())
         finally:
@@ -1461,6 +1610,8 @@ class GatewayIntegrationTest(unittest.TestCase):
                     configuration.write_text(malformed);time.sleep(.3)
                     current=json.loads(client._request('/api/v1/transport'))
                     self.assertFalse(current['valid']);self.assertFalse(current['connection']['products_permitted'])
+                    self.assertFalse(current['connection']['encoded_products_permitted'])
+                    self.assertEqual(current['connection']['encoded_product_policy_reason'],'invalid_transport_policy')
                     self.assertEqual(current['connection']['product_policy_reason'],'invalid_transport_policy')
                     for path in ('/api/v1/frame/latest','/api/v1/encoded/latest'):
                         with self.assertRaises(urllib.error.HTTPError) as invalid:client._request(path)
@@ -1469,6 +1620,11 @@ class GatewayIntegrationTest(unittest.TestCase):
                 configuration.write_text('{"schema_version":1,"preference":"auto","wifi_enabled":false}')
                 time.sleep(.3)
                 self.assertTrue(json.loads(client._request('/api/v1/transport'))['valid'])
+                policy=json.loads(client._request('/api/v1/transport'))
+                self.assertFalse(policy['paths']['wifi']['raw_products_permitted'])
+                self.assertTrue(policy['paths']['wifi']['encoded_products_permitted'])
+                self.assertEqual(policy['paths']['wifi']['raw_product_policy_reason'],'wifi_disabled')
+                self.assertEqual(policy['paths']['wifi']['encoded_product_policy_reason'],'allowed')
                 self.assertIsNotNone(client.latest(products=['left_mono']))
         finally:
             if previous is None:configuration.unlink(missing_ok=True)

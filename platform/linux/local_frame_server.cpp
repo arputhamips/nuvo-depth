@@ -185,6 +185,7 @@ void LocalFrameServer::recompute_demand_locked() noexcept {
   for (const auto& [id, client] : clients_) {
     (void)id;
     next.products |= client.products;
+    if (client.pair_preview) next.paired_products |= client.products;
     next.cadence_hz = std::max(next.cadence_hz, client.cadence_hz);
     next.preview_cadence_hz = std::max(next.preview_cadence_hz, client.preview_cadence_hz);
     if ((client.products & kMatcherProducts) != 0U) {
@@ -196,7 +197,7 @@ void LocalFrameServer::recompute_demand_locked() noexcept {
     }
   }
   next.generation = demand_.generation;
-  if (next.products != demand_.products || next.cadence_hz != demand_.cadence_hz ||
+  if (next.products != demand_.products || next.paired_products != demand_.paired_products || next.cadence_hz != demand_.cadence_hz ||
       next.preview_cadence_hz != demand_.preview_cadence_hz ||
       next.image_products != demand_.image_products || next.image_cadence_hz != demand_.image_cadence_hz ||
       next.matcher_products != demand_.matcher_products || next.matcher_cadence_hz != demand_.matcher_cadence_hz) ++next.generation;
@@ -255,8 +256,9 @@ void LocalFrameServer::serve(SeqpacketConnection connection) {
     const auto products = get_u32(request.payload.data() + 4U);
     const auto cadence = get_u32(request.payload.data() + 8U);
     const auto preview = get_u32(request.payload.data() + 12U);
+    const auto flags = get_u32(request.payload.data() + 16U);
     if ((products & ~kSupportedProducts) != 0U || cadence > 60000U || preview > 60000U ||
-        (products == 0U) != (cadence == 0U) || get_u32(request.payload.data() + 16U) != 0U) {
+        (products == 0U) != (cadence == 0U) || (flags & ~1U) != 0U || (flags != 0U && products == 0U)) {
       send_error(connection, "invalid local demand bounds"); return;
     }
     {
@@ -265,6 +267,7 @@ void LocalFrameServer::serve(SeqpacketConnection connection) {
       client.products = products;
       client.cadence_hz = static_cast<double>(cadence) / 1000.0;
       client.preview_cadence_hz = static_cast<double>(preview) / 1000.0;
+      client.pair_preview = flags != 0U;
       recompute_demand_locked();
     }
     persistent = true;
@@ -542,25 +545,26 @@ std::optional<SerializedLocalFrame> request_next_local(
 LocalFrameClient::LocalFrameClient(const std::filesystem::path& path,
                                   const ProductMask products,
                                   const double cadence_hz,
-                                  const double preview_cadence_hz)
+                                  const double preview_cadence_hz, const bool pair_preview)
     : connection_(connect_seqpacket(path)) {
-  set_demand(products, cadence_hz, preview_cadence_hz);
+  set_demand(products, cadence_hz, preview_cadence_hz, pair_preview);
 }
 
 void LocalFrameClient::set_demand(const ProductMask products,
                                  const double cadence_hz,
-                                 const double preview_cadence_hz) {
+                                 const double preview_cadence_hz, const bool pair_preview) {
   const auto rate_valid = [](const double rate) {
     return std::isfinite(rate) && (rate == 0.0 || (rate >= 0.001 && rate <= 60.0));
   };
   if ((products & ~kSupportedProducts) != 0U || !rate_valid(cadence_hz) ||
-      !rate_valid(preview_cadence_hz) || (products == 0U) != (cadence_hz == 0.0))
+      !rate_valid(preview_cadence_hz) || (products == 0U) != (cadence_hz == 0.0) || (pair_preview && products == 0U))
     throw std::invalid_argument("invalid local demand bounds");
   std::array<std::byte, 20> request{};
   std::copy(kSubscribeMagic.begin(), kSubscribeMagic.end(), request.begin());
   put_u32(request.data() + 4U, products);
   put_u32(request.data() + 8U, static_cast<std::uint32_t>(std::lround(cadence_hz * 1000.0)));
   put_u32(request.data() + 12U, static_cast<std::uint32_t>(std::lround(preview_cadence_hz * 1000.0)));
+  put_u32(request.data() + 16U, pair_preview ? 1U : 0U);
   connection_.send_packet(request);
   const auto response = connection_.receive_packet(1032U, 0U, std::chrono::seconds(1));
   if (response.payload.size() != kAckMagic.size() ||

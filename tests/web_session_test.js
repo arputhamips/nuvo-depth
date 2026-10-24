@@ -59,7 +59,7 @@ function fixture(handler) {
   let online=false, started=0;
   const recovery=fixture(route=>route==='/api/v1/session'?reply(online?200:503,{csrf:fresh}):
     reply(200,{mode:'both',cadence_hz:10},{'ETag':revision}));
-  Object.assign(recovery.context,{encoding:null,initialEncodingLoaded:false,encodingPreviewPending:false,showEncodingConfig(){},setFlowState(){},
+  Object.assign(recovery.context,{previewSourceDirty:false,previewSourceBusy:false,updatePreviewSourceControls(){},encoding:null,encodingPreviewPending:false,showEncodingConfig(){},setFlowState(){},
     restartStreams(){started++},$:()=>({textContent:''})});
   const encodingStart=script.indexOf('async function refreshEncoding()');
   const encodingEnd=script.indexOf('function requestedEncoding()',encodingStart);

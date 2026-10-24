@@ -526,6 +526,7 @@
     if(!Number.isFinite(value.cadence_hz)||value.cadence_hz<=0||value.cadence_hz>60)throw new Error('Output cadence must be greater than 0 and at most 60 Hz.');
     if(!['auto','best_effort','exact'].includes(value.delivery))throw new Error('Choose a supported delivery policy.');
     if(typeof value.preview!=='boolean'||!Number.isFinite(value.preview_cadence_hz)||value.preview_cadence_hz<=0||value.preview_cadence_hz>60)throw new Error('Use a valid monitoring state and cadence from 0–60 Hz, greater than zero.');
+    if(!value.enabled&&!value.preview)throw new Error('Choose raw / numeric products, encoded pictures, or both.');
     if(value.enabled&&!value.products.length)throw new Error('Select at least one data product.');
     const products=value.enabled?[...new Set(value.products)]:[];
     if(!products.length)return {...value,enabled:false,products,frameBytes:0,bytesPerSecond:0};
@@ -612,7 +613,7 @@
       requested:outputSelectionLabel(requested),receiving:received?.label||null};
   }
   const DELIVERY_PATHS=Object.freeze({ethernet:'Ethernet',usb_device:'USB 2.0',wifi:'WLAN'});
-  function deliveryPathModel(transport,path){
+  function deliveryPathModel(transport,path,selection={enabled:true,preview:false}){
     const entry=transport?.paths?.[path];
     if(!entry)return {discovered:false,addresses:[],ready:false,reason:'Path discovery unavailable. This recipe uses the current console address.'};
     const addresses=[];
@@ -627,8 +628,10 @@
       }
     }
     const states={unavailable:path==='usb_device'?'USB 2.0 setup required':'Interface unavailable',disconnected:'No active link',no_address:'No address served by this gateway',unknown:'Readiness unknown',available:'Camera connection ready'};
-    const permitted=entry.products_permitted===true;
-    const reason=(entry.state==='available'&&!addresses.length?'No usable address for application code':states[entry.state]||'Readiness unknown')+(!permitted?' · product delivery blocked by device permissions':'');
+    const raw=entry.raw_products_permitted??entry.products_permitted;
+    const encoded=entry.encoded_products_permitted??entry.products_permitted;
+    const permitted=(!selection.enabled||raw===true)&&(!selection.preview||encoded===true);
+    const reason=(entry.state==='available'&&!addresses.length?'No usable address for application code':states[entry.state]||'Readiness unknown')+(!permitted?selection.enabled&&raw!==true?' · raw / numeric delivery blocked by device permissions':' · encoded picture delivery blocked by device permissions':'');
     return {discovered:true,addresses,ready:entry.state==='available'&&addresses.length>0&&permitted,reason,state:entry.state,permitted};
   }
   function wiredTransportPatch(preference,transport){
@@ -637,10 +640,18 @@
     return {preference,wifi_enabled:transport.wifi_enabled};
   }
   function outputApplicationRecipe(value,target){
-    const rate=value.enabled?value.cadence_hz:value.preview_cadence_hz;
     const products=value.products.map(p=>JSON.stringify(p)).join(', ')+(value.products.length===1?',':'');
-    const body=!value.enabled&&value.preview?'# Snapshot only; latest_encoded() does not accept a cadence option.\nframe = client.latest_encoded()\n# JPEG / H.264 picture from the shared source; numeric depth is unavailable.\n# For a persistent stream: /api/v1/encoded/stream?cadence_hz='+rate:
-      'with client.frames(products=('+products+'), cadence_hz='+rate+',\n                   delivery='+JSON.stringify(value.delivery)+') as frames:\n    for frame in frames:\n        print(frame.capture_sequence, frame.products.keys())'+(value.products.includes('depth')?'\n        # Accept depth only where validity == 1 and Z is finite and positive.':'');
+    let body;
+    if(value.enabled&&value.preview){
+      if(value.delivery==='exact')throw new Error('Paired outputs support Auto or Best effort, not Exact delivery.');
+      if(value.cadence_hz!==value.preview_cadence_hz)throw new Error('Paired outputs require equal requested rates. Use independent SDK streams for different rates.');
+      body='with client.paired_frames(products=('+products+'), cadence_hz='+value.cadence_hz+',\n                          preview_cadence_hz='+value.preview_cadence_hz+', delivery='+JSON.stringify(value.delivery)+') as pairs:\n    # Best effort: only identical capture identities pair; may time out if none match.\n    for frame, picture in pairs:\n        print(frame.capture_sequence, frame.products.keys(), picture.codec)';
+    }else if(value.preview){
+      body='with client.encoded_frames(cadence_hz='+value.preview_cadence_hz+') as pictures:\n    for picture in pictures:\n        print(picture.capture_sequence, picture.codec)\n        # Compressed picture from the shared source, not numeric depth.';
+    }else{
+      body='with client.frames(products=('+products+'), cadence_hz='+value.cadence_hz+',\n                   delivery='+JSON.stringify(value.delivery)+') as frames:\n    for frame in frames:\n        print(frame.capture_sequence, frame.products.keys())';
+    }
+    if(value.enabled&&value.products.includes('depth'))body+='\n        # Accept depth only where validity == 1 and Z is finite and positive.';
     if(!target)return '# Use an authenticated NuvoClient with verified TLS.\n'+body;
     const direct=target.address&&target.interface&&DELIVERY_PATHS[target.path];
     const secure=String(target.origin).startsWith('https://');

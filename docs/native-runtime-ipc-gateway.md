@@ -135,9 +135,10 @@ The gateway admission core reserves the exact framed byte rate against the
 configured capacity of the actual accepted Ethernet, USB Ethernet, or WiFi
 interface. Preferences are `auto`, `wifi`, `ethernet`, `usb`, `both` (wired and
 USB), or `off`. The optional `wifi_enabled` boolean independently permits Wi-Fi
-products while retaining the wired preference; `off` remains a master stop.
-Older documents without the flag retain their legacy behavior: `auto`/`wifi`
-permit Wi-Fi and the other preferences do not. `auto` supports detected
+raw/numeric products while retaining the wired preference. Encoded pictures
+remain eligible regardless of that flag; `off` remains a master stop.
+Older documents without the flag retain their legacy raw-data behavior:
+`auto`/`wifi` permit raw Wi-Fi and the other preferences do not. `auto` supports detected
 connections without moving them to another link; `wifi` leaves wired delivery
 disabled. The policy never silently removes products or reduces cadence. Each
 client has at most one unsent complete frame and one in-flight frame. Once any
@@ -156,9 +157,10 @@ interface, the request is rejected with a reconnect alternative. Preferred and
 alternative links must also have an observed active interface and listening
 address; a configured byte budget alone does not make an absent USB link
 available. Availability changes do not invalidate existing leases. `both` permits
-either wired interface; `off` disables data. Disabling Wi-Fi closes/refuses
-Wi-Fi numeric and compressed-picture streams without interrupting permitted
-wired streams or authenticated console/control access. Preference changes
+either wired interface; `off` disables data. Disabling the raw Wi-Fi flag closes
+and refuses only Wi-Fi numeric/raw streams; encoded streams and browser previews
+remain available. Encoded admission still uses the actual link's shared byte
+budget and authentication. Preference changes
 revalidate affected contracts; clients reconnect where their contract requires
 it. A parsed policy cache keeps repeated file reads out of the frame path.
 
@@ -198,6 +200,36 @@ effort at a 10 Hz maximum. No path silently changes the chosen products or
 formats. Encoded stream/snapshot requests accept `cadence_hz` as a preview
 maximum and never claim an exact raw-product contract.
 
+`/api/v1/paired/stream?cadence_hz=2&products=depth,validity&delivery=best_effort`
+delivers numeric/raw products and an encoded picture from the same capture in
+one WebSocket message. `paired_stream` in capabilities advertises support.
+The requested cadence caps the complete pair; `auto` also means best effort
+here, and `exact` is rejected. Both raw and encoded delivery must be enabled,
+and WLAN pairs require raw/numeric permission. Independent faster preview
+consumers do not introduce a second network cadence gate into paired delivery.
+
+The 32-byte network-order `NVP1` header is `>4sHHQQQ`: magic, version 1,
+flags 0, raw-message length, encoded-message length, and reserved 0. It is
+followed by one unchanged `NUV1` message and one unchanged `NVE1` message.
+Their complete device/run/epoch/capture identities must agree. Bounds are
+16 MiB for the raw message, 4 MiB for the encoded message, and 20 MiB + 32 bytes
+in total. The gateway writes segmented buffers without copying raw pixels to
+construct the wrapper. The Python SDK validates both inner frames and identity.
+
+Association history exists only while paired consumers are present. It retains
+at most 16 publications and 32 MiB, rejecting captures older than one second.
+Overload or eviction can drop unmatched captures; pairing is not an exact-rate
+contract. Closing the final paired subscription releases its history and paired
+demand. Concurrent paired clients must use the same processing lane: either
+image-only products, or a selection containing matcher/numeric products.
+Attempting to mix those two kinds of paired subscription returns 409 without
+changing the existing stream. Include associated images in a numeric paired
+selection when needed; independent raw and encoded streams remain unrestricted
+by this lane rule. Install the gateway and daemon from the same build: native `NVS2`
+subscription flags bit 0 requests preview association with the existing raw
+capture schedule; zero retains the ordinary subscription behavior. This does
+not add raw products or raise their requested cadence.
+
 `/api/v1/capabilities` includes the accepted connection's interface, detected
 kind, whether wired link capacity has current measured evidence, resource byte
 budget, preview recommendation, and active raw/encoded consumer counts. WiFi
@@ -214,15 +246,17 @@ reports `engineering-best-effort`. It does not change production network
 configuration. Handshakes also report requested cadence and `exact` or
 `maximum-best-effort` cadence semantics; the SDK exposes `stream.qualification`.
 
-The Outputs page defaults to unrectified left mono at 5 Hz, allows all 14 raw
-product choices and independent preview cadence, and shows a conservative
-byte-rate estimate beside the connection's budget. Users may select image-only,
-matcher-only, or mixed outputs and choose delivery semantics explicitly.
-Streaming configures preview codec/source/size/quality; merely saving an
-encoder configuration does not create a consumer. Browser navigation away from
-preview pages, hiding the tab, disabling output, and disconnecting release
-browser demand. Selections are saved locally for that browser; other consumers
-retain their own masks and rates.
+Browser views are compressed-only, including migration of old locally saved
+raw selections. Permanent preview panels show waiting/paused/disconnected state.
+Outputs prepares application recipes for numeric/raw products, encoded frames,
+or both; it creates no browser data demand. Only visible Live view or an open
+calibration preview requests encoded pictures. Pausing, leaving the preview,
+hiding the tab, scrolling the panel out of view, collapsing calibration or
+closing the page releases its demand.
+The shared encoder can remain active for independent application consumers.
+Saving an encoder configuration does not create a consumer. JPEG with both
+representations enabled is the new installation default; the existing three
+encoding modes remain compatible.
 
 Gateway source storage is limited to 16 MiB per raw serialized frame (checked
 before allocating the memfd copy) and 4 MiB per encoded access unit. Product

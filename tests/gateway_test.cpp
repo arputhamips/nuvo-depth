@@ -249,6 +249,18 @@ void test_serialized_storage_is_shared_and_complete() {
   require(flattened && flattened->size() == 40U && flattened->at(0U) == std::byte{3} &&
           flattened->at(8U) == std::byte{7}, "legacy vector transmission returned only a segmented prefix");
   copying_api.note_bytes_sent(flattened->size()); copying_api.complete_transmission();
+  auto numeric = std::make_shared<const depthd::gateway::SerializedBytes>(std::vector<std::byte>(20U,std::byte{4}));
+  auto preview = std::make_shared<const depthd::gateway::SerializedBytes>(std::vector<std::byte>(10U,std::byte{5}));
+  std::weak_ptr<const depthd::gateway::SerializedBytes> numeric_lifetime = numeric, preview_lifetime = preview;
+  auto pair = std::make_shared<const depthd::gateway::SerializedBytes>(std::vector<std::byte>(32U,std::byte{1}),
+      std::vector<std::shared_ptr<const depthd::gateway::SerializedBytes>>{numeric,preview});
+  require(pair->parts()[1].data() == numeric->data() && pair->parts()[2].data() == preview->data() &&
+          pair->size() == 62U && pair->retained_size() == 62U, "paired output copied payload or undercounted retained owners");
+  numeric.reset(); preview.reset();
+  require(!numeric_lifetime.expired() && !preview_lifetime.expired() && pair->copy().at(52U) == 5U,
+          "paired segmented output lost either immutable owner");
+  pair.reset();
+  require(numeric_lifetime.expired() && preview_lifetime.expired(), "paired output retained owners after release");
 }
 
 void test_independent_wifi_permission_preserves_wired_policy() {
@@ -308,6 +320,52 @@ void test_absent_preferred_interface_does_not_block_connected_wired_transport() 
           "admission advertised a nonexistent reconnect alternative");
 }
 
+void test_encoded_wifi_is_independent_of_raw_permission_and_shares_capacity() {
+  using namespace depthd::gateway;
+  for (const auto preference : {TransportPreference::kEthernetPreferred,
+       TransportPreference::kUsbPreferred, TransportPreference::kBoth,
+       TransportPreference::kAuto, TransportPreference::kWifiOnly,
+       TransportPreference::kOff}) {
+    auto config = configuration(preference);
+    config.wifi = {true, true, 1'000'000U, 1'000'000U, 2U};
+    config.wifi_enabled = false;
+    AdmissionController controller(config);
+    auto encoded = request(1000U, 5.0);
+    encoded.encoded = true;
+    const bool allowed = preference != TransportPreference::kOff;
+    auto preview = controller.admit(encoded, TransportKind::kWifi);
+    require(preview.lease.has_value() == allowed,
+            "raw Wi-Fi disabled encoded admission or encoded bypassed master off");
+    require(transport_permitted(preference, TransportKind::kWifi, false, true) == allowed,
+            "encoded permission does not match admission");
+    require(!controller.admit(request(1000U, 5.0), TransportKind::kWifi).lease,
+            "encoded eligibility leaked to raw Wi-Fi admission");
+    if (!allowed) continue;
+    auto raw = controller.admit(request(1000U, 5.0), TransportKind::kWifi, {}, true);
+    require(raw.lease && controller.stats().wifi_sessions == 2U,
+            "raw and encoded cannot share the same Wi-Fi link");
+    require(!controller.admit(encoded, TransportKind::kWifi).lease,
+            "encoded streams bypassed the shared session budget");
+    raw.lease.reset();
+    require(preview.lease && controller.stats().wifi_sessions == 1U,
+            "releasing raw demand released the encoded lease");
+    auto oversized_rate = request(300'000U, 5.0); oversized_rate.encoded = true;
+    require(!controller.admit(oversized_rate, TransportKind::kWifi).lease,
+            "encoded Wi-Fi bypassed the shared byte budget");
+    require(!transport_permitted(preference, TransportKind::kWifi, false) &&
+            transport_permitted(preference, TransportKind::kWifi, false, true),
+            "raw-only policy change cannot revalidate raw and encoded independently");
+  }
+  auto insecure = configuration(TransportPreference::kAuto);
+  insecure.wifi = {true, false, 1'000'000U, 1'000'000U, 2U};
+  bool rejected{};
+  try { AdmissionController controller(insecure); }
+  catch (const std::invalid_argument&) { rejected = true; }
+  require(rejected, "encoded Wi-Fi bypassed TLS requirements");
+  require(!transport_permitted(static_cast<TransportPreference>(255), TransportKind::kWifi, false, true),
+          "encoded Wi-Fi bypassed malformed policy");
+}
+
 void test_device_mode_is_not_inferred_from_usb_host_networking() {
   using depthd::gateway::network_path;
   require(network_path(false, false, "/sys/devices/platform/1000480000.usb/gadget", "", false) == "usb_device",
@@ -340,6 +398,7 @@ int main() {
     test_connection_cannot_reserve_another_interface();
     test_wifi_resource_admission_and_selection();
     test_independent_wifi_permission_preserves_wired_policy();
+    test_encoded_wifi_is_independent_of_raw_permission_and_shares_capacity();
     test_absent_preferred_interface_does_not_block_connected_wired_transport();
     test_device_mode_is_not_inferred_from_usb_host_networking();
     test_serialized_storage_is_shared_and_complete();

@@ -31,29 +31,29 @@ function applyTheme(theme, persist = false) {
 applyTheme(savedTheme() || systemTheme());
 
 const $ = id => document.getElementById(id);
-let lastSequence = 0, lastIdentity = '', lastFrameAt = 0;
+
 let lastHealthRun = '', lastHealthPublished = null, lastHealthAt = 0;
-let rawPolling = false, rawSocket = null, encoding = null;
+let encoding = null;
 let encodedPolling = false, encodedSocket = null, encodedFrameAt = 0;
 let decoder = null, decoderCodec = '', encodedLastSequence = 0;
 let encodedWaitingForKeyframe = true;
 let encodedGeneration = 0, encodedArrival = 0, encodedLastPresented = 0;
 let jpegDecodeBusy = false, pendingJpeg = null;
 const encodedMetadata = new Map();
-let rawRetryTimer = null, encodedRetryTimer = null;
-let rawRetryDelay = 1000, encodedRetryDelay = 1000;
-let rawPollToken = 0, encodedPollToken = 0;
+let encodedRetryTimer = null;
+let encodedRetryDelay = 1000;
+let encodedPollToken = 0;
 let encodingFormDirty = false, encodingPreviewPending = false;
 let stereo = null, algorithmFormDirty = false, activeStereoBackend = '';
 let exposure = null, exposureFormDirty = false, exposurePending = null;
 let csrf = '';
 const configurationRevisions = new Map(), latestConfigurationRevisions = new Map();
 let selectedPage = '';
-let lastHealth = null, calibrationSession = null, calibrationOriginalEncoding = null;
-let firstDepth = {};
+let lastHealth = null, calibrationSession = null, calibrationOriginalSource = null;
+
 let calibrationReadiness = null;
 let supportReport = null;
-let depthOutputRate = null, rawGeneration = 0;
+let depthOutputRate = null;
 const formControllers = new Map();
 const restoredDraftForms = new Set();
 const performanceModel = {run:null, published:null, samples:[], latest:null, stale:false};
@@ -69,60 +69,57 @@ const OUTPUT_PRODUCTS = [
   ['confidence','Matcher support · binary 0 / 255',1], ['validity','Depth validity · 1 means valid',1]
 ];
 let capabilities = null;
-let outputSettings = window.NuvoDeviceSettings.outputRecipe('camera');
-let outputReception = null, viewerPaused = false, displayedNumericFrame = null;
-let receivingTimes = [], initialEncodingLoaded = false;
+let outputSettings = window.NuvoDeviceSettings.outputRecipe('depth');
+let outputReception = null, viewerPaused = false, calibrationPaused = false, pageActive = true;
+let previewCadence = 5;
+const previewVisible={viewer:false,calibration:false};
+let receivingTimes = [];
 let wifiDirty=false, wiredDirty=false, transportState=null, deliveryPolicyBusy=false;
 let outputDeliveryPath='', lastRecipeTarget='';
-let pictureQualityDirty=false, pictureQualityBusy=false;
+let pictureQualityDirty=false, pictureQualityBusy=false, previewSourceDirty=false, previewSourceBusy=false;
 try {
-  const saved=JSON.parse(localStorage.getItem('nuvo-output-selection')||'null');
+  const saved=JSON.parse(localStorage.getItem('nuvo-application-outputs')||'null');
   if(saved&&Array.isArray(saved.products)&&saved.products.length<=14&&saved.products.every(p=>OUTPUT_PRODUCTS.some(x=>x[0]===p))&&
     saved.cadence_hz>0&&saved.cadence_hz<=60&&saved.preview_cadence_hz>0&&saved.preview_cadence_hz<=60&&
     ['auto','best_effort','exact'].includes(saved.delivery)){
     outputSettings=window.NuvoDeviceSettings.normalizeOutputSelection({...outputSettings,...saved});
-    if(outputSettings.enabled)outputSettings.preview=false;
+
   }
 } catch (_) {}
 
-function outputSubscriptionPath(path, settings=outputSettings) {
-  return `${path}?cadence_hz=${settings.cadence_hz}&products=${settings.products.join(',')}&delivery=${settings.delivery}`;
-}
 function outputBandwidth(products,width,height,cadence,matchingWidth=width,matchingHeight=height) {
   const bytes=window.NuvoDeviceSettings.outputFrameBytes(products,{width,height,matchingWidth,matchingHeight},OUTPUT_PRODUCTS);
   return {frame_bytes:bytes, bytes_per_second:bytes*cadence};
 }
 function outputDraft(){
-  const picture=$('outputFormat').value==='picture';
-  return window.NuvoDeviceSettings.normalizeOutputSelection({enabled:!picture,
-    products:picture?[]:[...document.querySelectorAll('[name="outputProduct"]:checked')].map(x=>x.value),
+  return window.NuvoDeviceSettings.normalizeOutputSelection({enabled:$('outputDataEnabled').checked,
+    products:[...document.querySelectorAll('[name="outputProduct"]:checked')].map(x=>x.value),
     cadence_hz:Number($('outputCadence').value),delivery:$('outputDelivery').value,
-    preview:picture,preview_cadence_hz:Number($('outputCadence').value)});
+    preview:$('outputPictureEnabled').checked,preview_cadence_hz:Number($('outputPictureCadence').value)});
 }
 function fillOutputDraft(value){
   const name=window.NuvoDeviceSettings.outputRecipeName(value),task=name==='depth_reference'?'depth':name==='picture'?'camera':name;
   document.querySelectorAll('[name="outputProduct"]').forEach(input=>input.checked=value.products.includes(input.value));
   document.querySelectorAll('[name="outputTask"]').forEach(input=>input.checked=input.value===task);
   $('outputPreset').value=name==='picture'?'camera':name;
-  $('outputCadence').value=value.enabled?value.cadence_hz:value.preview_cadence_hz;
-  $('outputDelivery').value=value.delivery;$('outputFormat').value=value.enabled?'data':'picture';
-  $('outputCameraReference').checked=name==='depth_reference';
-  $('outputAdvanced').open=name==='custom';
+  $('outputCadence').value=value.cadence_hz;$('outputPictureCadence').value=value.enabled&&value.preview?value.cadence_hz:value.preview_cadence_hz;
+  $('outputDelivery').value=value.delivery;$('outputDataEnabled').checked=value.enabled;$('outputPictureEnabled').checked=value.preview;
+  $('outputCameraReference').checked=name==='depth_reference';$('outputAdvanced').open=name==='custom';
 }
 function outputApplicationTarget(){
   if(!transportState?.paths)return {origin:location.origin};
   const option=$('outputPathAddress').selectedOptions[0];
   return {origin:location.origin,path:outputDeliveryPath,address:option?.value||'',interface:option?.dataset.interface||''};
 }
-function updateOutputDelivery(draft,app){
+function updateOutputDelivery(draft){
   const D=window.NuvoDeviceSettings,c=capabilities?.connection||transportState?.connection;
   const labels={...D.DELIVERY_PATHS,usb_host_adapter:'USB network adapter · not USB-C device mode',other:'Other camera-side connection'};
   $('outputConnection').textContent=c?`This browser’s camera connection: ${labels[c.path]||c.kind?.replaceAll('_',' ')||'Unknown path'} · ${c.interface||'interface unknown'}${c.local_address?' · '+c.local_address:''}`:'This browser’s camera connection: connection discovery unavailable';
-  $('outputBrowserPath').hidden=app;$('outputApplicationDelivery').hidden=!app;
+  $('viewerConnection').textContent=$('outputConnection').textContent;$('calibrationConnection').textContent=$('outputConnection').textContent;
   if(!outputDeliveryPath)outputDeliveryPath=D.DELIVERY_PATHS[c?.path]?c.path:'ethernet';
   document.querySelectorAll('[name="outputPath"]').forEach(input=>input.checked=input.value===outputDeliveryPath);
-  document.querySelectorAll('[data-output-path-state]').forEach(item=>item.textContent=D.deliveryPathModel(transportState,item.dataset.outputPathState).reason);
-  const model=D.deliveryPathModel(transportState,outputDeliveryPath),select=$('outputPathAddress');
+  document.querySelectorAll('[data-output-path-state]').forEach(item=>item.textContent=D.deliveryPathModel(transportState,item.dataset.outputPathState,draft).reason);
+  const model=D.deliveryPathModel(transportState,outputDeliveryPath,draft),select=$('outputPathAddress');
   const optionsKey=JSON.stringify([outputDeliveryPath,model.addresses]);
   if(select.dataset.optionsKey!==optionsKey){
     const previous=select.value;select.replaceChildren();
@@ -136,116 +133,100 @@ function updateOutputDelivery(draft,app){
   if(model.discovered&&model.ready&&!model.addresses.some(item=>item.address===target.address&&item.interface===target.interface))error='Choose a currently reported camera address.';
   const origin=new URL(location.origin),port=Number(origin.port||(origin.protocol==='https:'?443:80));
   if(model.discovered&&transportState.listener?.port&&port!==transportState.listener.port)error='Open the direct device HTTPS console to generate this route. Its gateway port differs from this console address.';
-  if(app&&draft.preview&&encoding?.mode==='raw')error='The shared picture encoder is off. Enable it explicitly in Device → Advanced preview encoder.';
-  if(app&&draft.enabled&&encoding?.mode==='encoded')error='Uncompressed network data is off. Enable it explicitly in Device → Advanced preview encoder.';
-  if(app&&draft.enabled&&draft.delivery==='exact'&&outputDeliveryPath==='wifi')error='Wi-Fi uses best-effort delivery. Choose Best effort in Advanced products and delivery.';
+  if(draft.preview&&encoding?.mode==='raw')error='The shared picture encoder is off. Enable it explicitly in Device → Advanced preview encoder.';
+  if(draft.enabled&&encoding?.mode==='encoded')error='Uncompressed network data is off. Enable it explicitly in Device → Advanced preview encoder.';
+  if(draft.enabled&&draft.preview&&capabilities?.paired_stream?.supported!==true)error='Paired outputs are unavailable on this device. Choose data or pictures separately, or update the device.';
+  if(draft.enabled&&draft.preview&&draft.delivery==='exact')error='Paired outputs use best-effort capture association. Choose Auto or Best effort; Exact is available only for standalone data.';
+  if(draft.enabled&&draft.delivery==='exact'&&outputDeliveryPath==='wifi')error='Wi-Fi uses best-effort delivery. Choose Best effort in Advanced products and delivery.';
   $('outputPathStatus').textContent=error||(!model.discovered?model.reason:'Camera connection ready. Choose an address your application can reach.');
   $('outputUsbDetails').hidden=outputDeliveryPath!=='usb_device';
   $('outputPathIdentity').textContent=`${origin.protocol==='https:'?'TLS device identity':'Development console (HTTP)'}: ${location.origin}. The selected IP sets the application TCP destination; client and OS routing still apply. TLS verification and this browser connection stay unchanged.`;
-  $('outputWifiAdvice').hidden=!app||outputDeliveryPath!=='wifi';
+  $('outputWifiAdvice').hidden=outputDeliveryPath!=='wifi';
   $('outputWifiAdvice').textContent=draft.enabled?'Numeric depth stays numeric over Wi-Fi. Requested rate must fit the link; a compressed picture can be chosen separately for viewing.':`Shared ${encoding?.codec?.toUpperCase()||'JPEG / H.264'} picture · ${encoding?.source?.replaceAll('_',' ')||'source not loaded'}. This is a visualization, not numeric depth.`;
-  $('outputUsePicture').hidden=!app||outputDeliveryPath!=='wifi'||!draft.enabled;
+  $('outputUsePicture').hidden=outputDeliveryPath!=='wifi'||draft.preview;
   if(!$('outputRecipe').hidden&&(lastRecipeTarget!==JSON.stringify(target)||error))$('outputRecipe').hidden=true;
-  $('outputApply').disabled=app&&!!error;
+  $('outputApply').disabled=!!error;
   return {target,error,discovered:model.discovered};
 }
 function updateOutputBudget() {
-  const draft=outputDraft(),products=draft.products,cadence=draft.cadence_hz,connection=capabilities?.connection;
+  const paired=$('outputDataEnabled').checked&&$('outputPictureEnabled').checked;
+  if(paired)$('outputPictureCadence').value=$('outputCadence').value;
+  $('outputPictureCadence').readOnly=paired;
+  $('outputPictureRateNote').textContent=paired?'Pictures and raw / numeric data use the same requested rate for capture pairing. Start at 1–2 frames/s; pairing still depends on available matching captures. Capture association does not align pixels; read each product’s grid metadata.':'';
+  const draft=outputDraft(),products=draft.products,cadence=draft.cadence_hz;
   const width=lastHealth?.image_width||728,height=lastHealth?.image_height||544;
-  const estimate=outputBandwidth(products,width,height,cadence,lastHealth?.depth_width||width,lastHealth?.depth_height||height);
-  const budget=connection?.resource_budget_bytes_per_second,over=draft.enabled&&budget&&estimate.bytes_per_second>budget;
-  const exactUnavailable=draft.enabled&&draft.delivery==='exact'&&connection&&!connection.qualified_link;
-  const name=window.NuvoDeviceSettings.outputRecipeName(draft),app=$('outputDestination').value==='app';
-  const route=updateOutputDelivery(draft,app);
-  $('outputFormatLabel').hidden=!['camera','picture','custom'].includes(name);
-  $('outputReferenceLabel').hidden=!['depth','depth_reference'].includes(name);
-  $('outputValidityNote').hidden=!products.includes('depth');
-  $('outputBandwidth').textContent=draft.enabled?`${(estimate.bytes_per_second/1048576).toFixed(2)} MiB/s estimate · image grid ${width} × ${height} · depth grid ${lastHealth?.depth_width||width} × ${lastHealth?.depth_height||height}`:'Compressed size varies with the scene and device encoder settings.';
+  const estimate=outputBandwidth(draft.enabled?products:[],width,height,cadence,lastHealth?.depth_width||width,lastHealth?.depth_height||height);
+  const name=window.NuvoDeviceSettings.outputRecipeName(draft),route=updateOutputDelivery(draft);
+  $('outputReferenceLabel').hidden=!['depth','depth_reference'].includes(name)||!draft.enabled;
+  $('outputValidityNote').hidden=!draft.enabled||!products.includes('depth');$('outputPictureRateLabel').hidden=!draft.preview;
+  $('outputBandwidth').textContent=`Raw / numeric: ${(estimate.bytes_per_second/1048576).toFixed(2)} MiB/s estimate · image grid ${width} × ${height} · depth grid ${lastHealth?.depth_width||width} × ${lastHealth?.depth_height||height}`+(draft.preview?' · compressed picture size varies with the scene.':'');
   const pictureSource=encoding?`${encoding.source.replaceAll('_',' ')} · ${encoding.codec.toUpperCase()}`:'source not loaded';
-  $('outputSelectionSummary').textContent=draft.enabled?`${window.NuvoDeviceSettings.outputSelectionLabel(draft)} · ${cadence} frames/s${products.includes('depth')?' · numeric metres':''}`:`Shared picture: ${pictureSource} · up to ${cadence} frames/s`;
-  if(app&&route.discovered)$('outputSelectionSummary').textContent+=` · ${window.NuvoDeviceSettings.DELIVERY_PATHS[route.target.path]}${route.target.address?' · '+route.target.address:''}`;
-  $('outputScope').textContent=app?'Connection code only. Generating a recipe does not change this browser, the device encoder or another application.':draft.preview?'This browser requests the existing shared picture. It does not change its source, quality or other clients.':'Only this browser subscription changes. Other clients keep their own selections.';
-  $('outputApply').textContent=app?'Show connection code':'Apply to this browser';
-  const state=window.NuvoDeviceSettings.outputSelectionStatus(outputSettings,draft,outputReception);
-  $('outputPending').textContent=state.dirty?'Editing · changes are not requested yet':app?'Ready to generate application code':'No pending browser changes';
-  $('outputDiscard').disabled=!state.dirty;
-  $('outputRequested').textContent=`Requested in this browser: ${state.requested} · ${outputSettings.enabled?outputSettings.cadence_hz:outputSettings.preview_cadence_hz} frames/s`;
-  $('outputReceiving').textContent=receivingStatus();
-  $('outputWarning').textContent=app?route.error:exactUnavailable?'Exact delivery is not qualified on this connection. Choose Best effort or a qualified wired connection.':over?'This selection exceeds the camera connection budget. Reduce the requested rate or choose fewer products.':draft.preview&&encoding?.mode==='raw'?'The shared picture encoder is off. Enable it explicitly in Device → Advanced preview encoder.':draft.enabled&&encoding?.mode==='encoded'?'The device currently serves pictures only. Enable Uncompressed network data in Device to receive these products.':'';
+  const parts=[];if(draft.enabled)parts.push(`${window.NuvoDeviceSettings.outputSelectionLabel(draft)} · ${cadence} frames/s`);
+  if(draft.preview)parts.push(`Encoded pictures: ${pictureSource} · up to ${draft.preview_cadence_hz} frames/s`);
+  $('outputSelectionSummary').textContent=parts.join(' + ')||'Choose at least one output';
+  if(route.discovered)$('outputSelectionSummary').textContent+=` · ${window.NuvoDeviceSettings.DELIVERY_PATHS[route.target.path]}${route.target.address?' · '+route.target.address:''}`;
+  $('outputScope').textContent='My application only. Generating code starts no browser stream and changes no shared device settings.';
+  const state=window.NuvoDeviceSettings.outputSelectionStatus(outputSettings,draft,null);
+  $('outputPending').textContent=state.dirty?'Editing application recipe · not saved yet':'Application recipe ready';$('outputDiscard').disabled=!state.dirty;
+  $('outputRequested').textContent='The application starts its own subscriptions when this code runs.';
+  $('outputReceiving').textContent='Application reception is not monitored by this browser.';$('outputWarning').textContent=route.error;
 }
-function outputLimits(){return {width:lastHealth?.image_width||lastHealth?.depth_width||728,height:lastHealth?.image_height||lastHealth?.depth_height||544,
+function outputLimits(){return {width:lastHealth?.image_width||728,height:lastHealth?.image_height||544,
   matchingWidth:lastHealth?.depth_width,matchingHeight:lastHealth?.depth_height,
-  supportedProducts:capabilities?.products,qualified:!!capabilities?.connection?.qualified_link,bytesPerSecond:capabilities?.connection?.resource_budget_bytes_per_second,
+  supportedProducts:capabilities?.products,qualified:true,bytesPerSecond:Number.MAX_SAFE_INTEGER,
   maxFrameBytes:capabilities?.stream_admission?.raw_maximum_wire_bytes,rawEnabled:encoding?.mode!=='encoded'};}
-function commitOutputSelection(candidate){
-  const normalized=window.NuvoDeviceSettings.normalizeOutputSelection(candidate);
-  if(normalized.preview&&encoding?.mode==='raw')throw new Error('The shared picture encoder is off. Enable it explicitly in Device → Advanced preview encoder.');
-  const checked=window.NuvoDeviceSettings.validateOutputSelection(normalized,outputLimits(),OUTPUT_PRODUCTS);
-  const next={...normalized,enabled:checked.enabled,products:checked.products};
-  let persisted=true;try{localStorage.setItem('nuvo-output-selection',JSON.stringify(next));}catch(_){persisted=false;}
-  outputSettings=next;viewerPaused=false;outputReception=null;
-  fillOutputDraft(next);
-  $('liveRecipe').value=window.NuvoDeviceSettings.outputRecipeName(next);
-  $('liveCadence').value=next.enabled?next.cadence_hz:next.preview_cadence_hz;
-  $('outputSaveState').textContent=persisted?'Requested · waiting for a matching frame':'Requested for this session · waiting for a matching frame';
-  restartStreams();updateOutputBudget();
-  return persisted;
+function updatePreviewSourceControls(){
+  $('previewSource').disabled=!encoding||previewSourceBusy;
+  $('previewSourceApply').disabled=!encoding||previewSourceBusy;
+  $('previewSourceReset').disabled=!previewSourceDirty||previewSourceBusy;
 }
 function initializeOutputControls() {
-  const groups=[['Camera images',OUTPUT_PRODUCTS.slice(0,10)],['Measurements and masks',OUTPUT_PRODUCTS.slice(10)]];
-  for(const [title,products] of groups){
+  for(const [title,products] of [['Camera images',OUTPUT_PRODUCTS.slice(0,10)],['Measurements and masks',OUTPUT_PRODUCTS.slice(10)]]){
     const group=document.createElement('fieldset'),legend=document.createElement('legend');legend.textContent=title;group.append(legend);
-    for(const [name,label] of products){
-      const item=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.name='outputProduct';input.value=name;
-      item.append(input,document.createTextNode(label));group.append(item);
-    }
+    for(const [name,label] of products){const item=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.name='outputProduct';input.value=name;item.append(input,document.createTextNode(label));group.append(item);}
     $('outputProductChoices').append(group);
   }
-  fillOutputDraft(outputSettings);$('liveRecipe').value=window.NuvoDeviceSettings.outputRecipeName(outputSettings);
-  $('liveCadence').value=outputSettings.enabled?outputSettings.cadence_hz:outputSettings.preview_cadence_hz;
-  const choose=name=>{fillOutputDraft(window.NuvoDeviceSettings.outputRecipe(name));$('outputSaveState').textContent='';$('outputRecipe').hidden=true;updateOutputBudget();};
+  fillOutputDraft(outputSettings);
+  const choose=name=>{const previous=outputDraft(),recipe=window.NuvoDeviceSettings.outputRecipe(name);fillOutputDraft({...recipe,cadence_hz:previous.preview?Math.min(2,recipe.cadence_hz):recipe.cadence_hz,preview:previous.preview,preview_cadence_hz:previous.preview_cadence_hz});$('outputSaveState').textContent='';$('outputRecipe').hidden=true;updateOutputBudget();};
   document.querySelectorAll('[name="outputTask"]').forEach(input=>input.addEventListener('change',()=>choose(input.value)));
   $('outputPreset').addEventListener('change',()=>{if($('outputPreset').value!=='custom')choose($('outputPreset').value);else $('outputAdvanced').open=true;});
   $('outputCameraReference').addEventListener('change',()=>choose($('outputCameraReference').checked?'depth_reference':'depth'));
-  $('outputFormat').addEventListener('change',()=>choose($('outputFormat').value==='picture'?'picture':'camera'));
-  $('outputProductChoices').addEventListener('change',()=>{
-    const draft=outputDraft();fillOutputDraft({...draft,enabled:true,preview:false});$('outputAdvanced').open=true;updateOutputBudget();
-  });
+  $('outputProductChoices').addEventListener('change',()=>{fillOutputDraft(outputDraft());$('outputAdvanced').open=true;updateOutputBudget();});
+  $('outputPictureEnabled').addEventListener('change',()=>{if($('outputPictureEnabled').checked&&$('outputDataEnabled').checked)$('outputCadence').value=Math.min(2,Number($('outputCadence').value));});
   $('outputForm').addEventListener('input',()=>{$('outputSaveState').textContent='';$('outputRecipe').hidden=true;updateOutputBudget();});
   $('outputForm').addEventListener('change',()=>{$('outputRecipe').hidden=true;updateOutputBudget();});
-  document.querySelectorAll('[name="outputPath"]').forEach(input=>input.addEventListener('change',()=>{
-    outputDeliveryPath=input.value;$('outputPathAddress').replaceChildren();delete $('outputPathAddress').dataset.optionsKey;
-    $('outputRecipe').hidden=true;updateOutputBudget();
-  }));
-  $('outputUsePicture').addEventListener('click',()=>choose('picture'));
+  document.querySelectorAll('[name="outputPath"]').forEach(input=>input.addEventListener('change',()=>{outputDeliveryPath=input.value;$('outputPathAddress').replaceChildren();delete $('outputPathAddress').dataset.optionsKey;$('outputRecipe').hidden=true;updateOutputBudget();}));
+  $('outputUsePicture').addEventListener('click',()=>{$('outputPictureEnabled').checked=true;if($('outputDataEnabled').checked)$('outputCadence').value=Math.min(2,Number($('outputCadence').value));$('outputRecipe').hidden=true;updateOutputBudget();});
   $('outputDiscard').addEventListener('click',()=>{fillOutputDraft(outputSettings);$('outputRecipe').hidden=true;$('outputSaveState').textContent='Draft discarded';updateOutputBudget();});
   $('outputForm').addEventListener('submit',event=>{
-    event.preventDefault();
-    try{
-      const candidate=outputDraft();
-      if($('outputDestination').value==='app'){
-        window.NuvoDeviceSettings.validateOutputSelection(candidate,{...outputLimits(),rawEnabled:true,qualified:true,bytesPerSecond:Number.MAX_SAFE_INTEGER},OUTPUT_PRODUCTS);
-        const route=updateOutputDelivery(candidate,true);if(route.error)throw new Error(route.error);
-        $('outputRecipe').textContent=window.NuvoDeviceSettings.outputApplicationRecipe(candidate,route.target);lastRecipeTarget=JSON.stringify(route.target);$('outputRecipe').hidden=false;
-        $('outputSaveState').textContent='Connection code ready · browser selection unchanged';
-      }else commitOutputSelection(candidate);
+    event.preventDefault();try{
+      const candidate=outputDraft();window.NuvoDeviceSettings.validateOutputSelection(candidate,outputLimits(),OUTPUT_PRODUCTS);
+      const route=updateOutputDelivery(candidate);if(route.error)throw new Error(route.error);
+      $('outputRecipe').textContent=window.NuvoDeviceSettings.outputApplicationRecipe(candidate,route.target);lastRecipeTarget=JSON.stringify(route.target);$('outputRecipe').hidden=false;
+      outputSettings=candidate;try{localStorage.setItem('nuvo-application-outputs',JSON.stringify(candidate));}catch(_){}
+      $('outputSaveState').textContent='Connection code ready · no browser subscription started';updateOutputBudget();
     }catch(error){$('outputWarning').textContent=error.message;}
   });
-  $('liveRecipe').addEventListener('change',()=>{const name=$('liveRecipe').value;if(name!=='custom')$('liveCadence').value=window.NuvoDeviceSettings.outputRecipe(name).cadence_hz;});
-  $('liveSelectionForm').addEventListener('submit',event=>{
-    event.preventDefault();try{const name=$('liveRecipe').value,rate=Number($('liveCadence').value);commitOutputSelection({...(name==='custom'?outputSettings:window.NuvoDeviceSettings.outputRecipe(name)),cadence_hz:rate,preview_cadence_hz:rate});}catch(error){$('frameError').textContent=error.message;}
-  });
+  $('liveSelectionForm').addEventListener('submit',event=>{event.preventDefault();const rate=Number($('liveCadence').value);if(!Number.isFinite(rate)||rate<1||rate>60)return;previewCadence=rate;restartStreams();});
   $('viewerPause').addEventListener('click',()=>{viewerPaused=!viewerPaused;restartStreams();});
+  $('calibrationPause').addEventListener('click',()=>{calibrationPaused=!calibrationPaused;restartStreams();});
+  $('previewSource').replaceChildren(...[...$('streamSource').children].map(item=>item.cloneNode(true)));
+  $('previewSource').addEventListener('change',()=>{previewSourceDirty=true;$('previewSourceState').textContent='Editing shared source · not applied';updatePreviewSourceControls();});
+  $('previewSourceReset').addEventListener('click',()=>{previewSourceDirty=false;if(encoding)$('previewSource').value=encoding.source;$('previewSourceState').textContent='Source draft discarded';updatePreviewSourceControls();});
+  $('previewSourceForm').addEventListener('submit',async event=>{
+    event.preventDefault();if(!encoding||previewSourceBusy)return;if(encodingFormDirty){$('previewSourceState').textContent='Apply or discard pending Advanced preview encoder changes first.';return;}previewSourceBusy=true;updatePreviewSourceControls();
+    try{const requested={...encoding,source:$('previewSource').value};encoding=await(await api('/api/v1/encoding',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(requested)})).json();previewSourceDirty=false;$('previewSourceReset').disabled=true;showEncodingConfig(encoding);$('previewSourceState').textContent='Shared source saved · affects all encoded clients';restartStreams();}catch(error){$('previewSourceState').textContent=error.message;}finally{previewSourceBusy=false;updatePreviewSourceControls();}
+  });
   updateOutputBudget();
 }
 async function refreshCapabilities() {
   try {
-    const before=capabilities?.connection?.products_permitted;
+    const before=capabilities?.connection?.encoded_products_permitted;
     capabilities=await (await api('/api/v1/capabilities')).json();
     const c=capabilities.connection;
     $('outputRecommendation').textContent=`${(c.resource_budget_bytes_per_second/1048576).toFixed(1)} MiB/s ${c.budget_is_measured_capacity?'measured capacity':'resource budget'} for this browser connection. Wi-Fi is best effort. Camera-side interface detection does not identify every network segment to this browser.`;
     updateOutputBudget();
-    if(typeof before==='boolean'&&before!==c.products_permitted)restartStreams();
+    if(typeof before==='boolean'&&before!==c.encoded_products_permitted)restartStreams();
   } catch(error){$('outputConnection').textContent='Connection information unavailable';}
 }
 
@@ -380,7 +361,7 @@ function renderDeliveryPermissions(){
   $('wifiConfirm').hidden=!pending;$('wifiRollback').hidden=!(pending||expired);
   $('wifiConfirm').disabled=deliveryPolicyBusy;$('wifiRollback').disabled=deliveryPolicyBusy;
   $('transportState').textContent=`Configured preference: ${state?.preference||'unknown'}. Preferences do not select the application's address.`;
-  $('wifiState').textContent=wifiDirty?'Editing WLAN permission · not applied':!supported?'Separate WLAN permission requires an updated gateway.':`WLAN permission: ${state.wifi_enabled?'allowed':'blocked'}${state.preference==='off'?' · master Off still blocks all product delivery':''}.`;
+  $('wifiState').textContent=wifiDirty?'Editing WLAN raw / numeric permission · not applied':!supported?'Separate WLAN raw / numeric permission requires an updated gateway.':`WLAN raw / numeric outputs: ${state.wifi_enabled?'allowed':'blocked'}${state.preference==='off'?' · master Off still blocks all product delivery':''}.`;
   $('wiredState').textContent=wiredDirty?'Editing wired preference · not applied':'Wired preference unchanged';
   const transaction=state?.transaction?.status;
   $('deliveryTransactionState').textContent=pending?'Device-wide change is provisional. Confirm it or undo; it rolls back after 60 seconds.':expired?'The change expired. Undo it or refresh the restored device policy.':transaction==='confirmed'?'Delivery permissions confirmed device-wide.':transaction==='rolled_back'?'Previous delivery permissions restored.':state?.transaction===null?'Pending-change status unavailable.':'No provisional delivery change.';
@@ -456,7 +437,7 @@ function updateEncodingFields(){
   $('encoderSettings').classList.toggle('inactive',!enabled);
 }
 $('streamCodec').addEventListener('change',updateEncodingFields);
-$('streamEncoderEnabled').addEventListener('change',updateEncodingFields);
+$('streamEncoderEnabled').addEventListener('change',()=>{$('streamRawEnabled').checked=true;updateEncodingFields();});
 
 function encodedFrameMatchesConfiguration(metadata) {
   const revision=(latestConfigurationRevisions.get('/api/v1/encoding')||configurationRevisions.get('/api/v1/encoding'))?.replaceAll('"','');
@@ -486,13 +467,10 @@ async function refreshEncoding() {
     const updated=await (await api('/api/v1/encoding')).json();
     const changed=!encoding||JSON.stringify(updated)!==JSON.stringify(encoding);
     encoding=updated;
-    if(!initialEncodingLoaded){
-      initialEncodingLoaded=true;
-      if(encoding.mode==='encoded'&&outputSettings.enabled)commitOutputSelection(window.NuvoDeviceSettings.outputRecipe('picture'));
-    }
+    if(!previewSourceDirty&&!previewSourceBusy)$('previewSource').value=encoding.source;updatePreviewSourceControls();
     if(!encodingFormDirty)showEncodingConfig(encoding);
     else if(changed)$('encodingSaveState').textContent='Device changed · review and apply';
-    if(changed){encodingPreviewPending=encoding.mode!=='raw';restartStreams();}
+    if(changed){encodingPreviewPending=encoding.mode!=='raw';restartStreams();updateOutputBudget();}
     $('encodingError').textContent='';
     const delivery = encoding.mode === 'both' ? 'Network data + preview' : encoding.mode === 'raw' ? 'Network data' : 'Network preview only';
     setFlowState('flowDeliveryState', delivery, encoding.mode === 'encoded' ? 'attention' : 'waiting');
@@ -861,139 +839,35 @@ async function refreshHealth() {
     updateViewerAvailability(true); $('connection').textContent = 'Not connected'; $('connection').className = 'pill offline'; $('frameRate').textContent='—'; depthOutputRate=null; lastHealthPublished=null; performanceModel.stale=true; performanceModel.latest=null; renderPerformanceMonitor(); updateLiveMetrics(null); document.querySelector('.status-strip').classList.add('stale'); $('overviewCaptureState').textContent='Disconnected'; $('overviewDepthState').textContent='Unknown'; $('deviceResolution').textContent='Last known device state'; setFlowState('flowConnectionState','Waiting'); setFlowState('flowCaptureState','Waiting'); }
 }
 
-function parseFrame(buffer) { return window.NuvoFrameCodec.parseFrame(buffer); }
-function product(frame, name) { return frame.metadata.products.find(x => x.kind === name); }
-function describeProduct(descriptor){
-  const label=OUTPUT_PRODUCTS.find(p=>p[0]===descriptor.kind)?.[1]||descriptor.kind;
-  return `${label}${descriptor.kind.startsWith('rectified_stereo')?' · left camera | right camera':''} · ${descriptor.width} × ${descriptor.height}`;
-}
-function setSampleCanvasLive(id, live) {
-  $(id).closest('.sample-canvas')?.classList.toggle('live', live);
-}
+function setSampleCanvasLive(id, live) { $(id).closest('.sample-canvas')?.classList.toggle('live', live); }
 function updateViewerAvailability(disconnected=false) {
-  if(disconnected){firstDepth={};refreshFirstDepth();}
-  const empty=$('viewerEmptyState'),picture=outputSettings.preview&&!outputSettings.enabled;
-  $('viewerModeNotice').hidden=encoding?.mode!=='encoded'||picture;
-  empty.hidden=!disconnected&&!viewerPaused&&(picture?!!encodedFrameAt:!!lastFrameAt);
-  empty.textContent=disconnected?(lastFrameAt||encodedFrameAt?'Disconnected · showing last received products':'Disconnected · waiting for device'):viewerPaused?'Paused · this browser has released its stream demand.':picture?(encoding?.mode==='raw'?'The shared picture encoder is off. Enable it explicitly in Device → Advanced preview encoder.':'Waiting for the shared picture preview.'):encoding?.mode==='encoded'?'Uncompressed network data is off. Choose Shared picture preview, or enable data in Device → Advanced preview encoder.':'Waiting for selected live products.';
-  $('viewerPicture').hidden=!picture;$('selectedProductGrid').hidden=picture;$('pictureMeasurementNotice').hidden=!picture;
-  $('encodedEmptyState').textContent=disconnected?'Disconnected · waiting for picture':encoding?.mode==='raw'?'Picture encoder is off':'Waiting for picture';
-  $('viewerPause').textContent=viewerPaused?'Resume':'Pause';
-  if(disconnected||viewerPaused||!outputReception)$('viewerRate').textContent=`Requested: ${picture?outputSettings.preview_cadence_hz:outputSettings.cadence_hz} frames/s · Receiving: ${viewerPaused?'paused':'waiting'}`;
-  if(!lastFrameAt&&!encodedFrameAt){$('viewerReceiving').textContent=viewerPaused?'Paused':'Requested · waiting for a matching frame';$('viewerSource').textContent='Source and format appear after a frame is decoded.';}
-  if(disconnected)setSampleCanvasLive('encodedCanvas',false);
-  if(disconnected||viewerPaused){
-    const state=disconnected?'Disconnected · last received selection': 'Paused · this browser';
-    $('viewerReceiving').textContent=state;$('outputReceiving').textContent=state;
-    if($('outputDestination').value==='browser')$('outputSaveState').textContent=state;
-  }
+  const blocked=capabilities?.connection?.encoded_products_permitted===false;
+  const state=disconnected?'Disconnected · waiting for device':viewerPaused?'Paused · this browser released its preview demand.':blocked?'Compressed preview blocked by device delivery policy':encoding?.mode==='raw'?'Shared encoder paused globally. Enable encoded output in Device to receive pictures.':encodedFrameAt?'Compressed preview received':'Waiting for compressed preview.';
+  $('viewerEmptyState').textContent=state;$('encodedEmptyState').textContent=state;
+  $('viewerPause').textContent=viewerPaused?'Resume preview':'Pause preview';$('calibrationPause').textContent=calibrationPaused?'Resume preview':'Pause preview';
+  $('calibrationPreviewEmpty').textContent=disconnected?'Disconnected · waiting for device':calibrationPaused?'Positioning preview paused':encoding?.mode==='raw'?'Shared encoder paused globally':'Waiting for compressed preview';
+  if(disconnected||viewerPaused||blocked||encoding?.mode==='raw')setSampleCanvasLive('encodedCanvas',false);
+  if(disconnected||calibrationPaused||blocked||encoding?.mode==='raw')setSampleCanvasLive('calibrationCanvas',false);
+  const activity=lastHealth;
+  $('sharedEncoderActivity').textContent=typeof activity?.encoding_active==='boolean'?`Shared encoder: ${activity.encoding_active?'active':'idle'} · aggregate requested preview rate ${activity.preview_demand_cadence_hz??'unknown'} frames/s. ${viewerPaused?'This browser is paused; other clients may keep it active.':'Other encoded clients have independent demand.'}`:'Shared encoder activity unavailable';
+  $('calibrationEncoderActivity').textContent=typeof activity?.encoding_active==='boolean'?`Shared encoder: ${activity.encoding_active?'active':'idle'} · aggregate requested preview rate ${activity.preview_demand_cadence_hz??'unknown'} frames/s. ${calibrationPaused?'This positioning preview is paused; other clients may keep it active.':'Other encoded clients have independent demand.'}`:'Shared encoder activity unavailable';
 }
-function recordReceiving(kind,label,products=[]){
-  const now=Date.now();receivingTimes.push(now);receivingTimes=receivingTimes.filter(t=>t>=now-5000);
-  outputReception={kind,label,products,at:now};
-  const state=window.NuvoDeviceSettings.outputSelectionStatus(outputSettings,outputSettings,outputReception);
-  $('viewerReceiving').textContent=`Receiving: ${label}`;$('outputReceiving').textContent=`Receiving: ${label}`;
-  if(state.phase==='receiving'&&$('outputDestination').value==='browser')$('outputSaveState').textContent='Receiving requested selection';
+function recordReceiving(kind,label){
+  const now=Date.now();receivingTimes.push(now);receivingTimes=receivingTimes.filter(t=>t>=now-5000);outputReception={kind,label,at:now};
+  $('viewerReceiving').textContent=`Receiving: ${label}`;
   const rate=receivingTimes.length>1?(receivingTimes.length-1)*1000/(now-receivingTimes[0]):null;
-  $('viewerRate').textContent=`Requested: ${kind==='picture'?outputSettings.preview_cadence_hz:outputSettings.cadence_hz} frames/s · Receiving: ${rate===null?'measuring':rate.toFixed(1)+' frames/s'}`;
+  $('viewerRate').textContent=`Requested: ${previewCadence} frames/s · Receiving: ${rate===null?'measuring':rate.toFixed(1)+' frames/s'}`;
 }
 function receivingStatus(){
-  if(viewerPaused)return 'Paused · this browser';
-  if(capabilities?.connection?.products_permitted===false)return 'Blocked · '+(capabilities.connection.product_policy_reason||'product delivery is disabled on this camera connection');
-  if(!outputReception)return 'Requested · waiting for a matching frame';
-  const rate=outputSettings.enabled?outputSettings.cadence_hz:outputSettings.preview_cadence_hz;
-  return Date.now()-outputReception.at>Math.max(2500,3000/rate)?`Stale · last received ${outputReception.label}`:`Receiving: ${outputReception.label}`;
+  if(viewerPaused)return 'Preview paused · this browser';
+  if(capabilities?.connection?.encoded_products_permitted===false)return 'Blocked · '+(capabilities.connection.encoded_product_policy_reason||'compressed delivery unavailable');
+  if(!encodedPreviewPage())return 'Preview idle · no browser demand';
+  if(encoding?.mode==='raw')return 'Shared encoder paused globally';
+  if(!outputReception)return 'Waiting for compressed picture';
+  return Date.now()-outputReception.at>Math.max(2500,3000/previewCadence)?`Stale · last received ${outputReception.label}`:`Receiving: ${outputReception.label}`;
 }
-function drawGray(canvas,frame,descriptor) { return window.NuvoFrameCodec.drawGray(canvas,frame,descriptor); }
-function drawDepth(canvas,frame,descriptor) {
-  const valid=window.NuvoFrameCodec.drawDepth(canvas,frame,descriptor);
-  if(valid!==undefined)$('validity').textContent=`Valid ${valid.toFixed(1)}%`;
-}
-function drawDisparity(canvas, frame, descriptor) {
-  return window.NuvoFrameCodec.drawDisparity(canvas,frame,descriptor,stereo?.max_disparity||128);
-}
-function canvasVisible(canvas) {
-  return !document.hidden && !!canvas.closest('.page.active') && !canvas.closest('[hidden]') && !canvas.closest('details:not([open])');
-}
-function drawVisibleProduct(canvas,frame,descriptor) {
-  if(!descriptor||!canvasVisible(canvas))return;
-  if(descriptor.kind==='depth')drawDepth(canvas,frame,descriptor);
-  else if(descriptor.kind==='disparity')drawDisparity(canvas,frame,descriptor);
-  else drawGray(canvas,frame,descriptor);
-}
-function renderFrame(frame) {
-  window.NuvoFirstUse.observe(firstDepth,frame,Date.now());refreshFirstDepth();
-  const identity=`${frame.metadata.run_uuid}:${frame.metadata.capture_epoch}:${frame.metadata.capture_sequence}:${frame.metadata.products.map(p=>p.kind).join(',')}`;
-  if(identity===lastIdentity)return;
-  const grid=$('selectedProductGrid'),ordered=OUTPUT_PRODUCTS.map(([name])=>product(frame,name)).filter(Boolean);
-  grid.querySelectorAll('[data-output-product]').forEach(canvas=>{if(!product(frame,canvas.dataset.outputProduct))canvas.closest('figure').remove();});
-  for(const descriptor of ordered){
-    let canvas=grid.querySelector(`[data-output-product="${descriptor.kind}"]`);
-    if(!canvas){const figure=document.createElement('figure'),caption=document.createElement('figcaption');canvas=document.createElement('canvas');canvas.dataset.outputProduct=descriptor.kind;figure.append(caption,canvas);grid.append(figure);}
-    canvas.closest('figure').querySelector('figcaption').textContent=describeProduct(descriptor);
-    canvas.setAttribute('aria-label',describeProduct(descriptor)+' · uncompressed data rendered in this browser');
-    drawVisibleProduct(canvas,frame,descriptor);
-  }
-  displayedNumericFrame=product(frame,'depth')?frame:null;
-  $('depthLegend').hidden=!displayedNumericFrame;$('pixelInspector').hidden=!displayedNumericFrame;
-  $('viewerEmptyState').hidden=true;$('viewerTelemetry').hidden=false;
-  lastFrameAt=Date.now();lastSequence=frame.sequence;lastIdentity=identity;
-  const label=window.NuvoDeviceSettings.outputSelectionLabel({enabled:true,preview:false,products:ordered.map(p=>p.kind)});
-  recordReceiving('data',label,ordered.map(p=>p.kind));
-  $('viewerSource').textContent=product(frame,'depth')?`Numeric depth${product(frame,'validity')?' + validity':' · validity unavailable; do not measure'} · rendered locally from uncompressed measurements`:'Uncompressed ISP/processed images · rendered locally in this browser';
-  $('outputFrameSummary').textContent=`Frame ${frame.metadata.capture_sequence} · ${ordered.map(describeProduct).join('; ')}`;
-  setFlowState('flowCaptureState','Products live','complete');
-  $('sequence').textContent=`Frame ${frame.metadata.capture_sequence}`;$('age').textContent='Updated now';$('frameError').textContent='';
-}
-function rawPreviewPage(){return !document.hidden&&!viewerPaused&&capabilities?.connection?.products_permitted!==false&&outputSettings.enabled&&['viewer','network'].includes(selectedPage);}
-function refreshFirstDepth(){
-  const live=window.NuvoFirstUse.ready(firstDepth,Date.now())&&encoding?.mode!=='encoded';
-  $('firstDepthSave').disabled=!live;
-  setFlowState('flowDeliveryState',live?'Fresh depth ready':'Waiting for fresh depth',live?'complete':'waiting');
-  if(firstDepth.error)$('firstDepthError').textContent=firstDepth.error;
-  $('firstDepthStatus').textContent=live?`Fresh depth confirmed · frame ${firstDepth.sequence} · ready to save`:
-    firstDepth.frame?'Waiting for fresh depth · keep Live view open and check capture status.':'Waiting for two fresh associated depth and validity frames.';
-  if(firstDepth.frame){const authority=window.NuvoFirstUse.calibration(firstDepth.frame.metadata);$('firstDepthAuthority').textContent=`${authority.label}. ${authority.detail}`;}
-}
-$('firstDepthStart').addEventListener('click',()=>{
-  $('firstDepthError').textContent='';
-  try{
-    if(encoding?.mode==='encoded')throw new Error('Enable Uncompressed network data in Device → Advanced preview encoder, apply settings, then try again.');
-    commitOutputSelection(window.NuvoDeviceSettings.outputRecipe('depth_reference'));
-    firstDepth={};refreshFirstDepth();
-  }catch(error){$('firstDepthError').textContent=error.message;}
-});
-$('firstDepthSave').addEventListener('click',()=>{
-  refreshFirstDepth();if($('firstDepthSave').disabled)return;
-  const frame=firstDepth.frame,m=frame.metadata,url=URL.createObjectURL(new Blob([frame.buffer],{type:'application/octet-stream'}));
-  const link=document.createElement('a');link.href=url;link.download=`nuvo-depth-${m.run_uuid}-${m.capture_epoch}-${m.capture_sequence}.nuv`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-  $('firstDepthStatus').textContent=`Saved frame ${m.capture_sequence} with depth, validity and calibration metadata.`;
-});
-setInterval(refreshFirstDepth,500);
-async function pollFrame(generation,token=rawPollToken) {
-  if (!rawPolling||token!==rawPollToken||generation!==rawGeneration||!rawPreviewPage()) return;
-  const started=Date.now();
-  try { const buffer=await (await api(outputSubscriptionPath('/api/v1/frame/latest'))).arrayBuffer();if(generation!==rawGeneration||token!==rawPollToken||!rawPolling)return;renderFrame(parseFrame(buffer)); }
-  catch (error) { if(generation!==rawGeneration||token!==rawPollToken||!rawPolling)return;$('frameError').textContent=error.message; }
-  if(generation===rawGeneration&&token===rawPollToken&&rawPolling)setTimeout(()=>pollFrame(generation,token),Math.max(0,1000/outputSettings.cadence_hz-(Date.now()-started)));
-}
+function canvasVisible(canvas) { return !document.hidden && !!canvas.closest('.page.active') && !canvas.closest('[hidden]') && !canvas.closest('details:not([open])'); }
 function socketUrl(path) { return `${location.protocol==='https:'?'wss':'ws'}://${location.host}${path}`; }
-function startRawViewer(){
-  if(rawSocket||!rawPreviewPage()||!encoding||encoding.mode==='encoded')return;
-  const generation=rawGeneration,socket=new WebSocket(socketUrl(outputSubscriptionPath('/api/v1/stream')));rawSocket=socket;socket.binaryType='arraybuffer';
-  socket.onopen=()=>{if(generation===rawGeneration&&socket===rawSocket){rawPolling=false;++rawPollToken;}};
-  socket.onmessage=event=>{if(generation!==rawGeneration||socket!==rawSocket)return;try{renderFrame(parseFrame(event.data));rawRetryDelay=1000;}catch(error){$('frameError').textContent=error.message;socket.close()}};
-  socket.onclose=()=>{
-    if(generation!==rawGeneration||socket!==rawSocket)return;
-    rawSocket=null;
-    if(!rawPreviewPage()||!encoding||encoding.mode==='encoded')return;
-    $('frameError').textContent='Stream interrupted · temporary polling; reconnecting automatically.';
-    if(!rawPolling){rawPolling=true;pollFrame(generation,++rawPollToken);}
-    rawRetryTimer=setTimeout(()=>{rawRetryTimer=null;if(generation===rawGeneration)startRawViewer();},rawRetryDelay);
-    rawRetryDelay=Math.min(15000,rawRetryDelay*2);
-  };
-}
-
 function parseEncoded(buffer) { return window.NuvoFrameCodec.parseEncoded(buffer); }
 function resetEncodedDecoder() {
   if(decoder){try{decoder.close()}catch(_){}}
@@ -1023,22 +897,24 @@ function ensureDecoder(codec,width,height,generation) {
 }
 function drawEncodedSource(source,width,height,metadata,payloadBytes){
   const canvases=[];
-  if(selectedPage==='viewer'&&outputSettings.preview)canvases.push($('encodedCanvas'));
-  if(selectedPage==='device'&&$('calibration').open)canvases.push($('calibrationCanvas'));
+  if(selectedPage==='viewer'&&!viewerPaused)canvases.push($('encodedCanvas'));
+  if(selectedPage==='device'&&$('calibration').open&&!calibrationPaused)canvases.push($('calibrationCanvas'));
   for(const canvas of canvases){if(canvasVisible(canvas))window.NuvoFrameCodec.prepareCanvas(canvas,width,height).context.drawImage(source,0,0);}
-  encodedFrameAt=Date.now();$('encodedAge').textContent='Updated now';setSampleCanvasLive('encodedCanvas',true);
-  if(metadata&&['viewer','network'].includes(selectedPage)){
+  encodedFrameAt=Date.now();$('encodedAge').textContent='Updated now';for(const canvas of canvases)setSampleCanvasLive(canvas.id,true);
+  if(metadata&&selectedPage==='viewer'){
     const numeric=['depth','disparity'].includes(metadata.source);
     const label=`${metadata.codec.toUpperCase()} picture · ${metadata.source.replaceAll('_',' ')}${numeric?' visualization':''} · ${width} × ${height}`;
     recordReceiving('picture',label);
     $('viewerSource').textContent=numeric?'Compressed grayscale visualization · numeric measurement unavailable':'Compressed ISP/processed camera picture · one shared device encoder';
-    $('viewerEmptyState').hidden=true;$('depthLegend').hidden=true;$('pixelInspector').hidden=true;
+    $('viewerEmptyState').textContent='Compressed preview received';
   }
   $('encodedSequence').textContent=`Frame ${metadata.capture_sequence}`;
   $('encodedSize').textContent=`${(payloadBytes/1024).toFixed(1)} KiB`;
   $('encodedLatency').textContent=Number.isFinite(metadata.total_ms)?`Preview pipeline ${metadata.total_ms.toFixed(1)} ms`:`Encode only ${metadata.encode_ms.toFixed(1)} ms`;
   $('encodedLatency').title=Number.isFinite(metadata.total_ms)?`Preparation ${metadata.preparation_ms.toFixed(1)} ms · queue ${metadata.queue_ms.toFixed(1)} ms · encode ${metadata.encode_ms.toFixed(1)} ms. Excludes camera exposure, transport and display.`:'Encode only; excludes preview preparation, queueing, transport and display.';
-  $('encodedFormat').textContent=`${metadata.codec.toUpperCase()} · ${metadata.source.replaceAll('_',' ')}${['depth','disparity'].includes(metadata.source)?' visualization':''} · ${metadata.width} × ${metadata.height}`;
+  const actualFormat=`${metadata.codec.toUpperCase()} · ${metadata.source.replaceAll('_',' ')}${['depth','disparity'].includes(metadata.source)?' visualization':''} · ${metadata.width} × ${metadata.height}`;
+  if(selectedPage==='viewer')$('encodedFormat').textContent=actualFormat;
+  if(selectedPage==='device')$('calibrationPreviewSideLabel').textContent=actualFormat;
   $('encodingError').textContent='';
   if(encodingPreviewPending){
     encodingPreviewPending=false;
@@ -1087,22 +963,24 @@ async function pollEncoded(generation,token=encodedPollToken) {
   if(!encodedPolling||token!==encodedPollToken||generation!==encodedGeneration||!encodedPreviewPage())return;
   const started=Date.now();
   try{
-    const frame=parseEncoded(await (await api(`/api/v1/encoded/latest?cadence_hz=${outputSettings.preview_cadence_hz}`)).arrayBuffer());
+    const frame=parseEncoded(await (await api(`/api/v1/encoded/latest?cadence_hz=${previewCadence}`)).arrayBuffer());
     if(token===encodedPollToken&&encodedPolling)await queueEncoded(frame,generation,++encodedArrival);
   }
   catch(error){if(generation===encodedGeneration&&token===encodedPollToken&&encodedPolling){$('encodingError').textContent=error.message;}}
-  if(generation===encodedGeneration&&token===encodedPollToken&&encodedPolling)setTimeout(()=>pollEncoded(generation,token),Math.max(0,1000/outputSettings.preview_cadence_hz-(Date.now()-started)));
+  if(generation===encodedGeneration&&token===encodedPollToken&&encodedPolling)setTimeout(()=>pollEncoded(generation,token),Math.max(0,1000/previewCadence-(Date.now()-started)));
 }
-function encodedPreviewPage(){return !document.hidden&&capabilities?.connection?.products_permitted!==false&&(selectedPage==='device'&&$('calibration').open||!viewerPaused&&outputSettings.preview&&['viewer','network'].includes(selectedPage));}
+function encodedPreviewPage(){return pageActive&&!document.hidden&&capabilities?.connection?.encoded_products_permitted!==false&&(selectedPage==='device'&&$('calibration').open&&!calibrationPaused&&previewVisible.calibration||selectedPage==='viewer'&&!viewerPaused&&previewVisible.viewer);}
 function startEncodedViewer(){
   if(encodedSocket||!encodedPreviewPage()||!encoding||encoding.mode==='raw')return;
-  const generation=encodedGeneration, socket=new WebSocket(socketUrl(`/api/v1/encoded/stream?cadence_hz=${outputSettings.preview_cadence_hz}`));
+  const generation=encodedGeneration, socket=new WebSocket(socketUrl(`/api/v1/encoded/stream?cadence_hz=${previewCadence}`));
   encodedSocket=socket;socket.binaryType='arraybuffer';
   socket.onopen=()=>{if(generation===encodedGeneration&&socket===encodedSocket){encodedPolling=false;++encodedPollToken;}};
   socket.onmessage=event=>{if(generation!==encodedGeneration||socket!==encodedSocket)return;try{queueEncoded(parseEncoded(event.data),generation,++encodedArrival).catch(error=>{$('encodingError').textContent=error.message});encodedRetryDelay=1000;}catch(error){$('encodingError').textContent=error.message}};
   socket.onclose=()=>{
     if(generation!==encodedGeneration||socket!==encodedSocket)return;
-    encodedSocket=null;
+    encodedSocket=null;outputReception=null;encodedFrameAt=0;pendingJpeg=null;encodedLastPresented=++encodedArrival;resetEncodedDecoder();
+    setSampleCanvasLive('encodedCanvas',false);setSampleCanvasLive('calibrationCanvas',false);
+    updateViewerAvailability();$('viewerReceiving').textContent=receivingStatus();
     if(!encodedPreviewPage()||!encoding||encoding.mode==='raw')return;
     $('encodingError').textContent='Preview interrupted · temporary polling; reconnecting automatically.';
     if(!encodedPolling){encodedPolling=true;pollEncoded(generation,++encodedPollToken);}
@@ -1111,26 +989,13 @@ function startEncodedViewer(){
   };
 }
 function restartStreams(){
-  ++rawGeneration;
-  ++encodedGeneration;encodedArrival=0;encodedLastPresented=0;
-  pendingJpeg=null;
-  clearTimeout(rawRetryTimer);clearTimeout(encodedRetryTimer);rawRetryTimer=null;encodedRetryTimer=null;
-  rawRetryDelay=1000;encodedRetryDelay=1000;++rawPollToken;++encodedPollToken;
-  rawPolling=false;encodedPolling=false;
-  if(rawSocket){const value=rawSocket;rawSocket=null;value.onmessage=null;value.onclose=null;value.close()}
-  if(encodedSocket){const value=encodedSocket;encodedSocket=null;value.onmessage=null;value.onclose=null;value.onerror=null;value.close()}
-  resetEncodedDecoder();
-  $('selectedProductGrid').replaceChildren();
-  for(const id of ['encodedCanvas','calibrationCanvas']){const canvas=$(id);canvas.width=728;canvas.height=544;}
-  setSampleCanvasLive('encodedCanvas',false);
-  displayedNumericFrame=null;outputReception=null;receivingTimes=[];
-  $('outputReceiving').textContent=viewerPaused?'Paused · this browser':'Receiving: waiting for a matching frame';
-  $('depthLegend').hidden=true;$('pixelInspector').hidden=true;$('pixelValue').textContent='Click the depth image or enter a pixel coordinate.';
-  $('viewerEmptyState').hidden=false;$('viewerTelemetry').hidden=true;
-  $('sequence').textContent='Frame —';$('validity').textContent='Valid —';$('age').textContent='Waiting for products';lastFrameAt=0;lastIdentity='';
-  $('encodedSequence').textContent='Frame —';$('encodedSize').textContent='—';$('encodedLatency').textContent='—';$('encodedAge').textContent='Waiting';encodedFrameAt=0;
-  updateViewerAvailability();
-  startRawViewer();startEncodedViewer();
+  ++encodedGeneration;encodedArrival=0;encodedLastPresented=0;pendingJpeg=null;
+  clearTimeout(encodedRetryTimer);encodedRetryTimer=null;encodedRetryDelay=1000;++encodedPollToken;encodedPolling=false;
+  if(encodedSocket){const value=encodedSocket;encodedSocket=null;value.onmessage=null;value.onclose=null;value.onerror=null;value.close();}
+  resetEncodedDecoder();outputReception=null;receivingTimes=[];encodedFrameAt=0;
+  for(const id of ['encodedCanvas','calibrationCanvas'])setSampleCanvasLive(id,false);
+  $('encodedSequence').textContent='Frame —';$('encodedSize').textContent='—';$('encodedLatency').textContent='—';$('encodedAge').textContent='Waiting';
+  updateViewerAvailability();$('viewerReceiving').textContent=receivingStatus();startEncodedViewer();
 }
 
 const CALIBRATION_SESSION_KEY='nuvo-calibration-session';
@@ -1240,33 +1105,26 @@ $('calibrationSetupForm').addEventListener('submit',async event=>{
 async function applyCalibrationPreview(){
   if(!encoding)await refreshEncoding();
   if(!encoding)throw new Error('Streaming configuration is unavailable');
-  if(!calibrationOriginalEncoding){calibrationOriginalEncoding=structuredClone(encoding);$('calibrationRestorePreview').disabled=false;}
+  if(encodingFormDirty)throw new Error('Apply or discard pending Advanced preview encoder changes first.');
+  if(!calibrationOriginalSource){calibrationOriginalSource=encoding.source;$('calibrationRestorePreview').disabled=false;}
   const source=$('calibrationPreviewSide').value;
-  const requested={...encoding,schema_version:1,mode:'both',codec:'h264',source,width:0,height:0,
-    cadence_hz:Math.min(30,Math.max(10,Math.round(lastHealth?.capture_target_hz||15))),
-    bitrate_bps:Math.max(4000000,encoding.bitrate_bps||0),keyframe_interval:1,threads:Math.max(2,encoding.threads||0),
-    low_latency:true,preset:'ultrafast'};
+  const requested={...encoding,schema_version:1,source};
   encoding=await (await api('/api/v1/encoding',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(requested)})).json();
   encodingFormDirty=false;showEncodingConfig(encoding);
-  $('calibrationPreviewSideLabel').textContent=source==='left_color'?'Left color · ISP':'Right color · ISP';
   restartStreams();
 }
 
 $('calibrationEnablePreview').onclick=async()=>{
-  $('calibrationError').textContent='';$('calibrationEnablePreview').disabled=true;$('calibrationEnablePreview').textContent='Starting preview…';
-  try{await applyCalibrationPreview();$('calibrationEnablePreview').textContent='Positioning preview active';}
-  catch(error){$('calibrationError').textContent=error.message;$('calibrationEnablePreview').textContent='Enable positioning preview';}
+  $('calibrationError').textContent='';$('calibrationEnablePreview').disabled=true;$('calibrationEnablePreview').textContent='Applying shared source…';
+  try{await applyCalibrationPreview();$('calibrationEnablePreview').textContent='Shared positioning source saved';}
+  catch(error){$('calibrationError').textContent=error.message;$('calibrationEnablePreview').textContent='Apply shared positioning source';}
   finally{$('calibrationEnablePreview').disabled=false;}
 };
-$('calibrationPreviewSide').addEventListener('change',async()=>{
-  if(!calibrationOriginalEncoding)return;
-  try{await applyCalibrationPreview();}catch(error){$('calibrationError').textContent=error.message;}
-});
 $('calibrationRestorePreview').onclick=async()=>{
-  if(!calibrationOriginalEncoding)return;
+  if(!calibrationOriginalSource)return;
   try{
-    encoding=await (await api('/api/v1/encoding',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(calibrationOriginalEncoding)})).json();
-    calibrationOriginalEncoding=null;$('calibrationRestorePreview').disabled=true;$('calibrationEnablePreview').textContent='Enable positioning preview';
+    encoding=await (await api('/api/v1/encoding',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...encoding,source:calibrationOriginalSource})})).json();
+    calibrationOriginalSource=null;$('calibrationRestorePreview').disabled=true;$('calibrationEnablePreview').textContent='Apply shared positioning source';
     showEncodingConfig(encoding);restartStreams();
   }catch(error){$('calibrationError').textContent=error.message;}
 };
@@ -1544,29 +1402,17 @@ document.querySelectorAll('.device-section').forEach(section=>section.addEventLi
   if(section.id==='calibration'&&selectedPage==='device')restartStreams();
   if(section.id==='diagnostics'){placePerformanceMonitor(selectedPage);if(section.open)refreshDiagnostics();}
 }));
-function inspectSelectedPixel(x,y){
-  const result=window.NuvoFrameCodec.inspectDepth(displayedNumericFrame,x,y);
-  $('pixelValue').textContent=result.valid?`Depth Z: ${result.z.toFixed(3)} m · valid pixel (${x}, ${y}) · capture ${result.captureSequence}${result.outsideDisplay?' · outside display scale':''}`:result.reason;
-}
-$('pixelInspector').addEventListener('submit',event=>{event.preventDefault();inspectSelectedPixel(Number($('pixelX').value),Number($('pixelY').value));});
-$('selectedProductGrid').addEventListener('click',event=>{
-  const canvas=event.target.closest('canvas[data-output-product="depth"]');if(!canvas)return;
-  const bounds=canvas.getBoundingClientRect();
-  const x=Math.min(canvas.width-1,Math.max(0,Math.floor((event.clientX-bounds.left)*canvas.width/bounds.width)));
-  const y=Math.min(canvas.height-1,Math.max(0,Math.floor((event.clientY-bounds.top)*canvas.height/bounds.height)));
-  $('pixelX').value=x;$('pixelY').value=y;inspectSelectedPixel(x,y);
-});
+const previewTargets=new Map([[$('encodedCanvas').closest('.sample-canvas'),'viewer'],[$('calibrationCanvas').closest('.sample-canvas'),'calibration']]);
+const previewObserver=new IntersectionObserver(entries=>{
+  const requested=encodedPreviewPage();
+  for(const entry of entries)previewVisible[previewTargets.get(entry.target)]=entry.isIntersecting&&entry.intersectionRatio>=0.01;
+  if(requested!==encodedPreviewPage())restartStreams();
+},{threshold:0.01});
+for(const target of previewTargets.keys())previewObserver.observe(target);
 document.addEventListener('visibilitychange',restartStreams);
-setInterval(()=>{
-  const status=receivingStatus();
-  $('viewerReceiving').textContent=status;$('outputReceiving').textContent=status;
-  if(!status.startsWith('Receiving:')){
-    $('viewerRate').textContent=`Requested: ${outputSettings.enabled?outputSettings.cadence_hz:outputSettings.preview_cadence_hz} frames/s · ${status.split(' · ')[0]}`;
-    if($('outputDestination').value==='browser')$('outputSaveState').textContent=status;
-  }
-},500);
-window.addEventListener('pageshow',event=>{if(event.persisted)restoreSession();});
-window.addEventListener('pagehide',()=>{rawSocket?.close();encodedSocket?.close();});
+setInterval(()=>{const status=receivingStatus();$('viewerReceiving').textContent=status;if(!status.startsWith('Receiving:'))$('viewerRate').textContent=`Requested: ${previewCadence} frames/s · ${status}`;},500);
+window.addEventListener('pageshow',event=>{pageActive=true;if(event.persisted)restoreSession();});
+window.addEventListener('pagehide',()=>{pageActive=false;restartStreams();});
 updateAlgorithmFields();
 updateExposureFields();
 updateEncodingFields();
@@ -1574,4 +1420,4 @@ restoreSession();
 setInterval(()=>{if(!document.hidden)refreshHealth();},2000);
 setInterval(()=>{if(!document.hidden){refreshTransport();refreshEncoding();refreshStereo();refreshExposure();refreshCapabilities();refreshSetupStatus();}},5000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshHealth();refreshTransport();refreshEncoding();refreshStereo();refreshExposure();refreshCapabilities();}});
-setInterval(()=>{if(lastFrameAt){const age=(Date.now()-lastFrameAt)/1000;$('age').textContent=age<1?'Updated now':`${age.toFixed(1)} s old`;$('age').classList.toggle('error',age>2);}if(encodedFrameAt){const age=(Date.now()-encodedFrameAt)/1000;$('encodedAge').textContent=age<1?'Updated now':`${age.toFixed(1)} s old`;$('encodedAge').classList.toggle('error',age>2)}},250);
+setInterval(()=>{if(encodedFrameAt){const age=(Date.now()-encodedFrameAt)/1000;$('encodedAge').textContent=age<1?'Updated now':`${age.toFixed(1)} s old`;$('encodedAge').classList.toggle('error',age>2);}},250);

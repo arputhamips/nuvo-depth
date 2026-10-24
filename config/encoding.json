@@ -1,1 +1,1 @@
-{"schema_version":1,"mode":"raw","codec":"h264","source":"left_rectified","width":0,"height":0,"cadence_hz":10,"bitrate_bps":4000000,"jpeg_quality":80,"keyframe_interval":1,"threads":1,"low_latency":true,"preset":"veryfast"}
+{"schema_version":1,"mode":"both","codec":"jpeg","source":"left_color","width":0,"height":0,"cadence_hz":10,"bitrate_bps":4000000,"jpeg_quality":80,"keyframe_interval":1,"threads":1,"low_latency":true,"preset":"veryfast"}

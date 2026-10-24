@@ -1,5 +1,7 @@
 """Real TLS trust/hostname/changed-key, SDK credentials and actionable failures."""
 from datetime import datetime, timedelta, timezone
+import base64
+import hashlib
 import http.server
 import ipaddress
 import json
@@ -7,6 +9,7 @@ import os
 from pathlib import Path
 import secrets
 import ssl
+import struct
 import sys
 import tempfile
 import threading
@@ -19,6 +22,38 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
+
+
+def stream_packet(sequence, encoded=False):
+    metadata = {"schema_version": 1, "device_uuid": "22" * 16, "run_uuid": "11" * 16,
+                "capture_epoch": 2, "capture_sequence": sequence, "capture_time_ns": 4,
+                "configuration_epoch": 5, "calibration_sha256": "00" * 32,
+                "calibration_authority": 0}
+    if encoded:
+        payload = b"\xff\xd8fixture\xff\xd9"
+        # Match src/image_encoder.cpp's spelling; raw frame_wire uses compact hex.
+        metadata.update(device_uuid="22222222-2222-2222-2222-222222222222",
+                        run_uuid="11111111-1111-1111-1111-111111111111")
+        metadata.update(source="left_rectified", codec="jpeg", mime_type="image/jpeg",
+                        width=1, height=1, keyframe=True)
+    else:
+        payload = struct.pack("<fB", 1.5, 1)
+        metadata["products"] = [
+            {"kind": "depth", "format": "float32_le", "width": 1, "height": 1, "offset": 0, "length": 4},
+            {"kind": "validity", "format": "uint8", "width": 1, "height": 1, "offset": 4, "length": 1},
+        ]
+    document = json.dumps(metadata).encode()
+    header = (struct.pack(">4sHHIQQI", b"NVE1", 1, 1, len(document), len(payload), sequence, 0)
+              if encoded else struct.pack(">4sHHHHIQQ", b"NUV1", 1, 0, 5, 0, len(document), len(payload), sequence))
+    packet = header + document + payload
+    return b"\x82\x7e" + struct.pack(">H", len(packet)) + packet
+
+
+def paired_packet(sequence):
+    raw, encoded = stream_packet(sequence)[4:], stream_packet(sequence, True)[4:]
+    packet = struct.pack(">4sHHQQQ", b"NVP1", 1, 0, len(raw), len(encoded), 0) + raw + encoded
+    return b"\x82\x7e" + struct.pack(">H", len(packet)) + packet
+
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self,*_):pass
@@ -40,6 +75,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path=='/api/v1/session':return self.send(200,{'role':'admin','csrf':'b'*64},True)
         if not self.server.valid_session or self.headers.get('Cookie')!='nuvo_session='+self.server.session:
             return self.send(401,{'error':'session expired'})
+        if self.path == '/api/v1/capabilities' and '/api/v1/paired/stream' in getattr(self.server, 'stream_frames', {}):
+            return self.send(200, {'paired_stream': {'supported': True, 'path': '/api/v1/paired/stream',
+                                                   'protocol': 'NVP1', 'maximum_wire_bytes': 20971552}})
+        route = self.path.split('?', 1)[0]
+        if route in getattr(self.server, 'stream_frames', {}):
+            self.protocol_version = 'HTTP/1.1'
+            key = self.headers['Sec-WebSocket-Key'].encode()
+            accept = base64.b64encode(hashlib.sha1(key+b'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest()).decode()
+            self.send_response(101); self.send_header('Upgrade', 'websocket')
+            self.send_header('Connection', 'Upgrade'); self.send_header('Sec-WebSocket-Accept', accept)
+            self.end_headers()
+            self.server.stream_requests.append(self.path)
+            self.connection.settimeout(3)
+            try:
+                barrier = getattr(self.server, 'stream_barrier', None)
+                if barrier is not None: barrier.wait(3)
+                for packet in self.server.stream_frames[route]: self.wfile.write(packet)
+                self.wfile.flush()
+                self.rfile.read(2)
+            except (OSError, threading.BrokenBarrierError):
+                pass
+            finally:
+                self.close_connection = True
+                self.server.stream_closed[route].set()
+            return
         if self.path.startswith('/api/v1/stream'):return self.send(422,{'error':'budget exceeded'})
         if '/frame/' in self.path or '/encoded/' in self.path:return self.send(503,{'error':'output disabled'})
         self.send(200,{'status':'running','fixture':True})
@@ -70,6 +130,56 @@ class TlsTest(unittest.TestCase):
         context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.load_cert_chain(cert,private)
         return context,str(cert)
     def client(self):return NuvoClient(self.url,ca_file=self.certificate,timeout=2)
+    def enable_streams(self, frames, concurrent=False):
+        self.server.stream_frames = frames
+        self.server.stream_requests = []
+        self.server.stream_closed = {route: threading.Event() for route in frames}
+        if concurrent: self.server.stream_barrier = threading.Barrier(len(frames))
+
+    def test_persistent_encoded_frames_over_real_tls_preserve_selected_address_and_identity(self):
+        self.enable_streams({'/api/v1/encoded/stream': [stream_packet(3, True), stream_packet(4, True)]})
+        url = self.url.replace('127.0.0.1', 'nuvo.test')
+        with NuvoClient(url, ca_file=self.certificate, connect_address='127.0.0.1', timeout=2) as client:
+            client.claim(self.server.token)
+            with client.encoded_frames(cadence_hz=5) as frames:
+                self.assertEqual(next(frames).identity, ('22'*16, '11'*16, 2, 3))
+                self.assertEqual(next(frames).capture_sequence, 4)
+            self.assertTrue(self.server.stream_closed['/api/v1/encoded/stream'].wait(1))
+        self.assertEqual(self.server.stream_requests, ['/api/v1/encoded/stream?cadence_hz=5'])
+        self.assertEqual(set(self.server.observed_hosts), {'nuvo.test:'+str(self.server.server_port)})
+
+    def test_associated_stream_delivers_original_inner_frames_and_closes_over_real_tls(self):
+        self.enable_streams({'/api/v1/paired/stream': [paired_packet(3), paired_packet(5)]})
+        with self.client() as client:
+            client.claim(self.server.token)
+            with client.paired_frames(cadence_hz=2, preview_cadence_hz=2) as pairs:
+                frame, picture = next(pairs)
+                self.assertEqual(frame.identity, picture.identity)
+                self.assertEqual(frame.capture_sequence, 3)
+                self.assertEqual(tuple(frame.products), ('depth', 'validity'))
+                self.assertEqual(next(pairs).identity[-1], 5)
+            self.assertTrue(all(event.wait(1) for event in self.server.stream_closed.values()))
+        self.assertEqual(self.server.stream_requests, ['/api/v1/paired/stream?delivery=best_effort&cadence_hz=2&products=depth,validity'])
+
+    def test_old_gateway_rejects_pairing_without_opening_unassociated_streams(self):
+        self.enable_streams({})
+        with self.client() as client:
+            client.claim(self.server.token)
+            with self.assertRaisesRegex(RuntimeError, 'does not support.*paired'):
+                with client.paired_frames(): pass
+        self.assertEqual(self.server.stream_requests, [])
+
+    def test_encoded_stream_still_verifies_tls_hostname(self):
+        good = self.client(); good.claim(self.server.token)
+        bad = NuvoClient(self.url.replace('127.0.0.1', 'wrong.test'), ca_file=self.certificate,
+                         connect_address='127.0.0.1', timeout=2)
+        bad._csrf = good._csrf
+        # A valid session cookie for this host cannot bypass certificate identity.
+        for cookie in good._cookies:
+            cookie.domain = 'wrong.test'; bad._cookies.set_cookie(cookie)
+        with self.assertRaises(ssl.SSLCertVerificationError):
+            with bad.encoded_frames(): pass
+
     def test_real_trust_and_hostname_verification(self):
         client=self.client();client.claim(self.server.token);self.assertEqual(client.health()['status'],'running')
         for client in (NuvoClient(self.url,timeout=2),NuvoClient(self.url.replace('127.0.0.1','localhost'),ca_file=self.certificate,timeout=5)):

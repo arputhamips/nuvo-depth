@@ -60,17 +60,19 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
   const sockets=[],timers=[];
   const transport={rawSocket:null,rawPolling:false,rawGeneration:1,rawPollToken:0,rawRetryTimer:null,rawRetryDelay:1000,
     encodedSocket:null,encodedPolling:false,encodedGeneration:1,encodedPollToken:0,encodedRetryTimer:null,encodedRetryDelay:1000,encodedArrival:0,
-    rawPreviewPage:()=>true,encodedPreviewPage:()=>true,encoding:{mode:'both'},outputSettings:{preview_cadence_hz:5},
-    outputSubscriptionPath:path=>path,socketUrl:path=>path,Math,$:()=>({}),
+    rawPreviewPage:()=>true,encodedPreviewPage:()=>true,encoding:{mode:'both'},previewCadence:5,
+    outputReception:{label:'old picture'},encodedFrameAt:123,pendingJpeg:null,encodedLastPresented:0,
+    resetEncodedDecoder(){},setSampleCanvasLive(){},updateViewerAvailability(){},receivingStatus:()=> 'Waiting for compressed picture',
+    socketUrl:path=>path,Math,$:()=>({}),
     setTimeout:(callback,delay)=>{timers.push({callback,delay});return timers.length},
     WebSocket:class{constructor(){sockets.push(this)}},parseFrame:x=>x,renderFrame:()=>{},parseEncoded:x=>x,queueEncoded:async()=>{}};
   vm.createContext(transport);
-  vm.runInContext(source.slice(source.indexOf('function startRawViewer('),source.indexOf('function parseEncoded(')),transport);
   vm.runInContext(source.slice(source.indexOf('function startEncodedViewer('),source.indexOf('function restartStreams(')),transport);
-  for(const [start,poll,token,active] of [['startRawViewer','pollFrame','rawPollToken','rawPolling'],['startEncodedViewer','pollEncoded','encodedPollToken','encodedPolling']]){
+  for(const [start,poll,token,active] of [['startEncodedViewer','pollEncoded','encodedPollToken','encodedPolling']]){
     const calls=[];transport[poll]=(...args)=>calls.push(args);
     transport[start]();const socket=sockets.at(-1);socket.onopen();socket.onclose();
     assert.equal(calls.length,1);assert.equal(transport[active],true);
+    assert.equal(transport.outputReception,null,'closed socket cannot keep claiming live reception');assert.equal(transport.encodedFrameAt,0);assert(transport.encodedLastPresented>0,'queued old presentations are invalidated on close');
     const before=transport[token];assert.equal(timers.at(-1).delay,1000);timers.at(-1).callback();
     const retry=sockets.at(-1);assert.notEqual(retry,socket);retry.onopen();
     assert.equal(transport[active],false,'reconnected stream stops fallback polling');
@@ -82,9 +84,8 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
   transport.Date=Date;
   const errorLabels={frameError:{textContent:''},encodingError:{textContent:''}};
   transport.$=id=>errorLabels[id];
-  vm.runInContext(source.slice(source.indexOf('async function pollFrame('),source.indexOf('function socketUrl(')),transport);
   vm.runInContext(source.slice(source.indexOf('async function pollEncoded('),source.indexOf('function encodedPreviewPage(')),transport);
-  for(const [start,poll,token,active,errorId] of [['startRawViewer','pollFrame','rawPollToken','rawPolling','frameError'],['startEncodedViewer','pollEncoded','encodedPollToken','encodedPolling','encodingError']]){
+  for(const [start,poll,token,active,errorId] of [['startEncodedViewer','pollEncoded','encodedPollToken','encodedPolling','encodingError']]){
     transport[start]();const recovered=sockets.at(-1);
     for(const newerFallback of [false,true]){
       let reject;

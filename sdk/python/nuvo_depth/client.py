@@ -17,16 +17,26 @@ import urllib.parse
 import urllib.request
 from collections.abc import Iterable, Iterator
 from itertools import islice
+from typing import Callable, TypeVar
 
 from .frame import FrameSet, MAX_METADATA, MAX_PAYLOAD, PRODUCT_FORMATS, decode_frame
 from .encoded import EncodedFrame, MAX_ENCODED_METADATA, MAX_ENCODED_PAYLOAD, decode_encoded_frame
+from .paired import PairedFrame, MAX_PAIRED_WIRE, decode_paired_frame
 
 
 _PRODUCTS = frozenset(PRODUCT_FORMATS)
 _MAX_FRAME = MAX_PAYLOAD + MAX_METADATA + 32
+_MAX_ENCODED_FRAME = MAX_ENCODED_PAYLOAD + MAX_ENCODED_METADATA + 32
 _MAX_UPGRADE_HEADERS = 16 * 1024
 _WEBSOCKET_GUID = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 _DEFAULT_PRODUCTS = tuple(PRODUCT_FORMATS)[:6]
+_T = TypeVar("_T", FrameSet, EncodedFrame, PairedFrame)
+
+
+def _validate_cadence(cadence_hz: float) -> None:
+    if (isinstance(cadence_hz, bool) or not isinstance(cadence_hz, (int, float))
+            or not math.isfinite(cadence_hz) or not 0 < cadence_hz <= 60):
+        raise ValueError("stream cadence must be finite and between 0 and 60 Hz")
 
 
 class _DirectAddressHTTPSHandler(urllib.request.HTTPSHandler):
@@ -64,9 +74,7 @@ def _subscription_path(path: str, cadence_hz: float | None,
     if cadence_hz is not None or products is not None:
         cadence_hz = 10 if cadence_hz is None else cadence_hz
         products = _DEFAULT_PRODUCTS if products is None else products
-        if (isinstance(cadence_hz, bool) or not isinstance(cadence_hz, (int, float))
-                or not math.isfinite(cadence_hz) or not 0 < cadence_hz <= 60):
-            raise ValueError("stream cadence must be finite and between 0 and 60 Hz")
+        _validate_cadence(cadence_hz)
         if isinstance(products, str):
             raise ValueError("products must be an iterable of product names")
         selected = tuple(islice(products, len(_PRODUCTS) + 1))
@@ -81,6 +89,10 @@ def _subscription_path(path: str, cadence_hz: float | None,
 def recovery_action(code: int, path: str = '') -> str:
     if code in (401,403): return 'SDK credentials/session rejected; obtain the long administrator token from the correct unit through trusted SSH and claim a new session.'
     if code==412: return 'Configuration changed; reload the requested document before saving your edits.'
+    if '/paired/' in path:
+        if code==404: return 'Gateway paired output is unavailable; install a gateway with NVP1 support or use independent raw and encoded streams without assuming capture association.'
+        if code in (409,422,429): return 'Paired subscription rejected; check raw WLAN permission, output modes and capacity. Concurrent paired subscriptions must share one processing lane: close the existing image-only or numeric paired stream, or include the images in the numeric paired selection. Independent raw and encoded streams may use mixed lanes.'
+        if code==503: return 'Associated output unavailable; enable raw delivery and the shared preview encoder, then check capture readiness and matching capture availability.'
     if code in (409,422,429): return 'Subscription or capacity rejected; reduce products/cadence, use best effort where appropriate, or inspect measured link admission. Exact requests are not silently degraded.'
     if code==503:
         if path=='/api/v1/session': return 'SDK session unavailable or capacity reached; close finished SDK clients and retry. On an older gateway without session cleanup, restart nuvo-gateway through trusted SSH when its connections can be interrupted. Capture and calibration may still be healthy.'
@@ -88,10 +100,12 @@ def recovery_action(code: int, path: str = '') -> str:
     return 'Inspect device diagnostics and the requested supported endpoint; do not disable TLS verification.'
 
 
-class _FrameStream(Iterator[FrameSet]):
+class _FrameStream(Iterator[_T]):
     """A synchronous, bounded RFC 6455 client with no background frame queue."""
 
-    def __init__(self, client: "NuvoClient", path: str):
+    def __init__(self, client: "NuvoClient", path: str, *,
+                 decoder: Callable[[bytes], _T] = decode_frame,
+                 maximum: int | None = None):
         self._client = client
         self._url = client.base_url + path
         self._socket: ssl.SSLSocket | None = None
@@ -99,6 +113,12 @@ class _FrameStream(Iterator[FrameSet]):
         self._closed = False
         self._deadline = 0.0
         self._qualification = "unknown"
+        self._decoder = decoder
+        self._maximum = maximum
+
+    @property
+    def _bound(self) -> int:
+        return _MAX_FRAME if self._maximum is None else self._maximum
 
     @property
     def qualification(self) -> str:
@@ -119,7 +139,7 @@ class _FrameStream(Iterator[FrameSet]):
     def _read_exact(self, size: int) -> bytes:
         # Validate the WebSocket length before allocating, and receive directly
         # into bounded storage rather than accumulating an unbounded chunk list.
-        if not 0 <= size <= _MAX_FRAME:
+        if not 0 <= size <= self._bound:
             raise ValueError("Nuvo WebSocket frame exceeds the client bound")
         data = bytearray(size)
         with memoryview(data) as view:
@@ -144,7 +164,7 @@ class _FrameStream(Iterator[FrameSet]):
                 raise ConnectionError("Nuvo frame stream disconnected before a complete message")
             offset += received
 
-    def _connect(self) -> None:
+    def _connect(self, deadline: float | None = None) -> None:
         if self._closed:
             raise RuntimeError("Nuvo frame stream is closed")
         if self._socket is not None:
@@ -165,7 +185,7 @@ class _FrameStream(Iterator[FrameSet]):
             f"Sec-WebSocket-Key: {key.decode('ascii')}\r\n"
             f"Sec-WebSocket-Version: 13\r\nCookie: {cookie}\r\n\r\n"
         ).encode("ascii")
-        self._set_deadline()
+        self._deadline = time.monotonic() + self._client.timeout if deadline is None else deadline
         raw_socket = socket.create_connection(
             (self._client._connect_address or parsed.hostname, parsed.port or 443),
             timeout=self._remaining()
@@ -242,12 +262,15 @@ class _FrameStream(Iterator[FrameSet]):
             self._disconnect()
             raise
 
-    def __next__(self) -> FrameSet:
+    def __next__(self) -> _T:
+        return self._next_frame()
+
+    def _next_frame(self, deadline: float | None = None) -> _T:
         if self._closed:
             raise StopIteration
         try:
-            self._connect()
-            self._set_deadline()
+            self._connect(deadline)
+            self._deadline = time.monotonic() + self._client.timeout if deadline is None else deadline
             message = bytearray()
             fragmented = False
             control_frames = 0
@@ -287,18 +310,18 @@ class _FrameStream(Iterator[FrameSet]):
                     continue
                 if opcode == 1 or (opcode == 0) != fragmented:
                     raise ValueError("Nuvo stream requires associated binary messages")
-                if length > _MAX_FRAME - len(message):
+                if length > self._bound - len(message):
                     raise ValueError("Nuvo WebSocket message exceeds the client bound")
                 if final and not fragmented:
                     # The gateway normally sends a single binary frame. Avoid
                     # copying it through the fragmentation accumulator.
-                    return decode_frame(self._read_exact(length))
+                    return self._decoder(self._read_exact(length))
                 start = len(message)
                 message.extend(bytearray(length))
                 with memoryview(message)[start:] as destination:
                     self._read_into(destination)
                 if final:
-                    return decode_frame(bytes(message))
+                    return self._decoder(bytes(message))
                 fragmented = True
         except StopIteration:
             raise
@@ -329,7 +352,7 @@ class _FrameStream(Iterator[FrameSet]):
         finally:
             self._disconnect()
 
-    def __enter__(self) -> "_FrameStream":
+    def __enter__(self) -> "_FrameStream[_T]":
         try:
             self._connect()
         except BaseException:
@@ -339,6 +362,30 @@ class _FrameStream(Iterator[FrameSet]):
 
     def __exit__(self, *_: object) -> None:
         self.close()
+
+
+class _PairedStream(_FrameStream[PairedFrame]):
+    def __init__(self, client: "NuvoClient", path: str):
+        super().__init__(client, path, decoder=decode_paired_frame, maximum=MAX_PAIRED_WIRE)
+        self._support_checked = False
+
+    def _connect(self, deadline: float | None = None) -> None:
+        if not self._closed and not self._support_checked:
+            if not self._client._csrf:
+                raise RuntimeError("claim the device before opening a paired stream")
+            capability = self._client.capabilities().get("paired_stream")
+            if (not isinstance(capability, dict) or capability.get("supported") is not True
+                    or capability.get("path") != "/api/v1/paired/stream"
+                    or capability.get("protocol") != "NVP1"):
+                raise RuntimeError("This gateway does not support capture-associated paired streaming. "
+                                   "Install a gateway with NVP1 support, or use frames() and "
+                                   "encoded_frames() independently without assuming capture association.")
+            maximum = capability.get("maximum_wire_bytes")
+            if not isinstance(maximum, int) or isinstance(maximum, bool) or maximum <= 96:
+                raise ValueError("invalid paired stream capability bound")
+            self._maximum = min(maximum, MAX_PAIRED_WIRE)
+            self._support_checked = True
+        super()._connect(deadline)
 
 
 class NuvoClient:
@@ -483,7 +530,7 @@ class NuvoClient:
 
     def frames(self, *, cadence_hz: float | None = None,
                products: Iterable[str] | None = None,
-               delivery: str | None = None) -> _FrameStream:
+               delivery: str | None = None) -> _FrameStream[FrameSet]:
         """Open an authenticated persistent frame stream.
 
         Use as a context manager to release the connection when stopping early.
@@ -495,6 +542,46 @@ class NuvoClient:
         """
         path = _subscription_path("/api/v1/stream", cadence_hz, products, delivery)
         return _FrameStream(self, path)
+
+    def encoded_frames(self, *, cadence_hz: float | None = None) -> _FrameStream[EncodedFrame]:
+        """Stream the shared JPEG/H.264 preview independently of any browser.
+
+        The encoder must already be enabled. Cadence is a best-effort ceiling;
+        omission uses its configured cadence. Use a context manager when
+        stopping early. Errors end this subscription, as with frames(); reopen
+        explicitly after recovery. H.264 payloads still require a decoder.
+        """
+        path = "/api/v1/encoded/stream"
+        if cadence_hz is not None:
+            _validate_cadence(cadence_hz)
+            path += "?" + urllib.parse.urlencode({"cadence_hz": cadence_hz})
+        return _FrameStream(self, path, decoder=decode_encoded_frame, maximum=_MAX_ENCODED_FRAME)
+
+    def paired_frames(self, *, products: Iterable[str] = ("depth", "validity"),
+                      cadence_hz: float = 2, preview_cadence_hz: float | None = None,
+                      delivery: str = "best_effort") -> _PairedStream:
+        """Receive original numeric/image data and encoded preview in one stream.
+
+        Use ``with client.paired_frames(...) as pairs`` and unpack each item as
+        ``frame, picture``. Requires the gateway's advertised NVP1 support and
+        both outputs enabled; older gateways fail explicitly without fallback.
+        Numeric and preview cadence must be equal. Delivery is best effort,
+        with unmatched captures dropped by bounded server association history.
+        Every message is checked for equal device/run/epoch/capture identity.
+        Concurrent paired subscriptions must use the same processing lane:
+        all image-only, or all containing matcher products such as depth.
+        A timeout or error ends the subscription; reopen explicitly to recover.
+        Use independent frames() and encoded_frames() for different rates.
+        """
+        _validate_cadence(cadence_hz)
+        if preview_cadence_hz is not None:
+            _validate_cadence(preview_cadence_hz)
+            if preview_cadence_hz != cadence_hz:
+                raise ValueError("paired streams require equal numeric and preview cadence")
+        if delivery not in {"auto", "best_effort"}:
+            raise ValueError("paired streams support best_effort or auto delivery, not exact")
+        path = _subscription_path("/api/v1/paired/stream", cadence_hz, products, delivery)
+        return _PairedStream(self, path)
 
     def encoding(self) -> dict:
         return json.loads(self._request("/api/v1/encoding", maximum=64 * 1024))

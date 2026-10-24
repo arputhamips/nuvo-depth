@@ -613,7 +613,8 @@ def parse() -> argparse.Namespace:
     provision=identity.add_parser("provision"); provision.add_argument("--hostname",default="nuvo-depth.local")
     transport=commands.add_parser("transport").add_subparsers(dest="operation",required=True)
     stage=transport.add_parser("stage"); stage.add_argument("mode",nargs="?",choices=["auto","wifi","ethernet","usb","both","off"]); stage.add_argument("--physical-confirmation",action="store_true")
-    stage.add_argument("--wifi-enabled", choices=["true", "false"])
+    stage.add_argument("--wifi-enabled", choices=["true", "false"],
+        help="allow raw/numeric Wi-Fi products; encoded previews remain available unless mode is off")
     transport.add_parser("confirm"); transport.add_parser("rollback"); transport.add_parser("reconcile"); transport.add_parser("status")
     encoding=commands.add_parser("encoding").add_subparsers(dest="operation",required=True)
     configure_encoding=encoding.add_parser("set")

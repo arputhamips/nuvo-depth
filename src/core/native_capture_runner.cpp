@@ -11,6 +11,37 @@ namespace {
 constexpr auto kCaptureWaitSlice = std::chrono::milliseconds(50);
 }
 
+bool preview_capture_aligned(const double preview_hz,
+    const double matcher_hz, const bool matcher_due,
+    const double image_hz, const bool image_due,
+    const ipc_v2::ProductMask paired_products, const std::int64_t capture_time_ns,
+    const std::int64_t matcher_next_ns, const std::int64_t image_next_ns) noexcept {
+  if (!std::isfinite(preview_hz) || preview_hz <= 0.0) return false;
+  if (paired_products != 0U) {
+    const bool matcher = (paired_products & ipc_v2::kMatcherProducts) != 0U;
+    const double raw_hz = matcher ? matcher_hz : image_hz;
+    const bool due = matcher ? matcher_due : image_due;
+    const auto next = matcher ? matcher_next_ns : image_next_ns;
+    if (due) return true;
+    if (preview_hz <= raw_hz) return false;
+    // Leave enough time before the next requested raw capture for the
+    // encoder's own cadence limiter. This reserves no extra raw capture and
+    // never overrides the configured preview rate or demand ceiling.
+    const auto period = static_cast<std::int64_t>(1'000'000'000.0 / preview_hz);
+    const auto tolerance = std::min<std::int64_t>(period / 10, 2'000'000);
+    return next > capture_time_ns && next - capture_time_ns >= period - tolerance;
+  }
+  if (preview_hz == matcher_hz) return matcher_due;
+  if (preview_hz == image_hz) return image_due;
+  return true;
+}
+
+std::int64_t NativeCaptureCadence::next_due_time_ns() const noexcept {
+  if (!last_ || cadence_hz_ <= 0.0) return 0;
+  const auto period = static_cast<std::int64_t>(1'000'000'000.0 / cadence_hz_);
+  return last_->capture_time_ns + period - std::min<std::int64_t>(period / 10, 2'000'000);
+}
+
 bool NativeCaptureCadence::admit(const FrameSetIdentity& identity,
                                  const ipc_v2::ProductMask products,
                                  const double cadence_hz) {
