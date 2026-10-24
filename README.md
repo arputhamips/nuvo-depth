@@ -50,6 +50,16 @@ Or [order Vision One from NuvoHardware](https://nuvohardware.com/).
 - **Installation and maintenance:** terminal setup, protected Wi-Fi setup
   hotspot, system services, signed Debian packages, and GitHub release builds.
 
+The development console uses a sidebar with **Overview**, **Live view**,
+**Outputs**, and **Device**. Overview shows device health, calibration and
+performance without starting a product stream. Live view identifies whether it
+is showing a compressed picture or rendering numeric/image products. Outputs
+selects a browser subscription or an application recipe; depth includes its
+validity mask. Device-wide Wi-Fi product
+permission is separate from that local selection and from Wi-Fi network setup.
+See the [versioned console guide](docs/user-guide.md) for the controls and scopes.
+These source changes do not change the approved public release above.
+
 ## Get your first depth frame
 
 Choose one complete journey:

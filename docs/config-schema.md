@@ -236,3 +236,36 @@ preset identity. The browser reads exact profile controls from
 `web/depth-profiles.json`; a regression check prevents its balanced default from
 drifting from the JSON control file and YAML fallback. All profiles remain
 unqualified candidates until the shipping hardware measurements pass.
+
+## Runtime network-product permission
+
+`/etc/nuvo-depth/transport.json` is separate from capture/matcher YAML and from
+OS Wi-Fi configuration. Its schema-v1 fields are:
+
+```json
+{"schema_version": 1, "preference": "auto", "wifi_enabled": true}
+```
+
+`preference` retains `auto`, `ethernet`, `usb`, `both`, `wifi` and `off`.
+`wifi_enabled` is optional and must be a JSON boolean. When absent, legacy
+behavior is preserved: `auto` and `wifi` permit Wi-Fi; the other preferences do
+not. Once explicitly set, Wi-Fi permission is independent of wired preference.
+`off` always blocks every product transport, even with `wifi_enabled: true`.
+The configured permission and effective permission are therefore distinct.
+
+`GET /api/v1/transport` returns the configured or legacy-derived Wi-Fi setting,
+the current preference, and `connection.products_permitted` for the receiving
+camera interface after applying the master policy. `POST /api/v1/transport/stage` accepts a partial change
+such as `{"wifi_enabled": false}` without rewriting the wired preference.
+Existing explicit Wi-Fi permission survives a preference-only change; an old
+document with no explicit flag continues to follow legacy preference semantics.
+Confirm or roll back the staged policy within 60 seconds. Rollback restores both
+the prior preference and whether the Wi-Fi flag was originally omitted.
+The transport response also exposes pending transaction status/deadline so a
+reloaded console can confirm or undo it. A second unconfirmed change is rejected
+until the first is confirmed, undone or reconciled after expiry.
+
+The gateway applies permission to compressed and uncompressed product endpoints
+and active sessions. Console/control access is retained. Invalid policy files
+block product delivery rather than enabling a fallback link. A policy change
+does not move a TCP connection between Ethernet, USB Ethernet and Wi-Fi.

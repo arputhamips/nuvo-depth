@@ -15,6 +15,7 @@
 #include <iostream>
 #include <mutex>
 #include <optional>
+#include <regex>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -341,49 +342,104 @@ using Response = http::response<http::vector_body<unsigned char>>;
   return std::string_view(origin) == "https://" + std::string(host);
 }
 
-[[nodiscard]] std::string transport_preference(const Arguments& options) {
-  try {
-    std::error_code error;
-    if (!std::filesystem::exists(options.transport_file, error)) return "auto";
-    const auto bytes = read_file(options.transport_file, 4096U);
-    std::istringstream input{std::string(bytes.begin(), bytes.end())};
-    boost::property_tree::ptree document;
-    boost::property_tree::read_json(input, document);
-    const auto preference = document.get<std::string>("preference");
-    if (preference == "ethernet" || preference == "usb" ||
-        preference == "both" || preference == "off" ||
-        preference == "auto" || preference == "wifi") {
-      return preference;
-    }
-  } catch (const std::exception&) {
-  }
-  return "off";
+struct TransportPatch {
+  std::optional<std::string> preference;
+  std::optional<bool> wifi_enabled;
+};
+
+[[nodiscard]] depthd::gateway::TransportPreference preference_kind(const std::string& value) {
+  using Preference = depthd::gateway::TransportPreference;
+  if (value == "auto") return Preference::kAuto;
+  if (value == "ethernet") return Preference::kEthernetPreferred;
+  if (value == "usb") return Preference::kUsbPreferred;
+  if (value == "both") return Preference::kBoth;
+  if (value == "wifi") return Preference::kWifiOnly;
+  if (value == "off") return Preference::kOff;
+  throw std::invalid_argument("unknown transport preference");
 }
 
-[[nodiscard]] std::string request_preference(const std::string_view body) {
-  const auto key = body.find("\"preference\"");
-  if (key == std::string_view::npos) {
-    throw std::invalid_argument("request requires a preference field");
+[[nodiscard]] TransportPatch parse_transport(const std::string_view body, const bool patch) {
+  const std::string text(body);
+  std::istringstream input(text);
+  boost::property_tree::ptree document;
+  boost::property_tree::read_json(input, document);
+  TransportPatch result;
+  std::unordered_set<std::string> fields;
+  for (const auto& [key, value] : document) {
+    if (!fields.insert(key).second || !value.empty()) throw std::invalid_argument("invalid transport fields");
+    if (key == "preference") {
+      result.preference = value.get_value<std::string>();
+      (void)preference_kind(*result.preference);
+    } else if (key == "wifi_enabled") {
+      // Property-tree erases scalar JSON types. Require the actual boolean
+      // token, so strings/numbers/null cannot enable a product transport.
+      static const std::regex boolean_token(R"("wifi_enabled"\s*:\s*(true|false)\s*[,}])");
+      if (!std::regex_search(text, boolean_token)) throw std::invalid_argument("wifi_enabled must be boolean");
+      const auto scalar = value.get_value<std::string>();
+      if (scalar != "true" && scalar != "false") throw std::invalid_argument("wifi_enabled must be boolean");
+      result.wifi_enabled = scalar == "true";
+    } else if (key == "schema_version" && !patch) {
+      static const std::regex schema_token(R"("schema_version"\s*:\s*1\s*[,}])");
+      if (value.get_value<std::string>() != "1" || !std::regex_search(text, schema_token))
+        throw std::invalid_argument("unsupported transport schema");
+    } else {
+      throw std::invalid_argument("unknown transport field");
+    }
   }
-  const auto colon = body.find(':', key + 12U);
-  if (colon == std::string_view::npos) {
-    throw std::invalid_argument("preference field is malformed");
-  }
-  const auto quote = body.find('"', colon);
-  if (quote == std::string_view::npos) {
-    throw std::invalid_argument("preference field is malformed");
-  }
-  const auto end = body.find('"', quote + 1U);
-  if (end == std::string_view::npos) {
-    throw std::invalid_argument("preference field is malformed");
-  }
-  const auto value = std::string(body.substr(quote + 1U, end - quote - 1U));
-  if (value != "ethernet" && value != "usb" && value != "both" &&
-      value != "off" && value != "auto" && value != "wifi") {
-    throw std::invalid_argument("unknown transport preference");
-  }
-  return value;
+  if ((!patch && !result.preference) || (patch && !result.preference && !result.wifi_enabled))
+    throw std::invalid_argument("transport requires a preference or Wi-Fi setting");
+  return result;
 }
+
+struct TransportPolicy {
+  std::string preference{"auto"};
+  std::optional<bool> wifi_enabled;
+  bool valid{true};
+  [[nodiscard]] bool wifi_permission() const {
+    return wifi_enabled.value_or(preference == "auto" || preference == "wifi");
+  }
+  [[nodiscard]] bool permits(const depthd::gateway::TransportKind kind) const {
+    return valid && depthd::gateway::transport_permitted(preference_kind(preference), kind, wifi_enabled);
+  }
+};
+
+class TransportPolicyCache final {
+ public:
+  explicit TransportPolicyCache(std::filesystem::path path) : path_(std::move(path)) {}
+  [[nodiscard]] TransportPolicy get(const bool force = false) {
+    std::lock_guard lock(mutex_);
+    const auto now = std::chrono::steady_clock::now();
+    if (!force && now < next_check_) return policy_;
+    next_check_ = now + std::chrono::milliseconds(250);
+    try {
+      const auto exists = std::filesystem::exists(path_);
+      const auto modified = exists ? std::optional(std::filesystem::last_write_time(path_)) : std::nullopt;
+      if (initialized_ && exists == existed_ && modified == modified_) return policy_;
+      TransportPolicy updated;
+      if (exists) {
+        const auto bytes = read_file(path_, 4096U);
+        const auto fields = parse_transport(std::string_view(reinterpret_cast<const char*>(bytes.data()), bytes.size()), false);
+        updated.preference = *fields.preference;
+        updated.wifi_enabled = fields.wifi_enabled;
+      }
+      policy_ = std::move(updated); existed_ = exists; modified_ = modified;
+    } catch (...) {
+      policy_ = {"off", false, false};
+      // Retry failed reads/parses at the bounded refresh cadence.
+      initialized_ = false;
+      return policy_;
+    }
+    initialized_ = true;
+    return policy_;
+  }
+ private:
+  std::filesystem::path path_;
+  std::mutex mutex_;
+  TransportPolicy policy_;
+  std::optional<std::filesystem::file_time_type> modified_;
+  std::chrono::steady_clock::time_point next_check_{};
+  bool initialized_{}, existed_{};
+};
 
 [[nodiscard]] bool valid_csrf(
     const http::request<http::string_body>& request,
@@ -829,7 +885,8 @@ class FrameSource final {
     std::uint64_t id_{};
     friend class FrameSource;
   };
-  explicit FrameSource(const Arguments& options) : options_(options) {
+  explicit FrameSource(const Arguments& options, TransportPolicyCache& transport_policy)
+      : options_(options), transport_policy_(transport_policy) {
     refresh_policy();
     raw_worker_ = std::thread([this] { read_raw(false); });
     try {
@@ -875,6 +932,9 @@ class FrameSource final {
   [[nodiscard]] bool enabled(bool encoded) const {
     std::lock_guard lock(mutex_);
     return transport_ != "off" && (encoded ? encoded_enabled_ : raw_enabled_);
+  }
+  [[nodiscard]] TransportPolicy transport_policy(const bool force = false) const {
+    return transport_policy_.get(force);
   }
   [[nodiscard]] Snapshot latest(bool encoded, depthd::ipc_v2::ProductMask products = 0U) const {
     std::lock_guard lock(mutex_); return latest_locked(encoded, products);
@@ -983,10 +1043,9 @@ class FrameSource final {
   void refresh_policy() noexcept {
     std::lock_guard policy(policy_mutex_);
     try {
-      const auto transport_modified = modified(options_.transport_file);
+      const auto preference = transport_policy_.get().preference;
       const auto encoding_modified = modified(options_.encoding_config_file);
-      if (policy_initialized_ && transport_modified == transport_modified_ && encoding_modified == encoding_modified_) return;
-      const auto preference = transport_preference(options_);
+      if (policy_initialized_ && preference == transport_ && encoding_modified == encoding_modified_) return;
       bool raw = true, encoded = false;
 #if defined(DEPTHD_WITH_IMAGE_ENCODER)
       const auto configuration = encoding_configuration(options_);
@@ -995,7 +1054,7 @@ class FrameSource final {
       std::lock_guard lock(mutex_);
       if (policy_initialized_ && encoding_modified != encoding_modified_) clear_locked(true);
       transport_ = preference; raw_enabled_ = raw; encoded_enabled_ = encoded;
-      policy_initialized_ = true; transport_modified_ = transport_modified; encoding_modified_ = encoding_modified;
+      policy_initialized_ = true; encoding_modified_ = encoding_modified;
       if (preference == "off" || !raw) clear_locked(false);
       if (preference == "off" || !encoded) clear_locked(true);
       // Disabled sources normally have no cached bytes, so clearing a cache
@@ -1131,10 +1190,11 @@ class FrameSource final {
   std::mutex policy_mutex_;
   mutable std::mutex mutex_; std::condition_variable changed_;
   Snapshot raw_, raw_matcher_, encoded_; std::string transport_, raw_scope_;
+  TransportPolicyCache& transport_policy_;
   std::uint64_t publication_generation_{};
   std::uint64_t raw_scope_time_{};
   bool raw_enabled_{true}, encoded_enabled_{}, policy_initialized_{};
-  std::optional<std::filesystem::file_time_type> transport_modified_, encoding_modified_;
+  std::optional<std::filesystem::file_time_type> encoding_modified_;
   std::atomic_bool stopped_{}; std::thread raw_worker_, matcher_worker_, encoded_worker_;
   std::uint64_t subscriber_id_{}, demand_id_{};
   std::unordered_map<std::uint64_t, std::function<void()>> subscribers_;
@@ -1156,15 +1216,18 @@ class StreamAdmission final {
     depthd::gateway::TransportKind transport{};
     std::string label;
   };
-  explicit StreamAdmission(const Arguments& options) : options_(options),
+  explicit StreamAdmission(const Arguments& options, TransportPolicyCache& policy) : options_(options), policy_(policy),
       qualification_configuration_(qualification(options)),
       traffic_configuration_(effective_configuration(options)), traffic_(traffic_configuration_) {}
 
   void preflight(const Subscription& requested, const std::string& interface,
                  const bool encoded) const {
-    if (transport_preference(options_) == "off") throw std::runtime_error("all data transports disabled");
     const bool override = !options_.engineering_interface.empty() && interface == options_.engineering_interface;
     const bool wifi = is_wifi(interface);
+    const auto policy = policy_.get();
+    if (!policy.valid) throw std::runtime_error("transport policy is invalid; product delivery disabled");
+    if (policy.preference == "off") throw std::runtime_error("all data transports disabled");
+    if (wifi && !policy.wifi_permission()) throw std::runtime_error("Wi-Fi product delivery is disabled");
     if (interface == "lo" && !override) throw std::runtime_error("unsupported data interface");
     if (requested.delivery == "exact" && (wifi || override)) throw std::runtime_error("this connection supports best effort only");
     if (encoded && requested.exact) throw std::invalid_argument("encoded streams do not expose raw product subscriptions");
@@ -1184,7 +1247,11 @@ class StreamAdmission final {
         : depthd::gateway::TransportKind::kEthernet;
     const bool known = wired && (interface == ethernet_interface_ || interface == usb_interface_);
     Contract result;
-    result.preference = transport_preference(options_);
+    const auto policy = policy_.get();
+    if (!policy.valid || policy.preference == "off" || (wifi && !policy.wifi_permission())) {
+      throw std::runtime_error("product delivery is disabled by transport policy");
+    }
+    result.preference = policy.preference;
     result.products = requested.products;
     result.transport = kind;
     Json metadata;
@@ -1212,12 +1279,9 @@ class StreamAdmission final {
     const depthd::gateway::SubscriptionRequest request{
         requested.products, encoded ? std::max<std::size_t>(1U, bytes->size() - depthd::wire::kHeaderBytes) : header.payload_bytes,
         depthd::wire::kHardMaximumMetadataBytes, requested.cadence_hz, false, false};
-    const auto preference = result.preference == "usb" ? depthd::gateway::TransportPreference::kUsbPreferred :
-        (result.preference == "auto" ? depthd::gateway::TransportPreference::kAuto :
-         result.preference == "wifi" ? depthd::gateway::TransportPreference::kWifiOnly :
-         result.preference == "both" ? depthd::gateway::TransportPreference::kBoth :
-         depthd::gateway::TransportPreference::kEthernetPreferred);
-    auto admission = traffic_.admit(request, kind, override ? depthd::gateway::TransportPreference::kAuto : preference);
+    const auto preference = preference_kind(result.preference);
+    auto admission = traffic_.admit(request, kind, override ? depthd::gateway::TransportPreference::kAuto : preference,
+                                    policy.wifi_enabled);
     if (!admission.lease) throw std::runtime_error(admission.reason);
     result.lease = std::move(admission.lease);
     // Allocate the token before taking the memory lock. If its control-block
@@ -1271,8 +1335,19 @@ class StreamAdmission final {
     const auto& link = wifi ? traffic_configuration_.wifi : usb ? traffic_configuration_.usb_ethernet : traffic_configuration_.ethernet;
     const auto qualified = !wifi && (usb ? qualification_configuration_.usb_ethernet.enabled : qualification_configuration_.ethernet.enabled) &&
         (usb ? interface == usb_interface_ : interface == ethernet_interface_) && qualification_current();
+    const auto policy = policy_.get();
+    const bool override = !options_.engineering_interface.empty() && interface == options_.engineering_interface;
+    const auto kind = wifi ? depthd::gateway::TransportKind::kWifi : usb ?
+        depthd::gateway::TransportKind::kUsbEthernet : depthd::gateway::TransportKind::kEthernet;
+    const bool permitted = policy.valid && policy.preference != "off" &&
+        (interface != "lo" || override) && (override && !wifi ? true : policy.permits(kind));
+    const auto reason = !policy.valid ? "invalid_transport_policy" : policy.preference == "off" ? "all_products_off" :
+        wifi && !policy.wifi_permission() ? "wifi_disabled" : interface == "lo" && !override ? "unsupported_interface" :
+        !permitted ? "wired_disabled" : "allowed";
     return "{\"interface\":\"" + interface + "\",\"kind\":\"" +
         (wifi ? "wifi" : usb ? "usb_ethernet" : interface == "lo" ? "loopback" : "ethernet") +
+        "\",\"interface_scope\":\"camera\",\"products_permitted\":" + (permitted ? "true" : "false") +
+        ",\"permission_scope\":\"transport_policy\",\"product_policy_reason\":\"" + reason +
         "\",\"qualified_link\":" + (qualified ? "true" : "false") +
         ",\"resource_budget_bytes_per_second\":" + std::to_string(link.qualified_payload_bytes_per_second) +
         ",\"budget_is_measured_capacity\":" + (qualified ? "true" : "false") +
@@ -1281,8 +1356,7 @@ class StreamAdmission final {
   [[nodiscard]] bool current(const Contract& contract,
                              const FrameSource::Snapshot& frame,
                              const bool encoded) {
-    const auto preference = transport_preference(options_);
-    if (preference == "off" || preference != contract.preference || !frame.bytes) return false;
+    if (!current_policy(contract) || !frame.bytes) return false;
     if (encoded) return true;
     // A new subscriber can enlarge the group's backing message without
     // changing this client's selected products. Reserve the full retained
@@ -1300,6 +1374,14 @@ class StreamAdmission final {
     const auto metadata = frame_metadata(*frame.bytes);
     return identity(metadata, contract.products) == contract.identity &&
         (!contract.qualified || (matches(metadata) && qualification_current()));
+  }
+  [[nodiscard]] bool current_policy(const Contract& contract) const {
+    const auto policy = policy_.get();
+    if (!policy.valid || policy.preference == "off") return false;
+    if (contract.transport == depthd::gateway::TransportKind::kWifi)
+      return policy.wifi_permission();
+    // Wi-Fi-only edits neither change wired preference nor terminate wired leases.
+    return policy.preference == contract.preference;
   }
  private:
   [[nodiscard]] static std::string identity(const Json& metadata,
@@ -1396,6 +1478,7 @@ class StreamAdmission final {
   }
   const Arguments& options_;
   std::string qualification_document_;
+  TransportPolicyCache& policy_;
   std::string ethernet_interface_{"eth0"}, usb_interface_{"usb0"};
   std::string source_revision_, source_calibration_;
   std::uint64_t source_epoch_{};
@@ -1516,6 +1599,7 @@ class StreamSession final {
   }
   void send() {
     if (finished_) return;
+    if (!admission_.current_policy(contract_)) { finish(); return; }
     auto bytes = queue_.begin_buffered_transmission();
     if (!bytes) return;
     write_deadline_.expires_after(std::chrono::seconds(5));
@@ -1537,7 +1621,7 @@ class StreamSession final {
   void update() {
     if (finished_) return;
     try {
-      if (stopping.load() || !source_.enabled(encoded_)) { finish(); return; }
+      if (stopping.load() || !source_.enabled(encoded_) || !admission_.current_policy(contract_)) { finish(); return; }
       const auto now = std::chrono::steady_clock::now();
       auto frame = source_.latest(encoded_, requested_.products);
       if (!frame.bytes) {
@@ -1757,9 +1841,34 @@ void await_clients(const std::atomic_size_t& active) noexcept {
     }
   }
   if (request.method() == http::verb::get && target == "/api/v1/transport") {
+    const auto policy = source.transport_policy();
+    std::string transaction = "null";
+    try {
+      const auto reply = system_agent(options, "{\"operation\":\"transport.status\"}", 2);
+      if (agent_succeeded(reply)) {
+        Json document;
+        std::istringstream input(std::string(reply.begin(), reply.end()));
+        boost::property_tree::read_json(input, document);
+        const auto status = document.get<std::string>("result.status");
+        if (status == "no_pending_change" || status == "pending" || status == "expired" ||
+            status == "confirmed" || status == "rolled_back") {
+          transaction = "{\"status\":\"" + status + "\"";
+          if (const auto expires = document.get_optional<std::uint64_t>("result.expires_unix_ns")) {
+            transaction += ",\"expires_unix_ns\":" + std::to_string(*expires);
+          }
+          transaction += "}";
+        }
+      }
+    } catch (const std::exception&) {
+      // Policy remains observable when its privileged transaction service is unavailable.
+    }
     return text_response(http::status::ok, "application/json",
-                         "{\"preference\":\"" +
-                             transport_preference(options) + "\"}\n",
+                         "{\"schema_version\":1,\"preference\":\"" + policy.preference +
+                             "\",\"wifi_enabled\":" + (policy.wifi_permission() ? "true" : "false") +
+                             ",\"wifi_enabled_explicit\":" + (policy.wifi_enabled ? "true" : "false") +
+                             ",\"valid\":" + (policy.valid ? "true" : "false") +
+                             ",\"transaction\":" + transaction +
+                             ",\"connection\":" + connection + "}\n",
                          request.version());
   }
   if (target == "/api/v1/stereo" || target == "/api/v1/exposure" ||
@@ -1915,14 +2024,16 @@ void await_clients(const std::atomic_size_t& active) noexcept {
   if (request.method() == http::verb::post &&
       target == "/api/v1/transport/stage") {
     try {
-      const auto preference = request_preference(request.body());
-      if (preference == "off") {
+      const auto patch = parse_transport(request.body(), true);
+      if (patch.preference == "off") {
         throw std::invalid_argument(
             "turning all data transports off requires physical nuvoctl confirmation");
       }
-      auto result = system_agent(options,
-                                 "{\"operation\":\"transport.stage\","
-                                 "\"preference\":\"" + preference + "\"}");
+      auto command = std::string("{\"operation\":\"transport.stage\"");
+      if (patch.preference) command += ",\"preference\":\"" + *patch.preference + "\"";
+      if (patch.wifi_enabled) command += std::string(",\"wifi_enabled\":") + (*patch.wifi_enabled ? "true" : "false");
+      auto result = system_agent(options, command + "}");
+      if (agent_succeeded(result)) (void)source.transport_policy(true);
       const auto status = agent_succeeded(result) ? http::status::ok
                                                   : http::status::bad_request;
       return response(status, "application/json", std::move(result),
@@ -1942,6 +2053,7 @@ void await_clients(const std::atomic_size_t& active) noexcept {
     try {
       auto result = system_agent(options, "{\"operation\":\"" +
                                               std::string(operation) + "\"}");
+      if (agent_succeeded(result)) (void)source.transport_policy(true);
       const auto status = agent_succeeded(result) ? http::status::ok
                                                   : http::status::bad_request;
       return response(status, "application/json", std::move(result),
@@ -1988,7 +2100,8 @@ void await_clients(const std::atomic_size_t& active) noexcept {
 #endif
         "\"connection\":" + connection + ",\"active_consumers\":{\"raw\":" +
         std::to_string(consumers.first) + ",\"encoded\":" + std::to_string(consumers.second) + "}," +
-        "\"transport_preference\":\"" + transport_preference(options) +
+        "\"wifi_enabled\":" + (source.transport_policy().wifi_permission() ? "true" : "false") + "," +
+        "\"transport_preference\":\"" + source.transport_policy().preference +
         "\",\"protocol\":\"NuvoStream/1.0\"}\n";
     return text_response(
         http::status::ok, "application/json",
@@ -2262,8 +2375,9 @@ int main(int argc, char** argv) {
     stopping.store(false);
     std::signal(SIGINT, stop);
     std::signal(SIGTERM, stop);
-    FrameSource source(options);
-    StreamAdmission admission(options);
+    TransportPolicyCache transport_policy(options.transport_file);
+    FrameSource source(options, transport_policy);
+    StreamAdmission admission(options, transport_policy);
     ConnectionRegistry connections;
     struct ClientsGuard {
       FrameSource& source;

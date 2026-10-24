@@ -22,27 +22,13 @@
     </div>
   </header>
   <div class="shell">
-    <nav aria-label="Device pages">
-      <button type="button" data-page="overview" class="active" aria-current="page"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-overview"/></svg><span>Overview</span></button>
-      <button type="button" data-page="viewer"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-scan"/></svg><span>Live view</span></button>
-      <p class="nav-label">Settings</p>
-      <button type="button" data-page="exposure"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-camera"/></svg><span>Capture</span></button>
-      <button type="button" data-page="presets"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-layers"/></svg><span>Depth profiles</span></button>
-      <button type="button" data-page="algorithm"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-sliders"/></svg><span>Matcher</span></button>
-      <button type="button" data-page="streaming"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-stream"/></svg><span>Streaming</span></button>
-      <button type="button" data-page="network"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-cable"/></svg><span>Outputs</span></button>
-      <p class="nav-label">Device</p>
-      <button type="button" data-page="calibration"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-focus"/></svg><span>Calibration</span></button>
-      <button type="button" data-page="diagnostics"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-activity"/></svg><span>Diagnostics</span></button>
-      <button type="button" data-page="recovery"><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-update"/></svg><span>Software update</span></button>
-    </nav>
+    <nav aria-label="Main navigation"><button type="button" data-page="overview" class="active" aria-current="page"><svg class="icon" aria-hidden="true"><use href="#icon-overview"/></svg><span>Overview</span></button><button type="button" data-page="viewer"><svg class="icon" aria-hidden="true"><use href="#icon-scan"/></svg><span>Live view</span></button><button type="button" data-page="network"><svg class="icon" aria-hidden="true"><use href="#icon-cable"/></svg><span>Outputs</span></button><button type="button" data-page="device"><svg class="icon" aria-hidden="true"><use href="#icon-sliders"/></svg><span>Device</span></button></nav>
     <main id="consoleMain" tabindex="-1">
-      <section id="overview" class="page active">
-        <p id="setupState" class="notice" role="status" hidden></p>
-        <div class="page-header">
-          <h1>Overview</h1>
-          <span class="page-meta" id="deviceResolution">Waiting for device</span>
-        </div>
+<section id="overview" class="page active">
+<div class="page-header"><h1>Overview</h1><span id="deviceResolution" class="page-meta">Waiting for device</span></div>
+<p class="lede">Device health and setup. This page does not request camera pictures or depth frames.</p>
+<p id="setupState" class="notice" role="status" hidden></p>
+
         <div class="cards status-strip">
           <article>
             <span>Camera</span>
@@ -70,7 +56,7 @@
             </svg>
           </button>
         </div>
-        <div class="overview-grid">
+        <div class="overview-configuration">
           <div class="panel">
             <div class="card-heading">
               <h2>
@@ -124,10 +110,9 @@
               <button type="button" class="secondary" data-open="presets">Depth profiles</button>
             </div>
           </div>
-          <aside class="panel tuning-preview" data-preview-slot="overview"></aside>
+
         </div>
-        <div id="overviewPerformanceSlot">
-          <section id="performanceMonitor" class="panel performance-monitor" aria-label="Performance monitor">
+        <section id="performanceMonitor" class="panel performance-monitor" aria-label="Performance monitor">
             <div class="card-heading">
               <h2>
                 <svg class="icon" aria-hidden="true" focusable="false">
@@ -204,7 +189,6 @@
               <span>Analysis target does not change the device.</span>
             </div>
           </section>
-        </div>
         <details class="setup-guide">
           <summary>Setup guide</summary>
           <ol class="workflow-list">
@@ -241,7 +225,7 @@
                 <span id="flowDeliveryState" class="flow-state waiting">Waiting</span>
               </div>
               <h3>Outputs</h3>
-              <p>Request both camera images, depth and validity. Confirm fresh frames, then save a raw sample with its calibration metadata.</p>
+              <p>Choose a named output recipe. First depth includes an aligned camera reference, numeric depth and validity; save a sample with its calibration metadata from Live view.</p>
               <div class="button-row">
                 <button class="secondary" type="button" data-open="viewer">Open live view</button>
                 <button class="secondary" type="button" data-open="network">Choose outputs</button>
@@ -249,196 +233,19 @@
             </li>
           </ol>
         </details>
-      </section>
-
-      <section id="viewer" class="page">
-        <div class="page-header"><h1>Live view</h1></div>
-        <div class="panel">
-          <h2>Your first depth frame</h2>
-          <p>Select a textured, well-lit scene visible to both cameras. Show both rectified images, depth and validity at a 1 Hz best-effort cadence.</p>
-          <div class="button-row"><button id="firstDepthStart" class="primary" type="button">Show first depth</button><button id="firstDepthSave" type="button" disabled>Save depth sample</button></div>
-          <p id="firstDepthStatus" role="status">Waiting for two fresh associated depth and validity frames.</p>
-          <p id="firstDepthAuthority" class="support-text">Calibration status will be read from the received sample.</p>
-          <p id="firstDepthError" class="error" role="alert"></p>
-          <p class="support-text">The .nuv download contains numeric depth in metres, validity and original frame metadata. Validity preview: white is valid; black is invalid. A colour preview alone is not a depth measurement.</p>
-        </div>
-        <div id="viewerModeNotice" class="notice compact" hidden>Raw products are disabled in encoded-only mode. Select Raw + encoded or Raw only on the Streaming page to view all four products.</div>
-        <div id="viewerEmptyState" class="notice compact" role="status">Waiting for selected live products.</div>
-        <div id="viewerLiveGrid" class="viewer-grid selected-output-grid" hidden>
-          <figure><figcaption>Left rectified</figcaption><canvas id="leftCanvas"></canvas></figure>
-          <figure><figcaption>Right rectified</figcaption><canvas id="rightCanvas"></canvas></figure>
-          <figure><figcaption>Disparity <span>matcher pixels</span></figcaption><canvas id="disparityCanvas"></canvas></figure>
-          <figure class="depth"><figcaption>Optical-axis depth <span>metres</span></figcaption><canvas id="depthCanvas"></canvas></figure>
-        </div>
-        <div id="selectedProductGrid" class="viewer-grid output-previews"></div>
-        <p class="apply-note">Choose live products and cadence on <button type="button" class="link-button" data-open="network">Outputs</button>. Only selected outputs are requested.</p>
-        <div class="preview-metrics viewer-rates"><span data-live-metric="capture">Capture target · — fps</span><span data-live-metric="depth">Depth output · — fps</span><span data-live-metric="compute">Compute · — ms</span></div>
-        <div id="viewerTelemetry" class="telemetry" hidden><span id="sequence">Frame —</span><span id="validity">Valid —</span><span id="age">Waiting for products</span><span id="frameError" class="error"></span></div>
-      </section>
-
-      <section id="streaming" class="page">
-        <div class="page-header">
-          <h1>Streaming</h1>
-        </div>
-        <p class="lede">Configure the browser preview and raw product delivery. Preview frame rate is an encoder limit; depth rate depends on processing.</p>
-        <div class="stream-layout">
-          <form id="encodingForm" class="settings-form" novalidate="">
-            <h2 class="form-title">
-              <svg class="icon" aria-hidden="true" focusable="false">
-                <use href="#icon-stream"></use>
-              </svg>Device-wide preview and network delivery</h2>
-            <p class="apply-note">These settings affect every network client. The device has one shared preview encoder; choose what this browser receives on Outputs.</p>
-            <input id="streamMode" type="hidden" value="both">
-            <label class="check toggle">
-              <input id="streamEncoderEnabled" type="checkbox">
-              <span>
-                <b>Compressed preview encoder</b>
-                <small>Shared H.264 or MJPEG visualization for all preview clients</small>
-              </span>
-            </label>
-            <label class="check toggle">
-              <input id="streamRawEnabled" type="checkbox">
-              <span>
-                <b>Uncompressed network data</b>
-                <small>Images and numeric products for browser/HTTPS SDK clients. Local socket delivery is independent.</small>
-              </span>
-            </label>
-            <div id="encoderSettings" class="form-group">
-              <label>Codec<select id="streamCodec">
-                  <option value="h264">H.264 · independent frames</option>
-                  <option value="jpeg">MJPEG · universal</option>
-                </select>
-              </label>
-              <label>Shared preview source<select id="streamSource">
-                <optgroup label="Camera images · unrectified">
-                  <option value="left_mono">Left camera · mono</option>
-                  <option value="right_mono">Right camera · mono</option>
-                  <option value="left_color">Left color · ISP</option>
-                  <option value="right_color">Right color · ISP</option>
-                </optgroup>
-                <optgroup label="Stereo-aligned images · rectified">
-                  <option value="left_rectified">Left rectified · luma</option>
-                  <option value="right_rectified">Right rectified · luma</option>
-                  <option value="left_rectified_rgb">Left RGB · rectified</option>
-                  <option value="right_rectified_rgb">Right RGB · rectified</option>
-                  <option value="rectified_stereo">Stereo side by side · mono</option>
-                  <option value="rectified_stereo_rgb">Stereo side by side · RGB</option>
-                </optgroup>
-                <optgroup label="Measurements shown as pictures">
-                  <option value="disparity">Disparity preview · 8-bit visualization</option>
-                  <option value="depth">Depth preview · 8-bit visualization, 0.2–12.2 m</option>
-                </optgroup>
-                <option value="left_rgb" hidden>Left color · existing RGB alias</option>
-                <option value="right_rgb" hidden>Right color · existing RGB alias</option>
-                </select>
-              </label>
-              <label>Device preview rate ceiling<input id="streamFps" type="number" min="1" max="60" required data-unit="fps">
-              </label>
-            </div>
-            <details class="panel advanced-card">
-              <summary>
-                <span class="group-heading">
-                  <svg class="icon" aria-hidden="true" focusable="false">
-                    <use href="#icon-sliders"></use>
-                  </svg>
-                  <span>
-                    <span class="group-title">Advanced encoding controls</span>
-                    <span class="group-values">Grouped settings · edits are preserved when collapsed</span>
-                  </span>
-                </span>
-                <span class="group-badges"></span>
-              </summary>
-              <div class="advanced-body">
-                <details class="advanced-group " data-group="stream-size" data-summary-fields="streamWidth:Width:px,streamHeight:Height:px">
-                  <summary>
-                    <span class="group-heading">
-                      <svg class="icon" aria-hidden="true" focusable="false">
-                        <use href="#icon-scan"></use>
-                      </svg>
-                      <span>
-                        <span class="group-title">Output size</span>
-                        <span class="group-values">Loading settings…</span>
-                      </span>
-                    </span>
-                    <span class="group-badges"></span>
-                  </summary>
-                  <div class="group-body">
-                    <div class="group-toolbar">
-                      <span class="group-context"></span>
-                      <button type="button" class="secondary group-reset">Discard group changes</button>
-                    </div>
-                    <div class="group-fields">
-                      <label>Width <small>0 keeps native</small>
-                        <input id="streamWidth" type="number" min="0" max="1920" step="2" required data-unit="px">
-                      </label>
-                      <label>Height <small>0 keeps native</small>
-                        <input id="streamHeight" type="number" min="0" max="1080" step="2" required data-unit="px">
-                      </label>
-                    </div>
-                  </div>
-                </details>
-                <details class="advanced-group " data-group="stream-compression" data-summary-fields="streamBitrate:H.264:bps,streamQuality:JPEG:%,streamThreads:CPU:threads">
-                  <summary>
-                    <span class="group-heading">
-                      <svg class="icon" aria-hidden="true" focusable="false">
-                        <use href="#icon-cpu"></use>
-                      </svg>
-                      <span>
-                        <span class="group-title">Compression &amp; compute</span>
-                        <span class="group-values">Loading settings…</span>
-                      </span>
-                    </span>
-                    <span class="group-badges"></span>
-                  </summary>
-                  <div class="group-body">
-                    <div class="group-toolbar">
-                      <span class="group-context"></span>
-                      <button type="button" class="secondary group-reset">Discard group changes</button>
-                    </div>
-                    <div class="group-fields">
-                      <label>H.264 bitrate<input id="streamBitrate" type="number" min="100000" max="50000000" step="100000" required data-unit="bps">
-                      </label>
-                      <label>JPEG quality<input id="streamQuality" type="number" min="1" max="100" required data-unit="%">
-                      </label>
-                      <label>Keyframe interval<small>Independent frames are required for live preview</small>
-                        <input id="streamKeyframes" type="number" min="1" max="1" value="1" readonly required>
-                      </label>
-                      <label>Encoder threads<select id="streamThreads">
-                          <option value="1">1</option>
-                          <option value="2">2</option>
-                          <option value="3">3</option>
-                          <option value="4">4</option>
-                        </select>
-                      </label>
-                      <label>Speed/quality preset<select id="streamPreset">
-                          <option value="ultrafast">Ultra-fast</option>
-                          <option value="superfast">Super-fast</option>
-                          <option value="veryfast">Very fast</option>
-                          <option value="faster">Faster</option>
-                          <option value="fast">Fast / higher quality</option>
-                        </select>
-                      </label>
-                      <label class="check">
-                        <input id="streamLowLatency" type="checkbox"> Low latency, no delayed frames</label>
-                    </div>
-                  </div>
-                </details>
-              </div>
-            </details>
-            <div class="form-actions">
-              <button class="primary" type="submit">Apply settings</button>
-              <button id="encodingReset" class="secondary" type="button">Discard changes</button>
-              <span id="encodingSaveState" role="status"></span>
-            </div>
-            <details class="stream-help">
-              <summary>How monitoring affects performance</summary>
-              <div class="notice compact">Image previews run independently of stereo matching. Depth and disparity previews compute only at the requested preview rate. Select the products and rates you need; unused output stages stay idle. Raw delivery is available over WiFi, Ethernet, USB Ethernet, and on-device integrations within each connection's bandwidth budget.</div>
-              <p class="endpoint" id="encodedEndpoint"></p>
-            </details>
-          </form>
-          <div>
+</section>
+<section id="viewer" class="page">
+<div class="page-header"><h1>Live view</h1><span class="scope-label">This browser</span></div>
+<div class="unified-live-layout">
+<div class="live-viewer panel">
+<form id="liveSelectionForm" class="live-toolbar"><label>View<select id="liveRecipe"><option value="camera">Camera image</option><option value="depth">Depth values</option><option value="depth_reference">Depth with camera reference</option><option value="stereo">Stereo check</option><option value="picture">Shared picture preview</option><option value="custom" hidden>Custom data selection</option></select></label><label>Requested frames/s<input id="liveCadence" type="number" min="1" max="60" step="1" value="5"></label><button class="primary" type="submit">View here</button><button id="viewerPause" type="button">Pause</button></form>
+<p id="viewerReceiving" class="receiving-state" role="status">Waiting for the requested selection</p><p id="viewerSource" class="support-text">Source and format appear after a frame is decoded.</p><p id="viewerRate" class="support-text">Requested: 5 frames/s · Receiving: waiting</p>
+<div id="viewerModeNotice" class="notice compact" hidden>Uncompressed network data is off. Choose Shared picture preview here, or explicitly enable data in Device → Advanced preview encoder.</div>
+<div id="viewerEmptyState" class="notice compact" role="status">Waiting for selected live products.</div>
+<div id="selectedProductGrid" class="viewer-grid"></div>
+<div id="viewerPicture" hidden>
             <figure class="encoded-preview">
-              <figcaption>Encoded preview <span id="encodedFormat">Waiting</span>
+              <figcaption>Compressed picture <span id="encodedFormat">Waiting</span>
               </figcaption>
               <div class="sample-canvas">
                 <canvas id="encodedCanvas"></canvas>
@@ -455,13 +262,202 @@
             </div>
             <p id="encodingError" class="error" role="alert"></p>
           </div>
-        </div>
-      </section>
+<div id="depthLegend" class="depth-legend" hidden><strong>Depth Z display · metres</strong><div class="depth-scale" aria-label="Depth display scale from 0.2 metres to 12.2 metres"></div><div class="scale-labels"><span>0.2 m · near</span><span>12.2 m · far</span></div><p>Black: invalid. Magenta: valid value outside this display scale. This is a display interval, not a calibrated accuracy range.</p></div>
+<form id="pixelInspector" hidden><fieldset><legend>Inspect a numeric depth pixel</legend><div class="basic-fields"><label>Column x<input id="pixelX" type="number" min="0" step="1" value="0"></label><label>Row y<input id="pixelY" type="number" min="0" step="1" value="0"></label><button type="submit">Inspect pixel</button></div></fieldset><p id="pixelValue" role="status">Click the depth image or enter a pixel coordinate.</p></form>
+<p id="pictureMeasurementNotice" class="support-text" hidden>Numeric value unavailable in this picture preview. Use Depth values for measurement.</p>
+<div id="viewerTelemetry" class="telemetry" hidden><span id="sequence">Frame —</span><span id="validity">Valid —</span><span id="age">Waiting for products</span></div><p id="frameError" class="error" role="alert"></p>
+<p class="preview-validity" data-live-calibration>Waiting for calibration status</p>
+<details class="network-advanced"><summary>Capture and processing details</summary><div class="preview-metrics"><span data-live-metric="capture">Capture target · — fps</span><span data-live-metric="depth">Depth output · — fps</span><span data-live-metric="compute">Compute · — ms</span></div><p data-live-resolution></p><p>These device rates include other consumers. Pausing this browser releases only its own demand.</p></details>
+<details id="firstDepthGuide" class="network-advanced"><summary>First depth sample</summary><p>Use a textured, well-lit scene. Depth with camera reference includes numeric metres, validity and the aligned left image at 1 frame/s.</p><div class="button-row"><button id="firstDepthStart" class="primary" type="button">Show first depth</button><button id="firstDepthSave" type="button" disabled>Save depth sample</button></div><p id="firstDepthStatus" role="status"></p><p id="firstDepthAuthority" class="support-text"></p><p id="firstDepthError" class="error" role="alert"></p></details>
+</div>
+<aside class="camera-depth-controls panel"><h2>Camera &amp; depth</h2><p class="scope-label">Shared device settings · affects all clients</p>
+<label class="profile-choice">Depth profile<select id="depthProfileChoice" disabled><option value="balanced">Balanced</option><option value="fast">Fast</option><option value="wide">Wide search</option><option value="quality">Quality</option><option value="custom">Custom / StereoBM</option></select></label><button id="depthProfileApply" type="button" disabled>Apply depth profile</button><p id="depthProfileState" role="status">Loading matcher settings</p>
+<details id="exposure" class="device-section"><summary>Exposure and capture</summary><div class="section-content">
+        <p class="lede">Set exposure and gain for both cameras. Auto mode uses a shared stereo brightness target.</p>
+        <form id="exposureForm" class="settings-form tuning-form" novalidate="">
+          <div class="tuning-layout">
+            <section class="panel basic-controls">
+              <div class="card-heading">
+                <h2>
+                  <svg class="icon" aria-hidden="true" focusable="false">
+                    <use href="#icon-camera"></use>
+                  </svg>Exposure &amp; gain</h2>
+                <span class="chip chip-blue">Both cameras</span>
+              </div>
+              <div class="basic-fields">
+                <label>Exposure mode<select id="exposureMode">
+                    <option value="manual">Manual · constant</option>
+                    <option value="auto">Auto · stereo locked</option>
+                  </select>
+                </label>
+                <label class="manual-exposure">Exposure time <small>Microseconds · <span id="manualExposureMs">—</span> ms</small>
+                  <input id="manualExposure" type="number" min="250" max="8000" step="50" required data-unit="µs">
+                </label>
+                <label class="manual-exposure">Analogue gain <small>Higher gain adds image noise</small>
+                  <input id="manualGain" type="number" min="1" max="3" step="0.05" required data-unit="×">
+                </label>
+                <label class="auto-exposure">Target median <small>Luma 1–254</small>
+                  <input id="autoTargetMedian" type="number" min="1" max="254" step="1" required data-unit="luma">
+                </label>
+              </div>
+            </section>
 
-      <section id="algorithm" class="page">
-        <div class="page-header">
-          <h1>Matcher</h1>
+              <details class="camera-telemetry">
+                <summary>Camera telemetry</summary>
+                <aside class="capture-feedback">
+                  <div class="cards compact-cards">
+                    <article>
+                      <span>Mode</span>
+                      <strong id="exposureActive">Loading</strong>
+                      <small>Shared by both cameras</small>
+                    </article>
+                    <article>
+                      <span>Requested</span>
+                      <strong id="exposureRequested">—</strong>
+                      <small id="gainRequested">—</small>
+                    </article>
+                    <article>
+                      <span>Reported pair</span>
+                      <strong id="exposureReported">—</strong>
+                      <small id="gainReported">—</small>
+                    </article>
+                    <article>
+                      <span>Metering</span>
+                      <strong id="exposureMedian">—</strong>
+                      <small id="exposureReason">Waiting for auto mode</small>
+                    </article>
+                  </div>
+                  <details class="capture-help">
+                    <summary>Exposure timing &amp; image quality</summary>
+                    <div class="notice compact informational">Exposure is also the active-low XTR pulse: longer times gather more light but add motion blur. Analogue gain brightens without a longer pulse but adds sensor noise. Both cameras remain locked to one command. <span id="exposureTiming">Loading the live frame-period limit…</span>
+                    </div>
+                  </details>
+                </aside>
+              </details>
+          </div>
+          <details class="panel advanced-card">
+            <summary>
+              <span class="group-heading">
+                <svg class="icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-sliders"></use>
+                </svg>
+                <span>
+                  <span class="group-title">Advanced capture controls</span>
+                  <span class="group-values">Grouped settings · edits are preserved when collapsed</span>
+                </span>
+              </span>
+              <span class="group-badges"></span>
+            </summary>
+            <div class="advanced-body">
+              <details class="advanced-group auto-advanced" data-group="capture-limits" data-summary-fields="autoMinExposure:Min:µs,autoMaxExposure:Max:µs,autoMinGain:Gain min:×,autoMaxGain:Gain max:×">
+                <summary>
+                  <span class="group-heading">
+                    <svg class="icon" aria-hidden="true" focusable="false">
+                      <use href="#icon-sliders"></use>
+                    </svg>
+                    <span>
+                      <span class="group-title">Auto exposure limits</span>
+                      <span class="group-values">Loading settings…</span>
+                    </span>
+                  </span>
+                  <span class="group-badges"></span>
+                </summary>
+                <div class="group-body">
+                  <div class="group-toolbar">
+                    <span class="group-context"></span>
+                    <button type="button" class="secondary group-reset">Discard group changes</button>
+                  </div>
+                  <div class="group-fields">
+                    <label class="auto-exposure">Minimum exposure <small>Microseconds · <span id="autoMinExposureMs">—</span> ms</small>
+                      <input id="autoMinExposure" type="number" min="250" max="8000" step="50" required data-unit="µs">
+                    </label>
+                    <label class="auto-exposure">Maximum exposure <small>Microseconds · <span id="autoMaxExposureMs">—</span> ms</small>
+                      <input id="autoMaxExposure" type="number" min="250" max="8000" step="50" required data-unit="µs">
+                    </label>
+                    <label class="auto-exposure">Minimum analogue gain<input id="autoMinGain" type="number" min="1" max="3" step="0.05" required data-unit="×">
+                    </label>
+                    <label class="auto-exposure">Maximum analogue gain<input id="autoMaxGain" type="number" min="1" max="3" step="0.05" required data-unit="×">
+                    </label>
+                  </div>
+                </div>
+              </details>
+              <details class="advanced-group auto-advanced" data-group="capture-response" data-summary-fields="autoMinMedian:Low:luma,autoMaxMedian:High:luma,autoUpdateInterval:Update:frames,autoSettleFrames:Settle:frames">
+                <summary>
+                  <span class="group-heading">
+                    <svg class="icon" aria-hidden="true" focusable="false">
+                      <use href="#icon-activity"></use>
+                    </svg>
+                    <span>
+                      <span class="group-title">Auto response</span>
+                      <span class="group-values">Loading settings…</span>
+                    </span>
+                  </span>
+                  <span class="group-badges"></span>
+                </summary>
+                <div class="group-body">
+                  <div class="group-toolbar">
+                    <span class="group-context"></span>
+                    <button type="button" class="secondary group-reset">Discard group changes</button>
+                  </div>
+                  <div class="group-fields">
+                    <label class="auto-exposure">Deadband minimum<input id="autoMinMedian" type="number" min="1" max="254" step="1" required data-unit="luma">
+                    </label>
+                    <label class="auto-exposure">Deadband maximum<input id="autoMaxMedian" type="number" min="1" max="254" step="1" required data-unit="luma">
+                    </label>
+                    <label class="auto-exposure">Update interval <small>Processed frames</small>
+                      <input id="autoUpdateInterval" type="number" min="1" max="120" step="1" required data-unit="frames">
+                    </label>
+                    <label class="auto-exposure">Settle after change <small>Processed frames</small>
+                      <input id="autoSettleFrames" type="number" min="0" max="120" step="1" required data-unit="frames">
+                    </label>
+                  </div>
+                </div>
+              </details>
+              <details class="advanced-group " data-group="capture-balance" data-summary-fields="redGain:Red:×,blueGain:Blue:×">
+                <summary>
+                  <span class="group-heading">
+                    <svg class="icon" aria-hidden="true" focusable="false">
+                      <use href="#icon-palette"></use>
+                    </svg>
+                    <span>
+                      <span class="group-title">White balance</span>
+                      <span class="group-values">Loading settings…</span>
+                    </span>
+                  </span>
+                  <span class="group-badges"></span>
+                </summary>
+                <div class="group-body">
+                  <div class="group-toolbar">
+                    <span class="group-context"></span>
+                    <button type="button" class="secondary group-reset">Discard group changes</button>
+                  </div>
+                  <div class="group-fields">
+                    <label>Red colour gain<input id="redGain" type="number" min="0.1" max="16" step="0.0001" required data-unit="×">
+                    </label>
+                    <label>Blue colour gain<input id="blueGain" type="number" min="0.1" max="16" step="0.0001" required data-unit="×">
+                    </label>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </details>
+          <div class="form-actions">
+            <button class="primary" type="submit">Apply settings</button>
+            <button id="exposureReset" class="secondary" type="button">Discard changes</button>
+            <span id="exposureSaveState" role="status"></span>
+          </div>
+          <p class="apply-note">Basic and advanced capture settings apply together to both cameras.</p>
+        </form>
+        <p id="exposureError" class="error" role="alert"></p></div></details><details id="presets" class="device-section"><summary>Profile descriptions</summary><div class="section-content">
+        <p class="lede">Presets change stereo matching only. Capture remains 728 × 544 and exposure is unchanged.</p>
+        <div class="settings preset-grid">
+          <article><h2>Quality · candidate</h2><p>Full-grid HH with 96-pixel search and 5 × 5 smoothing. Historical Pi output was 2.84 depth frames/s; current throughput remains unqualified.</p><button class="primary" type="button" data-depth-preset="quality" disabled>Apply quality</button></article>
+          <article><h2>Balanced · candidate</h2><p>Full-grid five-path SGBM with 96-pixel search and 3 × 3 smoothing. Measure latency and scene accuracy before choosing this profile.</p><button class="primary" type="button" data-depth-preset="balanced" disabled>Apply balanced</button></article>
+          <article><h2>Fast · candidate</h2><p>Full-grid 3-way SGBM with a narrower 64-pixel search and no smoothing. Trades near range and streak rejection for lower cost; throughput is unqualified.</p><button class="primary" type="button" data-depth-preset="fast" disabled>Apply fast</button></article>
+          <article><h2>Wide search · candidate</h2><p>Full-grid five-path SGBM with 128-pixel search and 3 × 3 smoothing. Offers closer nominal range at additional cost; throughput is unqualified.</p><button class="primary" type="button" data-depth-preset="wide" disabled>Apply wide search</button></article>
+          <article><h2>Custom / StereoBM</h2><p>Open every matcher control, including the SGBM/StereoBM toggle, validity filters, and thread count.</p><button class="primary" type="button" data-open="algorithm">Open depth settings</button></article>
         </div>
+        <p id="presetSaveState" role="status"></p><p id="presetError" class="error"></p></div></details><details id="algorithm" class="device-section"><summary>Advanced matcher controls</summary><div class="section-content">
         <div class="notice compact informational">Tune stereo matching on the native capture grid. Changes apply on the next processed frame.</div>
         <p id="algorithmActive">Active matcher: loading…</p>
         <form id="algorithmForm" class="settings-form tuning-form" novalidate="">
@@ -497,7 +493,7 @@
                 </label>
               </div>
             </section>
-            <aside class="panel tuning-preview" data-preview-slot="algorithm"></aside>
+
           </div>
           <details class="panel advanced-card">
             <summary>
@@ -630,241 +626,35 @@
           </div>
           <p class="apply-note">Basic and advanced settings apply together on the next processed frame.</p>
         </form>
-        <p id="algorithmError" class="error" role="alert"></p>
-      </section>
-
-      <section id="presets" class="page">
-        <div class="page-header"><h1>Depth profiles</h1></div>
-        <p class="lede">Presets change stereo matching only. Capture remains 728 × 544 and exposure is unchanged.</p>
-        <div class="settings preset-grid">
-          <article><h2>Quality · candidate</h2><p>Full-grid HH with 96-pixel search and 5 × 5 smoothing. Historical Pi output was 2.84 depth frames/s; current throughput remains unqualified.</p><button class="primary" type="button" data-depth-preset="quality" disabled>Apply quality</button></article>
-          <article><h2>Balanced · candidate</h2><p>Full-grid five-path SGBM with 96-pixel search and 3 × 3 smoothing. Measure latency and scene accuracy before choosing this profile.</p><button class="primary" type="button" data-depth-preset="balanced" disabled>Apply balanced</button></article>
-          <article><h2>Fast · candidate</h2><p>Full-grid 3-way SGBM with a narrower 64-pixel search and no smoothing. Trades near range and streak rejection for lower cost; throughput is unqualified.</p><button class="primary" type="button" data-depth-preset="fast" disabled>Apply fast</button></article>
-          <article><h2>Wide search · candidate</h2><p>Full-grid five-path SGBM with 128-pixel search and 3 × 3 smoothing. Offers closer nominal range at additional cost; throughput is unqualified.</p><button class="primary" type="button" data-depth-preset="wide" disabled>Apply wide search</button></article>
-          <article><h2>Custom / StereoBM</h2><p>Open every matcher control, including the SGBM/StereoBM toggle, validity filters, and thread count.</p><button class="primary" type="button" data-open="algorithm">Open depth settings</button></article>
-        </div>
-        <p id="presetSaveState" role="status"></p><p id="presetError" class="error"></p>
-      </section>
-      <section id="exposure" class="page">
-        <div class="page-header">
-          <h1>Capture</h1>
-        </div>
-        <p class="lede">Set exposure and gain for both cameras. Auto mode uses a shared stereo brightness target.</p>
-        <form id="exposureForm" class="settings-form tuning-form" novalidate="">
-          <div class="tuning-layout">
-            <section class="panel basic-controls">
-              <div class="card-heading">
-                <h2>
-                  <svg class="icon" aria-hidden="true" focusable="false">
-                    <use href="#icon-camera"></use>
-                  </svg>Exposure &amp; gain</h2>
-                <span class="chip chip-blue">Both cameras</span>
-              </div>
-              <div class="basic-fields">
-                <label>Exposure mode<select id="exposureMode">
-                    <option value="manual">Manual · constant</option>
-                    <option value="auto">Auto · stereo locked</option>
-                  </select>
-                </label>
-                <label class="manual-exposure">Exposure time <small>Microseconds · <span id="manualExposureMs">—</span> ms</small>
-                  <input id="manualExposure" type="number" min="250" max="8000" step="50" required data-unit="µs">
-                </label>
-                <label class="manual-exposure">Analogue gain <small>Higher gain adds image noise</small>
-                  <input id="manualGain" type="number" min="1" max="3" step="0.05" required data-unit="×">
-                </label>
-                <label class="auto-exposure">Target median <small>Luma 1–254</small>
-                  <input id="autoTargetMedian" type="number" min="1" max="254" step="1" required data-unit="luma">
-                </label>
-              </div>
-            </section>
-            <aside class="panel tuning-preview" data-preview-slot="exposure">
-              <details class="camera-telemetry">
-                <summary>Camera telemetry</summary>
-                <aside class="capture-feedback">
-                  <div class="cards compact-cards">
-                    <article>
-                      <span>Mode</span>
-                      <strong id="exposureActive">Loading</strong>
-                      <small>Shared by both cameras</small>
-                    </article>
-                    <article>
-                      <span>Requested</span>
-                      <strong id="exposureRequested">—</strong>
-                      <small id="gainRequested">—</small>
-                    </article>
-                    <article>
-                      <span>Reported pair</span>
-                      <strong id="exposureReported">—</strong>
-                      <small id="gainReported">—</small>
-                    </article>
-                    <article>
-                      <span>Metering</span>
-                      <strong id="exposureMedian">—</strong>
-                      <small id="exposureReason">Waiting for auto mode</small>
-                    </article>
-                  </div>
-                  <details class="capture-help">
-                    <summary>Exposure timing &amp; image quality</summary>
-                    <div class="notice compact informational">Exposure is also the active-low XTR pulse: longer times gather more light but add motion blur. Analogue gain brightens without a longer pulse but adds sensor noise. Both cameras remain locked to one command. <span id="exposureTiming">Loading the live frame-period limit…</span>
-                    </div>
-                  </details>
-                </aside>
-              </details>
-            </aside>
-          </div>
-          <details class="panel advanced-card">
-            <summary>
-              <span class="group-heading">
-                <svg class="icon" aria-hidden="true" focusable="false">
-                  <use href="#icon-sliders"></use>
-                </svg>
-                <span>
-                  <span class="group-title">Advanced capture controls</span>
-                  <span class="group-values">Grouped settings · edits are preserved when collapsed</span>
-                </span>
-              </span>
-              <span class="group-badges"></span>
-            </summary>
-            <div class="advanced-body">
-              <details class="advanced-group auto-advanced" data-group="capture-limits" data-summary-fields="autoMinExposure:Min:µs,autoMaxExposure:Max:µs,autoMinGain:Gain min:×,autoMaxGain:Gain max:×">
-                <summary>
-                  <span class="group-heading">
-                    <svg class="icon" aria-hidden="true" focusable="false">
-                      <use href="#icon-sliders"></use>
-                    </svg>
-                    <span>
-                      <span class="group-title">Auto exposure limits</span>
-                      <span class="group-values">Loading settings…</span>
-                    </span>
-                  </span>
-                  <span class="group-badges"></span>
-                </summary>
-                <div class="group-body">
-                  <div class="group-toolbar">
-                    <span class="group-context"></span>
-                    <button type="button" class="secondary group-reset">Discard group changes</button>
-                  </div>
-                  <div class="group-fields">
-                    <label class="auto-exposure">Minimum exposure <small>Microseconds · <span id="autoMinExposureMs">—</span> ms</small>
-                      <input id="autoMinExposure" type="number" min="250" max="8000" step="50" required data-unit="µs">
-                    </label>
-                    <label class="auto-exposure">Maximum exposure <small>Microseconds · <span id="autoMaxExposureMs">—</span> ms</small>
-                      <input id="autoMaxExposure" type="number" min="250" max="8000" step="50" required data-unit="µs">
-                    </label>
-                    <label class="auto-exposure">Minimum analogue gain<input id="autoMinGain" type="number" min="1" max="3" step="0.05" required data-unit="×">
-                    </label>
-                    <label class="auto-exposure">Maximum analogue gain<input id="autoMaxGain" type="number" min="1" max="3" step="0.05" required data-unit="×">
-                    </label>
-                  </div>
-                </div>
-              </details>
-              <details class="advanced-group auto-advanced" data-group="capture-response" data-summary-fields="autoMinMedian:Low:luma,autoMaxMedian:High:luma,autoUpdateInterval:Update:frames,autoSettleFrames:Settle:frames">
-                <summary>
-                  <span class="group-heading">
-                    <svg class="icon" aria-hidden="true" focusable="false">
-                      <use href="#icon-activity"></use>
-                    </svg>
-                    <span>
-                      <span class="group-title">Auto response</span>
-                      <span class="group-values">Loading settings…</span>
-                    </span>
-                  </span>
-                  <span class="group-badges"></span>
-                </summary>
-                <div class="group-body">
-                  <div class="group-toolbar">
-                    <span class="group-context"></span>
-                    <button type="button" class="secondary group-reset">Discard group changes</button>
-                  </div>
-                  <div class="group-fields">
-                    <label class="auto-exposure">Deadband minimum<input id="autoMinMedian" type="number" min="1" max="254" step="1" required data-unit="luma">
-                    </label>
-                    <label class="auto-exposure">Deadband maximum<input id="autoMaxMedian" type="number" min="1" max="254" step="1" required data-unit="luma">
-                    </label>
-                    <label class="auto-exposure">Update interval <small>Processed frames</small>
-                      <input id="autoUpdateInterval" type="number" min="1" max="120" step="1" required data-unit="frames">
-                    </label>
-                    <label class="auto-exposure">Settle after change <small>Processed frames</small>
-                      <input id="autoSettleFrames" type="number" min="0" max="120" step="1" required data-unit="frames">
-                    </label>
-                  </div>
-                </div>
-              </details>
-              <details class="advanced-group " data-group="capture-balance" data-summary-fields="redGain:Red:×,blueGain:Blue:×">
-                <summary>
-                  <span class="group-heading">
-                    <svg class="icon" aria-hidden="true" focusable="false">
-                      <use href="#icon-palette"></use>
-                    </svg>
-                    <span>
-                      <span class="group-title">White balance</span>
-                      <span class="group-values">Loading settings…</span>
-                    </span>
-                  </span>
-                  <span class="group-badges"></span>
-                </summary>
-                <div class="group-body">
-                  <div class="group-toolbar">
-                    <span class="group-context"></span>
-                    <button type="button" class="secondary group-reset">Discard group changes</button>
-                  </div>
-                  <div class="group-fields">
-                    <label>Red colour gain<input id="redGain" type="number" min="0.1" max="16" step="0.0001" required data-unit="×">
-                    </label>
-                    <label>Blue colour gain<input id="blueGain" type="number" min="0.1" max="16" step="0.0001" required data-unit="×">
-                    </label>
-                  </div>
-                </div>
-              </details>
-            </div>
-          </details>
-          <div class="form-actions">
-            <button class="primary" type="submit">Apply settings</button>
-            <button id="exposureReset" class="secondary" type="button">Discard changes</button>
-            <span id="exposureSaveState" role="status"></span>
-          </div>
-          <p class="apply-note">Basic and advanced capture settings apply together to both cameras.</p>
-        </form>
-        <p id="exposureError" class="error" role="alert"></p>
-      </section>
-      <section id="network" class="page">
-        <div class="page-header"><h1>Outputs</h1></div>
-        <p class="lede">Choose a task, then receive only the data you need. Camera → rectified stereo → disparity → depth in metres. Processing follows active consumers.</p>
-        <article class="panel output-connection"><h2>Current connection</h2><p id="outputConnection">Loading connection information…</p><p id="outputRecommendation"></p><p id="originLabel"></p></article>
-        <form id="outputForm" class="settings-form output-settings">
-          <h2>This browser: uncompressed data</h2>
-          <label>What do you want to do?<select id="outputPreset"><option value="camera">View the camera · left mono</option><option value="depth">Use depth · metres + validity</option><option value="stereo">Inspect stereo · rectified pair + disparity + validity</option><option value="custom">Custom selection</option></select></label>
-          <label class="checkbox-label"><input id="outputEnabled" type="checkbox" checked>Receive selected data products</label>
-          <details id="outputAdvanced" class="advanced-card"><summary>Advanced: individual products</summary><fieldset><legend>Images and measurements</legend><div id="outputProductChoices" class="output-product-choices"></div></fieldset></details>
-          <p class="apply-note">Images are processed ISP mono or colour, not sensor RAW/Bayer. Depth is float32 optical-axis Z in metres; accept pixels only when validity is 1 and depth is finite and positive. Disparity uses matching-grid pixels. Matcher support is binary (0 / 255), not a probability.</p>
-          <div class="basic-fields">
-            <label>Maximum cadence<input id="outputCadence" type="number" min="1" max="60" step="1" value="5" required></label>
-            <label>Delivery<select id="outputDelivery"><option value="auto">Connection aware · WiFi best effort</option><option value="best_effort">Best effort · maximum cadence</option><option value="exact">Exact · measured wired qualification</option></select></label>
-          </div>
-          <p id="outputBandwidth" role="status"></p><p id="outputWarning" role="status"></p>
-          <h2>This browser: compressed preview</h2>
-          <div class="basic-fields"><label class="checkbox-label"><input id="outputPreviewEnabled" type="checkbox" checked>Receive the shared compressed preview</label><label>Browser preview rate ceiling<input id="outputPreviewCadence" type="number" min="1" max="60" step="1" value="5" required></label></div>
-          <p class="apply-note">Preview is for viewing, not numeric measurement. Set the device-wide source, codec and rate on <button type="button" class="link-button" data-open="streaming">Streaming</button>. This browser can request a lower rate; it cannot raise the device ceiling. The encoder runs while a preview consumer is connected.</p>
-          <div class="form-actions"><button type="submit" class="primary">Apply browser outputs</button><span id="outputSaveState" role="status"></span></div>
-          <p class="apply-note">Selections apply to this browser. Closing the page or hiding the tab releases its output demand. Other SDK and browser consumers keep their own selections.</p>
-        </form>
-        <p id="outputFrameSummary" role="status">Actual dimensions and selected products appear when a frame arrives.</p>
-        <p id="outputDeliveryStats" class="support-text">Waiting for sequence counters.</p>
-        <details class="network-advanced"><summary>How outputs relate and how to use them</summary><p>Unrectified images come from the ISP. Rectification aligns the left/right views; the matcher produces disparity and the calibration converts it to depth. A side-by-side image contains left then right horizontally. Numeric depth and images can use different grids: always read each product's dimensions.</p><p>Products in a data frame share its capture identity. Preview and data can arrive at different rates: associate device UUID, run UUID, capture epoch and capture sequence, not arrival time. Read products by name; omitted products are absent, not zero-filled.</p><p>SDK starting point: <code>client.frames(products=("depth", "validity"), cadence_hz=2, delivery="best_effort")</code>. A compressed depth preview does not preserve float measurements.</p></details>
-        <div id="outputPreviewGrid" class="viewer-grid output-previews"></div>
-        <p id="outputEncodedState" role="status">Waiting for preview availability.</p>
-        <figure id="outputEncodedFigure" class="encoded-preview" hidden><figcaption>Shared compressed preview · visualization only</figcaption><canvas id="outputEncodedCanvas"></canvas></figure>
-        <div class="settings network-summary"><article><h2>On-device API</h2><p>The persistent sealed frame socket supports the same 14 product selections. Image-only consumers can avoid depth matching.</p></article><article><h2>Network API</h2><p>Use authenticated NuvoStream/1.0 over WiFi, Ethernet or USB Ethernet. WiFi is best effort within an explicit resource budget. Exact wired streams require measured source and link qualification.</p></article></div>
-        <details class="network-advanced"><summary>Connection preference and safe rollback</summary><div class="settings"><article><h2>Connection preference</h2><p id="transportState">Loading…</p><div class="button-row"><button type="button" class="primary" data-transport="auto">Automatic</button><button type="button" class="primary" data-transport="wifi">WiFi only</button><button type="button" class="primary" data-transport="ethernet">Ethernet preferred</button><button type="button" class="primary" data-transport="usb">USB preferred</button><button type="button" class="primary" data-transport="both">Ethernet and USB</button><button type="button" class="secondary" data-transport="off">Disable data output</button></div><p class="error" id="transportError"></p><button id="confirmTransport" class="primary">Confirm new connection</button></article><article><h2>Safe rollback</h2><p>A changed preference is provisional for 60 seconds. Confirm through the new path or restore the previous setting.</p><button id="rollbackTransport" class="primary">Roll back</button></article></div></details>
-      </section>
-      <section id="calibration" class="page">
-        <article class="panel" aria-label="Calibration readiness">
+        <p id="algorithmError" class="error" role="alert"></p></div></details>
+</aside></div></section>
+<section id="network" class="page"><div class="page-header"><h1>Outputs</h1></div><p class="lede">Choose a result, then apply it to this browser or get connection code for your application.</p>
+<form id="outputForm" class="settings-form output-settings">
+<div class="output-choice-layout"><div>
+<fieldset><legend>What do you need?</legend><div class="output-task-cards">
+<label><input type="radio" name="outputTask" value="camera" checked><span>Camera image<small>See the scene</small></span></label>
+<label><input type="radio" name="outputTask" value="depth"><span>Depth values<small>Numeric metres + valid pixels</small></span></label>
+<label><input type="radio" name="outputTask" value="stereo"><span>Stereo check<small>Aligned pair + disparity</small></span></label>
+</div></fieldset>
+<select id="outputPreset" hidden aria-label="Named output recipe"><option value="camera">Camera image</option><option value="depth">Depth values</option><option value="depth_reference">Depth with camera reference</option><option value="stereo">Stereo check</option><option value="custom">Custom selection</option></select>
+<label>Use these outputs in<select id="outputDestination"><option value="browser">This browser</option><option value="app">My application</option></select></label>
+<label id="outputFormatLabel">Image delivery<select id="outputFormat"><option value="data">Uncompressed image data</option><option value="picture">Shared picture preview · JPEG / H.264</option></select></label>
+<label id="outputReferenceLabel" class="check"><input id="outputCameraReference" type="checkbox">Include aligned camera image from the same capture</label><p id="outputValidityNote" class="support-text" hidden>Validity is included. Use only valid, finite, positive depth values. The aligned image and depth may use different grids.</p>
+<label>Requested frames/s<input id="outputCadence" type="number" min="1" max="60" step="1" value="5" required></label>
+</div><aside class="selection-review"><h2>You will receive</h2><p id="outputSelectionSummary"></p><p id="outputScope" class="support-text"></p><p id="outputPending" role="status"></p><p id="outputWarning" class="error" role="alert"></p><div class="form-actions"><button id="outputApply" type="submit" class="primary">Apply to this browser</button><button id="outputDiscard" type="button">Discard changes</button></div><p id="outputSaveState" role="status"></p><p id="outputRequested" class="support-text"></p><p id="outputReceiving" class="support-text"></p><pre id="outputRecipe" hidden></pre><button type="button" class="link-button" data-open="viewer">Open Live view</button></aside></div>
+<details id="outputAdvanced" class="advanced-card"><summary>Advanced products and delivery</summary><fieldset><legend>Individual data products</legend><div id="outputProductChoices" class="output-product-choices"></div></fieldset><label>Delivery policy<select id="outputDelivery"><option value="auto">Connection aware · Wi-Fi best effort</option><option value="best_effort">Best effort</option><option value="exact">Exact · qualified wired connection</option></select></label><p id="outputBandwidth"></p><p>Depth automatically includes validity. Camera images are ISP output, not sensor Bayer RAW. Disparity is matching-grid pixels; matcher support is binary 0 / 255, not a probability. Products are named, not ordered by checkbox position.</p></details>
+</form>
+<article class="panel delivery-permissions"><h2>Device delivery permissions</h2><p id="outputConnection">Loading connection information…</p><label class="check"><input id="wifiEnabled" type="checkbox" disabled>Allow product streaming over Wi-Fi</label><p class="support-text">Device-wide: applies to uncompressed data and picture previews. Console access and wired permissions remain separate. A master Off preference still disables all product streaming.</p><div class="button-row"><button id="wifiApply" type="button" disabled>Apply Wi-Fi permission</button><button id="wifiConfirm" type="button" hidden>Confirm Wi-Fi permission</button><button id="wifiRollback" type="button" hidden>Undo Wi-Fi change</button></div><p id="wifiState" role="status"></p><p id="wifiError" class="error" role="alert"></p><details class="network-advanced"><summary>Connection details</summary><p id="outputRecommendation"></p><p id="originLabel"></p><p id="outputDeliveryStats"></p></details></article>
+<article class="panel shared-picture-quality"><h2>Shared picture quality</h2><p class="scope-label">Device-wide · affects every compressed-preview client</p><label>Picture quality<select id="pictureQuality" disabled><option value="compact">Smaller pictures</option><option value="balanced">Balanced</option><option value="detail">More detail</option><option value="custom">Current custom setting</option></select></label><p id="pictureQualityDetail" class="support-text">Loading shared encoder settings</p><button id="pictureQualityApply" type="button" disabled>Apply shared picture quality</button><p id="pictureQualityState" role="status"></p><p>Changes compression settings for the existing source and codec. It preserves the rate ceiling and all numeric depth outputs. Actual picture size depends on the scene.</p><button type="button" class="link-button" data-open="streaming">Advanced encoder: source, codec, dimensions and rate</button></article>
+<details class="network-advanced"><summary>Product grids and capture association</summary><p>ISP images → aligned images → disparity → calibrated depth. Side-by-side images place left then right. Numeric depth is optical-axis Z in metres, not Euclidean range. Read each product’s dimensions and grid mapping.</p><p>Products in a data frame share device/run UUID, capture epoch and capture sequence. Picture previews may arrive at a different rate. Associate by complete capture identity, not arrival time.</p><p id="outputFrameSummary">Actual product dimensions appear after a frame arrives.</p></details>
+</section>
+<section id="device" class="page"><div class="page-header"><h1>Device</h1></div><p class="lede">Calibration, health, software and shared device configuration.</p><details id="calibration" class="device-section"><summary>Calibration</summary><div class="section-content"><article class="panel" aria-label="Calibration readiness">
           <h2 id="calibrationReadinessTitle">Status unavailable/error</h2>
           <p id="calibrationReadinessMessage">Waiting for shared calibration status.</p>
           <p><strong>Next action:</strong> <span id="calibrationReadinessAction">Wait for the device status response.</span></p>
           <p class="support-text">Calibration acceptance and camera/service health are separate. An upgrade alone does not require recalibration.</p>
         </article>
-        <div class="page-header"><h1>Calibration</h1></div>
+
         <p class="lede">Capture synchronized board images, validate geometry, and activate a calibration profile for this camera pair.</p>
         <details class="notice calibration-boundary"><summary>Accuracy boundary · preview is for positioning only</summary><p>Detection and solving always use a synchronized, unrectified, full-profile luma pair captured directly from both ISPs—never the compressed preview.</p></details>
         <div class="steps calibration-steps"><b data-calibration-step="setup">1 Target & profile</b><b data-calibration-step="capture">2 Capture coverage</b><b data-calibration-step="solve">3 Solve & inspect</b><b data-calibration-step="activate">4 Save or activate</b></div>
@@ -943,31 +733,177 @@
           <details class="panel calibration-method"><summary>Method and operator checklist</summary>
             <ul><li>Use a rigid, flat, matte board with a white border at least one square wide.</li><li>Measure the physical square and marker sizes after printing; do not trust printer scaling.</li><li>Lock focus and exposure for the capture series. Fill all image regions with sharp, varied poses and distances.</li><li>The solver rejects duplicate/blurred/clipped views, removes high-error training outliers, and reports deterministic holdout error.</li><li>A geometric pass validates model fit and baseline scale. Factory release still requires known-distance depth verification across the advertised range.</li></ul>
           </details>
-        </div>
-      </section>
-      <section id="diagnostics" class="page">
-        <div class="page-header">
-          <h1>Diagnostics</h1>
-        </div>
+        </div></div></details><details id="diagnostics" class="device-section"><summary>Diagnostics</summary><div class="section-content">
         <p class="lede">Read-only checks explain readiness and recovery. Download an allowlisted support report; it excludes credentials and raw logs.</p>
-        <div id="diagnosticsPerformanceSlot"></div>
+        <p><button type="button" class="secondary" data-open="overview">Open performance overview</button></p>
         <button id="refreshDiagnostics" class="secondary" type="button">Run diagnostics</button>
         <button id="copyDiagnostics" class="primary" type="button">Copy support JSON</button>
         <button id="downloadDiagnostics" class="secondary" type="button" disabled>Download support report</button>
         <span id="copyDiagnosticsState" role="status"></span>
-        <pre id="diagnosticJson">Waiting for device health data…</pre>
-      </section>
-      <section id="recovery" class="page">
-        <div class="page-header"><h1>Software update</h1></div>
+        <pre id="diagnosticJson">Waiting for device health data…</pre></div></details><details id="recovery" class="device-section"><summary>Software update</summary><div class="section-content">
         <p class="lede">Review your installed cohort and run the supported terminal installer. Keep your existing identity and validated calibration.</p>
         <div class="settings"><article><h2>Installed versions</h2><pre id="installedVersions">Reading installed package versions…</pre></article>
         <article><h2>Approved public reference</h2><p id="upgradeNotice">Release availability has not been checked.</p><pre id="upgradeCommand">Read diagnostics to obtain the approved pinned command.</pre><p>Review release prerequisites first. This command runs in your Pi terminal; the browser does not install updates. Candidates can be newer than the public reference, and implicit downgrades are refused.</p></article>
-        <article><h2>Preservation and recovery</h2><p>Use one complete supported cohort. Rerunning its installer preserves per-unit identity and calibration. An upgrade alone does not require recalibration. If installation was interrupted, inspect <code>sudo dpkg --audit</code> and the installer error before retrying. Do not mix individual package versions or assume a previous cohort is a tested downgrade.</p><p><a href="https://docs.nuvohardware.com/vision-one/operations/troubleshooting" target="_blank" rel="noopener">Upgrade and recovery guide</a></p></article></div>
-      </section>
+        <article><h2>Preservation and recovery</h2><p>Use one complete supported cohort. Rerunning its installer preserves per-unit identity and calibration. An upgrade alone does not require recalibration. If installation was interrupted, inspect <code>sudo dpkg --audit</code> and the installer error before retrying. Do not mix individual package versions or assume a previous cohort is a tested downgrade.</p><p><a href="https://docs.nuvohardware.com/vision-one/operations/troubleshooting" target="_blank" rel="noopener">Upgrade and recovery guide</a></p></article></div></div></details><details id="streaming" class="device-section"><summary>Advanced preview encoder</summary><div class="section-content">
+        <p class="lede">Shared device settings affect every preview client. Changing these controls never means a browser or SDK is receiving a frame.</p>
+        <div class="stream-layout">
+          <form id="encodingForm" class="settings-form" novalidate="">
+            <h2 class="form-title">
+              <svg class="icon" aria-hidden="true" focusable="false">
+                <use href="#icon-stream"></use>
+              </svg>Device-wide preview and network delivery</h2>
+            <p class="apply-note">These settings affect every network client. The device has one shared preview encoder; choose what this browser receives on Outputs.</p>
+            <input id="streamMode" type="hidden" value="both">
+            <label class="check toggle">
+              <input id="streamEncoderEnabled" type="checkbox">
+              <span>
+                <b>Compressed preview encoder</b>
+                <small>Shared H.264 or MJPEG visualization for all preview clients</small>
+              </span>
+            </label>
+            <label class="check toggle">
+              <input id="streamRawEnabled" type="checkbox">
+              <span>
+                <b>Uncompressed network data</b>
+                <small>Images and numeric products for browser/HTTPS SDK clients. Local socket delivery is independent.</small>
+              </span>
+            </label>
+            <div id="encoderSettings" class="form-group">
+              <label>Codec<select id="streamCodec">
+                  <option value="h264">H.264 · independent frames</option>
+                  <option value="jpeg">MJPEG · universal</option>
+                </select>
+              </label>
+              <label>Shared preview source<select id="streamSource">
+                <optgroup label="Camera images · unrectified">
+                  <option value="left_mono">Left camera · mono</option>
+                  <option value="right_mono">Right camera · mono</option>
+                  <option value="left_color">Left color · ISP</option>
+                  <option value="right_color">Right color · ISP</option>
+                </optgroup>
+                <optgroup label="Stereo-aligned images · rectified">
+                  <option value="left_rectified">Left rectified · luma</option>
+                  <option value="right_rectified">Right rectified · luma</option>
+                  <option value="left_rectified_rgb">Left RGB · rectified</option>
+                  <option value="right_rectified_rgb">Right RGB · rectified</option>
+                  <option value="rectified_stereo">Stereo side by side · mono</option>
+                  <option value="rectified_stereo_rgb">Stereo side by side · RGB</option>
+                </optgroup>
+                <optgroup label="Measurements shown as pictures">
+                  <option value="disparity">Disparity preview · 8-bit visualization</option>
+                  <option value="depth">Depth preview · 8-bit visualization, 0.2–12.2 m</option>
+                </optgroup>
+                <option value="left_rgb" hidden>Left color · existing RGB alias</option>
+                <option value="right_rgb" hidden>Right color · existing RGB alias</option>
+                </select>
+              </label>
+              <label>Device preview rate ceiling<input id="streamFps" type="number" min="1" max="60" required data-unit="fps">
+              </label>
+            </div>
+            <details class="panel advanced-card">
+              <summary>
+                <span class="group-heading">
+                  <svg class="icon" aria-hidden="true" focusable="false">
+                    <use href="#icon-sliders"></use>
+                  </svg>
+                  <span>
+                    <span class="group-title">Advanced encoding controls</span>
+                    <span class="group-values">Grouped settings · edits are preserved when collapsed</span>
+                  </span>
+                </span>
+                <span class="group-badges"></span>
+              </summary>
+              <div class="advanced-body">
+                <details class="advanced-group " data-group="stream-size" data-summary-fields="streamWidth:Width:px,streamHeight:Height:px">
+                  <summary>
+                    <span class="group-heading">
+                      <svg class="icon" aria-hidden="true" focusable="false">
+                        <use href="#icon-scan"></use>
+                      </svg>
+                      <span>
+                        <span class="group-title">Output size</span>
+                        <span class="group-values">Loading settings…</span>
+                      </span>
+                    </span>
+                    <span class="group-badges"></span>
+                  </summary>
+                  <div class="group-body">
+                    <div class="group-toolbar">
+                      <span class="group-context"></span>
+                      <button type="button" class="secondary group-reset">Discard group changes</button>
+                    </div>
+                    <div class="group-fields">
+                      <label>Width <small>0 keeps native</small>
+                        <input id="streamWidth" type="number" min="0" max="1920" step="2" required data-unit="px">
+                      </label>
+                      <label>Height <small>0 keeps native</small>
+                        <input id="streamHeight" type="number" min="0" max="1080" step="2" required data-unit="px">
+                      </label>
+                    </div>
+                  </div>
+                </details>
+                <details class="advanced-group " data-group="stream-compression" data-summary-fields="streamBitrate:H.264:bps,streamQuality:JPEG:%,streamThreads:CPU:threads">
+                  <summary>
+                    <span class="group-heading">
+                      <svg class="icon" aria-hidden="true" focusable="false">
+                        <use href="#icon-cpu"></use>
+                      </svg>
+                      <span>
+                        <span class="group-title">Compression &amp; compute</span>
+                        <span class="group-values">Loading settings…</span>
+                      </span>
+                    </span>
+                    <span class="group-badges"></span>
+                  </summary>
+                  <div class="group-body">
+                    <div class="group-toolbar">
+                      <span class="group-context"></span>
+                      <button type="button" class="secondary group-reset">Discard group changes</button>
+                    </div>
+                    <div class="group-fields">
+                      <label>H.264 bitrate<input id="streamBitrate" type="number" min="100000" max="50000000" step="100000" required data-unit="bps">
+                      </label>
+                      <label>JPEG quality<input id="streamQuality" type="number" min="1" max="100" required data-unit="%">
+                      </label>
+                      <label>Keyframe interval<small>Independent frames are required for live preview</small>
+                        <input id="streamKeyframes" type="number" min="1" max="600" step="1" value="1" readonly required>
+                      </label>
+                      <label>Encoder threads<select id="streamThreads">
+                          <option value="1">1</option>
+                          <option value="2">2</option>
+                          <option value="3">3</option>
+                          <option value="4">4</option>
+                        </select>
+                      </label>
+                      <label>Speed/quality preset<select id="streamPreset">
+                          <option value="ultrafast">Ultra-fast</option>
+                          <option value="superfast">Super-fast</option>
+                          <option value="veryfast">Very fast</option>
+                          <option value="faster">Faster</option>
+                          <option value="fast">Fast / higher quality</option>
+                        </select>
+                      </label>
+                      <label class="check">
+                        <input id="streamLowLatency" type="checkbox"> Low latency, no delayed frames</label>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            </details>
+            <div class="form-actions">
+              <button class="primary" type="submit">Apply settings</button>
+              <button id="encodingReset" class="secondary" type="button">Discard changes</button>
+              <span id="encodingSaveState" role="status"></span>
+            </div>
+            <details class="stream-help">
+              <summary>How monitoring affects performance</summary>
+              <div class="notice compact">Image previews run independently of stereo matching. Depth and disparity previews compute only at the requested preview rate. Select the products and rates you need; unused output stages stay idle. Raw delivery is available over WiFi, Ethernet, USB Ethernet, and on-device integrations within each connection's bandwidth budget.</div>
+              <p class="endpoint" id="encodedEndpoint"></p>
+            </details>
+          </form>
+</div></div></details><details class="network-advanced"><summary>Connection preference and safe rollback</summary><div class="settings"><article><h2>Connection preference</h2><p id="transportState">Loading…</p><div class="button-row"><button type="button" class="primary" data-transport="auto">Automatic</button><button type="button" class="primary" data-transport="wifi">WiFi only</button><button type="button" class="primary" data-transport="ethernet">Ethernet preferred</button><button type="button" class="primary" data-transport="usb">USB preferred</button><button type="button" class="primary" data-transport="both">Ethernet and USB</button><button type="button" class="secondary" data-transport="off">Disable data output</button></div><p class="error" id="transportError"></p><button id="confirmTransport" class="primary">Confirm new connection</button></article><article><h2>Safe rollback</h2><p>A changed preference is provisional for 60 seconds. Confirm through the new path or restore the previous setting.</p><button id="rollbackTransport" class="primary">Roll back</button></article></div></details></section>
     </main>
   </div>
-
-  <template id="tuningPreviewTemplate"><div class="card-heading"><h2><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-scan"></use></svg>Camera &amp; depth</h2><span class="chip chip-neutral" data-preview-state>Waiting for live frames</span></div><div class="tuning-preview-grid"><figure><figcaption>Left rectified <span class="chip chip-cyan">Image</span></figcaption><div class="sample-canvas"><canvas data-tuning-product="left_rectified" width="728" height="544" aria-label="Live left rectified camera image"></canvas><div class="sample-overlay preview-empty"><span>Waiting for camera image</span></div></div></figure><figure><figcaption>Depth <span class="chip chip-violet">Metric depth</span></figcaption><div class="sample-canvas"><canvas data-tuning-product="depth" width="728" height="544" aria-label="Live optical-axis depth in metres"></canvas><div class="sample-overlay preview-empty"><span>Waiting for depth output</span></div></div></figure></div><div class="preview-metrics"><span data-live-metric="capture">Capture target · —</span><span data-live-metric="depth">Depth output · —</span><span data-live-metric="compute">Compute · —</span></div><div class="preview-metrics"><span data-live-resolution>Depth grid · —</span><span>Black pixels: invalid depth</span></div><p class="preview-validity" data-live-calibration>Waiting for calibration status</p><p class="preview-unavailable" hidden>Raw products are disabled. Enable raw delivery on Streaming to preview camera and depth.</p></template>
   <script src="/frame-codec.js" defer></script>
   <script src="/device-settings.js" defer></script>
   <script src="/first-use.js" defer></script>

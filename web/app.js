@@ -39,6 +39,7 @@ let decoder = null, decoderCodec = '', encodedLastSequence = 0;
 let encodedWaitingForKeyframe = true;
 let encodedGeneration = 0, encodedArrival = 0, encodedLastPresented = 0;
 let jpegDecodeBusy = false, pendingJpeg = null;
+const encodedMetadata = new Map();
 let rawRetryTimer = null, encodedRetryTimer = null;
 let rawRetryDelay = 1000, encodedRetryDelay = 1000;
 let rawPollToken = 0, encodedPollToken = 0;
@@ -67,14 +68,20 @@ const OUTPUT_PRODUCTS = [
   ['disparity','Disparity · float32 matching-grid pixels',4], ['depth','Depth · float32 metres (optical-axis Z)',4],
   ['confidence','Matcher support · binary 0 / 255',1], ['validity','Depth validity · 1 means valid',1]
 ];
-const OUTPUT_PRESETS={camera:['left_mono'],depth:['depth','validity'],stereo:['left_rectified','right_rectified','disparity','validity']};
 let capabilities = null;
-let outputSettings = {enabled:true, products:['left_mono'], cadence_hz:5, delivery:'auto', preview:true, preview_cadence_hz:5};
+let outputSettings = window.NuvoDeviceSettings.outputRecipe('camera');
+let outputReception = null, viewerPaused = false, displayedNumericFrame = null;
+let receivingTimes = [], initialEncodingLoaded = false;
+let wifiDirty=false, transportState=null;
+let pictureQualityDirty=false, pictureQualityBusy=false;
 try {
   const saved=JSON.parse(localStorage.getItem('nuvo-output-selection')||'null');
-  if(saved&&Array.isArray(saved.products)&&(saved.products.length||saved.enabled===false)&&saved.products.length<=14&&saved.products.every(p=>OUTPUT_PRODUCTS.some(x=>x[0]===p))&&
+  if(saved&&Array.isArray(saved.products)&&saved.products.length<=14&&saved.products.every(p=>OUTPUT_PRODUCTS.some(x=>x[0]===p))&&
     saved.cadence_hz>0&&saved.cadence_hz<=60&&saved.preview_cadence_hz>0&&saved.preview_cadence_hz<=60&&
-    ['auto','best_effort','exact'].includes(saved.delivery))outputSettings={...outputSettings,...saved};
+    ['auto','best_effort','exact'].includes(saved.delivery)){
+    outputSettings=window.NuvoDeviceSettings.normalizeOutputSelection({...outputSettings,...saved});
+    if(outputSettings.enabled)outputSettings.preview=false;
+  }
 } catch (_) {}
 
 function outputSubscriptionPath(path, settings=outputSettings) {
@@ -84,75 +91,113 @@ function outputBandwidth(products,width,height,cadence,matchingWidth=width,match
   const bytes=window.NuvoDeviceSettings.outputFrameBytes(products,{width,height,matchingWidth,matchingHeight},OUTPUT_PRODUCTS);
   return {frame_bytes:bytes, bytes_per_second:bytes*cadence};
 }
+function outputDraft(){
+  const picture=$('outputFormat').value==='picture';
+  return window.NuvoDeviceSettings.normalizeOutputSelection({enabled:!picture,
+    products:picture?[]:[...document.querySelectorAll('[name="outputProduct"]:checked')].map(x=>x.value),
+    cadence_hz:Number($('outputCadence').value),delivery:$('outputDelivery').value,
+    preview:picture,preview_cadence_hz:Number($('outputCadence').value)});
+}
+function fillOutputDraft(value){
+  const name=window.NuvoDeviceSettings.outputRecipeName(value),task=name==='depth_reference'?'depth':name==='picture'?'camera':name;
+  document.querySelectorAll('[name="outputProduct"]').forEach(input=>input.checked=value.products.includes(input.value));
+  document.querySelectorAll('[name="outputTask"]').forEach(input=>input.checked=input.value===task);
+  $('outputPreset').value=name==='picture'?'camera':name;
+  $('outputCadence').value=value.enabled?value.cadence_hz:value.preview_cadence_hz;
+  $('outputDelivery').value=value.delivery;$('outputFormat').value=value.enabled?'data':'picture';
+  $('outputCameraReference').checked=name==='depth_reference';
+  $('outputAdvanced').open=name==='custom';
+}
 function updateOutputBudget() {
-  const products=[...document.querySelectorAll('[name="outputProduct"]:checked')].map(x=>x.value);
-  const cadence=Number($('outputCadence').value), connection=capabilities?.connection;
+  const draft=outputDraft(),products=draft.products,cadence=draft.cadence_hz,connection=capabilities?.connection;
   const width=lastHealth?.image_width||728,height=lastHealth?.image_height||544;
-  const matchingWidth=lastHealth?.depth_width||width,matchingHeight=lastHealth?.depth_height||height;
-  const estimate=outputBandwidth(products,width,height,cadence,matchingWidth,matchingHeight);
-  const budget=connection?.resource_budget_bytes_per_second;
-  $('outputBandwidth').textContent=products.length?`${(estimate.bytes_per_second/1048576).toFixed(2)} MiB/s uncompressed estimate · images ${width} × ${height} · matcher ${matchingWidth} × ${matchingHeight} · metadata allowance included`:'Select at least one data product';
-  const over=budget&&estimate.bytes_per_second>budget;
-  const exactUnavailable=$('outputDelivery').value==='exact'&&connection&&!connection.qualified_link;
-  $('outputWarning').textContent=exactUnavailable?'This connection has no measured exact qualification. Choose best effort or connect through a qualified wired link.':over?`Selection exceeds this connection’s ${(budget/1048576).toFixed(1)} MiB/s resource budget. Reduce cadence or choose fewer products; JPEG monitoring is available on Streaming.`:products.some(p=>['depth','disparity','confidence','validity'].includes(p))?'Selected matcher products start depth processing while this output is open.':'Image-only selection runs without the depth matcher.';
-  $('outputWarning').classList.toggle('error',!!(over||exactUnavailable));
+  const estimate=outputBandwidth(products,width,height,cadence,lastHealth?.depth_width||width,lastHealth?.depth_height||height);
+  const budget=connection?.resource_budget_bytes_per_second,over=draft.enabled&&budget&&estimate.bytes_per_second>budget;
+  const exactUnavailable=draft.enabled&&draft.delivery==='exact'&&connection&&!connection.qualified_link;
+  const name=window.NuvoDeviceSettings.outputRecipeName(draft),app=$('outputDestination').value==='app';
+  $('outputFormatLabel').hidden=!['camera','picture','custom'].includes(name);
+  $('outputReferenceLabel').hidden=!['depth','depth_reference'].includes(name);
+  $('outputValidityNote').hidden=!products.includes('depth');
+  $('outputBandwidth').textContent=draft.enabled?`${(estimate.bytes_per_second/1048576).toFixed(2)} MiB/s estimate · image grid ${width} × ${height} · depth grid ${lastHealth?.depth_width||width} × ${lastHealth?.depth_height||height}`:'Compressed size varies with the scene and device encoder settings.';
+  const pictureSource=encoding?`${encoding.source.replaceAll('_',' ')} · ${encoding.codec.toUpperCase()}`:'source not loaded';
+  $('outputSelectionSummary').textContent=draft.enabled?`${window.NuvoDeviceSettings.outputSelectionLabel(draft)} · ${cadence} frames/s${products.includes('depth')?' · numeric metres':''}`:`Shared picture: ${pictureSource} · up to ${cadence} frames/s`;
+  $('outputScope').textContent=app?'Connection code only. Generating a recipe does not change this browser, the device encoder or another application.':draft.preview?'This browser requests the existing shared picture. It does not change its source, quality or other clients.':'Only this browser subscription changes. Other clients keep their own selections.';
+  $('outputApply').textContent=app?'Show connection code':'Apply to this browser';
+  const state=window.NuvoDeviceSettings.outputSelectionStatus(outputSettings,draft,outputReception);
+  $('outputPending').textContent=state.dirty?'Editing · changes are not requested yet':app?'Ready to generate application code':'No pending browser changes';
+  $('outputDiscard').disabled=!state.dirty;
+  $('outputRequested').textContent=`Requested in this browser: ${state.requested} · ${outputSettings.enabled?outputSettings.cadence_hz:outputSettings.preview_cadence_hz} frames/s`;
+  $('outputReceiving').textContent=receivingStatus();
+  $('outputWarning').textContent=exactUnavailable?'Exact delivery is not qualified on this connection. Choose Best effort or a qualified wired connection.':over?'This selection exceeds the camera connection budget. Reduce the requested rate or choose fewer products.':draft.preview&&encoding?.mode==='raw'?'The shared picture encoder is off. Enable it explicitly in Device → Advanced preview encoder.':draft.enabled&&encoding?.mode==='encoded'?'The device currently serves pictures only. Enable Uncompressed network data in Device to receive these products.':'';
 }
 function outputLimits(){return {width:lastHealth?.image_width||lastHealth?.depth_width||728,height:lastHealth?.image_height||lastHealth?.depth_height||544,
   matchingWidth:lastHealth?.depth_width,matchingHeight:lastHealth?.depth_height,
   supportedProducts:capabilities?.products,qualified:!!capabilities?.connection?.qualified_link,bytesPerSecond:capabilities?.connection?.resource_budget_bytes_per_second,
   maxFrameBytes:capabilities?.stream_admission?.raw_maximum_wire_bytes,rawEnabled:encoding?.mode!=='encoded'};}
 function commitOutputSelection(candidate){
-  if(candidate.enabled&&!candidate.products.length)throw new Error('Select at least one data product.');
-  const checked=window.NuvoDeviceSettings.validateOutputSelection(candidate,outputLimits(),OUTPUT_PRODUCTS);
-  const next={...candidate,enabled:checked.enabled,products:checked.products};
+  const normalized=window.NuvoDeviceSettings.normalizeOutputSelection(candidate);
+  if(normalized.preview&&encoding?.mode==='raw')throw new Error('The shared picture encoder is off. Enable it explicitly in Device → Advanced preview encoder.');
+  const checked=window.NuvoDeviceSettings.validateOutputSelection(normalized,outputLimits(),OUTPUT_PRODUCTS);
+  const next={...normalized,enabled:checked.enabled,products:checked.products};
   let persisted=true;try{localStorage.setItem('nuvo-output-selection',JSON.stringify(next));}catch(_){persisted=false;}
-  outputSettings=next;
-  document.querySelectorAll('[name="outputProduct"]').forEach(input=>input.checked=next.products.includes(input.value));
-  $('outputEnabled').checked=next.enabled;$('outputCadence').value=next.cadence_hz;$('outputDelivery').value=next.delivery;
-  $('outputPreviewEnabled').checked=next.preview;$('outputPreviewCadence').value=next.preview_cadence_hz;
-  $('outputPreset').value=Object.keys(OUTPUT_PRESETS).find(key=>OUTPUT_PRESETS[key].length===next.products.length&&OUTPUT_PRESETS[key].every(p=>next.products.includes(p)))||'custom';
-  $('outputSaveState').textContent=persisted?'Applied to this browser':'Applied for this session';restartStreams();updateOutputBudget();
+  outputSettings=next;viewerPaused=false;outputReception=null;
+  fillOutputDraft(next);
+  $('liveRecipe').value=window.NuvoDeviceSettings.outputRecipeName(next);
+  $('liveCadence').value=next.enabled?next.cadence_hz:next.preview_cadence_hz;
+  $('outputSaveState').textContent=persisted?'Requested · waiting for a matching frame':'Requested for this session · waiting for a matching frame';
+  restartStreams();updateOutputBudget();
   return persisted;
 }
 function initializeOutputControls() {
-  for(const [name,label] of OUTPUT_PRODUCTS){
-    const item=document.createElement('label'),input=document.createElement('input');
-    input.type='checkbox';input.name='outputProduct';input.value=name;input.checked=outputSettings.products.includes(name);
-    item.append(input,document.createTextNode(label));$('outputProductChoices').append(item);
-  }
-  $('outputEnabled').checked=outputSettings.enabled;$('outputCadence').value=outputSettings.cadence_hz;
-  $('outputDelivery').value=outputSettings.delivery;$('outputPreviewEnabled').checked=outputSettings.preview;
-  $('outputPreviewCadence').value=outputSettings.preview_cadence_hz;
-  $('outputPreset').value=Object.keys(OUTPUT_PRESETS).find(key=>OUTPUT_PRESETS[key].length===outputSettings.products.length&&OUTPUT_PRESETS[key].every(p=>outputSettings.products.includes(p)))||'custom';
-  $('outputAdvanced').open=$('outputPreset').value==='custom';
-  $('outputPreset').addEventListener('change',()=>{
-    const preset=OUTPUT_PRESETS[$('outputPreset').value];
-    if(preset){
-      document.querySelectorAll('[name="outputProduct"]').forEach(input=>input.checked=preset.includes(input.value));$('outputEnabled').checked=true;
-      $('outputCadence').value=Math.min(Number($('outputCadence').value),$('outputPreset').value==='stereo'?1:$('outputPreset').value==='depth'?2:5);
+  const groups=[['Camera images',OUTPUT_PRODUCTS.slice(0,10)],['Measurements and masks',OUTPUT_PRODUCTS.slice(10)]];
+  for(const [title,products] of groups){
+    const group=document.createElement('fieldset'),legend=document.createElement('legend');legend.textContent=title;group.append(legend);
+    for(const [name,label] of products){
+      const item=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.name='outputProduct';input.value=name;
+      item.append(input,document.createTextNode(label));group.append(item);
     }
-    $('outputAdvanced').open=!preset;updateOutputBudget();
+    $('outputProductChoices').append(group);
+  }
+  fillOutputDraft(outputSettings);$('liveRecipe').value=window.NuvoDeviceSettings.outputRecipeName(outputSettings);
+  $('liveCadence').value=outputSettings.enabled?outputSettings.cadence_hz:outputSettings.preview_cadence_hz;
+  const choose=name=>{fillOutputDraft(window.NuvoDeviceSettings.outputRecipe(name));$('outputSaveState').textContent='';$('outputRecipe').hidden=true;updateOutputBudget();};
+  document.querySelectorAll('[name="outputTask"]').forEach(input=>input.addEventListener('change',()=>choose(input.value)));
+  $('outputPreset').addEventListener('change',()=>{if($('outputPreset').value!=='custom')choose($('outputPreset').value);else $('outputAdvanced').open=true;});
+  $('outputCameraReference').addEventListener('change',()=>choose($('outputCameraReference').checked?'depth_reference':'depth'));
+  $('outputFormat').addEventListener('change',()=>choose($('outputFormat').value==='picture'?'picture':'camera'));
+  $('outputProductChoices').addEventListener('change',()=>{
+    const draft=outputDraft();fillOutputDraft({...draft,enabled:true,preview:false});$('outputAdvanced').open=true;updateOutputBudget();
   });
-  $('outputProductChoices').addEventListener('change',()=>{$('outputPreset').value='custom';});
-  $('outputForm').addEventListener('input',updateOutputBudget);
+  $('outputForm').addEventListener('input',()=>{$('outputSaveState').textContent='';$('outputRecipe').hidden=true;updateOutputBudget();});
+  $('outputForm').addEventListener('change',()=>{$('outputRecipe').hidden=true;updateOutputBudget();});
+  $('outputDiscard').addEventListener('click',()=>{fillOutputDraft(outputSettings);$('outputRecipe').hidden=true;$('outputSaveState').textContent='Draft discarded';updateOutputBudget();});
   $('outputForm').addEventListener('submit',event=>{
     event.preventDefault();
-    const products=[...document.querySelectorAll('[name="outputProduct"]:checked')].map(x=>x.value);
-    if(!products.length&&$('outputEnabled').checked){$('outputWarning').textContent='Select at least one data product';return;}
-    const candidate={enabled:$('outputEnabled').checked,products,
-      cadence_hz:Number($('outputCadence').value),delivery:$('outputDelivery').value,
-      preview:$('outputPreviewEnabled').checked,preview_cadence_hz:Number($('outputPreviewCadence').value)};
-    try{commitOutputSelection(candidate);}catch(error){$('outputWarning').textContent=error.message;$('outputWarning').classList.add('error');}
+    try{
+      const candidate=outputDraft();
+      if($('outputDestination').value==='app'){
+        window.NuvoDeviceSettings.validateOutputSelection(candidate,{...outputLimits(),rawEnabled:true,qualified:true,bytesPerSecond:Number.MAX_SAFE_INTEGER},OUTPUT_PRODUCTS);
+        $('outputRecipe').textContent=window.NuvoDeviceSettings.outputApplicationRecipe(candidate);$('outputRecipe').hidden=false;
+        $('outputSaveState').textContent='Connection code ready · browser selection unchanged';
+      }else commitOutputSelection(candidate);
+    }catch(error){$('outputWarning').textContent=error.message;}
   });
+  $('liveRecipe').addEventListener('change',()=>{const name=$('liveRecipe').value;if(name!=='custom')$('liveCadence').value=window.NuvoDeviceSettings.outputRecipe(name).cadence_hz;});
+  $('liveSelectionForm').addEventListener('submit',event=>{
+    event.preventDefault();try{const name=$('liveRecipe').value,rate=Number($('liveCadence').value);commitOutputSelection({...(name==='custom'?outputSettings:window.NuvoDeviceSettings.outputRecipe(name)),cadence_hz:rate,preview_cadence_hz:rate});}catch(error){$('frameError').textContent=error.message;}
+  });
+  $('viewerPause').addEventListener('click',()=>{viewerPaused=!viewerPaused;restartStreams();});
   updateOutputBudget();
 }
 async function refreshCapabilities() {
   try {
+    const before=capabilities?.connection?.products_permitted;
     capabilities=await (await api('/api/v1/capabilities')).json();
     const c=capabilities.connection;
-    $('outputConnection').textContent=`${c.kind.replaceAll('_',' ')} · ${c.interface} · ${(c.resource_budget_bytes_per_second/1048576).toFixed(1)} MiB/s ${c.budget_is_measured_capacity?'measured capacity':'resource limit'}`;
-    $('outputRecommendation').textContent=`Recommended preview: ${c.recommended_preview.toUpperCase()} at ${c.recommended_cadence_hz} Hz. Exact delivery requires current measured source and wired-link qualification. Products and formats remain your selection.`;
+    $('outputConnection').textContent=`Camera connection: ${c.kind.replaceAll('_',' ')} · ${c.interface}`;
+    $('outputRecommendation').textContent=`${(c.resource_budget_bytes_per_second/1048576).toFixed(1)} MiB/s ${c.budget_is_measured_capacity?'measured capacity':'resource budget'}. Wi-Fi is best effort. USB means USB Ethernet. This identifies the camera-side link, not every segment to this browser.`;
     updateOutputBudget();
+    if(typeof before==='boolean'&&before!==c.products_permitted)restartStreams();
   } catch(error){$('outputConnection').textContent='Connection information unavailable';}
 }
 
@@ -180,22 +225,22 @@ function setMeasurement(id, value, unit) {
   element.append(suffix);
 }
 
+const LEGACY_PAGES={exposure:'viewer',presets:'viewer',algorithm:'viewer',streaming:'device',calibration:'device',diagnostics:'device',recovery:'device'};
 function openPage(id) {
-  if (!document.getElementById(id)?.classList.contains('page')) id = 'overview';
-  if (id === selectedPage) return;
-  selectedPage = id;
-  document.querySelectorAll('.page').forEach(x => x.classList.toggle('active', x.id === id));
-  document.querySelectorAll('nav button').forEach(x => {
-    const active = x.dataset.page === id;
-    x.classList.toggle('active', active);
-    if (active) x.setAttribute('aria-current', 'page');
-    else x.removeAttribute('aria-current');
+  const section=LEGACY_PAGES[id]?$(id):null;
+  const page=LEGACY_PAGES[id]||(['overview','viewer','network','device'].includes(id)?id:'overview');
+  if(section)section.open=true;
+  const changed=page!==selectedPage;selectedPage=page;
+  document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===page));
+  document.querySelectorAll('nav [data-page]').forEach(x=>{
+    const active=x.dataset.page===page;x.classList.toggle('active',active);
+    if(active)x.setAttribute('aria-current','page');else x.removeAttribute('aria-current');
   });
-  placePerformanceMonitor(id);
-  window.scrollTo(0, 0);
-  requestAnimationFrame(() => window.scrollTo(0, 0));
-  restartStreams();
-  if(id==='diagnostics'||id==='recovery')queueMicrotask(refreshDiagnostics);
+  placePerformanceMonitor(page);
+  if(changed)restartStreams();
+  if(section)requestAnimationFrame(()=>section.scrollIntoView({block:'start'}));
+  else {window.scrollTo(0,0);requestAnimationFrame(()=>window.scrollTo(0,0));}
+  if(page==='device')queueMicrotask(refreshDiagnostics);
 }
 function navigateToPage(id){
   if(location.hash!==`#${id}`)history.pushState(null,'',`#${id}`);
@@ -273,10 +318,31 @@ function renderCalibrationReadiness(){
 async function refreshTransport() {
   try {
     const state = await (await api('/api/v1/transport')).json();
+    transportState=state;
     $('transportState').textContent = `Current preference: ${state.preference}`;
     $('transportError').textContent = '';
+    const supported=typeof state.wifi_enabled==='boolean';
+    if(!wifiDirty)$('wifiEnabled').checked=state.wifi_enabled===true;
+    $('wifiEnabled').disabled=!supported;$('wifiApply').disabled=!supported||!wifiDirty;
+    const pending=state.transaction?.status==='pending',expired=state.transaction?.status==='expired';
+    $('wifiConfirm').hidden=!pending;$('wifiRollback').hidden=!(pending||expired);
+    $('wifiApply').disabled=!supported||!wifiDirty||pending;
+    $('wifiState').textContent=!supported?'Separate Wi-Fi permission requires an updated gateway.':pending?'A device transport change is provisional. Confirm it or undo; it rolls back after 60 seconds.':expired?'The pending transport change expired. Undo it or refresh the restored policy.':`Wi-Fi permission: ${state.wifi_enabled?'allowed':'blocked'}${state.preference==='off'?' · master Off still blocks all product streaming':''}.${state.transaction===null?' Pending-change status unavailable.':''}`;
   } catch (error) { $('transportState').textContent = 'Connection preference unavailable'; $('transportError').textContent = error.message; }
 }
+
+$('wifiEnabled').addEventListener('change',()=>{wifiDirty=$('wifiEnabled').checked!==transportState?.wifi_enabled;$('wifiApply').disabled=!wifiDirty||transportState?.transaction?.status==='pending';$('wifiState').textContent=wifiDirty?'Editing Wi-Fi permission · not applied':'No pending permission changes';});
+async function wifiAction(operation){
+  $('wifiError').textContent='';$('wifiApply').disabled=true;
+  try{
+    await api('/api/v1/transport/'+operation,{method:'POST',headers:{'Content-Type':'application/json'},body:operation==='stage'?JSON.stringify({wifi_enabled:$('wifiEnabled').checked}):''});
+    wifiDirty=false;
+    await refreshTransport();await refreshCapabilities();
+  }catch(error){$('wifiError').textContent=error.message;$('wifiApply').disabled=!wifiDirty;}
+}
+$('wifiApply').addEventListener('click',()=>wifiAction('stage'));
+$('wifiConfirm').addEventListener('click',()=>wifiAction('confirm'));
+$('wifiRollback').addEventListener('click',()=>wifiAction('rollback'));
 
 async function transportAction(path, body) {
   $('transportError').textContent = '';
@@ -300,11 +366,35 @@ function showEncodingConfig(value) {
   $('streamBitrate').value=value.bitrate_bps; $('streamQuality').value=value.jpeg_quality;
   $('streamKeyframes').value=1; $('streamThreads').value=value.threads;
   $('streamLowLatency').checked=value.low_latency; $('streamPreset').value=value.preset;
-  $('encodedFormat').textContent=value.mode==='raw' ? 'Disabled' : `${value.codec.toUpperCase()} · ${value.source.replaceAll('_',' ')}`;
-  $('viewerModeNotice').hidden=value.mode!=='encoded';
+  if(!encodedFrameAt)$('encodedFormat').textContent=value.mode==='raw'?'Picture encoder off':'Waiting for a decoded picture';
   updateEncodingFields();
   setFormBaseline('encodingForm');
+  updatePictureQuality();
 }
+
+function updatePictureQuality(){
+  if(!encoding)return;
+  const choices=['compact','balanced','detail'],field=encoding.codec==='jpeg'?'jpeg_quality':'bitrate_bps';
+  if(!pictureQualityDirty)$('pictureQuality').value=choices.find(choice=>window.NuvoDeviceSettings.pictureQualityConfiguration(encoding,choice)[field]===encoding[field])||'custom';
+  $('pictureQuality').disabled=pictureQualityBusy;
+  const choice=$('pictureQuality').value;
+  const selected=choice==='custom'?encoding:window.NuvoDeviceSettings.pictureQualityConfiguration(encoding,choice);
+  $('pictureQualityDetail').textContent=`${encoding.codec.toUpperCase()} · ${encoding.source.replaceAll('_',' ')} · rate ceiling ${encoding.cadence_hz} frames/s. ${encoding.codec==='jpeg'?'JPEG quality '+selected.jpeg_quality+' / 100':'H.264 target bitrate '+(selected.bitrate_bps/1000000).toFixed(1)+' Mbit/s (not a link-speed guarantee)'}.${encoding.mode==='raw'?' Encoder is currently off; applying quality will not enable it.':''}`;
+  $('pictureQualityApply').disabled=pictureQualityBusy||choice==='custom'||selected[field]===encoding[field];
+}
+$('pictureQuality').addEventListener('change',()=>{pictureQualityDirty=true;$('pictureQualityState').textContent='Editing shared quality · not applied';updatePictureQuality();});
+$('pictureQualityApply').addEventListener('click',async()=>{
+  if(!encoding||pictureQualityBusy)return;
+  $('pictureQualityState').textContent='Applying shared picture quality…';pictureQualityBusy=true;updatePictureQuality();
+  try{
+    if(encodingFormDirty)throw new Error('Apply or discard pending Advanced preview encoder changes first.');
+    const requested=window.NuvoDeviceSettings.pictureQualityConfiguration(encoding,$('pictureQuality').value);
+    encoding=await (await api('/api/v1/encoding',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(requested)})).json();
+    pictureQualityDirty=false;encodingPreviewPending=encoding.mode!=='raw';showEncodingConfig(encoding);restartStreams();
+    $('pictureQualityState').textContent=encoding.mode==='raw'?'Saved device-wide · picture encoder remains off':'Saved device-wide · waiting for a picture with the requested settings';
+  }catch(error){$('pictureQualityState').textContent=error.message;}
+  finally{pictureQualityBusy=false;updatePictureQuality();}
+});
 
 function updateEncodingFields(){
   const enabled=$('streamEncoderEnabled').checked;
@@ -322,7 +412,7 @@ $('streamCodec').addEventListener('change',updateEncodingFields);
 $('streamEncoderEnabled').addEventListener('change',updateEncodingFields);
 
 function encodedFrameMatchesConfiguration(metadata) {
-  const revision=configurationRevisions.get('/api/v1/encoding')?.replaceAll('"','');
+  const revision=(latestConfigurationRevisions.get('/api/v1/encoding')||configurationRevisions.get('/api/v1/encoding'))?.replaceAll('"','');
   if(metadata.encoding_applied_revision&&revision&&metadata.encoding_applied_revision!==revision)return false;
   return encoding && encoding.mode !== 'raw' && metadata.codec === encoding.codec &&
     metadata.source === encoding.source &&
@@ -349,6 +439,10 @@ async function refreshEncoding() {
     const updated=await (await api('/api/v1/encoding')).json();
     const changed=!encoding||JSON.stringify(updated)!==JSON.stringify(encoding);
     encoding=updated;
+    if(!initialEncodingLoaded){
+      initialEncodingLoaded=true;
+      if(encoding.mode==='encoded'&&outputSettings.enabled)commitOutputSelection(window.NuvoDeviceSettings.outputRecipe('picture'));
+    }
     if(!encodingFormDirty)showEncodingConfig(encoding);
     else if(changed)$('encodingSaveState').textContent='Device changed · review and apply';
     if(changed){encodingPreviewPending=encoding.mode!=='raw';restartStreams();}
@@ -398,6 +492,7 @@ function showStereoConfig(value) {
   updateActiveStereoLabel();
   setFormBaseline('algorithmForm');
   updateAppliedSummaries();
+  updateDepthProfileLabel();
 }
 function updateActiveStereoLabel(){
   if(!stereo){$('algorithmActive').textContent=`Active matcher: ${activeStereoBackend||'waiting for depth frame'}`;return;}
@@ -493,6 +588,7 @@ async function loadDepthProfiles(){
       }
     }
     depthProfiles=catalog;
+    updateDepthProfileLabel();
     for(const button of buttons){
       const profile=catalog.profiles[button.dataset.depthPreset];
       button.closest('article').querySelector('h2').textContent=profile.label;
@@ -502,6 +598,26 @@ async function loadDepthProfiles(){
   }catch(error){depthProfiles=null;$('presetError').textContent=error.message;}
 }
 loadDepthProfiles();
+
+function updateDepthProfileLabel(){
+  if(!depthProfiles||!stereo)return;
+  const candidate=algorithmFormDirty?requestedStereo():stereo;
+  const name=Object.keys(depthProfiles.profiles).find(key=>{
+    const controls={...depthProfiles.base_controls,...depthProfiles.profiles[key].controls};
+    return Object.keys(controls).every(field=>controls[field]===candidate[field]);
+  })||'custom';
+  $('depthProfileChoice').disabled=false;$('depthProfileChoice').value=name;
+  $('depthProfileApply').disabled=!algorithmFormDirty;
+  $('depthProfileState').textContent=algorithmFormDirty?`Pending matcher changes · ${name==='custom'?'Custom':depthProfiles.profiles[name].label}`:`Requested profile: ${name==='custom'?'Custom':depthProfiles.profiles[name].label}`;
+}
+$('depthProfileChoice').addEventListener('change',()=>{
+  const name=$('depthProfileChoice').value;
+  if(name==='custom'){openPage('algorithm');return;}
+  const config={...depthProfiles.base_controls,...depthProfiles.profiles[name].controls};
+  for(const [id,value] of Object.entries(window.NuvoDeviceSettings.values('algorithm',config)))$(id).value=value;
+  $('algorithmForm').dispatchEvent(new Event('input',{bubbles:true}));updateDepthProfileLabel();
+});
+$('depthProfileApply').addEventListener('click',()=>$('algorithmForm').requestSubmit());
 document.querySelectorAll('[data-depth-preset]').forEach(button=>{
   button.onclick=async()=>{
     $('presetSaveState').textContent='Applying…';$('presetError').textContent='';
@@ -702,21 +818,44 @@ function parseFrame(buffer) { return window.NuvoFrameCodec.parseFrame(buffer); }
 function product(frame, name) { return frame.metadata.products.find(x => x.kind === name); }
 function describeProduct(descriptor){
   const label=OUTPUT_PRODUCTS.find(p=>p[0]===descriptor.kind)?.[1]||descriptor.kind;
-  return `${label} · ${descriptor.width} × ${descriptor.height}`;
+  return `${label}${descriptor.kind.startsWith('rectified_stereo')?' · left camera | right camera':''} · ${descriptor.width} × ${descriptor.height}`;
 }
 function setSampleCanvasLive(id, live) {
   $(id).closest('.sample-canvas')?.classList.toggle('live', live);
 }
 function updateViewerAvailability(disconnected=false) {
   if(disconnected){firstDepth={};refreshFirstDepth();}
-  const empty=$('viewerEmptyState');
-  empty.hidden=!disconnected&&!!lastFrameAt;
-  empty.textContent=disconnected?(lastFrameAt?'Disconnected · showing last received products':'Disconnected · waiting for device'):
-    !outputSettings.enabled?'Select data products on the Outputs page.':encoding?.mode==='encoded'?'Uncompressed network data is off. Enable it on Streaming.':'Waiting for selected live products.';
-  $('encodedEmptyState').textContent=disconnected?'Disconnected · waiting for encoded preview':encoding?.mode==='raw'?'Encoded preview is off':'Waiting for encoded preview';
-  $('outputEncodedFigure').hidden=disconnected||!encodedFrameAt||!outputSettings.preview||encoding?.mode==='raw';
-  $('outputEncodedState').textContent=disconnected?'Disconnected · waiting for compressed preview':!outputSettings.preview?'Compressed preview is off for this browser.':encoding?.mode==='raw'?'The device preview encoder is off. Enable it on Streaming if needed.':$('encodingError').textContent||(!encodedFrameAt?'Waiting for the shared compressed preview.':'Shared compressed preview is live.');
+  const empty=$('viewerEmptyState'),picture=outputSettings.preview&&!outputSettings.enabled;
+  $('viewerModeNotice').hidden=encoding?.mode!=='encoded'||picture;
+  empty.hidden=!disconnected&&!viewerPaused&&(picture?!!encodedFrameAt:!!lastFrameAt);
+  empty.textContent=disconnected?(lastFrameAt||encodedFrameAt?'Disconnected · showing last received products':'Disconnected · waiting for device'):viewerPaused?'Paused · this browser has released its stream demand.':picture?(encoding?.mode==='raw'?'The shared picture encoder is off. Enable it explicitly in Device → Advanced preview encoder.':'Waiting for the shared picture preview.'):encoding?.mode==='encoded'?'Uncompressed network data is off. Choose Shared picture preview, or enable data in Device → Advanced preview encoder.':'Waiting for selected live products.';
+  $('viewerPicture').hidden=!picture;$('selectedProductGrid').hidden=picture;$('pictureMeasurementNotice').hidden=!picture;
+  $('encodedEmptyState').textContent=disconnected?'Disconnected · waiting for picture':encoding?.mode==='raw'?'Picture encoder is off':'Waiting for picture';
+  $('viewerPause').textContent=viewerPaused?'Resume':'Pause';
+  if(disconnected||viewerPaused||!outputReception)$('viewerRate').textContent=`Requested: ${picture?outputSettings.preview_cadence_hz:outputSettings.cadence_hz} frames/s · Receiving: ${viewerPaused?'paused':'waiting'}`;
+  if(!lastFrameAt&&!encodedFrameAt){$('viewerReceiving').textContent=viewerPaused?'Paused':'Requested · waiting for a matching frame';$('viewerSource').textContent='Source and format appear after a frame is decoded.';}
   if(disconnected)setSampleCanvasLive('encodedCanvas',false);
+  if(disconnected||viewerPaused){
+    const state=disconnected?'Disconnected · last received selection': 'Paused · this browser';
+    $('viewerReceiving').textContent=state;$('outputReceiving').textContent=state;
+    if($('outputDestination').value==='browser')$('outputSaveState').textContent=state;
+  }
+}
+function recordReceiving(kind,label,products=[]){
+  const now=Date.now();receivingTimes.push(now);receivingTimes=receivingTimes.filter(t=>t>=now-5000);
+  outputReception={kind,label,products,at:now};
+  const state=window.NuvoDeviceSettings.outputSelectionStatus(outputSettings,outputSettings,outputReception);
+  $('viewerReceiving').textContent=`Receiving: ${label}`;$('outputReceiving').textContent=`Receiving: ${label}`;
+  if(state.phase==='receiving'&&$('outputDestination').value==='browser')$('outputSaveState').textContent='Receiving requested selection';
+  const rate=receivingTimes.length>1?(receivingTimes.length-1)*1000/(now-receivingTimes[0]):null;
+  $('viewerRate').textContent=`Requested: ${kind==='picture'?outputSettings.preview_cadence_hz:outputSettings.cadence_hz} frames/s · Receiving: ${rate===null?'measuring':rate.toFixed(1)+' frames/s'}`;
+}
+function receivingStatus(){
+  if(viewerPaused)return 'Paused · this browser';
+  if(capabilities?.connection?.products_permitted===false)return 'Blocked · '+(capabilities.connection.product_policy_reason||'product delivery is disabled on this camera connection');
+  if(!outputReception)return 'Requested · waiting for a matching frame';
+  const rate=outputSettings.enabled?outputSettings.cadence_hz:outputSettings.preview_cadence_hz;
+  return Date.now()-outputReception.at>Math.max(2500,3000/rate)?`Stale · last received ${outputReception.label}`:`Receiving: ${outputReception.label}`;
 }
 function drawGray(canvas,frame,descriptor) { return window.NuvoFrameCodec.drawGray(canvas,frame,descriptor); }
 function drawDepth(canvas,frame,descriptor) {
@@ -727,7 +866,7 @@ function drawDisparity(canvas, frame, descriptor) {
   return window.NuvoFrameCodec.drawDisparity(canvas,frame,descriptor,stereo?.max_disparity||128);
 }
 function canvasVisible(canvas) {
-  return !document.hidden && !!canvas.closest('.page.active') && !canvas.closest('[hidden]');
+  return !document.hidden && !!canvas.closest('.page.active') && !canvas.closest('[hidden]') && !canvas.closest('details:not([open])');
 }
 function drawVisibleProduct(canvas,frame,descriptor) {
   if(!descriptor||!canvasVisible(canvas))return;
@@ -736,48 +875,30 @@ function drawVisibleProduct(canvas,frame,descriptor) {
   else drawGray(canvas,frame,descriptor);
 }
 function renderFrame(frame) {
-  window.NuvoFirstUse.observe(firstDepth,frame,Date.now());
-  refreshFirstDepth();
+  window.NuvoFirstUse.observe(firstDepth,frame,Date.now());refreshFirstDepth();
   const identity=`${frame.metadata.run_uuid}:${frame.metadata.capture_epoch}:${frame.metadata.capture_sequence}:${frame.metadata.products.map(p=>p.kind).join(',')}`;
   if(identity===lastIdentity)return;
-  const left=product(frame,'left_rectified'),right=product(frame,'right_rectified');
-  const disparity=product(frame,'disparity'),depth=product(frame,'depth');
-  const firstImage=left||frame.metadata.products.find(p=>['gray8','rgb8','bgr8'].includes(p.format));
-  for(const [id,descriptor] of [['leftCanvas',firstImage],['rightCanvas',right],['disparityCanvas',disparity],['depthCanvas',depth]])$(id).closest('figure').hidden=!descriptor;
-  for(const [id,descriptor] of [['leftCanvas',firstImage],['rightCanvas',right],['disparityCanvas',disparity],['depthCanvas',depth]]){
-    if(descriptor)$(id).closest('figure').querySelector('figcaption').textContent=describeProduct(descriptor);
-  }
-  if(frame.metadata.products.length){
-    $('viewerEmptyState').hidden=true;
-    $('viewerLiveGrid').hidden=false;
-    $('viewerTelemetry').hidden=false;
-  }
-  for(const [id,descriptor] of [['leftCanvas',firstImage],['rightCanvas',right],['disparityCanvas',disparity],['depthCanvas',depth]])drawVisibleProduct($(id),frame,descriptor);
-  for(const grid of [$('outputPreviewGrid'),$('selectedProductGrid')]){
-    if(!canvasVisible(grid))continue;
-    for(const descriptor of frame.metadata.products){
-      if(grid.id==='selectedProductGrid'&&[firstImage?.kind,'right_rectified','depth','disparity'].includes(descriptor.kind))continue;
-      let canvas=grid.querySelector(`[data-output-product="${descriptor.kind}"]`);
-      if(!canvas){const figure=document.createElement('figure'),caption=document.createElement('figcaption');canvas=document.createElement('canvas');canvas.dataset.outputProduct=descriptor.kind;figure.append(caption,canvas);grid.append(figure)}
-      canvas.closest('figure').querySelector('figcaption').textContent=describeProduct(descriptor);
-      drawVisibleProduct(canvas,frame,descriptor);
-    }
-  }
-  document.querySelectorAll('.page.active [data-tuning-product]').forEach(canvas=>{
-    const isLeft=canvas.dataset.tuningProduct==='left_rectified',descriptor=isLeft?firstImage:depth;
-    canvas.closest('.sample-canvas').classList.toggle('live',!!descriptor);
-    const placeholder=canvas.closest('.sample-canvas').querySelector('.sample-overlay span');
-    if(placeholder&&!descriptor)placeholder.textContent=isLeft?'No image output selected':'Depth not selected';
-    if(isLeft&&descriptor)canvas.closest('figure').querySelector('figcaption').firstChild.textContent=OUTPUT_PRODUCTS.find(p=>p[0]===descriptor.kind)?.[1]||descriptor.kind;
+  const grid=$('selectedProductGrid'),ordered=OUTPUT_PRODUCTS.map(([name])=>product(frame,name)).filter(Boolean);
+  grid.querySelectorAll('[data-output-product]').forEach(canvas=>{if(!product(frame,canvas.dataset.outputProduct))canvas.closest('figure').remove();});
+  for(const descriptor of ordered){
+    let canvas=grid.querySelector(`[data-output-product="${descriptor.kind}"]`);
+    if(!canvas){const figure=document.createElement('figure'),caption=document.createElement('figcaption');canvas=document.createElement('canvas');canvas.dataset.outputProduct=descriptor.kind;figure.append(caption,canvas);grid.append(figure);}
+    canvas.closest('figure').querySelector('figcaption').textContent=describeProduct(descriptor);
+    canvas.setAttribute('aria-label',describeProduct(descriptor)+' · uncompressed data rendered in this browser');
     drawVisibleProduct(canvas,frame,descriptor);
-  });
-  document.querySelectorAll('.page.active [data-preview-state]').forEach(label=>{label.textContent='Selected products live';label.className='chip chip-green';});
+  }
+  displayedNumericFrame=product(frame,'depth')?frame:null;
+  $('depthLegend').hidden=!displayedNumericFrame;$('pixelInspector').hidden=!displayedNumericFrame;
+  $('viewerEmptyState').hidden=true;$('viewerTelemetry').hidden=false;
   lastFrameAt=Date.now();lastSequence=frame.sequence;lastIdentity=identity;
-  $('outputFrameSummary').textContent=`Frame ${frame.metadata.capture_sequence} · ${frame.metadata.products.map(describeProduct).join('; ')}`;
+  const label=window.NuvoDeviceSettings.outputSelectionLabel({enabled:true,preview:false,products:ordered.map(p=>p.kind)});
+  recordReceiving('data',label,ordered.map(p=>p.kind));
+  $('viewerSource').textContent=product(frame,'depth')?`Numeric depth${product(frame,'validity')?' + validity':' · validity unavailable; do not measure'} · rendered locally from uncompressed measurements`:'Uncompressed ISP/processed images · rendered locally in this browser';
+  $('outputFrameSummary').textContent=`Frame ${frame.metadata.capture_sequence} · ${ordered.map(describeProduct).join('; ')}`;
   setFlowState('flowCaptureState','Products live','complete');
-  $('sequence').textContent=`Frame ${frame.metadata.capture_sequence}`; $('age').textContent='Updated now';$('frameError').textContent='';
+  $('sequence').textContent=`Frame ${frame.metadata.capture_sequence}`;$('age').textContent='Updated now';$('frameError').textContent='';
 }
-function rawPreviewPage(){return !document.hidden&&outputSettings.enabled&&['overview','viewer','exposure','algorithm','network'].includes(selectedPage);}
+function rawPreviewPage(){return !document.hidden&&!viewerPaused&&capabilities?.connection?.products_permitted!==false&&outputSettings.enabled&&['viewer','network'].includes(selectedPage);}
 function refreshFirstDepth(){
   const live=window.NuvoFirstUse.ready(firstDepth,Date.now())&&encoding?.mode!=='encoded';
   $('firstDepthSave').disabled=!live;
@@ -790,8 +911,8 @@ function refreshFirstDepth(){
 $('firstDepthStart').addEventListener('click',()=>{
   $('firstDepthError').textContent='';
   try{
-    if(encoding?.mode==='encoded')throw new Error('Enable Uncompressed network data on Streaming, apply settings, then try again.');
-    commitOutputSelection({...outputSettings,enabled:true,products:['left_rectified','right_rectified','depth','validity'],cadence_hz:1,delivery:'best_effort'});
+    if(encoding?.mode==='encoded')throw new Error('Enable Uncompressed network data in Device → Advanced preview encoder, apply settings, then try again.');
+    commitOutputSelection(window.NuvoDeviceSettings.outputRecipe('depth_reference'));
     firstDepth={};refreshFirstDepth();
   }catch(error){$('firstDepthError').textContent=error.message;}
 });
@@ -829,7 +950,7 @@ function startRawViewer(){
 function parseEncoded(buffer) { return window.NuvoFrameCodec.parseEncoded(buffer); }
 function resetEncodedDecoder() {
   if(decoder){try{decoder.close()}catch(_){}}
-  decoder=null;decoderCodec='';encodedLastSequence=0;encodedWaitingForKeyframe=true;
+  decoder=null;decoderCodec='';encodedLastSequence=0;encodedWaitingForKeyframe=true;encodedMetadata.clear();
 }
 function ensureDecoder(codec,width,height,generation) {
   if(!('VideoDecoder' in window))throw new Error('This browser cannot preview H.264; the network stream remains available');
@@ -837,18 +958,46 @@ function ensureDecoder(codec,width,height,generation) {
   if(decoder&&decoder.state!=='closed'&&decoderCodec===key)return decoder;
   if(decoder){try{decoder.close()}catch(_){}}
   decoder=null;decoderCodec=key;encodedWaitingForKeyframe=true;
-  decoder=new VideoDecoder({output:video=>{if(generation!==encodedGeneration){video.close();return}drawEncodedSource(video,video.displayWidth,video.displayHeight);video.close();},error:error=>{encodedWaitingForKeyframe=true;$('encodingError').textContent=`Decoder resynchronizing: ${error.message}`}});
+  encodedMetadata.clear();
+  const activeDecoder=new VideoDecoder({output:video=>{
+    const presentation=encodedMetadata.get(video.timestamp);
+    if(generation!==encodedGeneration||decoder!==activeDecoder){video.close();return;}
+    encodedMetadata.delete(video.timestamp);
+    if(!presentation||presentation.arrival<encodedLastPresented||!encodedFrameMatchesConfiguration(presentation.metadata)){video.close();return;}
+    encodedLastPresented=presentation.arrival;
+    drawEncodedSource(video,video.displayWidth,video.displayHeight,presentation.metadata,presentation.payloadBytes);video.close();
+  },error:error=>{
+    if(generation!==encodedGeneration||decoder!==activeDecoder)return;
+    encodedWaitingForKeyframe=true;$('encodingError').textContent=`Decoder resynchronizing: ${error.message}`;
+  }});
+  decoder=activeDecoder;
   decoder.configure({codec,codedWidth:width,codedHeight:height,optimizeForLatency:true,hardwareAcceleration:'prefer-hardware'});
   return decoder;
 }
-function drawEncodedSource(source,width,height){
+function drawEncodedSource(source,width,height,metadata,payloadBytes){
   const canvases=[];
-  if(selectedPage==='streaming')canvases.push($('encodedCanvas'));
-  if(selectedPage==='network'){$('outputEncodedFigure').hidden=false;canvases.push($('outputEncodedCanvas'));$('outputEncodedState').textContent='Shared compressed preview is live.';}
-  if($('calibration').classList.contains('active'))canvases.push($('calibrationCanvas'));
-  for(const canvas of canvases){if(canvasVisible(canvas))window.NuvoFrameCodec.prepareCanvas(canvas,width,height).context.drawImage(source,0,0)}
-  encodedFrameAt=Date.now();$('encodedAge').textContent='Updated now';
-  setSampleCanvasLive('encodedCanvas',true);
+  if(selectedPage==='viewer'&&outputSettings.preview)canvases.push($('encodedCanvas'));
+  if(selectedPage==='device'&&$('calibration').open)canvases.push($('calibrationCanvas'));
+  for(const canvas of canvases){if(canvasVisible(canvas))window.NuvoFrameCodec.prepareCanvas(canvas,width,height).context.drawImage(source,0,0);}
+  encodedFrameAt=Date.now();$('encodedAge').textContent='Updated now';setSampleCanvasLive('encodedCanvas',true);
+  if(metadata&&['viewer','network'].includes(selectedPage)){
+    const numeric=['depth','disparity'].includes(metadata.source);
+    const label=`${metadata.codec.toUpperCase()} picture · ${metadata.source.replaceAll('_',' ')}${numeric?' visualization':''} · ${width} × ${height}`;
+    recordReceiving('picture',label);
+    $('viewerSource').textContent=numeric?'Compressed grayscale visualization · numeric measurement unavailable':'Compressed ISP/processed camera picture · one shared device encoder';
+    $('viewerEmptyState').hidden=true;$('depthLegend').hidden=true;$('pixelInspector').hidden=true;
+  }
+  $('encodedSequence').textContent=`Frame ${metadata.capture_sequence}`;
+  $('encodedSize').textContent=`${(payloadBytes/1024).toFixed(1)} KiB`;
+  $('encodedLatency').textContent=Number.isFinite(metadata.total_ms)?`Preview pipeline ${metadata.total_ms.toFixed(1)} ms`:`Encode only ${metadata.encode_ms.toFixed(1)} ms`;
+  $('encodedLatency').title=Number.isFinite(metadata.total_ms)?`Preparation ${metadata.preparation_ms.toFixed(1)} ms · queue ${metadata.queue_ms.toFixed(1)} ms · encode ${metadata.encode_ms.toFixed(1)} ms. Excludes camera exposure, transport and display.`:'Encode only; excludes preview preparation, queueing, transport and display.';
+  $('encodedFormat').textContent=`${metadata.codec.toUpperCase()} · ${metadata.source.replaceAll('_',' ')}${['depth','disparity'].includes(metadata.source)?' visualization':''} · ${metadata.width} × ${metadata.height}`;
+  $('encodingError').textContent='';
+  if(encodingPreviewPending){
+    encodingPreviewPending=false;
+    if(!encodingFormDirty)$('encodingSaveState').textContent='Saved · preview available';
+    if(!pictureQualityDirty&&$('pictureQualityState').textContent.startsWith('Saved device-wide'))$('pictureQualityState').textContent='Saved device-wide · picture received with these settings';
+  }
 }
 async function renderEncoded(frame,generation,arrival) {
   const {metadata,payload}=frame;
@@ -856,7 +1005,7 @@ async function renderEncoded(frame,generation,arrival) {
   if(metadata.codec==='jpeg'){
     const bitmap=await createImageBitmap(new Blob([payload],{type:'image/jpeg'}));
     if(generation!==encodedGeneration||!encodedFrameMatchesConfiguration(metadata)||arrival<encodedLastPresented){bitmap.close();return}
-    encodedLastPresented=arrival;drawEncodedSource(bitmap,bitmap.width,bitmap.height);bitmap.close();
+    encodedLastPresented=arrival;drawEncodedSource(bitmap,bitmap.width,bitmap.height,metadata,payload.byteLength);bitmap.close();
   }else{
     // Latest-frame delivery intentionally skips frames. Independent keyframes
     // carry everything needed to decode the next image without reconfiguration.
@@ -869,17 +1018,13 @@ async function renderEncoded(frame,generation,arrival) {
       return;
     }
     try{
-      activeDecoder.decode(new EncodedVideoChunk({type:metadata.keyframe?'key':'delta',timestamp:Math.max(0,Math.floor(metadata.capture_time_ns/1000)),data:payload}));
+      const timestamp=Math.max(0,Math.floor(metadata.capture_time_ns/1000));
+      if(encodedMetadata.size>=4)encodedMetadata.delete(encodedMetadata.keys().next().value);encodedMetadata.set(timestamp,{metadata,payloadBytes:payload.byteLength,arrival});
+      activeDecoder.decode(new EncodedVideoChunk({type:metadata.keyframe?'key':'delta',timestamp,data:payload}));
       encodedWaitingForKeyframe=false;
     }catch(error){resetEncodedDecoder();throw error}
   }
-  $('encodedSequence').textContent=`Frame ${metadata.capture_sequence}`;
-  $('encodedSize').textContent=`${(payload.byteLength/1024).toFixed(1)} KiB`;
-  $('encodedLatency').textContent=Number.isFinite(metadata.total_ms)?`Preview pipeline ${metadata.total_ms.toFixed(1)} ms`:`Encode only ${metadata.encode_ms.toFixed(1)} ms`;
-  $('encodedLatency').title=Number.isFinite(metadata.total_ms)?`Preparation ${metadata.preparation_ms.toFixed(1)} ms · queue ${metadata.queue_ms.toFixed(1)} ms · encode ${metadata.encode_ms.toFixed(1)} ms. Excludes camera exposure, transport and display.`:'Encode only; excludes preview preparation, queueing, transport and display.';
-  $('encodedFormat').textContent=`${metadata.codec.toUpperCase()} · ${metadata.source.replaceAll('_',' ')}${['depth','disparity'].includes(metadata.source)?' visualization':''} · ${metadata.width} × ${metadata.height}`;
-  $('encodingError').textContent='';
-  if(encodingPreviewPending){encodingPreviewPending=false;if(!encodingFormDirty)$('encodingSaveState').textContent='Saved · preview available';}
+
 }
 async function queueEncoded(frame,generation,arrival){
   if(generation!==encodedGeneration)return;
@@ -901,7 +1046,7 @@ async function pollEncoded(generation,token=encodedPollToken) {
   catch(error){if(generation===encodedGeneration&&token===encodedPollToken&&encodedPolling){$('encodingError').textContent=error.message;}}
   if(generation===encodedGeneration&&token===encodedPollToken&&encodedPolling)setTimeout(()=>pollEncoded(generation,token),Math.max(0,1000/outputSettings.preview_cadence_hz-(Date.now()-started)));
 }
-function encodedPreviewPage(){return !document.hidden&&(selectedPage==='calibration'||outputSettings.preview&&['streaming','network'].includes(selectedPage));}
+function encodedPreviewPage(){return !document.hidden&&capabilities?.connection?.products_permitted!==false&&(selectedPage==='device'&&$('calibration').open||!viewerPaused&&outputSettings.preview&&['viewer','network'].includes(selectedPage));}
 function startEncodedViewer(){
   if(encodedSocket||!encodedPreviewPage()||!encoding||encoding.mode==='raw')return;
   const generation=encodedGeneration, socket=new WebSocket(socketUrl(`/api/v1/encoded/stream?cadence_hz=${outputSettings.preview_cadence_hz}`));
@@ -928,17 +1073,13 @@ function restartStreams(){
   if(rawSocket){const value=rawSocket;rawSocket=null;value.onmessage=null;value.onclose=null;value.close()}
   if(encodedSocket){const value=encodedSocket;encodedSocket=null;value.onmessage=null;value.onclose=null;value.onerror=null;value.close()}
   resetEncodedDecoder();
-  $('outputPreviewGrid').replaceChildren();$('selectedProductGrid').replaceChildren();
-  for(const id of ['leftCanvas','rightCanvas','disparityCanvas','depthCanvas','encodedCanvas','calibrationCanvas']){
-    const canvas=$(id);canvas.width=728;canvas.height=544;
-  }
+  $('selectedProductGrid').replaceChildren();
+  for(const id of ['encodedCanvas','calibrationCanvas']){const canvas=$(id);canvas.width=728;canvas.height=544;}
   setSampleCanvasLive('encodedCanvas',false);
-  document.querySelectorAll('[data-tuning-product]').forEach(canvas=>{canvas.width=728;canvas.height=544;canvas.closest('.sample-canvas').classList.remove('live');});
-  document.querySelectorAll('[data-preview-state]').forEach(label=>{label.textContent=encoding?.mode==='encoded'?'Network data off':'Waiting for live frames';label.className='chip chip-neutral';});
-  document.querySelectorAll('.preview-unavailable').forEach(note=>note.hidden=encoding?.mode!=='encoded');
-  $('viewerEmptyState').hidden=false;
-  $('viewerLiveGrid').hidden=true;
-  $('viewerTelemetry').hidden=true;
+  displayedNumericFrame=null;outputReception=null;receivingTimes=[];
+  $('outputReceiving').textContent=viewerPaused?'Paused · this browser':'Receiving: waiting for a matching frame';
+  $('depthLegend').hidden=true;$('pixelInspector').hidden=true;$('pixelValue').textContent='Click the depth image or enter a pixel coordinate.';
+  $('viewerEmptyState').hidden=false;$('viewerTelemetry').hidden=true;
   $('sequence').textContent='Frame —';$('validity').textContent='Valid —';$('age').textContent='Waiting for products';lastFrameAt=0;lastIdentity='';
   $('encodedSequence').textContent='Frame —';$('encodedSize').textContent='—';$('encodedLatency').textContent='—';$('encodedAge').textContent='Waiting';encodedFrameAt=0;
   updateViewerAvailability();
@@ -1188,12 +1329,10 @@ function performanceStages(health){
   return stages.map(s=>({...s,share:total>0&&s.value!==null?100*s.value/total:null})).sort((a,b)=>(b.value??-1)-(a.value??-1));
 }
 
-// Performance monitor rendering: one component, two deliberate destinations.
+// Overview owns the only performance component; navigation never reparents it.
 function placePerformanceMonitor(page){
-  const monitor=$('performanceMonitor');
-  const slot=page==='overview'?$('overviewPerformanceSlot'):page==='diagnostics'?$('diagnosticsPerformanceSlot'):null;
-  monitor.hidden=!slot;
-  if(slot){slot.append(monitor);renderPerformanceMonitor();}
+  $('performanceMonitor').hidden=page!=='overview';
+  if(!$('performanceMonitor').hidden)renderPerformanceMonitor();
 }
 function renderPerformanceMonitor(){
   const monitor=$('performanceMonitor');if(monitor.hidden)return;
@@ -1241,7 +1380,7 @@ function updateAppliedSummaries(){
 function updateLiveMetrics(health){
   document.querySelectorAll('[data-live-metric]').forEach(e=>{const key=e.dataset.liveMetric;e.textContent=key==='capture'?`Capture target · ${health?.capture_target_hz??'—'} fps`:key==='depth'?`Depth output · ${depthOutputRate===null?'—':depthOutputRate.toFixed(1)} fps`:`Compute · ${health?.processing_ms==null?'—':Number(health.processing_ms).toFixed(1)} ms`;});
   document.querySelectorAll('[data-live-resolution]').forEach(e=>e.textContent=`${health?.depth_width??'—'} × ${health?.depth_height??'—'} depth grid`);
-  document.querySelectorAll('[data-live-calibration]').forEach(e=>{e.classList.toggle('accepted',calibrationReadiness?.accepted===true);e.textContent=calibrationReadiness?.label||'Status unavailable/error';e.title=calibrationReadiness?.message||'Refresh calibration readiness.';});
+  document.querySelectorAll('[data-live-calibration]').forEach(e=>{e.classList.toggle('accepted',calibrationReadiness?.accepted===true);e.textContent=calibrationReadiness?.state==='preview_enabled'?'Provisional calibration · distance accuracy unverified':calibrationReadiness?.label||'Calibration status unavailable';e.title=calibrationReadiness?.message||'Refresh calibration readiness.';});
 }
 
 // Settings retain their edit base while device polling continues.
@@ -1318,7 +1457,7 @@ function updateFormUi(c,edited=false){
 }
 function initializeSettingsUi(){
   document.querySelectorAll('.settings-form label').forEach(label=>{
-    const input=label.querySelector('input:not([type="hidden"]),select');if(!input||input.type==='checkbox')return;
+    const input=label.querySelector('input:not([type="hidden"]),select');if(!input||!input.id||['checkbox','radio'].includes(input.type))return;
     const title=document.createElement('span');title.className='field-label';title.id=input.id+'Label';
     title.textContent=[...label.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent.trim()).filter(Boolean).join(' ');
     [...label.childNodes].filter(n=>n.nodeType===3).forEach(n=>n.remove());label.prepend(title);input.setAttribute('aria-labelledby',title.id);
@@ -1343,7 +1482,6 @@ function initializeSettingsUi(){
     form.querySelectorAll('.group-context').forEach(e=>e.textContent=context[e.closest('.advanced-group').dataset.group]||'');
     c.controls.forEach(i=>i.disabled=true);updateFormUi(c);
   });
-  const template=$('tuningPreviewTemplate');document.querySelectorAll('[data-preview-slot]').forEach(slot=>slot.prepend(template.content.cloneNode(true)));
   $('performanceTarget').addEventListener('change',event=>{analysisTarget=Number(event.target.value);renderPerformanceMonitor();});
   if('ResizeObserver' in window)new ResizeObserver(drawPerformanceChart).observe($('performanceChart').parentElement);
 }
@@ -1352,7 +1490,34 @@ let requestedGroup=null;
 try{requestedGroup=sessionStorage.getItem('nuvo-open-settings-group');sessionStorage.removeItem('nuvo-open-settings-group');}catch(_){}
 if(requestedGroup){const group=[...document.querySelectorAll('[data-group]')].find(element=>element.dataset.group===requestedGroup);if(group){group.open=true;const parent=group.closest('.advanced-card');if(parent)parent.open=true;}}
 initializeOutputControls();
+$('algorithmForm').addEventListener('input',updateDepthProfileLabel);
+$('algorithmForm').addEventListener('change',updateDepthProfileLabel);
+
+document.querySelectorAll('.device-section').forEach(section=>section.addEventListener('toggle',()=>{
+  if(section.id==='calibration'&&selectedPage==='device')restartStreams();
+  if(section.id==='diagnostics'){placePerformanceMonitor(selectedPage);if(section.open)refreshDiagnostics();}
+}));
+function inspectSelectedPixel(x,y){
+  const result=window.NuvoFrameCodec.inspectDepth(displayedNumericFrame,x,y);
+  $('pixelValue').textContent=result.valid?`Depth Z: ${result.z.toFixed(3)} m · valid pixel (${x}, ${y}) · capture ${result.captureSequence}${result.outsideDisplay?' · outside display scale':''}`:result.reason;
+}
+$('pixelInspector').addEventListener('submit',event=>{event.preventDefault();inspectSelectedPixel(Number($('pixelX').value),Number($('pixelY').value));});
+$('selectedProductGrid').addEventListener('click',event=>{
+  const canvas=event.target.closest('canvas[data-output-product="depth"]');if(!canvas)return;
+  const bounds=canvas.getBoundingClientRect();
+  const x=Math.min(canvas.width-1,Math.max(0,Math.floor((event.clientX-bounds.left)*canvas.width/bounds.width)));
+  const y=Math.min(canvas.height-1,Math.max(0,Math.floor((event.clientY-bounds.top)*canvas.height/bounds.height)));
+  $('pixelX').value=x;$('pixelY').value=y;inspectSelectedPixel(x,y);
+});
 document.addEventListener('visibilitychange',restartStreams);
+setInterval(()=>{
+  const status=receivingStatus();
+  $('viewerReceiving').textContent=status;$('outputReceiving').textContent=status;
+  if(!status.startsWith('Receiving:')){
+    $('viewerRate').textContent=`Requested: ${outputSettings.enabled?outputSettings.cadence_hz:outputSettings.preview_cadence_hz} frames/s · ${status.split(' · ')[0]}`;
+    if($('outputDestination').value==='browser')$('outputSaveState').textContent=status;
+  }
+},500);
 window.addEventListener('pageshow',event=>{if(event.persisted)restoreSession();});
 window.addEventListener('pagehide',()=>{rawSocket?.close();encodedSocket?.close();});
 updateAlgorithmFields();
@@ -1362,4 +1527,4 @@ restoreSession();
 setInterval(()=>{if(!document.hidden)refreshHealth();},2000);
 setInterval(()=>{if(!document.hidden){refreshTransport();refreshEncoding();refreshStereo();refreshExposure();refreshCapabilities();refreshSetupStatus();}},5000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshHealth();refreshTransport();refreshEncoding();refreshStereo();refreshExposure();refreshCapabilities();}});
-setInterval(()=>{if(lastFrameAt){const age=(Date.now()-lastFrameAt)/1000;$('age').textContent=age<1?'Updated now':`${age.toFixed(1)} s old`;$('age').classList.toggle('error',age>2);if(age>2)document.querySelectorAll('.page.active [data-preview-state]').forEach(label=>{label.textContent=`Preview stale · ${age.toFixed(1)} s`;label.className='chip chip-amber';});}if(encodedFrameAt){const age=(Date.now()-encodedFrameAt)/1000;$('encodedAge').textContent=age<1?'Updated now':`${age.toFixed(1)} s old`;$('encodedAge').classList.toggle('error',age>2)}},250);
+setInterval(()=>{if(lastFrameAt){const age=(Date.now()-lastFrameAt)/1000;$('age').textContent=age<1?'Updated now':`${age.toFixed(1)} s old`;$('age').classList.toggle('error',age>2);}if(encodedFrameAt){const age=(Date.now()-encodedFrameAt)/1000;$('encodedAge').textContent=age<1?'Updated now':`${age.toFixed(1)} s old`;$('encodedAge').classList.toggle('error',age>2)}},250);

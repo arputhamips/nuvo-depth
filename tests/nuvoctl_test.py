@@ -117,11 +117,11 @@ module.atomic_write(Path({str(path)!r}),"interrupted replacement",0o644)
     def test_transport_reconciliation_without_pending_change_uses_auto_default(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
-            expected={"status":"no_pending_change","preference":"auto"}
+            expected={"status":"no_pending_change","preference":"auto","wifi_enabled":True,"wifi_enabled_explicit":False}
             self.assertEqual(module.reconcile_transport(root),expected)
             config=root/"etc/nuvo-depth/transport.json"
             module.atomic_write(config,json.dumps({"schema_version":1})+"\n",0o644)
-            self.assertEqual(module.reconcile_transport(root),expected)
+            with self.assertRaises(ValueError): module.reconcile_transport(root)
 
     def test_expired_transport_change_is_automatically_reconciled(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -130,8 +130,84 @@ module.atomic_write(Path({str(path)!r}),"interrupted replacement",0o644)
             value=json.loads(transaction.read_text()); value["expires_unix_ns"]=0
             module.atomic_write(transaction,json.dumps(value)+"\n",0o600)
             result=module.reconcile_transport(root)
-            self.assertEqual(result,{"status":"rolled_back","preference":"auto"})
+            self.assertEqual(result,{"status":"rolled_back","preference":"auto","wifi_enabled":True,"wifi_enabled_explicit":False})
             self.assertEqual(json.loads((root/"etc/nuvo-depth/transport.json").read_text())["preference"],"auto")
+
+    def test_wifi_patch_migrates_legacy_settings_without_changing_wired_preference(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            for preference in ("ethernet","auto","wifi","off"):
+                staged=module.stage_transport(root,preference,preference=="off")
+                self.assertEqual(staged["wifi_enabled"],preference in {"auto","wifi"})
+                self.assertFalse(staged["wifi_enabled_explicit"])
+                module.confirm_transport(root)
+                self.assertNotIn("wifi_enabled",module.read_transport(root))
+            module.stage_transport(root,"usb",False);module.confirm_transport(root)
+            for enabled in (True,False):
+                staged=module.stage_transport(root,None,False,enabled)
+                self.assertEqual(staged["preference"],"usb")
+                self.assertIs(staged["wifi_enabled"],enabled)
+                self.assertTrue(staged["wifi_enabled_explicit"])
+                self.assertEqual(module.transport_status(root)["status"],"pending")
+                module.confirm_transport(root)
+            for preference in ("auto","wifi","off"):
+                staged=module.stage_transport(root,preference,preference=="off")
+                self.assertFalse(staged["wifi_enabled"])
+                module.confirm_transport(root)
+            # Even master off keeps the configured permission independently.
+            staged=module.stage_transport(root,None,False,True)
+            self.assertEqual(staged["preference"],"off")
+            self.assertTrue(staged["wifi_enabled"])
+
+    def test_wifi_rollback_restores_full_configuration_and_legacy_omission(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            module.stage_transport(root,"ethernet",False);module.confirm_transport(root)
+            before=module.read_transport(root)
+            module.stage_transport(root,None,False,True)
+            module.rollback_transport(root)
+            self.assertEqual(module.read_transport(root),before)
+            self.assertEqual(module.transport_status(root),{"status":"rolled_back"})
+            module.stage_transport(root,"usb",False,False);module.confirm_transport(root)
+            before=module.read_transport(root)
+            staged=module.stage_transport(root,"auto",False,True)
+            transaction=root/"var/lib/nuvo-depth/transactions/network-pending.json"
+            staged["expires_unix_ns"]=0;transaction.write_text(json.dumps(staged))
+            self.assertEqual(module.transport_status(root)["status"],"expired")
+            self.assertEqual(module.reconcile_transport(root)["status"],"rolled_back")
+            self.assertEqual(module.read_transport(root),before)
+            # Existing transactions from the preference-only implementation still undo.
+            transaction.write_text(json.dumps({"previous":"both"}))
+            self.assertEqual(module.rollback_transport(root)["preference"],"both")
+            self.assertNotIn("wifi_enabled",module.read_transport(root))
+
+    def test_pending_transport_change_cannot_be_overwritten_or_confirm_different_policy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            module.stage_transport(root,"usb",False,True)
+            before=module.read_transport(root)
+            with self.assertRaisesRegex(RuntimeError,"pending"):
+                module.stage_transport(root,None,False,False)
+            self.assertEqual(module.read_transport(root),before)
+            path=root/"etc/nuvo-depth/transport.json"
+            path.write_text(json.dumps(dict(before,wifi_enabled=False)))
+            with self.assertRaisesRegex(RuntimeError,"changed"):
+                module.confirm_transport(root)
+
+    def test_transport_rejects_malformed_and_non_boolean_permissions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);path=root/"etc/nuvo-depth/transport.json"
+            path.parent.mkdir(parents=True)
+            for value in ("false",0,1,None,[],{}):
+                path.write_text(json.dumps({"schema_version":1,"preference":"auto","wifi_enabled":value}))
+                with self.assertRaises(ValueError): module.read_transport(root)
+            for value in ('{"preference":"auto","wifi_enabled":true,"wifi_enabled":false}',
+                          '{"schema_version":true,"preference":"auto"}',
+                          '{"preference":"auto","unknown":true}',"[]", "broken"):
+                path.write_text(value)
+                with self.assertRaises(ValueError): module.read_transport(root)
+            for value in ("false",0,1,[]):
+                with self.assertRaises(ValueError): module.stage_transport(root,None,False,value)
 
     def test_encoding_configuration_is_atomic_and_bounded(self):
         value={"schema_version":1,"mode":"both","codec":"h264","source":"left_rectified",

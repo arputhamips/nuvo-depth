@@ -134,8 +134,12 @@ boot-time midpoint.
 The gateway admission core reserves the exact framed byte rate against the
 configured capacity of the actual accepted Ethernet, USB Ethernet, or WiFi
 interface. Preferences are `auto`, `wifi`, `ethernet`, `usb`, `both` (wired and
-USB), or `off`. `auto` supports every detected connection without reconnecting
-to another link; `wifi` restricts data to WiFi. It never silently removes products or reduces cadence. Each
+USB), or `off`. The optional `wifi_enabled` boolean independently permits Wi-Fi
+products while retaining the wired preference; `off` remains a master stop.
+Older documents without the flag retain their legacy behavior: `auto`/`wifi`
+permit Wi-Fi and the other preferences do not. `auto` supports detected
+connections without moving them to another link; `wifi` leaves wired delivery
+disabled. The policy never silently removes products or reduces cadence. Each
 client has at most one unsent complete frame and one in-flight frame. Once any
 TCP bytes have been sent, that frame must finish or the session closes.
 
@@ -149,8 +153,11 @@ then admits their selected payload plus the
 network interface. A connection on USB cannot reserve Ethernet capacity. When
 the preferred qualified interface can admit a request arriving on the other
 interface, the request is rejected with a reconnect alternative. `both` permits
-either wired interface; `off` disables data. Changing transport policy
-closes existing data streams so their contracts must be negotiated again.
+either wired interface; `off` disables data. Disabling Wi-Fi closes/refuses
+Wi-Fi numeric and compressed-picture streams without interrupting permitted
+wired streams or authenticated console/control access. Preference changes
+revalidate affected contracts; clients reconnect where their contract requires
+it. A parsed policy cache keeps repeated file reads out of the frame path.
 
 Exact source and link evidence is read at startup from
 `/etc/nuvo-depth/gateway-qualification.json`, or `--qualification-file PATH`.

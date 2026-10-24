@@ -19,7 +19,7 @@ D.saveDraft(route,fields,revision);assert.deepEqual(D.loadDraft('exposure'),{ver
 D.saveDraft(route,{unknown:'injected'},revision);assert.equal(D.loadDraft('exposure'),null);
 // The conventional Outputs page must retain admission checks without loading the prototype.
 const vm=require('node:vm'),app=fs.readFileSync(path.join(__dirname,'../web/app.js'),'utf8');
-const products=vm.runInNewContext(app.slice(app.indexOf('const OUTPUT_PRODUCTS'),app.indexOf('let capabilities'))+'; OUTPUT_PRODUCTS');
+const products=vm.runInNewContext(app.slice(app.indexOf('const OUTPUT_PRODUCTS'),app.indexOf('let capabilities'))+'; OUTPUT_PRODUCTS',{window:{NuvoDeviceSettings:D}});
 const selection={enabled:true,products:['left_mono'],cadence_hz:5,delivery:'auto',preview:true,preview_cadence_hz:5};
 const check=(overrides={},limits={})=>D.validateOutputSelection({...selection,...overrides},limits,products);
 assert.equal(check().frameBytes,728*544+65568);
@@ -44,3 +44,19 @@ for(const [product,,bytesPerPixel] of products){
   assert.deepEqual(actual.products,[product]);
 }
 console.log('Shared settings numeric types, limits, cross-field constraints and edit-base draft tests passed');
+for(const codec of ['jpeg','h264']){
+  const original={...configs.encoding,codec,source:'depth',mode:'both',cadence_hz:3,width:640,height:480,keyframe_interval:codec==='jpeg'?30:1};
+  for(const choice of ['compact','balanced','detail']){
+    const selected=D.pictureQualityConfiguration(original,choice),field=codec==='jpeg'?'jpeg_quality':'bitrate_bps';
+    assert.deepEqual(Object.fromEntries(Object.entries(selected).filter(([key])=>key!==field)),Object.fromEntries(Object.entries(original).filter(([key])=>key!==field)),'shared quality must preserve source, codec, dimensions, delivery mode and rate');
+    assert.equal(D.validate('encoding',selected).size,0);
+  }
+}
+assert.equal(D.pictureQualityConfiguration({...configs.encoding,codec:'jpeg'},'detail').jpeg_quality,90);
+assert.equal(D.pictureQualityConfiguration({...configs.encoding,codec:'h264'},'compact').bitrate_bps,1000000);
+assert.throws(()=>D.pictureQualityConfiguration(configs.encoding,'unmeasured'));
+
+for(const keyframe_interval of [1,30,600])assert.equal(D.validate('encoding',{...configs.encoding,codec:'jpeg',keyframe_interval}).size,0,'JPEG quality accepts the native keyframe field without changing it');
+for(const keyframe_interval of [0,1.5,601])assert(D.validate('encoding',{...configs.encoding,codec:'jpeg',keyframe_interval}).has('streamKeyframes'));
+assert(D.validate('encoding',{...configs.encoding,codec:'h264',mode:'both',keyframe_interval:30}).has('streamKeyframes'));
+assert.equal(D.validate('encoding',{...configs.encoding,codec:'h264',mode:'raw',keyframe_interval:30}).size,0,'inactive H264 matches native configuration validation');

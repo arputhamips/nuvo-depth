@@ -419,7 +419,8 @@
         "key": "keyframe_interval",
         "type": "number",
         "min": "1",
-        "max": "1",
+        "max": "600",
+        "step": "1",
         "required": null
       },
       "streamThreads": {
@@ -495,6 +496,7 @@
     }
     if(kind==='algorithm'&&(config.min_disparity>=config.max_disparity||config.max_disparity>config.min_disparity+config.search_range))errors.set('maxDisparity','Maximum must lie inside the search range.');
     if(kind==='encoding'){
+      if(config.mode!=='raw'&&config.codec==='h264'&&config.keyframe_interval!==1)errors.set('streamKeyframes','Live H.264 pictures require an independent keyframe every frame.');
       if(!['raw','both','encoded'].includes(config.mode))errors.set('streamRawEnabled','Keep uncompressed network data or the compressed preview encoder enabled.');
       if((config.width===0)!==(config.height===0))errors.set('streamWidth','Set both dimensions, or leave both at 0 for native resolution.');
     }
@@ -529,7 +531,7 @@
     if(!products.length)return {...value,enabled:false,products,frameBytes:0,bytesPerSecond:0};
     if(Array.isArray(limits.supportedProducts)&&products.some(product=>!limits.supportedProducts.includes(product)))throw new Error('A selected product is not supported by this device.');
     if(value.delivery==='exact'&&!limits.qualified)throw new Error('Exact delivery requires a measured, qualified connection. Choose Auto or Best effort.');
-    if(limits.rawEnabled===false)throw new Error('Uncompressed network data is off. Enable it on Streaming before applying these outputs.');
+    if(limits.rawEnabled===false)throw new Error('Uncompressed network data is off. Enable it in Device → Advanced preview encoder, or choose the shared picture preview.');
     const frameBytes=outputFrameBytes(products,limits,productTypes);
     const maxFrame=Number.isFinite(limits.maxFrameBytes)&&limits.maxFrameBytes>0?limits.maxFrameBytes:16777216;
     const budget=Number.isFinite(limits.bytesPerSecond)&&limits.bytesPerSecond>0?limits.bytesPerSecond:8*1048576;
@@ -579,5 +581,47 @@
 }
 
 
-  return Object.freeze({DEFINITIONS,validate,validateOutputSelection,outputFrameBytes,values,configuration,request,saveDraft,loadDraft,clearDraft});
+  const OUTPUT_RECIPES=Object.freeze({
+    camera:{label:'Camera image',products:['left_mono'],cadence_hz:5},
+    depth:{label:'Depth values + valid pixels',products:['depth','validity'],cadence_hz:2},
+    depth_reference:{label:'Depth with camera reference',products:['left_rectified','depth','validity'],cadence_hz:1},
+    stereo:{label:'Stereo check',products:['left_rectified','right_rectified','disparity','validity'],cadence_hz:1},
+    picture:{label:'Shared picture preview',products:[],cadence_hz:5}
+  });
+  function outputRecipe(name){
+    const recipe=OUTPUT_RECIPES[name];if(!recipe)throw new Error('Choose a named output recipe.');
+    return {enabled:name!=='picture',products:[...recipe.products],cadence_hz:recipe.cadence_hz,
+      delivery:'best_effort',preview:name==='picture',preview_cadence_hz:recipe.cadence_hz};
+  }
+  function normalizeOutputSelection(value){
+    const products=[...new Set(value.products)];
+    if(products.includes('depth')&&!products.includes('validity'))products.push('validity');
+    return {...value,products};
+  }
+  function outputRecipeName(value){
+    if(!value.enabled&&value.preview)return 'picture';
+    return Object.keys(OUTPUT_RECIPES).find(name=>name!=='picture'&&OUTPUT_RECIPES[name].products.length===value.products.length&&OUTPUT_RECIPES[name].products.every(p=>value.products.includes(p)))||'custom';
+  }
+  function outputSelectionLabel(value){
+    return OUTPUT_RECIPES[outputRecipeName(value)]?.label||value.products.join(' + ');
+  }
+  function outputSelectionStatus(requested,draft,received){
+    const key=value=>JSON.stringify([value.enabled,[...value.products].sort(),value.cadence_hz,value.delivery,value.preview,value.preview_cadence_hz]);
+    const matches=received&&(requested.preview&&!requested.enabled?received.kind==='picture':received.kind==='data'&&requested.products.every(p=>received.products.includes(p)));
+    return {dirty:key(requested)!==key(draft),phase:matches?'receiving':'requested',
+      requested:outputSelectionLabel(requested),receiving:received?.label||null};
+  }
+  function outputApplicationRecipe(value){
+    const rate=value.enabled?value.cadence_hz:value.preview_cadence_hz;
+    if(!value.enabled&&value.preview)return '# Use an authenticated NuvoClient. The source is shared device-wide.\n# Snapshot only; latest_encoded() does not accept a cadence option.\nframe = client.latest_encoded()\n# JPEG / H.264 picture; original numeric depth is unavailable.\n# For a persistent stream: /api/v1/encoded/stream?cadence_hz='+rate;
+    const products=value.products.map(p=>JSON.stringify(p)).join(', ')+(value.products.length===1?',':'');
+    return '# Use an authenticated NuvoClient with verified TLS.\nwith client.frames(products=('+products+'), cadence_hz='+rate+',\n                   delivery='+JSON.stringify(value.delivery)+') as frames:\n    for frame in frames:\n        print(frame.capture_sequence, frame.products.keys())'+(value.products.includes('depth')?'\n        # Accept depth only where validity == 1 and Z is finite and positive.':'');
+  }
+  function pictureQualityConfiguration(config,choice){
+    const preset={compact:{jpeg_quality:45,bitrate_bps:1000000},balanced:{jpeg_quality:70,bitrate_bps:4000000},detail:{jpeg_quality:90,bitrate_bps:8000000}}[choice];
+    if(!preset||!['jpeg','h264'].includes(config?.codec))throw new Error('Choose a supported picture quality.');
+    return {...config,...(config.codec==='jpeg'?{jpeg_quality:preset.jpeg_quality}:{bitrate_bps:preset.bitrate_bps})};
+  }
+  return Object.freeze({DEFINITIONS,validate,validateOutputSelection,outputFrameBytes,values,configuration,request,saveDraft,loadDraft,clearDraft,
+    OUTPUT_RECIPES,outputRecipe,normalizeOutputSelection,outputRecipeName,outputSelectionLabel,outputSelectionStatus,outputApplicationRecipe,pictureQualityConfiguration});
 });

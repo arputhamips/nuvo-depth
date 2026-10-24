@@ -46,9 +46,15 @@ def main() -> None:
     assert not duplicates, f"duplicate element IDs: {duplicates}"
     assert parser.pages == parser.navigation, f"page/navigation mismatch: {parser.pages ^ parser.navigation}"
     assert parser.navigation_order == [
-        "overview", "viewer", "exposure", "presets", "algorithm", "streaming",
-        "network", "calibration", "diagnostics", "recovery",
+        "overview", "viewer", "network", "device",
     ], f"unexpected operator navigation order: {parser.navigation_order}"
+    overview = html[html.index('<section id="overview"'):html.index('<section id="viewer"')]
+    assert '<section id="overview" class="page active">' in overview
+    for identifier in ("setupState", "cameraState", "frameRate", "processingTime", "calibrationBanner",
+                       "overviewCaptureState", "overviewDepthState", "performanceMonitor"):
+        assert f'id="{identifier}"' in overview, f"Overview must own {identifier}"
+    assert '<canvas' not in overview, "Overview must not restore duplicated camera previews"
+    assert 'id="overview" class="device-section"' not in html
     literal_refs = set(re.findall(r"\$\('([^']+)'\)", script))
     missing = literal_refs - set(parser.ids)
     assert not missing, f"JavaScript refers to missing IDs: {sorted(missing)}"
@@ -56,7 +62,7 @@ def main() -> None:
     assert 'NuvoPipeline' not in script and '/pipeline.html' not in script, "production console must not depend on the parked pipeline"
     assert '/pipeline.js' not in html
     for identifier in ("performanceMonitor", "performanceStages", "performanceChart",
-                       "overviewPerformanceSlot", "diagnosticsPerformanceSlot"):
+                       "viewerReceiving", "outputRequested", "outputPending", "outputDiscard"):
         assert identifier in parser.ids
     assert 'timing-track' not in html, "single-value latency bars should not return"
     for identifier in ("themeToggle", "flowConnectionState", "flowCaptureState",
@@ -90,6 +96,10 @@ def main() -> None:
     assert "source==='left_color'?'Left color · ISP':'Right color · ISP'" in script
     assert 'id="viewerEmptyState"' in html and 'Waiting for selected live products.' in html
     assert 'id="encodedEmptyState"' in html and 'Waiting for encoded preview' in html
+    assert 'tuningPreviewTemplate' not in html and 'outputEncodedCanvas' not in html
+    assert 'data-preview-slot' not in html, "one viewer must not clone obsolete preview panels"
+    assert 'id="outputDestination"' in html and 'id="pixelInspector"' in html
+    assert 'id="wifiApply"' in html and 'id="wifiConfirm"' in html
     assert 'DIODE' not in html and '/assets/benchmark/' not in html
     assert 'benchmarkGallery' not in script and 'data-benchmark-scene' not in script
     assert '<dialog' not in html and 'type="password"' not in html
@@ -100,7 +110,7 @@ def main() -> None:
         assert identifier in parser.ids
     assert 'Depth preview · 8-bit visualization' in html
     assert 'Local socket delivery is independent' in html
-    assert 'not sensor RAW/Bayer' in html
+    assert 'not sensor Bayer RAW' in html
     assert '−1 disables' not in html
     assert 'OpenCV SGBM already applies its own 3 × 3 median' in html
     # The overview's calibration alert leads directly to the corrective action.

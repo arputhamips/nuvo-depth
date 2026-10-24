@@ -11,17 +11,28 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
   }
   const context={window:{VideoDecoder:FakeDecoder},VideoDecoder:FakeDecoder,EncodedVideoChunk:class{constructor(data){Object.assign(this,data)}},
     decoder:null,decoderCodec:'',encodedLastSequence:0,encodedWaitingForKeyframe:true,encodedGeneration:1,encodedLastPresented:0,
-    jpegDecodeBusy:false,pendingJpeg:null,encodedFrameAt:0,encodingPreviewPending:false,encodingFormDirty:false,
-    encodedFrameMatchesConfiguration:()=>true,Date,Blob,Math,
-    $:id=>{if(!elements.has(id))elements.set(id,{});return elements.get(id)},
+    jpegDecodeBusy:false,pendingJpeg:null,encodedMetadata:new Map(),encodedFrameAt:0,encodingPreviewPending:false,encodingFormDirty:false,
+    encodedFrameMatchesConfiguration:()=>true,Date,Blob,Math,selectedPage:'network',outputSettings:{preview:true},pictureQualityDirty:false,
+    setSampleCanvasLive:()=>{},recordReceiving:()=>{},
+    $:id=>{if(!elements.has(id))elements.set(id,{textContent:''});return elements.get(id)},
     createImageBitmap:()=>new Promise(resolve=>bitmaps.push(resolve))};
   vm.createContext(context);
   vm.runInContext(source.slice(source.indexOf('function parseEncoded('),source.indexOf('async function pollEncoded(')),context);
-  context.drawEncodedSource=bitmap=>shown.push(bitmap.id);
+  const present=context.drawEncodedSource;
+  context.drawEncodedSource=(bitmap,...details)=>{shown.push(bitmap.id);present(bitmap,...details);};
+  const video=(id,timestamp)=>({id,timestamp,displayWidth:2,displayHeight:1,close(){}});
   const frame=(sequence,codec='h264',keyframe=true)=>({streamSequence:sequence,payload:new Uint8Array([sequence]),metadata:{codec,codec_string:'avc1.42c01f',width:2,height:1,keyframe,source:'left_mono',capture_time_ns:sequence*1000000,capture_sequence:sequence,encode_ms:1}});
   await context.queueEncoded(frame(1),1,1);await context.queueEncoded(frame(5),1,2);
   assert.equal(decoders.length,1,'normal latest-frame gaps must reuse the configured decoder');
   assert.equal(decoders[0].decoded.length,2);
+  assert.equal(elements.has('encodedSequence'),false,'submitting H264 cannot relabel the displayed picture');
+  context.encodingPreviewPending=true;
+  decoders[0].callbacks.output(video(5,5000));
+  assert.equal(elements.get('encodedSequence').textContent,'Frame 5');
+  assert.equal(context.encodingPreviewPending,false,'only a presented picture confirms the saved preview');
+  decoders[0].callbacks.output(video(1,1000));
+  assert.deepEqual(shown,[5],'late decoder output cannot move the viewer back to an older capture');
+  assert.equal(elements.get('encodedSequence').textContent,'Frame 5','captions follow the actual displayed frame');
   decoders[0].decodeQueueSize=2;await context.queueEncoded(frame(6),1,3);
   assert.equal(decoders[0].decoded.length,2,'slow H264 decoding must bound queued work');
   decoders[0].decodeQueueSize=0;
@@ -29,6 +40,12 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
   assert.equal(decoders.length,2,'a dependent frame after a gap must resynchronize');
   assert.equal(decoders[1].decoded.length,0,'do not decode a delta without its reference');
   await context.queueEncoded(frame(11),1,5);assert.equal(decoders[1].decoded.length,1);
+  decoders[0].callbacks.output(video(99,11000));
+  assert.deepEqual(shown,[5],'replaced decoders cannot paint into the new stream or consume its metadata');
+  decoders[1].callbacks.output(video(11,11000));
+  assert.deepEqual(shown,[5,11]);
+  assert.equal(elements.get('encodedSequence').textContent,'Frame 11');
+  shown.length=0;
   const first=context.queueEncoded(frame(12,'jpeg'),1,6);
   await context.queueEncoded(frame(13,'jpeg'),1,7);await context.queueEncoded(frame(14,'jpeg'),1,8);
   assert.equal(bitmaps.length,1,'only one JPEG decode may run at once');

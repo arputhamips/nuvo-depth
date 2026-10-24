@@ -4,56 +4,81 @@ For first-time installation, use the [main user wiki](https://docs.nuvohardware.
 [bundled units](https://docs.nuvohardware.com/vision-one/install/bundled-pi),
 [your own Pi or SD card](https://docs.nuvohardware.com/vision-one/install/byo-pi),
 and [browser connection](https://docs.nuvohardware.com/vision-one/guide/getting-started).
-This is the versioned console and runtime reference.
+This is the source-version console and runtime reference. The unified console
+described here is a development update; the approved public beta 8 installation
+can still show the older navigation until upgraded to this build.
 
 ## First connection
 
-1. Power the Pi 5 camera appliance and connect WiFi or Ethernet. Select a product
-   set and rate within the connection's displayed bandwidth budget; use Ethernet
-   for larger raw streams.
+1. Power the Pi 5 camera appliance and connect Wi-Fi or Ethernet. Select a product
+   set and rate within the connection's displayed resource budget; use Ethernet
+   for larger uncompressed streams. A resource budget is not a measured network
+   throughput guarantee.
 2. Open the printed `https://HOSTNAME.local:7443/` console URL. If mDNS is
    unavailable, use the Pi's IP address with port `7443`. Verify the device's
    certificate against the trusted setup material before using the console.
 3. The console connects automatically. No browser password, setup code or
    owner-password setup is required, including on previously configured units.
-4. Check **Overview**. With capture enabled, confirm **Streaming**, the installed
+4. Check **Overview** for device health and calibration, then open **Live view**.
+   With capture enabled, confirm advancing frames, the installed
    profile's dimensions, and no red health message. Pending calibration can
    intentionally leave capture disabled while the console is available.
-5. Open **Live view** and select the products you need under **Outputs**. The
-   browser initially requests only the left mono image at 5 Hz. Selected products
-   share the same capture identity. Choose **View the camera**, **Use depth**, or
-   **Inspect stereo** first; individual products are under **Advanced**. Presets
-   select a conservative browser cadence, which you can change within the
-   connection budget before applying.
+5. Select the result you need under **Outputs**, then apply it to this browser
+   or generate an application recipe. Selected products share a capture identity;
+   they can have different dimensions. Numeric depth includes validity. Individual
+   products and technical delivery settings remain available under Advanced.
 
 Use the sun/moon control in the header to select light or dark appearance. The
 choice is kept in that browser; without an explicit choice the console follows
 the operating-system color preference.
 
-The overview shows live camera, depth-rate, compute-time, and calibration status.
-Expand **Setup guide** for first-use checks. Public beta 8 Live view offers
+Overview shows camera, depth-rate, compute-time, and calibration status.
+Expand its **Setup guide** for first-use checks. Live view offers
 **Show first depth** and **Save depth sample** after two advancing associated
 depth/validity frames; the download preserves original NUV1 metadata. Older
 beta 6 lacks these buttons. The [complete journey](https://docs.nuvohardware.com/vision-one/guide/getting-started)
-covers the console controls, manual Outputs steps and SDK route. The full **Performance** monitor
-appears on Overview and Diagnostics, with observed compute-time history,
-sampled-frame P95, and a stage timing table. Its **Analysis target** compares
-compute time with a frame budget; it does not change the device configuration.
-Capture and Matcher keep camera and depth previews beside the controls, with
-capture target, measured depth output rate, and compute time shown separately.
-**Settings** contains Capture, Depth profiles, Matcher,
-Streaming, and Outputs; **Device** contains Calibration, Diagnostics, and
-Software update. Capture, Matcher, and Streaming use **Apply settings** to save
-and **Discard changes** to reload the latest device settings. Each Advanced
-controls card can collapse as a whole; its individual groups can also collapse.
-Closing either preserves edits and shows pending changes or validation errors
-in the header. Apply and Discard remain outside the card in a sticky action bar.
+covers installation and the SDK route; use this versioned guide for development
+console navigation.
+
+## Console navigation
+
+The desktop sidebar contains four pages. On narrow screens it becomes compact
+navigation above the page. Opening the console without a page link lands on
+Overview; existing links to Live view and individual settings still work.
+
+| Page | Purpose | Scope |
+| --- | --- | --- |
+| Overview | Device health, applied configuration, calibration, performance and setup guidance | Health monitoring only; starts no product stream |
+| Live view | One primary viewer, camera/exposure controls and depth profile with advanced matcher tuning | Viewing is local; camera and matcher settings affect the device |
+| Outputs | Choose products, representation and rate; review a browser subscription or application recipe; manage Wi-Fi product permission | Browser selection is local; Wi-Fi permission is device-wide |
+| Device | Calibration, diagnostics, updates and advanced shared preview encoder settings | Device-wide |
+
+Profiles select a set of matcher parameters; they are not another output or
+stream. Advanced edits are reflected as Custom when they differ from a named
+profile. Applying camera, matcher or encoder settings changes the shared device;
+merely changing the viewer or drafting an output recipe does not.
+
+The Overview performance monitor's **Analysis target** compares compute time with a
+frame budget. It does not change capture, matcher or delivery rates. Collapse
+advanced controls without losing pending edits. Apply and Discard actions are
+kept with their corresponding form and scope.
+
+Returning to Overview releases this browser's live product demand while keeping
+its selected outputs and unsaved settings. Open Live view or Outputs again to
+resume the selected subscription. Performance shows the work requested by
+active consumers; it can be idle when no consumer needs depth.
 
 ## Image pipeline status
 
-Use **Capture**, **Matcher**, **Streaming**, **Outputs**, and **Live view** to
-configure and check the camera. The experimental node editor has been retired;
-the console uses the same shared device settings and frame codec directly.
+Use **Live view** for camera/depth settings and **Outputs** to choose what a
+consumer receives. The console uses the shared device settings and frame codec;
+it does not create a separate pipeline for each navigation page.
+
+Every viewer identifies its representation. An uncompressed image is rendered
+in the browser; numeric depth is colored in the browser; a JPEG/H.264 picture is
+decoded from the shared encoder. These can all look like images on screen, but
+only the numeric product carries the original depth values. Compressed depth
+pictures cannot be used to recover those measurements.
 
 ## Recommended daily workflow
 
@@ -72,8 +97,8 @@ low-texture scanline failures as completely as HH. **Fast diagnostic** uses
 It can produce long horizontal streaks and gives up nominal near range below about
 0.688 m with the current provisional beta 5 seed. This is a theoretical search
 bound, not a measured usable range. Use **Wide search** only when near geometry needs disparities
-from 96 to 127; it costs more CPU. The **Matcher** page exposes every
-parameter and the SGBM/StereoBM switch.
+from 96 to 127; it costs more CPU. Advanced matcher controls under **Live view**
+expose the parameters and the SGBM/StereoBM switch.
 
 Every profile is an unqualified candidate. The retained Pi Quality/HH run
 measured 2.84 depth frames/s at a 60 Hz capture target; the configured trigger
@@ -87,8 +112,8 @@ independent of this gateway mode. None of these data products are sensor
 RAW/Bayer: mono and colour images originate from the ISP; disparity and depth
 are processed measurements.
 
-Turn **Compressed preview encoder** on for a browser/support preview. Streaming
-settings are device-wide: one encoder source, format and ceiling are shared by
+Turn **Compressed preview encoder** on for a browser/support preview. Encoder
+settings under **Device** are device-wide: one source, format and ceiling are shared by
 all preview clients. Outputs settings apply only to this browser. Its requested
 preview rate may be lower than the device ceiling. The valid network modes are:
 
@@ -186,6 +211,19 @@ subsequent processed frame without restarting camera capture.
 
 ## Product delivery
 
+Changing the Outputs form creates a draft. **Apply to this browser** changes
+the requested subscription; **Receiving** identifies actual arriving frames.
+A pending camera selection must not label a still-running depth subscription
+as camera output. Discard returns to the applied browser selection. Generating
+connection code for an application starts no stream and does not change the
+current browser's subscription. Run that code in your application to receive data.
+
+Choose numeric depth plus validity for measurements. For a camera reference,
+add the associated rectified image and read each product's grid metadata.
+JPEG/H.264 picture delivery is an explicit viewing option. Uncompressed image
+arrays preserve the supplied image values, but those images have already passed
+through the ISP. Neither choice is sensor Bayer RAW.
+
 Camera images can use a larger grid than matcher products. The console's
 bandwidth estimate uses each grid separately and live captions show actual
 product dimensions. Read products by name, not array position. Side-by-side
@@ -229,11 +267,48 @@ processing. Gigabit Ethernet is the normal remote path. USB Ethernet remains a
 qualified transport option only after the product VID/PID, power design, and
 target-host compatibility gates pass.
 
+## Wi-Fi, Ethernet and USB Ethernet
+
+All three links use the same HTTPS/WebSocket gateway and product names. USB here
+means **USB Ethernet**, not a USB webcam or separate raw-image protocol. The
+connection indicator describes the **camera's interface**. A computer connected
+by Wi-Fi to a router can still reach the camera through Ethernet; the console
+cannot establish the entire end-to-end route from its accepted socket.
+
+**Allow product streaming over Wi-Fi** is a separate device-wide permission for
+both compressed pictures and uncompressed products on the camera's Wi-Fi link.
+Disabling it blocks those products while keeping console/control access and
+permitted wired clients available. It does not disable the radio, configure an
+SSID or move an existing connection to another interface. The advanced all-data
+Off policy remains a master stop. Changing the chosen link requires reconnecting
+to the appropriate reachable address.
+
+Calibration positioning thumbnails remain available as part of the console
+workflow. Their JPEGs are viewing aids, separate from the product stream.
+
+Numeric products currently travel uncompressed. Reduce the requested rate or
+select fewer products when a connection exceeds its budget. JPEG/H.264 picture
+compression can discard image detail and is not an alternative encoding of the
+original float depth array. No lossless numeric wire-compression mode is offered.
+Changing matching resolution also changes geometry and processing; it is not a
+network compression setting.
+
+For pictures, Outputs provides **Smaller pictures**, **Balanced**, and
+**More detail**, followed by **Apply shared picture quality**. With JPEG these
+select quality 45, 70 and 90; with H.264 they select target bitrate 1, 4 and
+8 Mbit/s. The summary names the actual codec/source and resulting setting.
+They preserve the source, output dimensions, encoder rate ceiling, delivery
+mode and numeric product selection. They affect all consumers of the shared
+encoder, not just this browser or Wi-Fi clients. These settings are not measured
+throughput guarantees. An unsaved advanced encoder draft must be saved or
+discarded first, so a simple quality change cannot overwrite it silently.
+
 ## Safe changes
 
-Streaming, stereo, and exposure changes apply live. Connection-preference
-changes are different: they are provisional for 60 seconds and must be
-confirmed through the new path or rolled back. Calibration is not part of the
+Encoder, stereo, and exposure changes apply live. Transport-policy changes,
+including Wi-Fi permission, are provisional for 60 seconds and must be
+confirmed or rolled back. The same console connection remains available when
+Wi-Fi products are disabled. Calibration is not part of the
 normal user flow. Trained operators use **Device → Calibration** for
 the separate [advanced calibration process](advanced-calibration.md). Its
 encoded view is only a positioning aid; synchronized unrectified ISP frames are
