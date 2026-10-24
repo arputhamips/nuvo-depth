@@ -481,11 +481,16 @@ def usb_plan(root: Path) -> dict:
     udc_root=root/"sys/class/udc"
     udcs=sorted(path.name for path in udc_root.iterdir()) if udc_root.exists() else []
     config_root=root/"sys/kernel/config/usb_gadget"
-    active=[]
+    active=[]; bound_controllers=set()
     if config_root.exists():
         for gadget in config_root.iterdir():
             assignment=gadget/"UDC"
-            if assignment.exists() and assignment.read_text().strip(): active.append(gadget.name)
+            if assignment.exists() and assignment.read_text().strip():
+                active.append(gadget.name); bound_controllers.add(assignment.read_text().strip())
+    for name in udcs:
+        try: function=(udc_root/name/"function").read_text().strip()
+        except FileNotFoundError: continue
+        if function and name not in bound_controllers: active.append("kernel:"+function)
     return {"schema_version":1,"udcs":udcs,"active_gadgets":active,
             "configfs_available":config_root.is_dir(),
             "ready":len(udcs)==1 and not active}
@@ -535,6 +540,29 @@ def usb_status(root: Path) -> dict:
                 address=read(function/"dev_addr")
                 matches=[item.name for item in networks if address and read(item/"address")==address]
             if len(matches)==1 and matches[0] not in interfaces: interfaces.append(matches[0])
+    # Kernel gadget modules (including Raspberry Pi OS g_ether) do not use configfs.
+    try: kernel_controllers=list(controllers.iterdir())
+    except OSError: kernel_controllers=[]
+    kernel_states=[]
+    for item in kernel_controllers:
+        if not read(item/"function"): continue
+        kernel_states.append(read(item/"state"))
+        try:
+            parent=item.resolve(strict=True).parent.parent
+            networks=list((root/"sys/class/net").iterdir())
+        except OSError: continue
+        for network in networks:
+            try: device=(network/"device").resolve(strict=True)
+            except OSError: continue
+            name=device.name
+            numbered=name.startswith("gadget.") and name[7:].isascii() and name[7:].isdigit()
+            if device.parent==parent and (name=="gadget" or numbered) and network.name not in interfaces:
+                interfaces.append(network.name)
+    if kernel_states:
+        bound=True
+        if "configured" in kernel_states or host_connected is True: host_connected=True
+        elif all(state=="not attached" for state in kernel_states): host_connected=False
+        else: host_connected=None
     return {"schema_version":1,"provisioned":exists(root/"etc/nuvo-depth/usb-gadget.json"),
             "controller_present":controller_present,"bound":bound,"host_connected":host_connected,
             "interfaces":sorted(interfaces)}

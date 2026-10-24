@@ -82,8 +82,20 @@ std::string_view network_path(const bool loopback, const bool wireless,
     const bool bound_gadget_interface) {
   if (loopback) return "other";
   if (wireless) return "wifi";
-  if (bound_gadget_interface || kernel_device.ends_with("/gadget") ||
-      kernel_network.find("/gadget/net/") != std::string_view::npos) return "usb_device";
+  const auto gadget_device = [](std::string_view path) {
+    const auto separator = path.rfind('/');
+    if (separator == std::string_view::npos) return false;
+    const auto name = path.substr(separator + 1U);
+    if (name == "gadget") return true;
+    if (!name.starts_with("gadget.")) return false;
+    const auto index = name.substr(7U);
+    return !index.empty() && std::all_of(index.begin(), index.end(),
+        [](const char value) { return value >= '0' && value <= '9'; });
+  };
+  const auto net_directory = kernel_network.rfind("/net/");
+  if (bound_gadget_interface || gadget_device(kernel_device) ||
+      (net_directory != std::string_view::npos &&
+       gadget_device(kernel_network.substr(0, net_directory)))) return "usb_device";
   if (kernel_device.find("/usb") != std::string_view::npos) return "usb_host_adapter";
   return kernel_device.empty() ? "other" : "ethernet";
 }

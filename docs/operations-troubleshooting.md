@@ -51,9 +51,16 @@ verification; an incorrect certificate hostname still fails.
 
 USB-C device networking needs a controller, gadget setup, a connected compatible
 host and IP addresses. **USB preferred** does not perform that setup. A USB
-Ethernet dongle is a host adapter, not evidence of USB-C device mode. The current
-gadget is ECM-only; binding it does not configure DHCP or guarantee Windows
-driver support. Missing status data is reported as unknown rather than ready.
+Ethernet dongle is a host adapter, not evidence of USB-C device mode. Both
+configfs and numbered kernel gadget paths (such as `gadget.0`) are recognized.
+For Windows, follow the [Raspberry Pi OS USB-C setup](user-guide.md#usb-c-device-setup-on-raspberry-pi-os)
+using its official ECM/RNDIS package and signed driver. Nuvo's separate configfs
+provisioner is ECM-only and does not configure DHCP. Use one gadget manager.
+The `provisioned` status field refers to Nuvo's saved configuration, while
+`bound`, `host_connected` and `interfaces` also observe kernel-managed gadgets.
+Missing status data is reported as unknown rather than ready. If a USB link
+enumerates but repeatedly drops, inspect `vcgencmd get_throttled` and the kernel
+log for undervoltage before testing throughput.
 
 The encoder endpoint intentionally returns HTTP 503 when monitoring encoding is
 off. The raw endpoint intentionally returns HTTP 503 in encoded-only mode.

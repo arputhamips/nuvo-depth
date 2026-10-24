@@ -297,12 +297,46 @@ which camera interface it reached before requesting products. See the
 
 USB-C status distinguishes controller/setup problems, an unplugged host and
 missing IP addressing. A USB Ethernet adapter plugged into a host port is not
-the Pi's USB-C output. The current Nuvo gadget uses ECM and does not assign
-addresses automatically. Windows compatibility must be established for this
-ECM implementation; do not assume the Windows support of Raspberry Pi's
-separate ECM/RNDIS package applies. Raspberry Pi documents the Pi 5 USB-C device
-connection and host requirements in its
+the Pi's USB-C output. Detection supports both configfs gadgets and numbered
+kernel gadgets such as Raspberry Pi OS's `g_ether` (`gadget.0`). Raspberry Pi
+documents the Pi 5 USB-C device connection and host requirements in its
 [USB gadget guide](https://www.raspberrypi.com/news/usb-gadget-mode-in-raspberry-pi-os-ssh-over-usb/).
+
+### USB-C device setup on Raspberry Pi OS
+
+On Raspberry Pi OS Trixie, the official `rpi-usb-gadget` package supplies
+ECM/RNDIS and USB address assignment. Keep Ethernet connected during setup and
+use a power source that can sustain the Pi and both cameras. A USB-C connector
+alone does not establish the available power. Repeated undervoltage events,
+reboots or disconnects must be resolved before judging stream performance.
+
+Install the signed **Raspberry Pi USB RNDIS Driver** on Windows from the
+[official package releases](https://github.com/raspberrypi/rpi-usb-gadget/releases).
+On the Pi, install `rpi-usb-gadget` if absent, run `sudo rpi-usb-gadget on`, and
+reboot. This changes boot and network configuration; it is separate from
+selecting **USB 2.0** in Outputs. Do not enable the Nuvo configfs gadget service
+alongside Raspberry Pi's gadget manager. `nuvoctl usb configure` refuses an
+already-bound kernel gadget.
+
+Without host Internet Connection Sharing, Raspberry Pi's default USB address
+is `10.12.194.1/28`, with DHCP for the attached computer. Use **Outputs → USB
+2.0** and the address reported there; do not assume the default when the host
+or device has custom networking. Generated SDK code pins this destination
+while still verifying the camera's TLS hostname. Confirm that capabilities
+report `connection.path == "usb_device"` and the selected USB address.
+Ethernet can remain connected throughout. Windows may display this USB link
+as a network adapter; the product bytes travel through the USB cable.
+
+The SDK's `frames()` receives uncompressed pixels or numeric depth;
+`encoded_frames()` receives JPEG/H.264 pictures; `paired_frames()` associates
+numeric/raw products and encoded pictures by capture identity. The WLAN raw
+permission does not control USB delivery. Browser viewers remain compressed.
+
+`nuvoctl usb status` observes bound kernel gadgets as well as Nuvo's configfs
+gadget. Its `provisioned` field specifically means a saved **Nuvo** gadget
+configuration exists; it may be false on a working Raspberry Pi-managed link.
+Nuvo's separate `nuvoctl usb configure` implementation remains ECM-only and
+does not assign addresses or install a Windows driver.
 
 Selecting WLAN preserves numeric depth. Encoded images can be selected alone
 or alongside numeric/raw products. A JPEG/H.264 depth picture is not a compressed

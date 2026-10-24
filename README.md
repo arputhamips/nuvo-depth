@@ -64,6 +64,8 @@ Application delivery has three choices: **Ethernet** through the Pi's Ethernet
 port, **USB 2.0** through its USB-C port, and **WLAN** through Wi-Fi. Each shows
 its address and readiness. Browser status identifies the connection actually
 in use; USB protocol and TLS details are under Advanced connection details.
+For a Windows host, the [USB-C setup guide](docs/user-guide.md#usb-c-device-setup-on-raspberry-pi-os)
+covers Raspberry Pi OS's official gadget package and signed host driver.
 See the [versioned console guide](docs/user-guide.md) for the controls and scopes.
 These source changes do not change the approved public release above.
 

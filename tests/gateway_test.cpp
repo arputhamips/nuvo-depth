@@ -374,6 +374,16 @@ void test_device_mode_is_not_inferred_from_usb_host_networking() {
           "kernel gadget device evidence was ignored");
   require(network_path(false, false, "", "/sys/devices/platform/usb/gadget/net/usb0", false) == "usb_device",
           "kernel gadget netdev evidence was ignored");
+  require(network_path(false, false, "/sys/devices/platform/axi/1000480000.usb/gadget.0", "", false) == "usb_device",
+          "Raspberry Pi g_ether gadget.0 device was mislabeled Ethernet");
+  require(network_path(false, false, "", "/sys/devices/platform/axi/1000480000.usb/gadget.12/net/renamed0", false) == "usb_device",
+          "numbered gadget netdev must not depend on its interface name");
+  for (const auto suffix : {"gadget.", "gadget.0suffix", "gadgetry"}) {
+    const auto device = std::string("/sys/devices/platform/controller/") + suffix;
+    require(network_path(false, false, device, "", false) != "usb_device" &&
+            network_path(false, false, "", device + "/net/usb0", false) != "usb_device",
+            "a gadget-like name is not a numbered kernel gadget device");
+  }
   require(network_path(false, false, "", "", true) == "usb_device",
           "bound configfs network-function evidence was ignored");
   require(network_path(false, false, "/sys/devices/pci/usb1/1-1", "", false) == "usb_host_adapter",

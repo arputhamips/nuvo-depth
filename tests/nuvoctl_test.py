@@ -269,6 +269,38 @@ module.atomic_write(Path({str(path)!r}),"interrupted replacement",0o644)
             self.assertEqual(planned["function"],"ecm")
             self.assertNotEqual(planned["device_mac"],planned["host_mac"])
 
+    def test_kernel_usb_gadget_is_observed_and_not_overwritten(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            controller=root/'sys/devices/platform/axi/1000480000.usb'
+            udc=controller/'udc/1000480000.usb';udc.mkdir(parents=True)
+            (udc/'function').write_text('g_ether\n');(udc/'state').write_text('configured\n')
+            udcs=root/'sys/class/udc';udcs.mkdir(parents=True)
+            (udcs/'1000480000.usb').symlink_to(udc,target_is_directory=True)
+            networks=root/'sys/class/net';networks.mkdir(parents=True)
+            device=controller/'gadget.0';network=device/'net/renamed0';network.mkdir(parents=True)
+            (network/'device').symlink_to(device,target_is_directory=True)
+            (networks/'renamed0').symlink_to(network,target_is_directory=True)
+            host=root/'sys/devices/pci/usb1/1-1';host.mkdir(parents=True)
+            other=networks/'usb0';other.mkdir()
+            (other/'device').symlink_to(host,target_is_directory=True)
+            (root/'sys/kernel/config/usb_gadget').mkdir(parents=True)
+            self.assertEqual(module.usb_status(root),{'schema_version':1,'provisioned':False,
+                'controller_present':True,'bound':True,'host_connected':True,'interfaces':['renamed0']})
+            self.assertFalse(module.usb_plan(root)['ready'])
+            self.assertEqual(module.usb_plan(root)['active_gadgets'],['kernel:g_ether'])
+            with self.assertRaisesRegex(RuntimeError,'another USB gadget manager'):
+                module.usb_configure(root,'0x1234','0x5678',True,True)
+            (udc/'state').write_text('suspended\n')
+            self.assertIsNone(module.usb_status(root)['host_connected'])
+            (udc/'state').write_text('not attached\n')
+            self.assertFalse(module.usb_status(root)['host_connected'])
+            (udc/'function').write_text('\n')
+            self.assertFalse(module.usb_status(root)['bound'])
+            self.assertEqual(module.usb_status(root)['interfaces'],[])
+            self.assertTrue(module.usb_plan(root)['ready'])
+            self.assertFalse((root/'etc').exists(),'status or refused configuration created persistent state')
+
     def test_usb_status_reports_observed_state_without_provisioning(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
