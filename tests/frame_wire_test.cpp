@@ -92,6 +92,17 @@ int main(const int argc, char** argv) {
   assert(geometry_json.find("\"capture\":{\"sensor_delta_ns\":20") != std::string::npos);
   assert(geometry_json.find("\"reported_exposure_time_us\":7000") != std::string::npos);
   assert(geometry_message.payload == message.payload);
+  if (argc == 2) {
+    // Export a physically consistent modern frame for the canonical SDK test;
+    // the serializer assertions above deliberately exercise arbitrary samples.
+    auto sdk_frame = with_geometry;
+    sdk_frame.stereo_configuration.rejection_error.clear();
+    sdk_frame.disparity = {10.0F / 3.0F, 2.5F};
+    const auto native_bytes = depthd::wire::serialize(depthd::wire::make_frame_set_message(sdk_frame));
+    std::ofstream output(std::filesystem::path(argv[1]) / "geometry.nuv", std::ios::binary);
+    output.write(reinterpret_cast<const char*>(native_bytes.data()), static_cast<std::streamsize>(native_bytes.size()));
+    assert(output.good());
+  }
   with_geometry.capture_metadata->left.analogue_gain = std::numeric_limits<double>::quiet_NaN();
   with_geometry.capture_metadata->right.exposure_time_us = 0.0;
   struct CommaDecimal final : std::numpunct<char> {

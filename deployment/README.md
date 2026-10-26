@@ -149,8 +149,36 @@ sudo systemctl --no-pager --full status nuvo-depth.target
 ```
 
 The privileged control socket is `/run/nuvo-system-agent.sock`, outside the
-native daemon's disposable `/run/nuvo-depth` directory. Its path must remain
-available after depth-daemon restarts for web encoding and stereo controls.
+native daemon's `/run/nuvo-depth` directory. Its path must remain available
+after depth-daemon restarts for web encoding and stereo controls.
+
+Both full and minimal native units preserve the `/run/nuvo-depth` directory
+inode across restart, failure recovery and an explicit stop/start. Ownership
+remains `nuvo-depth:nuvo-video`, mode `0750`. This keeps an existing read-only
+container directory bind mount connected to the replacement `data.sock`.
+The units remove daemon-owned socket, status and fixed snapshot outputs before
+startup and after shutdown, including failed startup. Other runtime files are
+preserved. A stopped daemon therefore has no published socket or status file;
+check the service journal for its final state. Reboot clears `/run` normally.
+
+Pending calibration capture requests are retained across a short native restart.
+Their caller still owns the reservation and timeout: normal completion consumes
+the request, timeout removes the request and reservation, and native processing
+checks that the matching reservation still exists before publishing. The service
+does not delete requests or alter accepted per-unit calibration, capture policy,
+or persistent state under `/var/lib/nuvo-depth`.
+
+When upgrading from an older unit that deleted its runtime directory, recreate
+the ROS container once after the native service is running so its bind mount
+targets the current directory. Ordinary later native restarts need no container
+restart. Mount the directory read-only with the numeric `nuvo-video` GID; avoid
+mounting a single socket inode or all of `/run`.
+
+`tests/native_runtime_directory_test.py --image nuvo-depth-ros:ci` exercises both
+shipped units' lifecycle directives on an actual systemd host and a persistent
+unprivileged Docker consumer. It checks restart, explicit stop/start, SIGKILL
+recovery, fresh producer identities, cleanup, permissions and preservation of
+unrelated files. It uses isolated scratch services and requires no cameras.
 
 User calibration activation is immutable and independently reversible:
 

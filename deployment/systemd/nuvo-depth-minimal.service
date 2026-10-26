@@ -13,16 +13,29 @@ Group=nuvo-video
 SupplementaryGroups=video gpio
 RuntimeDirectory=nuvo-depth
 RuntimeDirectoryMode=0750
+# Keep read-only container directory bind mounts valid across stop/start.
+# /run is cleared at reboot; daemon-owned entries are removed below.
+RuntimeDirectoryPreserve=yes
 StateDirectory=nuvo-depth
 StateDirectoryMode=0750
 CacheDirectory=nuvo-depth
 CacheDirectoryMode=0750
+ExecStartPre=/usr/bin/rm -f -- /run/nuvo-depth/data.sock /run/nuvo-depth/status.json
+ExecStartPre=/usr/bin/rm -f -- /run/nuvo-depth/status.json.tmp
+ExecStartPre=/usr/bin/rm -f -- /run/nuvo-depth/snapshots/latest.nuv /run/nuvo-depth/snapshots/latest.nuv.tmp /run/nuvo-depth/snapshots/latest.nve /run/nuvo-depth/snapshots/latest.nve.tmp /run/nuvo-depth/snapshots/latest.nve.tmp.tmp
+ExecStartPre=/usr/bin/rm -f -- /run/nuvo-depth/snapshots/left_rectified.png /run/nuvo-depth/snapshots/right_rectified.png /run/nuvo-depth/snapshots/confidence.png /run/nuvo-depth/snapshots/validity.png /run/nuvo-depth/snapshots/disparity_color.png /run/nuvo-depth/snapshots/depth_color.png /run/nuvo-depth/snapshots/disparity.f32 /run/nuvo-depth/snapshots/depth_m.f32 /run/nuvo-depth/snapshots/frame.nuv /run/nuvo-depth/snapshots/frame.json
 ExecStartPre=+/usr/bin/systemctl start nuvo-trigger-prepare.service
 ExecStartPre=+/usr/bin/python3 /usr/lib/nuvo-depth/nuvo_calibration_control.py recover --startup
 ExecStartPre=/usr/bin/depthd --check-config /etc/nuvo-depth/daemon.yaml
 # An accepted bundle takes precedence over the provisional seed fallback.
 # nuvoctl calibration preview --enable is the explicit preview choice.
 ExecStart=/usr/bin/depthd --run /etc/nuvo-depth/daemon.yaml --calibration-root /usr/share/nuvo-depth/calibration --status /run/nuvo-depth/status.json --stereo-control /etc/nuvo-depth/stereo.json --exposure-control /etc/nuvo-depth/exposure.json --device-identity /var/lib/nuvo-depth/identity/device.uuid
+ExecStopPost=/usr/bin/rm -f -- /run/nuvo-depth/data.sock /run/nuvo-depth/status.json
+ExecStopPost=/usr/bin/rm -f -- /run/nuvo-depth/status.json.tmp
+ExecStopPost=/usr/bin/rm -f -- /run/nuvo-depth/snapshots/latest.nuv /run/nuvo-depth/snapshots/latest.nuv.tmp /run/nuvo-depth/snapshots/latest.nve /run/nuvo-depth/snapshots/latest.nve.tmp /run/nuvo-depth/snapshots/latest.nve.tmp.tmp
+ExecStopPost=/usr/bin/rm -f -- /run/nuvo-depth/snapshots/left_rectified.png /run/nuvo-depth/snapshots/right_rectified.png /run/nuvo-depth/snapshots/confidence.png /run/nuvo-depth/snapshots/validity.png /run/nuvo-depth/snapshots/disparity_color.png /run/nuvo-depth/snapshots/depth_color.png /run/nuvo-depth/snapshots/disparity.f32 /run/nuvo-depth/snapshots/depth_m.f32 /run/nuvo-depth/snapshots/frame.nuv /run/nuvo-depth/snapshots/frame.json
+# Pending calibration requests stay under their caller's reservation/timeout;
+# preserve those and all other components' files across native restarts.
 ExecStopPost=+/usr/lib/nuvo-depth/nuvo-trigger-prepare --stop
 Restart=on-failure
 RestartSec=2s

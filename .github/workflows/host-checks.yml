@@ -175,9 +175,66 @@ jobs:
       - run: python tests/python_sdk_test.py
       - run: python tests/first_use_test.py
       - run: python tests/sdk_tls_test.py
+  cpp-client:
+    needs: plan
+    if: needs.plan.outputs.native == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - run: |
+          sudo --preserve-env=GITHUB_ACTIONS bash tools/ci/use-ubuntu-mirror.sh
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ nlohmann-json3-dev libboost-system-dev libssl-dev libc-ares-dev
+      - name: Independent installed SDK and real transport contracts
+        run: |
+          cmake -S sdk/cpp -B build/cpp-client -G Ninja -DCMAKE_BUILD_TYPE=Release -DNUVO_CLIENT_BUILD_TESTS=ON
+          cmake --build build/cpp-client -j2
+          ctest --test-dir build/cpp-client --output-on-failure
+          cmake -S sdk/cpp -B build/cpp-client-local -G Ninja -DNUVO_CLIENT_WITH_HTTPS=OFF -DNUVO_CLIENT_BUILD_TESTS=ON
+          cmake --build build/cpp-client-local -j2
+          ctest --test-dir build/cpp-client-local --output-on-failure
+      - name: Canonical serializer and Python recording compatibility
+        run: |
+          cmake --preset minimal-host -B build/cpp-client-native
+          cmake --build build/cpp-client-native --target depthd_frame_wire_test -j2
+          python3 tests/cpp_client_roundtrip_test.py build/cpp-client-native/depthd_frame_wire_test build/cpp-client/nuvo_client_test
+          python3 tools/export_cpp_client.py build/client-export
+          cmake -S build/client-export -B build/client-export-test -G Ninja -DNUVO_CLIENT_WITH_HTTPS=OFF -DNUVO_CLIENT_BUILD_TESTS=ON
+          cmake --build build/client-export-test -j2
+          ctest --test-dir build/client-export-test --output-on-failure
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: cpp-client-${{ github.run_id }}
+          path: |
+            build/cpp-client/Testing/
+            build/cpp-client-local/Testing/
+            build/client-export-test/Testing/
+            build/client-export/SOURCE-MANIFEST.json
+          if-no-files-found: error
+  native-runtime:
+    needs: plan
+    if: needs.plan.outputs.native == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - name: Pull the pinned public consumer image
+        run: docker pull ros:jazzy-ros-base@sha256:103b6c417973394659af6804d4917cd489b91e5ed22eb7bef263025a3bed2410
+      - name: Existing nonroot container mount survives native service recovery
+        run: sudo python3 tests/native_runtime_directory_test.py --output output/native-runtime-lifecycle
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: native-runtime-${{ github.run_id }}
+          path: output/native-runtime-lifecycle/*.json
+          if-no-files-found: error
   required:
     if: always()
-    needs: [plan, host, browser, sdk, minimum-cmake, debian-clean]
+    needs: [plan, host, browser, sdk, cpp-client, native-runtime, minimum-cmake, debian-clean]
     runs-on: ubuntu-24.04
     steps:
       - env:
@@ -187,6 +244,8 @@ jobs:
           BROWSER_NEEDED: ${{ needs.plan.outputs.browser }}
           BROWSER: ${{ needs.browser.result }}
           SDK: ${{ needs.sdk.result }}
+          CPP_CLIENT: ${{ needs.cpp-client.result }}
+          NATIVE_RUNTIME: ${{ needs.native-runtime.result }}
           MINIMUM: ${{ needs.minimum-cmake.result }}
           DEBIAN: ${{ needs.debian-clean.result }}
         run: |
@@ -194,4 +253,6 @@ jobs:
           if [ "$NATIVE_NEEDED" = true ]; then test "$HOST" = success; else test "$HOST" = skipped; fi
           if [ "$BROWSER_NEEDED" = true ]; then test "$BROWSER" = success; else test "$BROWSER" = skipped; fi
           if [ "$NATIVE_NEEDED" = true ]; then test "$SDK" = success; else test "$SDK" = skipped; fi
+          if [ "$NATIVE_NEEDED" = true ]; then test "$CPP_CLIENT" = success; else test "$CPP_CLIENT" = skipped; fi
+          if [ "$NATIVE_NEEDED" = true ]; then test "$NATIVE_RUNTIME" = success; else test "$NATIVE_RUNTIME" = skipped; fi
           if [ "$NATIVE_NEEDED" = true ]; then test "$MINIMUM" = success && test "$DEBIAN" = success; else test "$MINIMUM" = skipped && test "$DEBIAN" = skipped; fi
