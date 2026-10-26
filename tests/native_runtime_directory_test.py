@@ -144,7 +144,10 @@ def exercise(profile, image, output):
 
         def runs():
             logs = command('docker', 'logs', name).splitlines()
-            assert 'READ_ONLY_VERIFIED' in logs
+            # docker run returns before the probe necessarily writes its first
+            # log line. The surrounding bounded wait must observe readiness.
+            if 'READ_ONLY_VERIFIED' not in logs:
+                return []
             return [line for line in logs if len(line) == 32]
 
         wait(lambda: len(runs()) >= 1, 'container could not reach initial native socket')
