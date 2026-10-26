@@ -47,6 +47,10 @@ Or [order Vision One from NuvoHardware](https://nuvohardware.com/).
   calibration tools, accessed directly through an HTTPS gateway without browser login.
 - **Application interfaces:** C and Python SDKs, local IPC, and network delivery
   for integrating camera output into your application.
+- **ROS 2 integration:** a separate [Jazzy source driver](https://github.com/arputhamips/nuvo-depth-ros)
+  publishes depth, validity, CameraInfo and optional XYZ using native local
+  output. Its README includes a same-Pi Docker quickstart; Pi hardware
+  qualification remains pending.
 - **Installation and maintenance:** terminal setup, protected Wi-Fi setup
   hotspot, system services, signed Debian packages, and GitHub release builds.
 
@@ -121,6 +125,7 @@ and test evidence.
 | Set up and use Vision One | [Setup guide](https://docs.nuvohardware.com/vision-one/guide/getting-started) |
 | Install on your Pi | [Pi installation guide](https://docs.nuvohardware.com/vision-one/install/byo-pi) |
 | Integrate camera output | [SDK guide](https://docs.nuvohardware.com/vision-one/sdk/) and [Python SDK reference](sdk/python/README.md) |
+| Publish depth to ROS 2 Jazzy | [ROS driver and Docker quickstart](https://github.com/arputhamips/nuvo-depth-ros) · [Pi setup guide](https://docs.nuvohardware.com/vision-one/sdk/ros2) |
 | Configure installer options and recovery | [Installer reference](docs/installer-reference.md) |
 | Understand the runtime and repository | [Image pipeline and repository map](docs/image-pipeline-map.md) |
 | Build or publish packages | [Build and test](docs/build-and-test.md) and [Release operations](docs/releases.md) |

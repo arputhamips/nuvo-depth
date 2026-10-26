@@ -11,6 +11,11 @@ specifications, and qualification evidence.
   preview-preserving upgrades and supported recovery.
 - [Runnable Python and C examples](sdk-examples.md) — verified TLS, display,
   recording/replay and installed public C ABI.
+- [ROS 2 Jazzy driver](https://github.com/arputhamips/nuvo-depth-ros) — same-Pi
+  Docker quickstart for native depth, validity, CameraInfo and optional XYZ.
+  The [Pi setup guide](https://docs.nuvohardware.com/vision-one/sdk/ros2) explains
+  prerequisites, including beta 8's explicit geometry override. Pi hardware
+  qualification remains pending.
 - [Onboarding acceptance](../qualification/onboarding/README.md) — all 69 cases,
   frozen budgets, physical procedures, newcomer forms and fail-closed gates.
 
