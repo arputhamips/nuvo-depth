@@ -1,7 +1,9 @@
 import base64
+from contextlib import redirect_stdout
 import errno
 import hashlib
 import http.cookiejar
+import io
 import json
 from pathlib import Path
 import re
@@ -9,19 +11,21 @@ import struct
 import sys
 import tempfile
 import unittest
+import weakref
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "sdk/python"))
-from nuvo_depth import NuvoClient, RecordingReader, RecordingWriter, decode_encoded_frame, decode_frame
+from nuvo_depth import NuvoClient, RecordingReader, RecordingWriter, decode_encoded_frame, decode_frame, decode_paired_frame
 from nuvo_depth import client as client_module
+from nuvo_depth import paired as paired_module
 from nuvo_depth.recorder import record_frames
 
 
-def sample(*, run_uuid="11" * 16, sequence=3, data_format="gray8"):
+def sample(*, run_uuid="11" * 16, device_uuid="22" * 16, epoch=2, sequence=3, data_format="gray8"):
     payload = b"\x01\x02" if data_format == "gray8" else b"\x01\x02\x03\x04\x05\x06"
     metadata = json.dumps({
-        "schema_version": 1, "capture_epoch": 2, "capture_sequence": sequence,
-        "device_uuid": "22" * 16, "run_uuid": run_uuid,
+        "schema_version": 1, "capture_epoch": epoch, "capture_sequence": sequence,
+        "device_uuid": device_uuid, "run_uuid": run_uuid,
         "capture_time_ns": 4, "configuration_epoch": 5,
         "calibration_sha256": "00" * 32, "calibration_authority": 0,
         "products": [{"kind":"left_rectified", "format":data_format,
@@ -29,6 +33,23 @@ def sample(*, run_uuid="11" * 16, sequence=3, data_format="gray8"):
     }, separators=(",", ":")).encode()
     return struct.pack(">4sHHHHIQQ", b"NUV1", 1, 0, 5, 0,
                        len(metadata), len(payload), 1) + metadata + payload
+
+
+def encoded_sample(*, run_uuid="11" * 16, device_uuid="22" * 16, epoch=2, sequence=3, **updates):
+    payload = b"\xff\xd8jpeg\xff\xd9"
+    metadata = {"schema_version": 1, "capture_epoch": epoch, "capture_sequence": sequence,
+                "device_uuid": device_uuid, "run_uuid": run_uuid, "capture_time_ns": 4,
+                "source": "left_rectified", "codec": "jpeg", "mime_type": "image/jpeg",
+                "width": 2, "height": 1, "keyframe": True, **updates}
+    metadata = {key: value for key, value in metadata.items() if value is not None}
+    document = json.dumps(metadata, separators=(",", ":")).encode()
+    return struct.pack(">4sHHIQQI", b"NVE1", 1, 1, len(document), len(payload), 7, 0) + document + payload
+
+
+def paired_sample(raw=None, encoded=None):
+    raw = sample() if raw is None else raw
+    encoded = encoded_sample() if encoded is None else encoded
+    return struct.pack(">4sHHQQQ", b"NVP1", 1, 0, len(raw), len(encoded), 0) + raw + encoded
 
 
 def websocket_frame(payload=b"", opcode=2, final=True, declared_size=None):
@@ -146,11 +167,12 @@ class SdkTest(unittest.TestCase):
                 frames=iter(reader);self.assertEqual(next(frames).to_bytes(),first.to_bytes())
                 with self.assertRaisesRegex(ValueError,"truncated recording frame"):next(frames)
 
-    def mock_client(self, sock, *, timeout=5):
+    def mock_client(self, sock, *, timeout=5, connect_address=None):
         context = Mock()
         context.wrap_socket.return_value = sock
         with patch.object(client_module.ssl, "create_default_context", return_value=context):
-            client = NuvoClient("https://nuvo.test:17443", timeout=timeout)
+            client = NuvoClient("https://nuvo.test:17443", timeout=timeout,
+                                connect_address=connect_address)
         client._csrf = "csrf-token"
         client._cookies.set_cookie(http.cookiejar.Cookie(
             version=0, name="nuvo_session", value="session-token", port=None,
@@ -335,6 +357,213 @@ class SdkTest(unittest.TestCase):
         self.assertIn(b"Cookie: nuvo_session=session-token\r\n", sock.sent[0])
         self.assertEqual(sent_control(sock.sent[-1]), (8, struct.pack(">H", 1000)))
         self.assertTrue(sock.closed)
+
+    def test_encoded_stream_uses_its_decoder_bounds_and_one_verified_connection(self):
+        first = encoded_sample()
+        second = encoded_sample(sequence=4)
+        sock = MockSocket(websocket_frame(first[:40], final=False)
+                          + websocket_frame(b"heartbeat", opcode=9)
+                          + websocket_frame(first[40:], opcode=0)
+                          + websocket_frame(second))
+        client, context = self.mock_client(sock, connect_address="192.0.2.42")
+        with patch.object(client_module.socket, "create_connection", return_value=sock) as connect:
+            with client.encoded_frames(cadence_hz=5) as stream:
+                self.assertEqual(next(stream).identity, ("22" * 16, "11" * 16, 2, 3))
+                self.assertEqual(next(stream).capture_sequence, 4)
+        connect.assert_called_once()
+        self.assertEqual(connect.call_args.args[0], ("192.0.2.42", 17443))
+        context.wrap_socket.assert_called_once_with(sock, server_hostname="nuvo.test")
+        self.assertIn(b"GET /api/v1/encoded/stream?cadence_hz=5 HTTP/1.1", sock.sent[0])
+        self.assertIn(b"Cookie: nuvo_session=session-token\r\n", sock.sent[0])
+        self.assertEqual(sent_control(sock.sent[1]), (10, b"heartbeat"))
+        self.assertTrue(sock.closed)
+        self.assertTrue(client.encoded_frames()._url.endswith("/api/v1/encoded/stream"))
+        for cadence in (True, "5", 0, 61, float("nan"), float("inf")):
+            self.assertRaises(ValueError, client.encoded_frames, cadence_hz=cadence)
+            self.assertRaises(ValueError, client.paired_frames, preview_cadence_hz=cadence)
+
+    def test_encoded_stream_bounds_payload_and_fragmented_aggregate(self):
+        for wire in (websocket_frame(declared_size=101),
+                     websocket_frame(b"x" * 60, final=False) + websocket_frame(b"y" * 60, opcode=0)):
+            sock = MockSocket(wire)
+            client, _ = self.mock_client(sock)
+            with patch.object(client_module.socket, "create_connection", return_value=sock), \
+                    patch.object(client_module, "_MAX_ENCODED_FRAME", 100):
+                with self.assertRaisesRegex(ValueError, "exceeds the client bound"):
+                    with client.encoded_frames() as stream:
+                        next(stream)
+            self.assertTrue(sock.closed)
+            self.assertLessEqual(max(sock.read_sizes), 4096)
+
+    def test_encoded_identity_rejects_ambiguous_types_but_preserves_legacy_decode(self):
+        for updates in ({"sequence": True}, {"sequence": "3"}, {"epoch": -1},
+                        {"epoch": 1 << 64}, {"capture_time_ns": 1.5}, {"run_uuid": "bad"}):
+            self.assertRaises(ValueError, decode_encoded_frame, encoded_sample(**updates))
+        legacy = decode_encoded_frame(encoded_sample(run_uuid=None, device_uuid=None))
+        self.assertEqual(legacy.identity, ("", "", 2, 3))
+
+    def test_native_uuid_spellings_compare_without_rewriting_metadata_or_wire(self):
+        compact = "abcdef0123456789abcdef0123456789"
+        canonical = "ABCDEF01-2345-6789-ABCD-EF0123456789"
+        for make, decode in ((sample, decode_frame), (encoded_sample, decode_encoded_frame)):
+            wire = make(device_uuid=canonical, run_uuid=compact)
+            frame = decode(wire)
+            self.assertEqual(frame.identity, (compact, compact, 2, 3))
+            self.assertEqual(frame.metadata["device_uuid"], canonical)
+            self.assertEqual(frame.metadata["run_uuid"], compact)
+            if hasattr(frame, "to_bytes"): self.assertEqual(frame.to_bytes(), wire)
+            for invalid in (compact + "-", "-" + compact, "{" + canonical + "}",
+                            "abcdef012-345-6789-abcd-ef0123456789", " "+compact, "g"*32):
+                self.assertRaises(ValueError, decode, make(device_uuid=invalid))
+        pair = decode_paired_frame(paired_sample(
+            sample(device_uuid=compact, run_uuid=compact),
+            encoded_sample(device_uuid=canonical, run_uuid=canonical)))
+        self.assertEqual(pair.identity, (compact, compact, 2, 3))
+
+    def paired_socket(self, frames, **client_options):
+        sock = MockSocket(b"".join(websocket_frame(frame) for frame in frames))
+        client, _ = self.mock_client(sock, **client_options)
+        client.capabilities = Mock(return_value={"paired_stream": {
+            "supported": True, "path": "/api/v1/paired/stream", "protocol": "NVP1",
+            "maximum_wire_bytes": paired_module.MAX_PAIRED_WIRE}})
+        return client, sock
+
+    def test_paired_stream_checks_full_identity_in_one_persistent_subscription(self):
+        client, sock = self.paired_socket([paired_sample(sample(sequence=n), encoded_sample(sequence=n)) for n in (3, 7)])
+        with patch.object(client_module.socket, "create_connection", return_value=sock) as connect:
+            with client.paired_frames(cadence_hz=2, preview_cadence_hz=2) as stream:
+                for expected in (3, 7):
+                    pair = next(stream)
+                    frame, picture = pair
+                    self.assertEqual(frame.identity, picture.identity)
+                    self.assertEqual(pair.identity, frame.identity)
+                    self.assertEqual(frame.to_bytes(), sample(sequence=expected))
+                    self.assertEqual(frame.capture_sequence, expected)
+        self.assertTrue(sock.closed)
+        connect.assert_called_once(); client.capabilities.assert_called_once()
+        self.assertIn(b"/api/v1/paired/stream?delivery=best_effort&cadence_hz=2&products=depth,validity", sock.sent[0])
+        for options in ({"preview_cadence_hz": 5}, {"delivery": "exact"}):
+            self.assertRaises(ValueError, client.paired_frames, **options)
+
+    def test_paired_message_rejects_mismatched_or_incomplete_identity(self):
+        for raw in (sample(sequence=4), sample(epoch=3), sample(device_uuid="33"*16),
+                    sample(run_uuid="33"*16), sample(sequence=True)):
+            self.assertRaises(ValueError, decode_paired_frame, paired_sample(raw))
+        self.assertRaisesRegex(ValueError, "complete device", decode_paired_frame,
+                               paired_sample(encoded=encoded_sample(run_uuid=None)))
+        for identity in ({"device_uuid": "0"*32}, {"run_uuid": "0"*32}, {"epoch": 0}, {"sequence": 0}):
+            self.assertRaises(ValueError, decode_paired_frame,
+                              paired_sample(sample(**identity), encoded_sample(**identity)))
+
+    def test_paired_message_bounds_and_headers_before_allocating_inner_frames(self):
+        packet = paired_sample()
+        for index, value in ((0, b"BAD!"), (1, 2), (2, 1), (3, 32),
+                             (3, paired_module.MAX_PAIRED_RAW+1), (4, 0),
+                             (4, paired_module.MAX_PAIRED_ENCODED+1), (5, 1)):
+            header = list(struct.unpack_from(">4sHHQQQ", packet)); header[index] = value
+            self.assertRaises(ValueError, decode_paired_frame, struct.pack(">4sHHQQQ", *header)+packet[32:])
+        for invalid in (packet[:-1], packet+b"x", b"", 10**12, "NVP1"):
+            self.assertRaises((TypeError, ValueError), decode_paired_frame, invalid)
+        class NoCopy(bytearray):
+            def __bytes__(self): raise AssertionError("oversize input must not be copied")
+        with patch.object(paired_module, "MAX_PAIRED_WIRE", 32):
+            self.assertRaises(ValueError, decode_paired_frame, NoCopy(33))
+        frozen = decode_paired_frame(bytearray(packet))
+        self.assertEqual(frozen.frame.to_bytes(), sample())
+        self.assertTrue(frozen.frame.products["left_rectified"].data.readonly)
+        self.assertTrue(frozen.encoded.data.readonly)
+
+    def test_paired_stream_does_not_accumulate_delivered_frames(self):
+        client, sock = self.paired_socket([paired_sample(sample(sequence=n), encoded_sample(sequence=n)) for n in range(1, 501)])
+        references = []
+        with patch.object(client_module.socket, "create_connection", return_value=sock):
+            with client.paired_frames() as stream:
+                for expected in range(1, 501):
+                    pair = next(stream)
+                    references[:] = [ref for ref in references if ref() is not None]
+                    self.assertFalse(references, "the SDK must not retain prior delivered messages")
+                    references = [weakref.ref(pair.frame), weakref.ref(pair.encoded)]
+                    self.assertEqual(pair.identity[-1], expected)
+                    del pair
+        self.assertTrue(sock.closed)
+
+    def test_paired_stream_closes_on_failure_or_early_stop_without_fallback(self):
+        for failure in ("application", "upgrade", "decode", "normal_close", "timeout", "oversize"):
+            client, sock = self.paired_socket([paired_sample()])
+            if failure == "upgrade": sock.status = "404 Not Found"
+            if failure == "decode": sock.frames = websocket_frame(paired_sample(sample(sequence=4)))
+            if failure == "normal_close": sock.frames = websocket_frame(struct.pack(">H", 1000), opcode=8)
+            if failure == "timeout": sock.frames, sock.failure = b"", TimeoutError("paired stream stalled")
+            if failure == "oversize": sock.frames = websocket_frame(declared_size=paired_module.MAX_PAIRED_WIRE+1)
+            error = {"application": RuntimeError, "upgrade": ConnectionError, "decode": ValueError,
+                     "normal_close": StopIteration, "timeout": TimeoutError, "oversize": ValueError}[failure]
+            with self.subTest(failure=failure), patch.object(client_module.socket, "create_connection", return_value=sock) as connect:
+                with self.assertRaises(error):
+                    stream = client.paired_frames()
+                    with stream:
+                        next(stream)
+                        raise RuntimeError("application stopped")
+                self.assertTrue(sock.closed)
+                self.assertRaises(StopIteration, next, stream)
+                connect.assert_called_once()
+
+    def test_paired_stream_requires_explicit_gateway_support(self):
+        for capability in ({}, {"paired_stream": {"supported": False}},
+                           {"paired_stream": {"supported": True, "protocol": "unknown"}}):
+            client, sock = self.paired_socket([])
+            client.capabilities.return_value = capability
+            with patch.object(client_module.socket, "create_connection") as connect:
+                with self.assertRaisesRegex(RuntimeError, "does not support.*paired"):
+                    with client.paired_frames(): pass
+                connect.assert_not_called()
+        client, sock = self.paired_socket([])
+        client.capabilities.return_value["paired_stream"]["maximum_wire_bytes"] = True
+        with self.assertRaisesRegex(ValueError, "capability bound"):
+            with client.paired_frames(): pass
+        self.assertIn("NVP1", client_module.recovery_action(404, "/api/v1/paired/stream"))
+        self.assertIn("Concurrent paired", client_module.recovery_action(409, "/api/v1/paired/stream"))
+        self.assertIn("shared preview", client_module.recovery_action(503, "/api/v1/paired/stream"))
+
+    def test_preview_and_paired_examples_use_persistent_streams_and_close(self):
+        from nuvo_depth.examples import main
+        for example in ("preview", "paired"):
+            client = Mock()
+            value = (decode_encoded_frame(encoded_sample()) if example == "preview" else
+                     client_module.PairedFrame(decode_frame(sample()), decode_encoded_frame(encoded_sample())))
+            class Stream:
+                closed = False
+                def __enter__(self): return iter((value, value))
+                def __exit__(self, *_): self.closed = True
+            stream = Stream()
+            getattr(client, "encoded_frames" if example == "preview" else "paired_frames").return_value = stream
+            output = io.StringIO()
+            with patch("nuvo_depth.examples.NuvoClient", return_value=client), \
+                    patch("nuvo_depth.examples.getpass.getpass", return_value="fixture-token"), redirect_stdout(output):
+                main([example, "--url", "https://fixture.invalid", "--ca-file", "fixture.pem", "--frames", "1"])
+            self.assertTrue(stream.closed)
+            client.close.assert_called_once()
+            client.latest.assert_not_called(); client.latest_encoded.assert_not_called()
+            if example == "paired":
+                client.paired_frames.assert_called_once_with(products=('depth', 'validity'), cadence_hz=2, preview_cadence_hz=2)
+            self.assertIn("not numeric depth", output.getvalue())
+            self.assertIn("Completed 1", output.getvalue())
+
+    def test_selected_address_routes_websocket_without_changing_device_identity(self):
+        sock = MockSocket(websocket_frame(sample()))
+        client, context = self.mock_client(sock, connect_address='192.0.2.42')
+        with patch.object(client_module.socket, 'create_connection', return_value=sock) as connect:
+            with client.frames(products=('left_rectified',), cadence_hz=2) as stream:
+                self.assertEqual(next(stream).capture_sequence, 3)
+        self.assertEqual(connect.call_args.args[0], ('192.0.2.42', 17443))
+        context.wrap_socket.assert_called_once_with(sock, server_hostname='nuvo.test')
+        self.assertIn(b'Host: nuvo.test:17443\r\n', sock.sent[0])
+        self.assertTrue(sock.closed)
+
+    def test_connect_address_requires_a_numeric_unscoped_ip(self):
+        for address in ('', 'nuvo.test', 'https://192.0.2.1', '192.0.2.1:7443',
+                        '[::1]', 'fe80::1%usb0', True, 123):
+            with self.subTest(address=address), self.assertRaisesRegex(ValueError, 'connect_address'):
+                NuvoClient('https://nuvo.test', connect_address=address)
 
     def test_fragmented_stream_handles_ping_and_explicit_ping_and_close(self):
         wire = sample()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import re
 import struct
 import sys
 from types import MappingProxyType
@@ -22,6 +23,14 @@ PRODUCT_FORMATS = {
     "left_rectified_rgb": {"rgb8"}, "right_rectified_rgb": {"rgb8"},
     "rectified_stereo": {"gray8"}, "rectified_stereo_rgb": {"rgb8"},
 }
+
+
+def _normalize_uuid(value: str) -> str:
+    """Canonical comparison key for the raw and encoder UUID wire spellings."""
+    if not isinstance(value, str) or not re.fullmatch(
+            r"(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})", value):
+        raise ValueError("invalid Nuvo frame UUID metadata")
+    return value.replace("-", "").lower()
 
 
 @dataclass(frozen=True)
@@ -60,12 +69,12 @@ class FrameSet:
     @property
     def device_uuid(self) -> str:
         """Device identity; empty for legacy recordings without UUID metadata."""
-        return str(self.metadata.get("device_uuid", ""))
+        return _normalize_uuid(self.metadata["device_uuid"]) if "device_uuid" in self.metadata else ""
 
     @property
     def run_uuid(self) -> str:
         """Daemon run identity; empty for legacy recordings without UUID metadata."""
-        return str(self.metadata.get("run_uuid", ""))
+        return _normalize_uuid(self.metadata["run_uuid"]) if "run_uuid" in self.metadata else ""
 
     @property
     def identity(self) -> tuple[str, str, int, int]:
@@ -102,10 +111,8 @@ def decode_frame(wire_bytes: bytes) -> FrameSet:
             or not isinstance(metadata.get("products"), list)):
         raise ValueError("unsupported Nuvo frame metadata schema")
     for name in ("device_uuid", "run_uuid"):
-        value = metadata.get(name)
-        if name in metadata and (not isinstance(value, str) or len(value) != 32
-                                  or any(character not in "0123456789abcdef" for character in value)):
-            raise ValueError("invalid Nuvo frame UUID metadata")
+        if name in metadata:
+            _normalize_uuid(metadata[name])
     payload = memoryview(wire_bytes)[metadata_end:]
     products: dict[str, Product] = {}
     occupied: list[tuple[int, int]] = []

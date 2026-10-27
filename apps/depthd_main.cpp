@@ -1342,13 +1342,16 @@ int run_native_daemon(const PipelineArguments& arguments) {
         depthd::ipc_v2::ProductMask independent_images{};
         depthd::ipc_v2::ProductMask associated_images{};
 #if defined(DEPTHD_WITH_LOCAL_FRAME_SERVER)
+        bool image_due{}, matcher_due{};
         if (!arguments.diagnostic_raw_snapshots && arguments.trace_directory.empty()) {
           products = 0U;
-          if (raw_capture_cadence.admit(context->identity, demand.image_products, demand.image_cadence_hz)) {
+          image_due = raw_capture_cadence.admit(context->identity, demand.image_products, demand.image_cadence_hz);
+          matcher_due = matcher_capture_cadence.admit(context->identity, demand.matcher_products, demand.matcher_cadence_hz);
+          if (image_due) {
             independent_images = demand.image_products;
             products |= independent_images;
           }
-          if (matcher_capture_cadence.admit(context->identity, demand.matcher_products, demand.matcher_cadence_hz)) {
+          if (matcher_due) {
             products |= demand.matcher_products;
             associated_images = demand.matcher_products & depthd::ipc_v2::kImageProducts;
           }
@@ -1389,7 +1392,17 @@ int run_native_daemon(const PipelineArguments& arguments) {
         const auto encoding = image_encoder.configuration();
         if (!depthd::encoding::encoded_enabled(encoding)) preview_cadence = 0.0;
         image_encoder.set_demand(preview_cadence);
-        if (preview_cadence > 0.0) {
+        bool preview_due = preview_cadence > 0.0;
+#if defined(DEPTHD_WITH_LOCAL_FRAME_SERVER)
+        if (!arguments.diagnostic_raw_snapshots && arguments.trace_directory.empty()) {
+          preview_due = depthd::preview_capture_aligned(
+              std::min(preview_cadence, static_cast<double>(encoding.cadence_hz)),
+              demand.matcher_cadence_hz, matcher_due, demand.image_cadence_hz, image_due,
+              demand.paired_products, context->identity.capture_time_ns,
+              matcher_capture_cadence.next_due_time_ns(), raw_capture_cadence.next_due_time_ns());
+        }
+#endif
+        if (preview_due) {
           if (depthd::encoding::requires_depth(encoding.source)) {
             context->encoding_plan = image_encoder.prepare_capture(context->identity);
             if (context->encoding_plan.result == depthd::encoding::SubmitResult::kAccepted) {

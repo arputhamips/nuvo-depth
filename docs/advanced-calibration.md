@@ -1,8 +1,8 @@
 # Advanced calibration profile production
 
 Calibration is a separate manufacturing and engineering operation. It is not a
-step in the normal Nuvo Depth user flow. Trained operators use **Calibration
-profiles** in the browser console to capture, solve, qualify, save, activate,
+step in the normal Nuvo Depth user flow. Trained operators use **Device →
+Calibration** in the browser console to capture, solve, qualify, save, activate,
 and roll back geometry presets over Ethernet or Wi-Fi.
 
 ## Why Nuvo uses ChArUco
@@ -23,7 +23,7 @@ and the live-error conventions used by
 
 ## Accuracy boundary
 
-The H.264 stream on the page is only a low-latency positioning aid. Every
+The compressed JPEG/H.264 stream on the page is only a positioning aid. Every
 accepted calibration observation is a synchronized, unrectified, full-profile
 luma pair captured locally from the two ISP outputs. Compression, network
 latency, the existing rectification map, disparity, and depth are never inputs
@@ -65,7 +65,10 @@ coordinates, and a missing required capability produces an installation error.
 
 ## Browser workflow
 
-Open **Advanced → Calibration profiles**.
+Open **Device → Calibration**. The permanent preview panel requests encoded
+frames only while this section is open, visible and unpaused. Closing the
+section or selecting **Pause preview** releases its demand; another encoded
+consumer can keep the shared encoder active.
 
 ### 1. Target and profile
 
@@ -115,11 +118,12 @@ uncommitted selection is restored before the next startup.
 
 ### 2. Capture coverage
 
-Enable the positioning preview and choose the left or right camera. The page
-temporarily enables a low-latency H.264 monitoring configuration and remembers
-the prior encoder settings. Keep the complete target inside the guide, hold it
-still, then select **Capture synchronized raw pair**. Use **Restore stream
-settings** when positioning is complete.
+Choose the left or right camera and select **Apply shared positioning source**.
+This changes the source for every encoded client while preserving the current
+codec, quality and rate. If the encoder is globally paused, enable encoded
+output under Device first. Keep the complete target inside the guide, hold it
+still, then select **Capture synchronized raw pair**. Use **Restore previous
+source** when positioning is complete; other encoder settings are preserved.
 
 Collect at least 30 accepted pairs:
 

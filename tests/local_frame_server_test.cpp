@@ -124,6 +124,39 @@ int main() {
   {
     using namespace depthd::ipc_v2;
     LocalFrameServer server(socket, 0600U);
+    const auto depth = product_bit(ProductKind::kDepth);
+    const auto mono = product_bit(ProductKind::kLeftMono);
+    {
+      LocalFrameClient paired(socket, depth, 2.0, 0.0, true);
+      if (server.demand().paired_products != depth || server.demand().products != depth ||
+          server.demand().cadence_hz != 2.0 || server.demand().preview_cadence_hz != 0.0) return 40;
+      const auto generation = server.demand().generation;
+      paired.set_demand(depth, 2.0, 0.0, false);
+      if (server.demand().paired_products != 0U || server.demand().generation <= generation) return 41;
+      paired.set_demand(mono, 5.0, 0.0, true);
+      if (server.demand().paired_products != mono || server.demand().image_cadence_hz != 5.0) return 42;
+    }
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+    while (server.demand().paired_products != 0U && std::chrono::steady_clock::now() < deadline)
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    if (server.demand().paired_products != 0U || server.demand().products != 0U) return 43;
+    for (const unsigned flags : {2U, 3U, 128U}) {
+      auto connection = connect_seqpacket(socket);
+      std::array<std::byte,20> request{};
+      std::memcpy(request.data(), "NVS2", 4U);
+      request[7] = static_cast<std::byte>(depth);
+      request[10] = std::byte{7}; request[11] = std::byte{208}; // 2000 milli-Hz
+      request[19] = static_cast<std::byte>(flags);
+      connection.send_packet(request);
+      const auto reply = connection.receive_packet(1032U,0U,std::chrono::seconds(1));
+      if (reply.payload.size() < 4U || std::memcmp(reply.payload.data(),"NVE2",4U) != 0 ||
+          server.demand().paired_products != 0U) return 44;
+    }
+    server.stop();
+  }
+  {
+    using namespace depthd::ipc_v2;
+    LocalFrameServer server(socket, 0600U);
     server.publish(frame());
     if (server.demand().products != 0U || server.demand().cadence_hz != 0.0) return 10;
     const auto depth = product_bit(ProductKind::kDepth);

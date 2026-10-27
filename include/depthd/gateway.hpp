@@ -6,6 +6,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "depthd/ipc_v2.hpp"
@@ -18,6 +19,16 @@ enum class TransportKind : std::uint8_t {
   kUsbEthernet = 2,
   kWifi = 3,
 };
+
+using TransportMask = std::uint8_t;
+[[nodiscard]] constexpr TransportMask transport_bit(TransportKind kind) {
+  return static_cast<TransportMask>(1U << (static_cast<unsigned>(kind) - 1U));
+}
+inline constexpr TransportMask kAllTransports = 7U;
+
+[[nodiscard]] std::string_view network_path(bool loopback, bool wireless,
+    std::string_view kernel_device, std::string_view kernel_network,
+    bool bound_gadget_interface);
 
 enum class TransportPreference : std::uint8_t {
   kEthernetPreferred = 1,
@@ -41,14 +52,15 @@ struct AdmissionConfiguration {
   QualifiedTransport usb_ethernet{};
   QualifiedTransport wifi{};
   TransportPreference preference{TransportPreference::kEthernetPreferred};
-  // Omission retains legacy preference behavior; explicit Wi-Fi permission is
-  // independent of wired preference. kOff remains the master product switch.
+  // Raw/numeric Wi-Fi permission is independent of wired preference. Encoded
+  // previews are always eligible on Wi-Fi; kOff remains the master switch.
   std::optional<bool> wifi_enabled;
 };
 
 [[nodiscard]] bool transport_permitted(TransportPreference preference,
                                        TransportKind transport,
-                                       std::optional<bool> wifi_enabled = {});
+                                       std::optional<bool> wifi_enabled = {},
+                                       bool encoded = false);
 
 struct SubscriptionRequest {
   ipc_v2::ProductMask products{};
@@ -57,6 +69,7 @@ struct SubscriptionRequest {
   double cadence_hz{};
   bool allow_format_change{};
   bool allow_cadence_reduction{};
+  bool encoded{};
 };
 
 class AdmissionLease final {
@@ -112,7 +125,8 @@ class AdmissionController final {
   [[nodiscard]] AdmissionResult admit(const SubscriptionRequest& request,
                                       TransportKind connected_transport,
                                       std::optional<TransportPreference> preference = {},
-                                      std::optional<bool> wifi_enabled = {});
+                                      std::optional<bool> wifi_enabled = {},
+                                      TransportMask available_alternatives = kAllTransports);
   [[nodiscard]] AdmissionStats stats() const noexcept;
 
  private:
@@ -156,6 +170,17 @@ class SerializedBytes final {
     parts_.insert(parts_.end(), payload.begin(), payload.end());
     for (auto part : parts_) size_ += part.size();
     retained_size_ = source->retained_size() + vector_->size();
+  }
+  SerializedBytes(std::vector<std::byte> prefix,
+                  std::vector<std::shared_ptr<const SerializedBytes>> sources)
+      : vector_(std::make_shared<const std::vector<std::byte>>(std::move(prefix))) {
+    parts_.emplace_back(*vector_); retained_size_ = vector_->size();
+    for (const auto& source : sources) {
+      parts_.insert(parts_.end(), source->parts_.begin(), source->parts_.end());
+      retained_size_ += source->retained_size();
+    }
+    for (const auto part : parts_) size_ += part.size();
+    owner_ = std::make_shared<const decltype(sources)>(std::move(sources));
   }
   [[nodiscard]] std::size_t size() const noexcept { return size_; }
   [[nodiscard]] std::size_t retained_size() const noexcept { return retained_size_; }

@@ -249,6 +249,18 @@ void test_serialized_storage_is_shared_and_complete() {
   require(flattened && flattened->size() == 40U && flattened->at(0U) == std::byte{3} &&
           flattened->at(8U) == std::byte{7}, "legacy vector transmission returned only a segmented prefix");
   copying_api.note_bytes_sent(flattened->size()); copying_api.complete_transmission();
+  auto numeric = std::make_shared<const depthd::gateway::SerializedBytes>(std::vector<std::byte>(20U,std::byte{4}));
+  auto preview = std::make_shared<const depthd::gateway::SerializedBytes>(std::vector<std::byte>(10U,std::byte{5}));
+  std::weak_ptr<const depthd::gateway::SerializedBytes> numeric_lifetime = numeric, preview_lifetime = preview;
+  auto pair = std::make_shared<const depthd::gateway::SerializedBytes>(std::vector<std::byte>(32U,std::byte{1}),
+      std::vector<std::shared_ptr<const depthd::gateway::SerializedBytes>>{numeric,preview});
+  require(pair->parts()[1].data() == numeric->data() && pair->parts()[2].data() == preview->data() &&
+          pair->size() == 62U && pair->retained_size() == 62U, "paired output copied payload or undercounted retained owners");
+  numeric.reset(); preview.reset();
+  require(!numeric_lifetime.expired() && !preview_lifetime.expired() && pair->copy().at(52U) == 5U,
+          "paired segmented output lost either immutable owner");
+  pair.reset();
+  require(numeric_lifetime.expired() && preview_lifetime.expired(), "paired output retained owners after release");
 }
 
 void test_independent_wifi_permission_preserves_wired_policy() {
@@ -290,6 +302,101 @@ void test_independent_wifi_permission_preserves_wired_policy() {
           "invalid preference was treated as permitted Wi-Fi");
 }
 
+void test_absent_preferred_interface_does_not_block_connected_wired_transport() {
+  using depthd::gateway::TransportKind;
+  using depthd::gateway::TransportPreference;
+  depthd::gateway::AdmissionController controller(configuration(TransportPreference::kUsbPreferred));
+  const auto ethernet_only = depthd::gateway::transport_bit(TransportKind::kEthernet);
+  auto wired = controller.admit(request(1000U, 1.0), TransportKind::kEthernet, {}, {}, ethernet_only);
+  require(wired.lease.has_value(), "absent USB interface blocked a connected Ethernet client");
+  auto prefer_usb = controller.admit(request(1000U, 1.0), TransportKind::kEthernet, {}, {}, depthd::gateway::kAllTransports);
+  require(!prefer_usb.lease && prefer_usb.compatible_alternatives.size() == 1U &&
+          prefer_usb.compatible_alternatives.front() == TransportKind::kUsbEthernet,
+          "available preferred USB stopped enforcing wired preference");
+  require(wired.lease->transport() == TransportKind::kEthernet && controller.stats().ethernet_sessions == 1U,
+          "availability update invalidated an already admitted lease");
+  auto impossible = controller.admit(request(8'000'000U, 60.0), TransportKind::kEthernet, {}, {}, 0U);
+  require(!impossible.lease && impossible.compatible_alternatives.empty(),
+          "admission advertised a nonexistent reconnect alternative");
+}
+
+void test_encoded_wifi_is_independent_of_raw_permission_and_shares_capacity() {
+  using namespace depthd::gateway;
+  for (const auto preference : {TransportPreference::kEthernetPreferred,
+       TransportPreference::kUsbPreferred, TransportPreference::kBoth,
+       TransportPreference::kAuto, TransportPreference::kWifiOnly,
+       TransportPreference::kOff}) {
+    auto config = configuration(preference);
+    config.wifi = {true, true, 1'000'000U, 1'000'000U, 2U};
+    config.wifi_enabled = false;
+    AdmissionController controller(config);
+    auto encoded = request(1000U, 5.0);
+    encoded.encoded = true;
+    const bool allowed = preference != TransportPreference::kOff;
+    auto preview = controller.admit(encoded, TransportKind::kWifi);
+    require(preview.lease.has_value() == allowed,
+            "raw Wi-Fi disabled encoded admission or encoded bypassed master off");
+    require(transport_permitted(preference, TransportKind::kWifi, false, true) == allowed,
+            "encoded permission does not match admission");
+    require(!controller.admit(request(1000U, 5.0), TransportKind::kWifi).lease,
+            "encoded eligibility leaked to raw Wi-Fi admission");
+    if (!allowed) continue;
+    auto raw = controller.admit(request(1000U, 5.0), TransportKind::kWifi, {}, true);
+    require(raw.lease && controller.stats().wifi_sessions == 2U,
+            "raw and encoded cannot share the same Wi-Fi link");
+    require(!controller.admit(encoded, TransportKind::kWifi).lease,
+            "encoded streams bypassed the shared session budget");
+    raw.lease.reset();
+    require(preview.lease && controller.stats().wifi_sessions == 1U,
+            "releasing raw demand released the encoded lease");
+    auto oversized_rate = request(300'000U, 5.0); oversized_rate.encoded = true;
+    require(!controller.admit(oversized_rate, TransportKind::kWifi).lease,
+            "encoded Wi-Fi bypassed the shared byte budget");
+    require(!transport_permitted(preference, TransportKind::kWifi, false) &&
+            transport_permitted(preference, TransportKind::kWifi, false, true),
+            "raw-only policy change cannot revalidate raw and encoded independently");
+  }
+  auto insecure = configuration(TransportPreference::kAuto);
+  insecure.wifi = {true, false, 1'000'000U, 1'000'000U, 2U};
+  bool rejected{};
+  try { AdmissionController controller(insecure); }
+  catch (const std::invalid_argument&) { rejected = true; }
+  require(rejected, "encoded Wi-Fi bypassed TLS requirements");
+  require(!transport_permitted(static_cast<TransportPreference>(255), TransportKind::kWifi, false, true),
+          "encoded Wi-Fi bypassed malformed policy");
+}
+
+void test_device_mode_is_not_inferred_from_usb_host_networking() {
+  using depthd::gateway::network_path;
+  require(network_path(false, false, "/sys/devices/platform/1000480000.usb/gadget", "", false) == "usb_device",
+          "gadget classification incorrectly depended on a /usb ancestry component");
+  require(network_path(false, false, "/sys/devices/platform/axi/usb/gadget", "", false) == "usb_device",
+          "kernel gadget device evidence was ignored");
+  require(network_path(false, false, "", "/sys/devices/platform/usb/gadget/net/usb0", false) == "usb_device",
+          "kernel gadget netdev evidence was ignored");
+  require(network_path(false, false, "/sys/devices/platform/axi/1000480000.usb/gadget.0", "", false) == "usb_device",
+          "Raspberry Pi g_ether gadget.0 device was mislabeled Ethernet");
+  require(network_path(false, false, "", "/sys/devices/platform/axi/1000480000.usb/gadget.12/net/renamed0", false) == "usb_device",
+          "numbered gadget netdev must not depend on its interface name");
+  for (const auto suffix : {"gadget.", "gadget.0suffix", "gadgetry"}) {
+    const auto device = std::string("/sys/devices/platform/controller/") + suffix;
+    require(network_path(false, false, device, "", false) != "usb_device" &&
+            network_path(false, false, "", device + "/net/usb0", false) != "usb_device",
+            "a gadget-like name is not a numbered kernel gadget device");
+  }
+  require(network_path(false, false, "", "", true) == "usb_device",
+          "bound configfs network-function evidence was ignored");
+  require(network_path(false, false, "/sys/devices/pci/usb1/1-1", "", false) == "usb_host_adapter",
+          "USB host adapter was mislabeled USB-C device mode");
+  require(network_path(false, true, "/sys/devices/pci/usb1/1-1", "", false) == "wifi",
+          "USB wireless adapter was mislabeled USB Ethernet");
+  require(network_path(true, false, "", "", false) == "other" &&
+          network_path(false, false, "", "/sys/devices/virtual/net/eth0", false) == "other",
+          "interface name or virtual interface was treated as physical port evidence");
+  require(network_path(false, false, "/sys/devices/platform/ethernet", "", false) == "ethernet",
+          "physical Ethernet evidence was ignored");
+}
+
 }  // namespace
 
 int main() {
@@ -301,6 +408,9 @@ int main() {
     test_connection_cannot_reserve_another_interface();
     test_wifi_resource_admission_and_selection();
     test_independent_wifi_permission_preserves_wired_policy();
+    test_encoded_wifi_is_independent_of_raw_permission_and_shares_capacity();
+    test_absent_preferred_interface_does_not_block_connected_wired_transport();
+    test_device_mode_is_not_inferred_from_usb_host_networking();
     test_serialized_storage_is_shared_and_complete();
     std::cout << "gateway_test: pass\n";
     return EXIT_SUCCESS;

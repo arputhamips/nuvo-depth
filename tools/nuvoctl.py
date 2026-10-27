@@ -481,14 +481,91 @@ def usb_plan(root: Path) -> dict:
     udc_root=root/"sys/class/udc"
     udcs=sorted(path.name for path in udc_root.iterdir()) if udc_root.exists() else []
     config_root=root/"sys/kernel/config/usb_gadget"
-    active=[]
+    active=[]; bound_controllers=set()
     if config_root.exists():
         for gadget in config_root.iterdir():
             assignment=gadget/"UDC"
-            if assignment.exists() and assignment.read_text().strip(): active.append(gadget.name)
+            if assignment.exists() and assignment.read_text().strip():
+                active.append(gadget.name); bound_controllers.add(assignment.read_text().strip())
+    for name in udcs:
+        try: function=(udc_root/name/"function").read_text().strip()
+        except FileNotFoundError: continue
+        if function and name not in bound_controllers: active.append("kernel:"+function)
     return {"schema_version":1,"udcs":udcs,"active_gadgets":active,
             "configfs_available":config_root.is_dir(),
             "ready":len(udcs)==1 and not active}
+
+
+def usb_status(root: Path) -> dict:
+    """Observe device-mode evidence without mounting, binding or configuring USB."""
+    def exists(path):
+        try:
+            path.stat(); return True
+        except FileNotFoundError: return False
+        except OSError: return None
+    def read(path):
+        try:
+            with path.open(encoding="ascii") as source:
+                value=source.read(513)
+            return value.strip() if len(value)<=512 else None
+        except (OSError,UnicodeError): return None
+    controllers=root/"sys/class/udc"
+    controller_present=exists(controllers)
+    if controller_present:
+        try: controller_present=any(controllers.iterdir())
+        except OSError: controller_present=None
+    gadget=root/"sys/kernel/config/usb_gadget/nuvo_depth"
+    present=exists(gadget)
+    controller=read(gadget/"UDC") if present else "" if present is False else None
+    bound=bool(controller) if controller is not None else None
+    state=read(controllers/controller/"state") if controller else None
+    host_connected=True if state=="configured" else False if state=="not attached" or bound is False else None
+    interfaces=[]
+    if bound:
+        try:
+            functions=list((gadget/"functions").iterdir())
+            networks=list((root/"sys/class/net").iterdir())
+        except OSError: functions=[]; networks=[]
+        for function in functions:
+            if not function.name.startswith(("ecm.","ncm.","rndis.")): continue
+            # Only linked functions belong to the active USB configuration.
+            try:
+                linked=any(link.resolve()==function.resolve() for config in (gadget/"configs").iterdir()
+                           if config.is_dir() for link in config.iterdir() if link.is_symlink())
+            except OSError: linked=False
+            if not linked: continue
+            name=read(function/"ifname")
+            matches=[item.name for item in networks if item.name==name]
+            if not matches:
+                address=read(function/"dev_addr")
+                matches=[item.name for item in networks if address and read(item/"address")==address]
+            if len(matches)==1 and matches[0] not in interfaces: interfaces.append(matches[0])
+    # Kernel gadget modules (including Raspberry Pi OS g_ether) do not use configfs.
+    try: kernel_controllers=list(controllers.iterdir())
+    except OSError: kernel_controllers=[]
+    kernel_states=[]
+    for item in kernel_controllers:
+        if not read(item/"function"): continue
+        kernel_states.append(read(item/"state"))
+        try:
+            parent=item.resolve(strict=True).parent.parent
+            networks=list((root/"sys/class/net").iterdir())
+        except OSError: continue
+        for network in networks:
+            try: device=(network/"device").resolve(strict=True)
+            except OSError: continue
+            name=device.name
+            numbered=name.startswith("gadget.") and name[7:].isascii() and name[7:].isdigit()
+            if device.parent==parent and (name=="gadget" or numbered) and network.name not in interfaces:
+                interfaces.append(network.name)
+    if kernel_states:
+        bound=True
+        if "configured" in kernel_states or host_connected is True: host_connected=True
+        elif all(state=="not attached" for state in kernel_states): host_connected=False
+        else: host_connected=None
+    return {"schema_version":1,"provisioned":exists(root/"etc/nuvo-depth/usb-gadget.json"),
+            "controller_present":controller_present,"bound":bound,"host_connected":host_connected,
+            "interfaces":sorted(interfaces)}
 
 
 def _attribute(path: Path, value: str) -> None:
@@ -564,7 +641,8 @@ def parse() -> argparse.Namespace:
     provision=identity.add_parser("provision"); provision.add_argument("--hostname",default="nuvo-depth.local")
     transport=commands.add_parser("transport").add_subparsers(dest="operation",required=True)
     stage=transport.add_parser("stage"); stage.add_argument("mode",nargs="?",choices=["auto","wifi","ethernet","usb","both","off"]); stage.add_argument("--physical-confirmation",action="store_true")
-    stage.add_argument("--wifi-enabled", choices=["true", "false"])
+    stage.add_argument("--wifi-enabled", choices=["true", "false"],
+        help="allow raw/numeric Wi-Fi products; encoded previews remain available unless mode is off")
     transport.add_parser("confirm"); transport.add_parser("rollback"); transport.add_parser("reconcile"); transport.add_parser("status")
     encoding=commands.add_parser("encoding").add_subparsers(dest="operation",required=True)
     configure_encoding=encoding.add_parser("set")
@@ -591,6 +669,7 @@ def parse() -> argparse.Namespace:
     configure_exposure.add_argument("--json",required=True)
     usb=commands.add_parser("usb").add_subparsers(dest="operation",required=True)
     usb.add_parser("plan")
+    usb.add_parser("status")
     usb.add_parser("apply-saved")
     configure=usb.add_parser("configure"); configure.add_argument("--vid",required=True); configure.add_argument("--pid",required=True); configure.add_argument("--electrical-approval",action="store_true"); configure.add_argument("--apply",action="store_true")
     disable=usb.add_parser("disable"); disable.add_argument("--apply",action="store_true")
@@ -615,6 +694,7 @@ def main() -> None:
     elif args.command=="stereo": result=set_stereo(root,json.loads(args.json),args.if_match)
     elif args.command=="exposure": result=set_exposure(root,json.loads(args.json),args.if_match)
     elif args.command=="usb" and args.operation=="plan": result=usb_plan(root)
+    elif args.command=="usb" and args.operation=="status": result=usb_status(root)
     elif args.command=="usb" and args.operation=="configure": result=usb_configure(root,args.vid,args.pid,args.electrical_approval,args.apply)
     elif args.command=="usb" and args.operation=="apply-saved": result=usb_apply_saved(root)
     elif args.command=="usb": result=usb_disable(root,args.apply)

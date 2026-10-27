@@ -313,6 +313,121 @@ void test_mixed_raw_matcher_pending_is_not_starved() {
 }
 
 #if defined(DEPTHD_WITH_IMAGE_ENCODER)
+void test_explicit_pairing_reserves_captures_under_mixed_aggregate_cadences() {
+  const auto depth = depthd::ipc_v2::product_bit(depthd::ipc_v2::ProductKind::kDepth);
+  for (const auto rates : {std::pair{1.0,5.0}, {2.0,10.0}, {5.0,1.0},
+                           {2.0,5.0}, {5.0,2.0}, {2.5,5.0}}) {
+    FakeCapture capture;
+    capture.timestamp_base_ns = 1'000'000'000;
+    capture.capture_period_ns = 100'000'000;
+    depthd::NativeCaptureCadence matcher, reference;
+    depthd::encoding::Configuration config;
+    config.codec = depthd::encoding::Codec::kJpeg;
+    config.source = depthd::encoding::Source::kLeftMono;
+    config.cadence_hz = 10U;
+    depthd::encoding::AsyncFrameEncoder encoder({}, {}, config);
+    encoder.set_demand(rates.second);
+    unsigned copies{}, encoded{}, pairs{};
+    std::int64_t previous_preview{};
+    for (std::uint64_t sequence = 1; sequence <= 110U; ++sequence) {
+      capture.offer(sequence); auto pair = capture.wait_for_pair(50ms);
+      const auto identity = depthd::make_frame_set_identity(*pair, {1U}, {2U}, 1U);
+      const bool active = sequence >= 23U;
+      const auto mask = active ? depth : 0U;
+      const auto rate = active ? rates.first : 0.0;
+      const bool raw_due = matcher.admit(identity,mask,rate);
+      require(raw_due == reference.admit(identity,mask,rate), "paired preview increased raw work");
+      if (!depthd::preview_capture_aligned(rates.second, rate, raw_due, 0.0, false,
+              mask, identity.capture_time_ns, matcher.next_due_time_ns(), 0)) continue;
+      depthd::ProductSetMetadata metadata; metadata.frame = identity;
+      metadata.left_rectified.grid = depthd::make_reference_grid(8U,6U);
+      const auto submitted = encoder.submit_capture(metadata,
+          [&](depthd::CameraRole, bool, std::span<std::uint8_t> pixels) {
+            ++copies; std::fill(pixels.begin(),pixels.end(),128U);
+          });
+      if (submitted != depthd::encoding::SubmitResult::kAccepted) continue;
+      ++encoded;
+      if (raw_due) ++pairs;
+      if (previous_preview) require(identity.capture_time_ns - previous_preview + 2'000'000 >=
+          static_cast<std::int64_t>(1'000'000'000.0 / rates.second), "pairing exceeded preview cadence budget");
+      previous_preview = identity.capture_time_ns;
+      eventually([&] { return encoder.stats().encoded == encoded; }, "mixed cadence preview failed");
+    }
+    require(pairs >= static_cast<unsigned>(std::min(rates.first,rates.second) * 5.0) &&
+            copies == encoded && encoder.stats().failures == 0U,
+            "mixed aggregate cadence starved capture-matched previews");
+    encoder.stop();
+  }
+}
+
+void test_preview_alignment_for_staggered_consumers() {
+  const auto mono = depthd::ipc_v2::product_bit(depthd::ipc_v2::ProductKind::kLeftMono);
+  const auto depth = depthd::ipc_v2::product_bit(depthd::ipc_v2::ProductKind::kDepth);
+  for (const double initial_rate : {1.0, 2.0, 5.0}) {
+    FakeCapture capture;
+    capture.timestamp_base_ns = 1'000'000'000;
+    capture.capture_period_ns = 100'000'000;
+    depthd::NativeCaptureCadence matcher, images;
+    depthd::encoding::Configuration config;
+    config.codec = depthd::encoding::Codec::kJpeg;
+    config.source = depthd::encoding::Source::kLeftMono;
+    config.cadence_hz = 10U;
+    std::mutex published_mutex;
+    std::vector<depthd::FrameSetIdentity> published;
+    depthd::encoding::AsyncFrameEncoder encoder({}, {}, config, {}, {}, {},
+        [&](const auto& identity, std::uint64_t, std::span<const std::byte> bytes) {
+          if (bytes.empty()) return;
+          std::lock_guard lock(published_mutex); published.push_back(identity);
+        });
+    unsigned accepted{}, copied{}, paired{}, raw_only{};
+    for (std::uint64_t sequence = 1; sequence <= 110U; ++sequence) {
+      const double changed_rate = initial_rate == 5.0 ? 2.0 : 5.0;
+      const double preview_rate = sequence >= 80U && sequence < 90U ? 0.0 :
+          sequence >= 90U ? changed_rate : initial_rate;
+      const double matcher_rate = sequence < 22U || (sequence >= 50U && sequence < 70U) ? 0.0 :
+          sequence >= 70U ? changed_rate : initial_rate;
+      const double image_rate = sequence >= 23U && sequence < 70U ? initial_rate : 0.0;
+      capture.offer(sequence);
+      auto pair = capture.wait_for_pair(50ms);
+      const auto identity = depthd::make_frame_set_identity(*pair, {1U}, {2U}, 1U);
+      const bool matcher_due = matcher.admit(identity, matcher_rate > 0 ? depth : 0U, matcher_rate);
+      const bool image_due = images.admit(identity, image_rate > 0 ? mono : 0U, image_rate);
+      encoder.set_demand(preview_rate);
+      const bool aligned = depthd::preview_capture_aligned(preview_rate,
+          matcher_rate, matcher_due, image_rate, image_due);
+      if (preview_rate == 0.0) require(!aligned, "zero preview demand admitted capture work");
+      else if (preview_rate == matcher_rate) require(aligned == matcher_due, "preview ignored equal matcher cadence");
+      else if (preview_rate == image_rate) require(aligned == image_due, "preview ignored equal image cadence");
+      else require(aligned, "unequal raw cadence restricted preview capture");
+      if (!aligned) { if (matcher_due || image_due) ++raw_only; continue; }
+      depthd::ProductSetMetadata metadata;
+      metadata.frame = identity;
+      metadata.left_rectified.grid = depthd::make_reference_grid(8U, 6U);
+      const auto result = encoder.submit_capture(metadata,
+          [&](depthd::CameraRole, bool, std::span<std::uint8_t> pixels) {
+            ++copied; std::fill(pixels.begin(), pixels.end(), 128U);
+          });
+      if (result != depthd::encoding::SubmitResult::kAccepted) continue;
+      ++accepted;
+      eventually([&] { return encoder.stats().encoded == accepted; }, "aligned preview did not encode");
+      {
+        std::lock_guard lock(published_mutex);
+        require(!published.empty() && published.back().device_uuid == identity.device_uuid &&
+                published.back().run_uuid == identity.run_uuid &&
+                published.back().capture_epoch == identity.capture_epoch &&
+                published.back().capture_sequence == identity.capture_sequence &&
+                published.back().capture_time_ns == identity.capture_time_ns,
+                "preview publication changed the selected raw capture identity");
+      }
+      if (preview_rate == matcher_rate || preview_rate == image_rate) ++paired;
+    }
+    encoder.set_demand(0.0);
+    require(paired >= 4U && raw_only > 0U && copied == accepted && encoder.stats().failures == 0U,
+            "staggered subscriptions failed to pair or performed extra preview copies");
+    encoder.stop();
+  }
+}
+
 void test_numeric_preview_with_independent_raw_cadence() {
   using depthd::ipc_v2::ProductKind;
   const auto mono = depthd::ipc_v2::product_bit(ProductKind::kLeftMono);
@@ -723,6 +838,8 @@ int main() {
     test_pinned_storage_is_a_drop();
     test_independent_images_while_matcher_is_blocked();
 #if defined(DEPTHD_WITH_IMAGE_ENCODER)
+    test_explicit_pairing_reserves_captures_under_mixed_aggregate_cadences();
+    test_preview_alignment_for_staggered_consumers();
     test_numeric_preview_with_independent_raw_cadence();
     test_encoder_preflight_under_capture_overload();
 #endif

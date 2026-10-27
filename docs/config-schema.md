@@ -247,9 +247,11 @@ OS Wi-Fi configuration. Its schema-v1 fields are:
 ```
 
 `preference` retains `auto`, `ethernet`, `usb`, `both`, `wifi` and `off`.
-`wifi_enabled` is optional and must be a JSON boolean. When absent, legacy
-behavior is preserved: `auto` and `wifi` permit Wi-Fi; the other preferences do
-not. Once explicitly set, Wi-Fi permission is independent of wired preference.
+`wifi_enabled` is optional and must be a JSON boolean. It permits only
+uncompressed raw/numeric products over Wi-Fi; compressed encoded streams do not
+depend on this flag. When absent, legacy raw-data behavior is preserved: `auto`
+and `wifi` permit raw Wi-Fi; the other preferences do not. Once explicitly set,
+raw Wi-Fi permission is independent of wired preference.
 `off` always blocks every product transport, even with `wifi_enabled: true`.
 The configured permission and effective permission are therefore distinct.
 
@@ -265,7 +267,44 @@ The transport response also exposes pending transaction status/deadline so a
 reloaded console can confirm or undo it. A second unconfirmed change is rejected
 until the first is confirmed, undone or reconciled after expiry.
 
-The gateway applies permission to compressed and uncompressed product endpoints
-and active sessions. Console/control access is retained. Invalid policy files
-block product delivery rather than enabling a fallback link. A policy change
+The gateway applies raw permission to uncompressed endpoints and active raw
+sessions. Changing only this flag leaves encoded sessions running and allows
+new compressed previews on Wi-Fi. Encoded delivery retains authentication,
+master-Off enforcement and the same shared per-link admission/byte budgets.
+Console/control access is retained. Invalid policy files block product delivery
+rather than enabling a fallback link. A policy change
 does not move a TCP connection between Ethernet, USB Ethernet and Wi-Fi.
+
+The development gateway adds read-only discovery to `GET /api/v1/transport`:
+
+- `listener` reports the configured gateway address, port and address family.
+- `paths` has `ethernet`, `usb_device` and `wifi` entries. Each includes `state`
+  (`unavailable`, `disconnected`, `no_address`, `available` or `unknown`),
+  `raw_products_permitted`, `encoded_products_permitted`, `policy_kind`, and
+  detected `interfaces`; `products_permitted` remains the raw-permission alias. Interface
+  entries include `name`, `admin_up`, `carrier` and `addresses`; each address has
+  `family`, `address`, `gateway_listening` and `scope_required`. IPv6 link-local
+  addresses require a client-specific scope and are omitted from generated
+  direct-address recipes, as are addresses on down or disconnected interfaces.
+- USB discovery adds `provisioned`, `controller_present`, `bound` and
+  `host_connected`. Unknown status is not treated as readiness. Discovery never
+  configures a gadget, assigns addresses or changes host drivers.
+- `connection.path` distinguishes `ethernet`, `usb_device`, `wifi`,
+  `usb_host_adapter` and `other`; `connection.local_address` identifies the
+  accepted socket address. These fields also appear in capabilities. Existing
+  `connection.kind` and `interface` remain compatible.
+
+Capabilities and transport connection metadata distinguish
+`raw_products_permitted` from `encoded_products_permitted`. Browser previews
+must check encoded permission; application numeric/raw clients check raw
+permission. Encoder configuration is separate from transport permission: an
+enabled encoder does no work without demand, while a globally paused encoder
+can make an otherwise permitted encoded endpoint unavailable.
+
+`available` describes the camera's link and listening address, not guaranteed
+reachability from an arbitrary client. Only device-gadget evidence identifies
+`usb_device`; a host USB adapter or a name such as `usb0` alone is insufficient.
+Generated application recipes use a reported listening address and retain the
+certificate hostname. The console sends the effective `wifi_enabled` value
+alongside a wired-preference edit, preserving independent Wi-Fi permission even
+when the existing file used legacy omission semantics.

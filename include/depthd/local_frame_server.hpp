@@ -43,6 +43,7 @@ struct LocalFrameDemand {
   double image_cadence_hz{};
   ProductMask matcher_products{};
   double matcher_cadence_hz{};
+  ProductMask paired_products{};
 };
 
 // One sequential client can keep its demand registered while repeatedly
@@ -52,9 +53,9 @@ class LocalFrameClient final {
   explicit LocalFrameClient(const std::filesystem::path& path = kDataSocketPath,
                             ProductMask products = kAllProducts,
                             double cadence_hz = 10.0,
-                            double preview_cadence_hz = 0.0);
+                            double preview_cadence_hz = 0.0, bool pair_preview = false);
   void set_demand(ProductMask products, double cadence_hz,
-                  double preview_cadence_hz = 0.0);
+                  double preview_cadence_hz = 0.0, bool pair_preview = false);
   [[nodiscard]] std::optional<SerializedLocalFrame> next(
       const LocalFrameCursor& after = {},
       std::chrono::milliseconds timeout = std::chrono::milliseconds(400),
@@ -123,6 +124,7 @@ class LocalFrameServer final {
     ProductMask products{};
     double cadence_hz{};
     double preview_cadence_hz{};
+    bool pair_preview{};
     bool waiting{};
   };
   std::map<std::uint64_t, ClientDemand> clients_;

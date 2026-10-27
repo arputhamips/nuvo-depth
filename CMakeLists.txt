@@ -572,6 +572,7 @@ install(FILES
   sdk/python/nuvo_depth/_version.py
   sdk/python/nuvo_depth/client.py
   sdk/python/nuvo_depth/encoded.py
+  sdk/python/nuvo_depth/paired.py
   sdk/python/nuvo_depth/frame.py
   sdk/python/nuvo_depth/first_use.py
   sdk/python/nuvo_depth/recorder.py
@@ -602,7 +603,7 @@ install(PROGRAMS tools/calibration/nuvo_calibration.py
 )
 install(FILES
   web/index.html web/app.js web/styles.css
-  web/device-settings.js web/frame-codec.js web/first-use.js web/depth-profiles.json
+  web/device-settings.js web/frame-codec.js web/depth-profiles.json
   DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/web"
   COMPONENT device-web
 )
