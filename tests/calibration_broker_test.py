@@ -186,6 +186,13 @@ class BrokerTest(unittest.TestCase):
         self.assertEqual(self.request(archive(self.source))['code'], 'invalid_bundle')
         self.assertEqual(self.restarts, 0)
 
+    def test_deep_json_rejected_without_crashing_privileged_broker(self):
+        entries = [(name, (self.source/name).read_bytes()) for name in broker.FILES]
+        entries[0] = ('manifest.json', b'{"deep":'+b'['*1500+b'0'+b']'*1500+b'}')
+        result = self.request(archive(self.source, entries))
+        self.assertEqual(result['code'], 'invalid_bundle')
+        self.assertEqual(self.restarts, 0)
+
     def test_restart_failure_rolls_back_previous_native_selection_and_policy(self):
         self.request(archive(self.source))
         previous_policy = control.CapturePolicy(self.root).snapshot()['files']

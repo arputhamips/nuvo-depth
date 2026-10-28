@@ -133,6 +133,9 @@ def handle(connection, root=Path('/'), run=subprocess.run):
         response = {'schema_version':1, 'ok':False, 'code':'busy', 'message':str(error)}
     except ValueError as error:
         response = {'schema_version':1, 'ok':False, 'code':'invalid_bundle', 'message':str(error)}
+    except RecursionError:
+        response = {'schema_version':1, 'ok':False, 'code':'invalid_bundle',
+                    'message':'Calibration JSON nesting exceeds supported bounds'}
     except (RuntimeError, subprocess.SubprocessError) as error:
         response = {'schema_version':1, 'ok':False, 'code':'activation_failed', 'message':str(error)}
     except OSError:

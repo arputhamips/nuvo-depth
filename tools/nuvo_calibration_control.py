@@ -313,7 +313,8 @@ def fresh_frame(root, expected, authority, run_uuid, run=subprocess.run):
     return sequences
 
 
-def restart_and_verify(root, policy, expected_bundle, run=subprocess.run):
+def restart_and_verify(root, policy, expected_bundle, run=subprocess.run, *,
+                       verified_runtime=None):
     def systemctl(*args, timeout=70):
         result = run(['systemctl', *args], capture_output=True, text=True, timeout=timeout, check=False)
         if result.returncode:
@@ -350,6 +351,11 @@ def restart_and_verify(root, policy, expected_bundle, run=subprocess.run):
     atomic_json(root/STATE/'calibration-verification.json',
                 {'schema_version':1,'bundle_id':expected,'authority':authority,'run_uuid':health['run_uuid'],
                  'capture_sequences':sequences,'verified_at_unix_ns':time.time_ns()})
+    if verified_runtime is not None:
+        # Bind the reply to the run whose frames passed verification. A later
+        # daemon status may already describe a different, unverified restart.
+        verified_runtime.clear()
+        verified_runtime.update(health)
     return sequences
 
 
@@ -394,8 +400,8 @@ def import_bundle(root, source, dry_run=False, run=subprocess.run, *,
         verified_runtime = {}
         unchanged = False
         def restart(expected):
-            sequences[:] = restart_and_verify(root, policy, expected, run) or []
-            verified_runtime.update(daemon_health(root, run))
+            sequences[:] = restart_and_verify(root, policy, expected, run,
+                                               verified_runtime=verified_runtime) or []
         def verify_existing(expected):
             nonlocal unchanged
             current = selected_calibration(root, run)

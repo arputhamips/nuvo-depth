@@ -65,6 +65,22 @@ class ImportTest(unittest.TestCase):
         control.rollback(self.root,run=self.native)
         self.assertFalse((self.root/control.MARKER).exists())
         self.assertFalse((self.source.parent/'active').exists())
+    def test_activation_reply_retains_the_run_whose_frames_were_verified(self):
+        later_run = 'b'*32
+        def restarting_native(args, **kwargs):
+            result = self.native(args, **kwargs)
+            if str(args[0]).endswith('nuvo-depth-read'):
+                health = control.daemon_health(self.root)
+                health['run_uuid'] = later_run
+                write_json(self.root/'run/nuvo-depth/status.json', health)
+            return result
+        result = control.import_bundle(self.root, self.source, run=restarting_native,
+                                       idempotent=True)
+        receipt = json.loads((self.root/control.STATE/'calibration-verification.json').read_text())
+        self.assertEqual(result['verified_runtime']['run_uuid'], receipt['run_uuid'])
+        self.assertEqual(result['verified_runtime']['run_uuid'], 'abcd1')
+        self.assertNotEqual(result['verified_runtime']['run_uuid'], later_run)
+        self.assertFalse(result['readiness']['runtime_verification']['fresh_frames_verified'])
     def test_no_space_while_staging_retains_previous_selection_and_recovers(self):
         control.import_bundle(self.root,self.source,False,self.native)
         second,value=bundle(self.root,provenance={'synthetic_revision':2})
