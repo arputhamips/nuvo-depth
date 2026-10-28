@@ -41,6 +41,26 @@ An idle matcher is healthy when nobody requests depth. Disabled monitoring does
 not imply failed raw depth. Accepted calibration and camera/service health are
 separate: request advancing depth/validity output to check actual capture.
 
+## Slow startup or repeated trigger preparation
+
+If the service repeatedly starts and stops, inspect the current boot before
+changing camera settings or increasing timeouts:
+
+```bash
+sudo journalctl -b -u nuvo-depthd-native.service -u nuvo-trigger-prepare.service --no-pager
+systemd-analyze critical-chain
+sudo nuvoctl diagnostics
+```
+
+The [28 October 2026 Pi/ROS validation](https://github.com/arputhamips/nuvo-depth-ros/blob/main/docs/validation-20261028.md)
+installed the public beta 9 full profile on the supported kernel and preserved
+the existing provisional calibration. A subsequent reboot recovered
+automatically after four native/trigger preparation timeouts. Wi-Fi also retried
+association, and several unrelated services started slowly. The logs did not
+establish the cause of the broad delays or a concrete trigger-code defect.
+Eventual recovery does not establish repeatable fast startup; host/container
+checks and this single reboot do not qualify cold-start reliability.
+
 ## Upgrade and interrupted-operation recovery
 
 The Software update page shows the approval reference bundled with its release,
