@@ -57,6 +57,11 @@ bundled public approval; it does not query live release availability or perform
 a browser update. An internal candidate can be newer than the public reference.
 An implicit downgrade and full/minimal conflict are refused.
 
+For a legacy hand-configured full installation, complete the
+[legacy upgrade preflight](installer-reference.md#legacy-hand-configured-full-installations)
+before running the bootstrap. A calibration path through the mutable runtime
+`current` link needs an explicit preservation review.
+
 ```bash
 # Full appliance (use the minimal script for an existing minimal installation):
 curl -fsSL https://raw.githubusercontent.com/arputhamips/nuvo-depth/main/install-nuvo-depth.sh | sudo bash

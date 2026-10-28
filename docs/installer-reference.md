@@ -119,6 +119,85 @@ on retries, and refuses removals. Implicit Nuvo downgrades
 are rejected. Capture preparation uses a backed-up managed boot-config block
 and refuses conflicting camera overlays/includes for manual resolution.
 
+## Legacy hand-configured full installations
+
+This preflight applies to full installations with manually deployed runtime
+assets, calibration paths or systemd overrides. A fresh supported minimal
+installation using the standard setup needs no manual migration. Keep the
+installed full/minimal profile and current network; profile switching is not
+an upgrade path.
+
+Start with healthy read/write storage and an empty `dpkg --audit`. Verify the
+running kernel against the chosen release's signed platform manifest. The
+installer retains this guard and does not select or downgrade the kernel.
+Before allowing an automatic reboot, also verify the normal next-boot kernel
+selection; a successful one-shot kernel trial does not persist that selection.
+Back up identity, configuration, the effective service command, local drop-ins,
+boot configuration and actual selected calibration bytes. Record their hashes.
+
+```bash
+sudo systemctl cat nuvo-depthd-native.service
+sudo systemctl show nuvo-depthd-native.service -p ExecStart -p DropInPaths
+sudo depthd-assets status
+sudo nuvoctl platform prepare --platform pi5
+```
+
+These are inspection commands; the last command omits `--apply`. Resolve any
+runtime-asset integrity error before package work. The installer's `--dry-run`
+verifies the signed package cohort but does not perform this manual migration.
+
+**Preserve a legacy provisional root.** Full package configuration runs
+`depthd-assets install`, which can activate the packaged runtime-data release
+by changing `/var/lib/nuvo-depthd/current`. Existing immutable releases remain,
+but a calibration path through `current` can consequently select different
+YAML. Blank calibration input preserves accepted bundles; it does not pin this
+legacy fallback path.
+
+For already provisional output, preserve the exact `front_left.yaml` and
+`front_right.yaml` bytes in a stable directory outside that managed link, for
+example `/var/lib/nuvo-depth/provisional-preserved/<recorded-sha256>/`. Give the
+native service read access, such as a root-owned `nuvo-video` directory with
+mode `0750` and files with mode `0440`. After reviewing the effective command,
+change only its existing `--calibration-root` argument to that stable directory.
+This native option takes precedence over the YAML fallback paths. Keep the
+existing configuration and explicit preview choice. Native accepted per-unit
+selections still take precedence over this provisional fallback. Do not relabel the files,
+create passing validation records or import them as an accepted per-unit bundle;
+their authority remains provisional.
+
+The full installer manages `20-setup.conf` and `30-authority.conf` and can remove
+`90-calibration-policy.conf`. Review all local drop-ins in systemd order: an
+existing `fullres.conf`, for example, sorts after those files. Verify the final
+effective command instead of relying on a preservation setting in one drop-in.
+Modified packaged configuration files are retained with `--force-confold`;
+confirm their recorded hashes after installation.
+
+**Review existing camera overlays.** Platform preparation refuses camera
+overlays or includes outside its managed block. Only when the existing two
+IMX296 entries already match the supported wiring and apply under `[all]`,
+adopt those exact entries into this block, leaving unrelated settings intact:
+
+```ini
+# BEGIN NUVO DEPTH (managed)
+[all]
+camera_auto_detect=0
+dtoverlay=imx296,always-on,cam0
+dtoverlay=imx296,always-on,cam1
+# END NUVO DEPTH (managed)
+```
+
+Move the reviewed camera entries rather than duplicating them outside the block.
+Do not remove unknown overlays/includes or change their conditional scope to
+make preparation pass. Re-run the inspection command and review its changes and
+reboot requirement. An equivalent trigger option in another modprobe file can
+still require creation of the managed file and a reboot.
+
+Then run the normal signed installer for the existing profile. After any required
+reboot, check package audit, effective command, identity/configuration/YAML
+hashes, calibration hash and authority, and fresh advancing frames. A preserved
+provisional selection must still report authority `0`; software installation
+does not validate its distances.
+
 ## Protected hotspot and browser handoff
 
 1. Join the unique `Nuvo-Setup-XXXXXX` WPA2 network with its printed password.
