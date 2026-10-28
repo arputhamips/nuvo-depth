@@ -1,0 +1,17 @@
+[Unit]
+Description=Nuvo Depth explicit local calibration activation socket
+After=systemd-tmpfiles-setup.service
+Requires=systemd-tmpfiles-setup.service
+
+[Socket]
+ListenStream=/run/nuvo-depth/calibration.sock
+SocketUser=root
+SocketGroup=nuvo-video
+SocketMode=0660
+DirectoryMode=0750
+Backlog=4
+RemoveOnStop=yes
+Service=nuvo-depth-calibration-control.service
+
+[Install]
+WantedBy=sockets.target

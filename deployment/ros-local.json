@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "transport": "local",
+  "runtime_directory": "/run/nuvo-depth",
+  "data_socket": "/run/nuvo-depth/data.sock",
+  "control_socket": "/run/nuvo-depth/calibration.sock",
+  "access_group": "nuvo-video",
+  "matching_grid_geometry": true,
+  "calibration_control": "explicit_bundle_import_v1"
+}

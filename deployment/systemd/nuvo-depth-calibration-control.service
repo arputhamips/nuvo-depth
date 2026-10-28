@@ -1,0 +1,29 @@
+[Unit]
+Description=Nuvo Depth explicit local calibration activation broker
+Requires=nuvo-depth-calibration-control.socket
+After=nuvo-depth-calibration-control.socket
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/python3 /usr/lib/nuvo-depth/nuvo_calibration_broker.py
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/nuvo-depth /etc/nuvo-depth /run/nuvo-depth
+ReadWritePaths=-/etc/systemd/system/nuvo-depthd-native.service.d
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+MemoryMax=512M
+TasksMax=16
+# Signal only the broker initially; it finishes its active native transaction.
+# Forced termination/power loss still uses durable startup rollback recovery.
+KillMode=mixed
+TimeoutStopSec=600s

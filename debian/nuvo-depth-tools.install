@@ -3,6 +3,7 @@ usr/bin/nuvo-setup
 usr/lib/nuvo-depth/nuvoctl.py
 usr/lib/nuvo-depth/nuvo_release.py
 usr/lib/nuvo-depth/nuvo_diagnostics.py
+usr/lib/nuvo-depth/nuvo_ros_environment.py
 usr/share/nuvo-depth/installation/
 usr/lib/systemd/system/nuvo-setup.service
 usr/bin/nuvo-record

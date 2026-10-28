@@ -9,9 +9,9 @@ def source_bytes(path):
 def inventory():
     sdk=ROOT/'sdk/cpp'
     names=['CMakeLists.txt','README.md','cmake/nuvo_depth_clientConfig.cmake.in',
-           'include/nuvo/client.hpp','src/frame.cpp','src/local.cpp','src/replay.cpp',
+           'include/nuvo/client.hpp','src/frame.cpp','src/local.cpp','src/calibration.cpp','src/replay.cpp',
            'src/https.cpp','src/https_disabled.cpp','tests/client_test.cpp',
-           'tests/transports.py','tests/installed.py','tests/measurements.py']
+           'tests/transports.py','tests/installed.py','tests/measurements.py','tests/calibration.py']
     files={name:sdk/name for name in names}
     files.update({'src/wire_protocol.cpp':ROOT/'src/wire_protocol.cpp','private/depthd/wire_protocol.hpp':ROOT/'include/depthd/wire_protocol.hpp','LICENSE':ROOT/'LICENSE','NOTICE':ROOT/'NOTICE'})
     return files

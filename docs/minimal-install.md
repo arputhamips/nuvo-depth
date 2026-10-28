@@ -138,6 +138,42 @@ The default packaging command continues to build the full appliance packages.
 For the minimal CMake variant use the `pi5-minimal` preset. No runtime capture,
 matcher, rectification, depth conversion or IPC source is forked.
 
+## Same-device ROS 2 from current source
+
+The current source and its Actions packages prepare the local ROS connection as
+part of minimal installation. The package creates the `nuvo-video` group and
+the persistent `/run/nuvo-depth` directory with group access. The installer
+enables the socket-activated native calibration control endpoint, including
+when capture is deferred. It installs no Docker dependency.
+
+```bash
+sudo nuvoctl ros environment --json
+```
+
+This read-only command reports the host's numeric access GID, runtime directory,
+data and calibration socket paths, package geometry capability, capture policy,
+and current service/status checks. The same-device ROS launcher consumes these
+values automatically, so a device-specific GID does not need to be copied into
+a Docker command. The launcher mounts the runtime directory read-only and adds
+the discovered numeric group. Native service stop/start preserves that directory
+so an existing container mount sees replacement sockets. Fresh depth is still
+verified by receiving frames; discovery does not subscribe or start capture.
+
+An explicit ROS `calibration_file` request sends a complete compatible per-unit
+bundle to the native control endpoint for validation and activation. Native
+Nuvo Depth retains ownership of calibration, capture and settings. A normal
+ROS connection leaves them unchanged, including a deliberately disabled
+capture policy. A supplied bundle never grants factory authority or bypasses
+device identity and geometry checks. See the ROS adapter's local-container
+launcher documentation for its output/rate and provisional-preview choices.
+
+These additions follow public `v0.1.1-beta.8`; that public bundle does not include
+the new discovery/control endpoint or the frame calibration geometry needed by
+the current ROS adapter. Use a matching current-source Actions package for
+this path until a newer release is explicitly published. Installing the current
+source or passing host/container tests does not establish Pi hardware
+qualification or metric-accuracy acceptance.
+
 ## Finish first use
 
 Keep upgrades within the installed profile. Removing the full packages and then

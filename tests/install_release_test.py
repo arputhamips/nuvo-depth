@@ -189,7 +189,7 @@ class PtyRunnerTest(unittest.TestCase):
             while state.exists():
                 try:
                     process_state = state.read_text().rsplit(')',1)[1].split()[0]
-                except FileNotFoundError:
+                except (FileNotFoundError, ProcessLookupError):
                     break
                 if process_state == 'Z':
                     break

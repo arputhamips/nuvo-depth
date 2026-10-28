@@ -324,7 +324,7 @@ def apply_configuration(root, plan, run=command):
         (root / AP_ENABLED).unlink(missing_ok=True)
         run(["systemctl", "stop", "nuvo-setup.service"])
     run(["systemctl", "daemon-reload"])
-    services = ["nuvo-gateway.service", "nuvo-system-agent.socket"]
+    services = ["nuvo-gateway.service", "nuvo-system-agent.socket", "nuvo-depth-calibration-control.socket"]
     if plan["access_policy"] == "setup_ap":
         services.append("nuvo-setup.service")
     if capture or supplied_bundle:
@@ -332,16 +332,16 @@ def apply_configuration(root, plan, run=command):
     if plan["startup"]:
         run(["systemctl", "enable", "nuvo-depth.target", *services])
     else:
-        run(["systemctl", "disable", "nuvo-depth.target", "nuvo-gateway.service", "nuvo-depthd-native.service", "nuvo-setup.service", "nuvo-system-agent.socket"])
+        run(["systemctl", "disable", "nuvo-depth.target", "nuvo-gateway.service", "nuvo-depthd-native.service", "nuvo-setup.service", "nuvo-system-agent.socket", "nuvo-depth-calibration-control.socket"])
     with setup_lock(root):
         state = read(root, STATE)
         state.update(phase="installed", calibration_state="accepted" if calibration["accepted"] else "pending",
                      calibration_import_pending=supplied_bundle if supplied_bundle and state['reboot_required'] else None)
         save(root, STATE, state)
-    run(["systemctl", "start", "nuvo-system-agent.socket"])
+    run(["systemctl", "start", "nuvo-system-agent.socket", "nuvo-depth-calibration-control.socket"])
     # An upgrade must replace running binaries and apply the new unit overrides.
     # `start` alone leaves an already-active daemon/gateway on the old code.
-    run(["systemctl", "restart", *[s for s in services if s not in {"nuvo-depthd-native.service", "nuvo-system-agent.socket"}]])
+    run(["systemctl", "restart", *[s for s in services if s not in {"nuvo-depthd-native.service", "nuvo-system-agent.socket", "nuvo-depth-calibration-control.socket"}]])
     if supplied_bundle and not state['reboot_required']:
         try:
             run(['nuvoctl', 'calibration', 'import', supplied_bundle])

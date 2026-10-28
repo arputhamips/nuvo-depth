@@ -124,6 +124,52 @@ first depth** and save the NUV1 sample, or use the Python first-use helper. Insp
 the original frame identity, `calibration_sha256`, `calibration_authority` and valid
 pixels; file creation alone does not establish calibration acceptance.
 
+## Explicit calibration from a local ROS container
+
+The optional C++ SDK call `activate_local_calibration()` uploads a complete
+accepted native bundle to `/run/nuvo-depth/calibration.sock` before acquisition.
+The installed `nuvo-depth-calibration-control.socket` starts its privileged
+broker on demand. Its root:nuvo-video socket has mode 0660; membership grants
+permission to select calibration globally and restart native capture for all
+consumers. Default acquisition sends no activation request and preserves the
+current calibration and capture policy.
+
+The broker accepts an extracted bundle packaged by the SDK, or an uncompressed
+tar containing exactly `manifest.json`, `front_left.yaml`, `front_right.yaml` and
+`validation.json` as regular files at the archive root. Each file is bounded to
+4 MiB. It rejects links, extra files, paths, duplicate entries and compressed or
+sparse archives. A single-camera ROS calibration YAML does not contain enough
+native identity, authority or validation evidence to activate. No host path,
+shell command, preview switch or rollback command can be sent over this socket.
+
+Native import enforces the existing trusted signature, per-unit binding,
+camera/profile/grid compatibility and factory-precedence checks. Activation
+uses the same durable transaction, fresh native output verification and rollback
+as `nuvoctl calibration import`. A healthy identical bundle is checked against
+the actual loaded native hash/authority and fresh advancing frames under the
+same transaction lock, then returns without another restart. It never rewrites
+calibration identity or increases its authority.
+
+The runtime directory and explicit input may both be mounted read-only in the
+same-Pi container; add the host's numeric `nuvo-video` GID. The broker receives
+bounded bytes and performs host operations itself, so the ROS container needs
+neither sudo nor host systemd access. Uploads have a ten-second deadline, each
+transaction waits at most two seconds for another calibration operation, and
+only one request runs at a time with four kernel backlog slots. A client timeout
+or disconnect cannot cancel an already authorized transaction: inspect native
+status, then retry the same bundle to verify completion. HTTPS activation is
+unsupported; import on the host with the existing CLI and omit the ROS calibration
+option. These host/container checks do not qualify Pi hardware or metric accuracy.
+
+On normal service stop, the broker stops accepting requests and finishes the
+active operation within the service's bounded stop grace. Forced termination or
+power loss relies on the same durable startup recovery as CLI activation. The
+broker's memory limit includes native configuration/geometry-check subprocesses;
+the 512 MiB cap still needs measurement with the intended bundle on Pi hardware.
+
+See the [C++ SDK control contract](../sdk/cpp/README.md#explicit-native-calibration-activation)
+for API, tar creation and timeout details.
+
 ## When the full calibration workflow is needed
 
 Use the full workflow when no compatible passing per-unit bundle exists, or
