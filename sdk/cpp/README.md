@@ -81,6 +81,57 @@ apply a matching calibration hash/grid override. Override JSON contains
 (`left_projection`, `right_projection`, `reprojection`, `baseline_m`). Never use
 the shared seed as a silent per-unit override.
 
+## Explicit native calibration activation
+
+Acquisition never selects calibration. Call `activate_local_calibration(bundle,
+control_socket)` only when explicitly requested, before opening `local_source()`.
+It uploads a complete accepted per-unit native bundle to the root broker at
+`/run/nuvo-depth/calibration.sock`. The native controller validates trusted factory
+signatures when applicable, unit/camera/profile bindings and matching geometry,
+then uses its durable import/restart/rollback transaction and verifies two fresh
+advancing depth/validity frames. The return value identifies the verified native
+calibration hash, authority and run. This globally selects calibration for native
+capture and may restart every connected consumer. It preserves the bundle's
+canonical identity and authority; it does not solve or recalibrate a camera.
+
+The input is an extracted directory or an **uncompressed tar** with exactly
+`manifest.json`, `front_left.yaml`, `front_right.yaml` and `validation.json` as
+regular files at its root. Each asset is limited to 4 MiB; links, extra entries,
+sparse files, duplicate names and archive paths are rejected. For example:
+
+```bash
+tar -C /path/to/accepted-bundle -cf calibration.tar \
+  manifest.json front_left.yaml front_right.yaml validation.json
+```
+
+A standard single-camera ROS YAML or a geometry override JSON is insufficient:
+it lacks the native bundle's declared validation and identity contract. The
+SDK's read-only frame geometry override remains a separate decoding operation.
+
+The broker's socket is root:nuvo-video, mode 0660. Membership grants permission
+to request this global operation, including user-validated bundles when no
+factory calibration has precedence. Mount the existing runtime directory
+read-only and add its numeric `nuvo-video` GID to a same-Pi Linux container.
+Mount the explicit input file or directory read-only separately. The SDK sends
+bytes; the container needs no host calibration paths, sudo or systemd access.
+No request occurs unless the caller invokes this API. Same-bundle retries check
+the active native selection, loaded hash/authority and fresh frames under the
+transaction lock; a healthy identical selection avoids a restart.
+
+The complete socket operation has a default five-minute timeout, bounded to ten
+minutes maximum. A timeout or lost reply is a failure to confirm completion;
+the already authorized native transaction may still finish. Inspect
+`nuvoctl calibration status` on the host and retry the same bundle. A busy
+transaction returns a retryable error after a bounded wait. The broker bounds
+uploads to ten seconds and processes one transaction at a time with four kernel
+backlog slots. An omitted calibration option preserves the existing selection.
+
+This API requires the same-host Linux control socket. HTTPS activation is
+unsupported; import the bundle on the appliance using
+`sudo nuvoctl calibration import /path/to/extracted-bundle`, then connect without
+requesting calibration activation. Host/container tests do not qualify Pi hardware
+or establish metric accuracy.
+
 `local_clock_sample()` correlates CLOCK_BOOTTIME with system time only for a
 native daemon and client sharing the native boottime namespace. Explicit Docker
 time offsets are rejected. It does not synchronize a remote device. Network

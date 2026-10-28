@@ -96,14 +96,25 @@ def atomic_bytes(path: Path, value: bytes) -> None:
 
 
 @contextmanager
-def exclusive_lock(path: Path) -> Iterator[None]:
+def exclusive_lock(path: Path, timeout: float | None = None) -> Iterator[None]:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
     try:
         if os.name != "posix":
             raise RuntimeError("durable calibration activation is supported only on POSIX targets")
         import fcntl
-        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        if timeout is None:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+        else:
+            deadline = time.monotonic() + timeout
+            while True:
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError('Calibration transaction busy; retry after the active native command finishes')
+                    time.sleep(.05)
         yield
     finally:
         os.close(descriptor)
@@ -326,7 +337,9 @@ class CalibrationStore:
                 f"calibration startup failed: {error}; previous selection and service restored") from error
 
     def activate(self, source: Path, namespace: str = "user", *,
-                 restart: Callable[[str | None], None] | None = None) -> str:
+                 restart: Callable[[str | None], None] | None = None,
+                 verify_existing: Callable[[str], bool] | None = None,
+                 lock_timeout: float | None = None) -> str:
         if namespace not in {"user", "factory"}:
             raise ValueError("calibration namespace must be user or factory")
         manifest = validate_bundle(source,
@@ -337,12 +350,21 @@ class CalibrationStore:
         bundle_id = manifest["bundle_id"]
         destination = self.calibrations / namespace / bundle_id
         active = self.calibrations / namespace / "active"
-        with exclusive_lock(self.root / ".calibration.lock"):
+        with exclusive_lock(self.root / ".calibration.lock", timeout=lock_timeout):
             if self._recover_pending(restart) and restart is not None:
                 raise RuntimeError("interrupted calibration transaction restored; retry the requested change")
             if (restart is not None and namespace == "user" and
                     (self.calibrations / "factory" / "active" / "manifest.json").is_file()):
                 raise ValueError("factory calibration has runtime precedence; user activation would not load")
+            # The optional control broker can avoid restarting an identical,
+            # currently loaded bundle. Its verifier runs under the same lock as
+            # every import/rollback and must verify actual native output.
+            if (verify_existing is not None and active.is_symlink() and
+                    os.readlink(active) == bundle_id):
+                validate_bundle(destination, require_factory_signature=namespace == "factory",
+                                trusted_keys=self.factory_trust)
+                if verify_existing(bundle_id):
+                    return bundle_id
             self.transactions.mkdir(parents=True, exist_ok=True)
             if self.policy is not None and os.geteuid() == 0:
                 if self.transactions.is_symlink():

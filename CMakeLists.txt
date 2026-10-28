@@ -512,9 +512,11 @@ if(DEPTHD_MINIMAL_PACKAGE AND NOT TARGET depthd_runtime_factory)
   message(FATAL_ERROR "Minimal packages require the native OpenCV depth pipeline")
 endif()
 
-install(FILES tools/nuvo_calibration_store.py tools/nuvo_calibration_control.py tools/nuvo_diagnostics.py
+install(FILES tools/nuvo_calibration_store.py tools/nuvo_calibration_control.py tools/nuvo_calibration_broker.py tools/nuvo_diagnostics.py tools/nuvo_ros_environment.py
   DESTINATION "lib/nuvo-depth")
-install(FILES deployment/public-release.json deployment/release-platform.json
+install(FILES deployment/systemd/nuvo-depth-calibration-control.socket deployment/systemd/nuvo-depth-calibration-control.service
+  DESTINATION "lib/systemd/system")
+install(FILES deployment/public-release.json deployment/release-platform.json deployment/ros-local.json
   DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/installation")
 install(FILES config/calibration/nuvo_depth_100mm/profile.json
   DESTINATION "${CMAKE_INSTALL_DATADIR}/nuvo-depth/calibration")
@@ -727,7 +729,7 @@ if(BUILD_TESTING)
   endif()
   find_package(Python3 COMPONENTS Interpreter QUIET)
   if(Python3_Interpreter_FOUND)
-    foreach(NUVO_HOST_TEST minimal_migration diagnostics ci_routing sdk_tls acceptance)
+    foreach(NUVO_HOST_TEST minimal_migration diagnostics ci_routing sdk_tls acceptance ros_environment calibration_broker)
       add_test(NAME depthd_${NUVO_HOST_TEST}_test COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/${NUVO_HOST_TEST}_test.py)
     endforeach()

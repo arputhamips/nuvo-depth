@@ -54,6 +54,14 @@ int main(int argc, char** argv) {
       return 0;
     }
     const std::string mode = argv[1];
+    if (mode == "calibration") {
+      const auto result = activate_local_calibration(argv[2], argv[3],
+          argc > 4 ? std::chrono::milliseconds{std::stoi(argv[4])}
+                   : std::chrono::milliseconds{3000});
+      std::cout << result.calibration_sha256 << ' ' << result.calibration_authority
+                << ' ' << result.run_uuid << ' ' << result.unchanged << '\n';
+      return 0;
+    }
     std::unique_ptr<Source> source;
 #if defined(__linux__)
     const auto descriptors_before = open_descriptors();

@@ -62,7 +62,7 @@ def build(source, packages, output, repository, tag, version, platform, private_
         shutil.copyfile(path, output / asset_name(path.name))
     with zipfile.ZipFile(output / "nuvo-install.pyz", "x", compression=zipfile.ZIP_DEFLATED) as archive:
         modules = ("nuvo_minimal_cli.py", "nuvo_release.py", "nuvoctl.py") if profile == 'minimal' else ("nuvo_install.py", "nuvo_setup.py", "nuvo_release.py", "nuvoctl.py")
-        modules += ('nuvo_calibration_store.py', 'nuvo_calibration_control.py', 'nuvo_diagnostics.py')
+        modules += ('nuvo_calibration_store.py', 'nuvo_calibration_control.py', 'nuvo_diagnostics.py', 'nuvo_ros_environment.py')
         for name in modules:
             text = (source / "tools" / name).read_text(encoding="utf-8")
             if name == "nuvo_release.py":

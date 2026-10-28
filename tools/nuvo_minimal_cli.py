@@ -165,6 +165,8 @@ def cli_parser():
     commands = parser.add_subparsers(dest='command', required=True)
     import nuvo_diagnostics
     nuvo_diagnostics.add_command(commands)
+    import nuvo_ros_environment
+    nuvo_ros_environment.add_command(commands)
     import nuvo_calibration_control
     nuvo_calibration_control.add_commands(commands)
     commands.add_parser('configure', help='Guided exposure and stereo configuration')
@@ -196,6 +198,10 @@ def main(argv=None):
     if args.command == 'diagnostics':
         import nuvo_diagnostics
         return nuvo_diagnostics.dispatch(args,root,'minimal')
+    if args.command == 'ros':
+        import nuvo_ros_environment
+        print(json.dumps(nuvo_ros_environment.environment(root), sort_keys=True, indent=2))
+        return
     if args.command == 'depth': return depth_output(args)
     if args.command in ('start', 'stop', 'restart'):
         subprocess.run(['systemctl', args.command, SERVICE], check=True)
@@ -297,6 +303,8 @@ def apply_install(command, preparation, args):
     subprocess.run(['depthd', '--check-config', '/etc/nuvo-depth/daemon.yaml'], check=True)
     subprocess.run(['systemctl', 'daemon-reload'], check=True)
     subprocess.run(['systemctl', 'enable', SERVICE], check=True)
+    subprocess.run(['systemctl', 'enable', '--now', 'nuvo-depth-calibration-control.socket'], check=True)
+    import nuvo_ros_environment
     import nuvo_calibration_control as calibration_control
     fresh_preview = not getattr(args, 'existing_installation', True) and not args.calibration_bundle and not getattr(args, 'defer_capture', False)
     enable_preview = args.allow_provisional_preview or fresh_preview
@@ -312,6 +320,7 @@ def apply_install(command, preparation, args):
             calibration_control.import_bundle(Path('/'),args.calibration_bundle,True)
             print('After reboot, import and verify: sudo nuvoctl calibration import '+str(args.calibration_bundle.resolve()))
         print('Camera boot configuration prepared; capture verification is pending. Reboot, reconnect over SSH, inspect sudo nuvoctl calibration status, then capture depth after enabling calibration or preview.')
+        nuvo_ros_environment.print_install_hint()
         if args.reboot: subprocess.run(['systemctl', 'reboot'], check=True)
         return
     if args.calibration_bundle:
@@ -321,6 +330,7 @@ def apply_install(command, preparation, args):
     elif not (Path('/')/calibration_control.MARKER).is_file():
         ready = calibration_control.readiness()
         print(ready['label']+': '+ready['message']+' Next: '+ready['next_action'])
+        nuvo_ros_environment.print_install_hint()
         return
     else:
         subprocess.run(['systemctl', 'restart', SERVICE], check=True)
@@ -329,6 +339,7 @@ def apply_install(command, preparation, args):
     print('Minimal installation verified: three fresh raw depth frames. Configure with sudo nuvoctl configure.')
     ready = calibration_control.readiness()
     print(ready['label']+': '+ready['message']+' Next: '+ready['next_action'])
+    nuvo_ros_environment.print_install_hint()
 
 
 if __name__ == '__main__':

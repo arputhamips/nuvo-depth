@@ -353,7 +353,8 @@ def restart_and_verify(root, policy, expected_bundle, run=subprocess.run):
     return sequences
 
 
-def import_bundle(root, source, dry_run=False, run=subprocess.run):
+def import_bundle(root, source, dry_run=False, run=subprocess.run, *,
+                  idempotent=False, lock_timeout=None):
     root, source = Path(root), Path(source)
     if source.is_symlink() or not source.is_dir():
         raise ValueError('Select an extracted calibration bundle directory, not a link or archive')
@@ -390,10 +391,36 @@ def import_bundle(root, source, dry_run=False, run=subprocess.run):
         policy = CapturePolicy(root)
         store = CalibrationStore(root/STATE, root/'etc/nuvo-depth/factory-trust.json', policy)
         sequences = []
+        verified_runtime = {}
+        unchanged = False
         def restart(expected):
             sequences[:] = restart_and_verify(root, policy, expected, run) or []
-        store.activate(canonical, namespace, restart=restart)
-        return {**change,'activated':True,'verified_capture_sequences':sequences,'readiness':readiness(root,run)}
+            verified_runtime.update(daemon_health(root, run))
+        def verify_existing(expected):
+            nonlocal unchanged
+            current = selected_calibration(root, run)
+            health = daemon_health(root, run)
+            authority = 2 if manifest['authority'] == 'factory_validated' else 1
+            if (not current or current['bundle_id'] != expected or
+                    not service_configuration(root, run)['capture_policy_enabled'] or
+                    health.get('status') != 'running' or not health.get('run_uuid') or
+                    health.get('calibration_sha256') != expected or
+                    health.get('calibration_authority') != authority):
+                return False
+            sequences[:] = fresh_frame(root, expected, authority, health['run_uuid'], run)
+            atomic_json(root/STATE/'calibration-verification.json',
+                        {'schema_version':1,'bundle_id':expected,'authority':authority,
+                         'run_uuid':health['run_uuid'],'capture_sequences':sequences,
+                         'verified_at_unix_ns':time.time_ns()})
+            unchanged = True
+            verified_runtime.update(health)
+            return True
+        store.activate(canonical, namespace, restart=restart,
+                       verify_existing=verify_existing if idempotent else None,
+                       lock_timeout=lock_timeout)
+        return {**change,'activated':True,'unchanged':unchanged,
+                'verified_runtime':verified_runtime,
+                'verified_capture_sequences':sequences,'readiness':readiness(root,run)}
 
 
 def rollback(root, namespace=None, run=subprocess.run):

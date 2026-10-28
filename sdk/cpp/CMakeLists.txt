@@ -15,7 +15,7 @@ else()
   set(NUVO_WIRE_SOURCE ../../src/wire_protocol.cpp)
   set(NUVO_WIRE_INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/../../include")
 endif()
-add_library(nuvo_depth_client STATIC src/frame.cpp src/local.cpp src/replay.cpp ${NUVO_WIRE_SOURCE})
+add_library(nuvo_depth_client STATIC src/frame.cpp src/local.cpp src/calibration.cpp src/replay.cpp ${NUVO_WIRE_SOURCE})
 add_library(nuvo::client ALIAS nuvo_depth_client)
 set_target_properties(nuvo_depth_client PROPERTIES EXPORT_NAME client POSITION_INDEPENDENT_CODE ON)
 target_compile_features(nuvo_depth_client PUBLIC cxx_std_20)
@@ -62,6 +62,8 @@ if(NUVO_CLIENT_BUILD_TESTS)
   set_tests_properties(nuvo_client_transports PROPERTIES ENVIRONMENT "NUVO_CLIENT_WITH_HTTPS=${NUVO_CLIENT_WITH_HTTPS}")
   add_test(NAME nuvo_client_measurements COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/measurements.py $<TARGET_FILE:nuvo_client_test>)
+  add_test(NAME nuvo_client_calibration COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/calibration.py $<TARGET_FILE:nuvo_client_test>)
   add_test(NAME nuvo_client_installed_consumer COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/installed.py ${CMAKE_CURRENT_BINARY_DIR})
 endif()

@@ -74,7 +74,7 @@ jobs:
           if [ "$NUVO_PACKAGE_PROFILE" = minimal ]; then
             cp install-nuvo-depth-minimal.sh deployment/release-platform.json output/package-build/
             mkdir -p output/package-build/tools
-            cp tools/nuvo_minimal_cli.py tools/nuvoctl.py tools/nuvo_release.py tools/nuvo_calibration_control.py tools/nuvo_calibration_store.py tools/nuvo_diagnostics.py output/package-build/tools/
+            cp tools/nuvo_minimal_cli.py tools/nuvoctl.py tools/nuvo_release.py tools/nuvo_calibration_control.py tools/nuvo_calibration_store.py tools/nuvo_diagnostics.py tools/nuvo_ros_environment.py output/package-build/tools/
             (cd output/package-build && sha256sum nuvo-depth-minimal_*.deb install-nuvo-depth-minimal.sh release-platform.json tools/*.py > SHA256SUMS)
           fi
           dpkg-query -W -f='${binary:Package}\t${Version}\t${Architecture}\n' > output/package-build/build-packages.txt
@@ -159,18 +159,27 @@ jobs:
           nuvoctl config validate
           /usr/lib/nuvo-depth/nuvo-depth-read --help
           python3 - <<'PY'
-          import grp, pathlib, pwd
-          unit = pathlib.Path('/usr/lib/systemd/system/nuvo-depthd-native.service').read_text()
-          for line in unit.splitlines():
-              if line.startswith('User='):
-                  pwd.getpwnam(line.split('=', 1)[1])
-              if line.startswith(('Group=', 'SupplementaryGroups=')):
-                  for group in line.split('=', 1)[1].split():
-                      grp.getgrnam(group)
+          import grp, json, pathlib, pwd, subprocess
+          for name in ('nuvo-depthd-native.service', 'nuvo-depth-calibration-control.service', 'nuvo-depth-calibration-control.socket'):
+              unit = pathlib.Path('/usr/lib/systemd/system', name).read_text()
+              for line in unit.splitlines():
+                  if line.startswith(('User=', 'SocketUser=')):
+                      pwd.getpwnam(line.split('=', 1)[1])
+                  if line.startswith(('Group=', 'SupplementaryGroups=', 'SocketGroup=')):
+                      for group in line.split('=', 1)[1].split():
+                          grp.getgrnam(group)
+          environment = json.loads(subprocess.check_output(['nuvoctl', 'ros', 'environment', '--json'], text=True))
+          assert environment['access_gid'] == grp.getgrnam('nuvo-video').gr_gid
+          assert environment['matching_grid_geometry'] is True
+          assert environment['calibration_control'] == 'explicit_bundle_import_v1'
+          assert environment['control_socket'] == '/run/nuvo-depth/calibration.sock'
+          assert environment['capture_enabled'] is False
+          policy = pathlib.Path('/etc/systemd/system/nuvo-depthd-native.service.d').stat()
+          assert (policy.st_uid, policy.st_gid, policy.st_mode & 0o777) == (0, 0, 0o755)
           print('All native service users and groups resolve in the clean runtime.')
           PY
           test -z "$(dpkg --audit)"
-          for package in nuvo-depth-gateway nuvo-depth-tools nuvo-depth-calibration python3-nuvo-depth network-manager dnsmasq-base avahi-daemon python3-opencv python3-numpy ffmpeg; do
+          for package in nuvo-depth-gateway nuvo-depth-tools nuvo-depth-calibration python3-nuvo-depth network-manager dnsmasq-base avahi-daemon python3-opencv python3-numpy ffmpeg docker.io docker-ce; do
             test "$(dpkg-query -W -f='${db:Status-Status}' "$package" 2>/dev/null || true)" != installed
           done
           dpkg-query -W -f='${binary:Package}\t${Version}\n'

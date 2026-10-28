@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 import zipfile
@@ -40,6 +41,23 @@ class PreflightTest(unittest.TestCase):
             return self.runner(args, **kwargs)
         with self.assertRaisesRegex(ValueError, 'exclusive'):
             cli.install_preflight(self.root, installed)
+
+    def test_existing_disabled_capture_gets_control_socket_without_policy_change(self):
+        import nuvo_calibration_control as calibration
+        import nuvo_ros_environment as ros
+        args = SimpleNamespace(existing_installation=True, calibration_bundle=None, defer_capture=False,
+                               allow_provisional_preview=False, reboot=False)
+        with mock.patch.object(cli, 'install_preflight'), \
+             mock.patch.object(cli.admin, 'platform_prepare', return_value={'reboot_required': True}), \
+             mock.patch.object(cli.subprocess, 'run') as run, \
+             mock.patch.object(calibration, 'preview') as preview, \
+             mock.patch.object(calibration, 'import_bundle') as load, \
+             mock.patch.object(ros, 'print_install_hint'):
+            cli.apply_install(['apt-get', 'install', 'fixture.deb'], {}, args)
+        preview.assert_not_called(); load.assert_not_called()
+        run.assert_any_call(['systemctl', 'enable', '--now', 'nuvo-depth-calibration-control.socket'], check=True)
+        self.assertFalse(any(call.args[0][:2] in (['systemctl', 'restart'], ['systemctl', 'start'])
+                             for call in run.call_args_list))
 
 
 @unittest.skipUnless(shutil.which('dpkg-deb') and shutil.which('openssl'), 'Debian fixture tools required')

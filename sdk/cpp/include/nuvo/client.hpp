@@ -100,6 +100,21 @@ class Source {
 [[nodiscard]] std::unique_ptr<Source> local_source(
     const std::filesystem::path& socket_path = "/run/nuvo-depth/data.sock",
     Subscription subscription = {});
+struct CalibrationActivation {
+  std::string calibration_sha256, run_uuid;
+  unsigned calibration_authority{};
+  bool unchanged{};
+};
+// Explicit native operation, separate from acquisition: upload a complete
+// accepted bundle directory or uncompressed .tar. The privileged local broker
+// validates unit/signature/geometry, activates transactionally, and verifies
+// fresh native frames before returning. May restart capture for every consumer.
+// A timeout is failure to confirm completion; it cannot cancel a host transaction.
+// Retry the same bundle to verify it without another restart. Linux local only.
+[[nodiscard]] CalibrationActivation activate_local_calibration(
+    const std::filesystem::path& bundle,
+    const std::filesystem::path& socket_path = "/run/nuvo-depth/calibration.sock",
+    std::chrono::milliseconds timeout = std::chrono::milliseconds{300000});
 struct HttpsOptions {
   std::string url;
   // Optional pre-resolved numeric address (e.g. mDNS resolved by the host).

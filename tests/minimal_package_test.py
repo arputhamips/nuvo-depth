@@ -11,7 +11,11 @@ with tempfile.TemporaryDirectory() as directory:
     required = ['usr/bin/depthd', 'usr/bin/nuvoctl', 'usr/lib/nuvo-depth/nuvo-depth-read',
                 'usr/lib/nuvo-depth/nuvoctl.py', 'usr/lib/nuvo-depth/nuvo-trigger-prepare',
                 'usr/lib/nuvo-depth/nuvo_calibration_control.py', 'usr/lib/nuvo-depth/nuvo_calibration_store.py',
+                'usr/lib/nuvo-depth/nuvo_calibration_broker.py', 'usr/lib/nuvo-depth/nuvo_ros_environment.py',
                 'usr/lib/systemd/system/nuvo-depthd-native.service',
+                'usr/lib/systemd/system/nuvo-depth-calibration-control.socket',
+                'usr/lib/systemd/system/nuvo-depth-calibration-control.service',
+                'usr/share/nuvo-depth/installation/ros-local.json',
                 'usr/share/nuvo-depth/calibration/front_left.yaml',
                 'usr/share/nuvo-depth/calibration/front_right.yaml',
                 'usr/share/nuvo-depth/calibration/profile.json',
@@ -32,8 +36,11 @@ with tempfile.TemporaryDirectory() as directory:
     service = (root/'usr/lib/systemd/system/nuvo-depthd-native.service').read_text()
     assert 'WantedBy=multi-user.target' in service
     assert 'nuvo-calibration' not in service and 'nuvo-depth.target' not in service
+    socket = (root/'usr/lib/systemd/system/nuvo-depth-calibration-control.socket').read_text()
+    assert 'ListenStream=/run/nuvo-depth/calibration.sock' in socket
+    assert 'SocketGroup=nuvo-video' in socket and 'SocketMode=0660' in socket
     controls = subprocess.check_output(['dpkg-deb', '-f', str(package), 'Depends'], text=True)
-    for excluded in ('nuvo-depth-core', 'nuvo-depth-tools', 'nuvo-depth-calibration', 'python3-opencv', 'python3-numpy', 'network-manager'):
+    for excluded in ('nuvo-depth-core', 'nuvo-depth-tools', 'nuvo-depth-calibration', 'python3-opencv', 'python3-numpy', 'network-manager', 'docker'):
         assert excluded not in controls, controls
     assert 'python3-cryptography' in controls
     print('Minimal package payload, services, direct ELF dependencies and linkage verified.')

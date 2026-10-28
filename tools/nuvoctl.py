@@ -632,6 +632,8 @@ def parse() -> argparse.Namespace:
     commands=parser.add_subparsers(dest="command",required=True)
     import nuvo_diagnostics
     nuvo_diagnostics.add_command(commands)
+    import nuvo_ros_environment
+    nuvo_ros_environment.add_command(commands)
     commands.add_parser('status')
     import nuvo_calibration_control
     nuvo_calibration_control.add_commands(commands)
@@ -681,6 +683,10 @@ def main() -> None:
     if args.command=='diagnostics':
         import nuvo_diagnostics
         return nuvo_diagnostics.dispatch(args,root,'appliance')
+    if args.command=='ros':
+        import nuvo_ros_environment
+        print(json.dumps(nuvo_ros_environment.environment(root),sort_keys=True,indent=2))
+        return
     if args.command=="status":
         import nuvo_calibration_control as calibration_control
         result=calibration_control.status(root)
