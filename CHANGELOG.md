@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+## [v0.1.1-beta.9] - 2026-10-28
+
+### Added
+
+- Acquire native depth, validity and matching geometry through a standalone C++ client over the local socket, verified HTTPS or NVR1 replay, preserving capture identity and calibration authority.
+- Connect same-Pi ROS 2 containers using native runtime and numeric access-group discovery from the minimal installation.
+- Validate and activate an explicitly supplied compatible per-unit calibration bundle through the native control service, with verified fresh frames and rollback on failure.
+- Receive associated numeric measurements and encoded pictures together, with Python preview and paired-output examples.
+
+### Changed
+
+- Organize the console into Overview, Live view, Outputs and Device, with clear shared-setting scope, visible preview state and demand-driven encoding.
+- Select application delivery by Ethernet, USB 2.0 or WLAN, with separate permission for raw and numeric data over Wi-Fi.
+- Stabilize shared stereo exposure updates and reduce unnecessary image conversion, remapping and retained frame memory.
+
+### Fixed
+
+- Preserve the native runtime directory across service restarts so existing container mounts can receive replacement sockets.
+- Reject malformed or contradictory measurement metadata and verify explicit calibration confirmation against the active native run.
+- Preserve existing device identity, validated per-unit calibration and provisional beta 5 geometry during upgrades; an upgrade alone does not require recalibration.
+
 ## [v0.1.1-beta.8] - 2026-10-22
 
 ### Fixed

@@ -7,6 +7,8 @@
 - **Internal beta:** `vX.Y.Z-beta.N`, built and signed as a draft prerelease.
 - **Public preview:** an explicitly approved beta. The current preview is
   `v0.1.1-beta.8`; earlier approved previews remain available and experimental betas remain drafts.
+  The requested next public preview is `v0.1.1-beta.9`; its versioned preparation
+  does not advance the rolling installer before publication.
 - **Stable:** `vX.Y.Z`, published only after approval and marked latest.
 - Stable releases appear first on the website, followed by approved public
   previews; each group is sorted by semantic version, newest first.
@@ -32,7 +34,8 @@ gh workflow run package-build.yml --ref main -f source_ref=COMMIT -f package_pro
 ## Prepare a release candidate
 
 - Create a candidate only when a release version has been explicitly requested.
-- Update `debian/changelog` and add the same version to [CHANGELOG.md](../CHANGELOG.md).
+- Update `debian/changelog`, the Python SDK's `pyproject.toml` and `_version.py`,
+  and add the same version to [CHANGELOG.md](../CHANGELOG.md).
 - Write customer-facing bullet points, optionally grouped under Added, Changed,
   Fixed, Removed, Security or Known issues.
 - Test the exact package cohort on the Pi. Record installation, upgrade,
@@ -69,6 +72,16 @@ gh workflow run install-release.yml --ref main \
 - After public approval and publication, update `deployment/public-release.json`
   with the approved tag/channel and exact approved-tag platform/profile SHA-256
   values. Development versions and draft candidates never update this pointer.
+- Keep that pointer change separate from release preparation: publishing must
+  succeed and an anonymous request must show the expected public prerelease and
+  all six uploaded assets before rolling installers can select it. Read the two
+  digests from the tagged `deployment/release-platform.json` and
+  `web/depth-profiles.json` bytes, using LF newlines. Never copy hashes from an
+  unrelated development checkout.
+- Publish a preview draft with `gh release edit TAG --draft=false --prerelease
+  --latest=false`, retaining the signed assets. The release's bundled approval
+  reference still describes the preceding public preview; the maintained GitHub
+  bootstrap follows the separately updated pointer on main.
 - Run `python3 tools/check_setup_consistency.py --write --wiki "../Nuvo Depth Web/Wiki"`
   and the wiki's `npm run sync:setup` / `npm run test:setup`. The rolling commands
   remain unchanged; release-specific commands remain pinned for reproducibility.

@@ -1,3 +1,14 @@
+nuvo-depth (0.1.1~beta.9) unstable; urgency=medium
+
+  * Add a standalone C++ acquisition client and typed measurement geometry.
+  * Prepare same-Pi ROS runtime discovery and explicit native calibration control.
+  * Unify console navigation, output delivery and associated picture/depth clients.
+  * Stabilize stereo exposure and reduce unnecessary frame processing.
+  * Preserve runtime mounts, device identity and calibration during upgrades.
+  * Verify calibration confirmation against the active run and bound malformed input.
+
+ -- Nirmal <nml@meridian.cv>  Wed, 28 Oct 2026 13:35:00 -0500
+
 nuvo-depth (0.1.1~beta.8) unstable; urgency=medium
 
   * Verify calibration activation across installer, CLI and console routes.
