@@ -26,7 +26,7 @@ ExecStartPre=/usr/bin/rm -f -- /run/nuvo-depth/snapshots/latest.nuv /run/nuvo-de
 ExecStartPre=/usr/bin/rm -f -- /run/nuvo-depth/snapshots/left_rectified.png /run/nuvo-depth/snapshots/right_rectified.png /run/nuvo-depth/snapshots/confidence.png /run/nuvo-depth/snapshots/validity.png /run/nuvo-depth/snapshots/disparity_color.png /run/nuvo-depth/snapshots/depth_color.png /run/nuvo-depth/snapshots/disparity.f32 /run/nuvo-depth/snapshots/depth_m.f32 /run/nuvo-depth/snapshots/frame.nuv /run/nuvo-depth/snapshots/frame.json
 ExecStartPre=+/usr/bin/systemctl start nuvo-trigger-prepare.service
 ExecStartPre=+/usr/bin/python3 /usr/lib/nuvo-depth/nuvo_calibration_control.py recover --startup
-ExecStartPre=/usr/bin/depthd --check-config /etc/nuvo-depth/daemon.yaml
+ExecStartPre=/usr/lib/nuvo-depth/depthd-config --check-config /etc/nuvo-depth/daemon.yaml
 # An accepted bundle takes precedence over the provisional seed fallback.
 # nuvoctl calibration preview --enable is the explicit preview choice.
 ExecStart=/usr/bin/depthd --run /etc/nuvo-depth/daemon.yaml --calibration-root /usr/share/nuvo-depth/calibration --status /run/nuvo-depth/status.json --stereo-control /etc/nuvo-depth/stereo.json --exposure-control /etc/nuvo-depth/exposure.json --device-identity /var/lib/nuvo-depth/identity/device.uuid

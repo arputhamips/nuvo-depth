@@ -4,6 +4,10 @@ These commands are included in public preview beta 9. The approved public
 installer follows `deployment/public-release.json`, presently beta 9. A development
 version or draft never advances that public reference automatically.
 
+The current source branch additionally includes a lightweight configuration
+preflight and the `platform.storage` diagnostic described below. These changes
+are not part of the published beta 9 packages until a subsequent release.
+
 ```bash
 sudo nuvoctl diagnostics
 sudo nuvoctl diagnostics --json
@@ -24,6 +28,7 @@ allow future additional check IDs and use IDs instead of parsing prose.
 | Stable check | Meaning |
 | --- | --- |
 | platform.os / platform.kernel | Supported board/OS and qualified package kernel |
+| platform.storage | Recorded SD/MMC controller errors when the existing debugfs counters are readable |
 | capture.cameras / capture.trigger / capture.service | Camera pair, trigger mode and independent service state |
 | calibration.readiness | Declared calibration or provisional/needed/unavailable policy |
 | output.depth / output.monitoring | Demand-driven processing and optional encoder availability |
@@ -50,13 +55,34 @@ changing camera settings or increasing timeouts:
 sudo journalctl -b -u nuvo-depthd-native.service -u nuvo-trigger-prepare.service --no-pager
 systemd-analyze critical-chain
 sudo nuvoctl diagnostics
+sudo cat /sys/kernel/debug/mmc0/err_stats
 ```
+
+`platform.storage` reports recovered controller errors as well as errors that
+appear in the kernel journal. Counters cover the period since boot or their
+last reset. A zero count does not prove storage health; missing, unreadable or
+unrecognized counters are reported as unknown. Diagnostics does not mount
+debugfs or reset counters. Check the SD card, its connection and power before
+retesting if counters increase. Increasing native service timeouts cannot
+repair a blocked storage path.
+
+On current source builds, trigger preparation logs each stage immediately with
+monotonic timestamps. It and the service's configuration validation use
+`/usr/lib/nuvo-depth/depthd-config`, which shares the daemon's typed parser and
+canonical configuration digest without loading capture or image-processing
+libraries. The existing `depthd --check-config` and `--dump-effective-config`
+interfaces remain supported. Install the native package as a unit; copying
+only the new trigger script into an older installation omits its helper.
+
+The configuration subprocess has a five-second timeout, and service startup
+deadlines remain unchanged. A process blocked in kernel I/O may still take time
+to terminate. A timeout message is therefore a diagnostic, not a storage repair.
 
 The [28 October 2026 Pi/ROS validation](https://github.com/arputhamips/nuvo-depth-ros/blob/main/docs/validation-20261028.md)
 installed the public beta 9 full profile on the supported kernel and preserved
 the existing provisional calibration. A subsequent reboot recovered
 automatically after four native/trigger preparation timeouts. Wi-Fi also retried
-association, and several unrelated services started slowly. The logs did not
+association, and several unrelated services started slowly. The initial logs did not
 establish the cause of the broad delays or a concrete trigger-code defect.
 Eventual recovery does not establish repeatable fast startup; host/container
 checks and this single reboot do not qualify cold-start reliability.

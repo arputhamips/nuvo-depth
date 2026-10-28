@@ -178,7 +178,7 @@ class ProductionDeploymentFilesTest(unittest.TestCase):
             "User=nuvo-depth", "Group=nuvo-video",
             "ExecStartPre=+/usr/bin/systemctl start nuvo-trigger-prepare.service",
             "nuvo-calibration recover --state-root /var/lib/nuvo-depth",
-            "ExecStartPre=/usr/bin/depthd --check-config /etc/nuvo-depth/daemon.yaml",
+            "ExecStartPre=/usr/lib/nuvo-depth/depthd-config --check-config /etc/nuvo-depth/daemon.yaml",
             "ExecStart=/usr/bin/depthd --run /etc/nuvo-depth/daemon.yaml",
             "--encoding-config /etc/nuvo-depth/encoding.json",
             "--stereo-control /etc/nuvo-depth/stereo.json",

@@ -32,7 +32,7 @@ ExecStartPre=+/usr/bin/systemctl start nuvo-trigger-prepare.service
 ExecStartPre=+/usr/bin/python3 /usr/lib/nuvo-depth/nuvo_calibration_control.py recover --startup
 # Transactions and their coordination locks are owned by the privileged agent.
 ExecStartPre=+/usr/lib/nuvo-depth/nuvo-calibration recover --state-root /var/lib/nuvo-depth --factory-trust /etc/nuvo-depth/factory-trust.json
-ExecStartPre=/usr/bin/depthd --check-config /etc/nuvo-depth/daemon.yaml
+ExecStartPre=/usr/lib/nuvo-depth/depthd-config --check-config /etc/nuvo-depth/daemon.yaml
 # The installer or nuvoctl must explicitly enable provisional preview.
 ExecStart=/usr/bin/depthd --run /etc/nuvo-depth/daemon.yaml --status /run/nuvo-depth/status.json --encoding-config /etc/nuvo-depth/encoding.json --stereo-control /etc/nuvo-depth/stereo.json --exposure-control /etc/nuvo-depth/exposure.json --device-identity /var/lib/nuvo-depth/identity/device.uuid
 # Remove stale endpoints/status after clean exits, crashes and failed startup;

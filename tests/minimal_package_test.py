@@ -8,7 +8,7 @@ package = Path(sys.argv[1]).resolve()
 with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)
     subprocess.run(['dpkg-deb', '-x', str(package), str(root)], check=True)
-    required = ['usr/bin/depthd', 'usr/bin/nuvoctl', 'usr/lib/nuvo-depth/nuvo-depth-read',
+    required = ['usr/bin/depthd', 'usr/bin/nuvoctl', 'usr/lib/nuvo-depth/depthd-config', 'usr/lib/nuvo-depth/nuvo-depth-read',
                 'usr/lib/nuvo-depth/nuvoctl.py', 'usr/lib/nuvo-depth/nuvo-trigger-prepare',
                 'usr/lib/nuvo-depth/nuvo_calibration_control.py', 'usr/lib/nuvo-depth/nuvo_calibration_store.py',
                 'usr/lib/nuvo-depth/nuvo_calibration_broker.py', 'usr/lib/nuvo-depth/nuvo_ros_environment.py',
@@ -25,7 +25,7 @@ with tempfile.TemporaryDirectory() as directory:
     for excluded in ('gateway', 'nuvo-setup', 'system-agent', 'transport-rollback', 'usb-gadget',
                      'nuvo-calibration', 'python3/dist-packages', '/web/', 'encoding.json', 'depthd-assets'):
         assert not any(excluded in name for name in files), excluded
-    for binary in ('usr/bin/depthd', 'usr/lib/nuvo-depth/nuvo-depth-read'):
+    for binary in ('usr/bin/depthd', 'usr/lib/nuvo-depth/depthd-config', 'usr/lib/nuvo-depth/nuvo-depth-read'):
         linked = subprocess.check_output(['ldd', str(root/binary)], text=True)
         for excluded in ('libavcodec', 'libavutil', 'libswscale', 'libssl', 'libboost_system', 'libEGL', 'libGLES'):
             # Upstream OpenCV/libcamera may have unrelated transitive libraries;
@@ -33,9 +33,13 @@ with tempfile.TemporaryDirectory() as directory:
             dynamic = subprocess.check_output(['readelf', '-d', str(root/binary)], text=True)
             assert excluded not in dynamic, (binary, excluded)
         assert 'not found' not in linked, linked
+        if binary.endswith('/depthd-config'):
+            for excluded in ('libopencv', 'libcamera', 'libav', 'libEGL', 'libGLES', 'libsystemd'):
+                assert excluded not in linked, linked
     service = (root/'usr/lib/systemd/system/nuvo-depthd-native.service').read_text()
     assert 'WantedBy=multi-user.target' in service
     assert 'nuvo-calibration' not in service and 'nuvo-depth.target' not in service
+    assert 'ExecStartPre=/usr/lib/nuvo-depth/depthd-config --check-config' in service
     socket = (root/'usr/lib/systemd/system/nuvo-depth-calibration-control.socket').read_text()
     assert 'ListenStream=/run/nuvo-depth/calibration.sock' in socket
     assert 'SocketGroup=nuvo-video' in socket and 'SocketMode=0660' in socket

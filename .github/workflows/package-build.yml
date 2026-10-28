@@ -106,6 +106,7 @@ jobs:
           subprocess.run(['apt-get', '-y', '--no-remove', 'install', *packages], check=True)
           PY
           depthd --check-config /etc/nuvo-depth/daemon.yaml
+          /usr/lib/nuvo-depth/depthd-config --check-config /etc/nuvo-depth/daemon.yaml
           nuvo-setup --help
           python3 /usr/lib/nuvo-depth/generate_spdx.py --help > /dev/null
           python3 -c 'from nuvo_depth import NuvoClient, decode_frame'
@@ -155,6 +156,7 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends /tmp/minimal-artifact/nuvo-depth-minimal_*.deb
           depthd --check-config /etc/nuvo-depth/daemon.yaml
+          /usr/lib/nuvo-depth/depthd-config --check-config /etc/nuvo-depth/daemon.yaml
           nuvoctl --help
           nuvoctl config validate
           /usr/lib/nuvo-depth/nuvo-depth-read --help

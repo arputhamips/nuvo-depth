@@ -86,6 +86,11 @@ if(DEPTHD_WITH_CONFIG)
   target_link_libraries(depthd_config PUBLIC ${DEPTHD_YAML_CPP_TARGET})
   depthd_enable_warnings(depthd_config)
 
+  add_executable(depthd-config apps/depthd_config_main.cpp)
+  target_compile_features(depthd-config PRIVATE cxx_std_20)
+  target_link_libraries(depthd-config PRIVATE depthd::config)
+  depthd_enable_warnings(depthd-config)
+
   add_executable(depthd
     apps/depthd_main.cpp
   )
@@ -508,6 +513,10 @@ endif()
 # location. Keep it stable across arm64 and build hosts so the unit never needs
 # a CMake multiarch triplet.
 set(DEPTHD_LIBEXEC_DIR "lib/nuvo-depthd")
+if(TARGET depthd-config)
+  # Shared by full and minimal packages; never load capture backends for config.
+  install(TARGETS depthd-config RUNTIME DESTINATION "lib/nuvo-depth")
+endif()
 if(DEPTHD_MINIMAL_PACKAGE AND NOT TARGET depthd_runtime_factory)
   message(FATAL_ERROR "Minimal packages require the native OpenCV depth pipeline")
 endif()
@@ -863,6 +872,12 @@ if(BUILD_TESTING)
     target_link_libraries(depthd_config_test PRIVATE depthd::config)
     depthd_enable_warnings(depthd_config_test)
     add_test(NAME depthd_config_test COMMAND depthd_config_test)
+    if(Python3_Interpreter_FOUND)
+      add_test(NAME depthd_config_cli_test
+        COMMAND ${Python3_EXECUTABLE}
+          ${CMAKE_CURRENT_SOURCE_DIR}/tests/config_cli_test.py
+          $<TARGET_FILE:depthd-config> $<TARGET_FILE:depthd>)
+    endif()
 
     add_executable(depthd_architecture_coherence_test
       tests/architecture_coherence_test.cpp

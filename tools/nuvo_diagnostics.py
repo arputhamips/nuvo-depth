@@ -15,6 +15,62 @@ PACKAGES = ('nuvo-depth-minimal','nuvo-depth','nuvo-depth-core','nuvo-depth-plat
 STATES = ('calibration_accepted','preview_enabled','calibration_needed','unavailable')
 AUTHORITIES = ('user_validated','factory_validated','provisional_recalibration_required')
 VERSION = re.compile(r'\d+\.\d+\.\d+(?:[~+.-][A-Za-z0-9.+~-]{1,60})?\Z')
+MMC_ERROR_LABELS = {
+    'Command Timeout Occurred':'command_timeout',
+    'Command CRC Errors Occurred':'command_crc',
+    'Data Timeout Occurred':'data_timeout',
+    'Data CRC Errors Occurred':'data_crc',
+    'Auto-Cmd Error Occurred':'auto_command',
+    'ADMA Error Occurred':'adma',
+    'Tuning Error Occurred':'tuning',
+    'CMDQ RED Errors':'cmdq_red',
+    'CMDQ GCE Errors':'cmdq_gce',
+    'CMDQ ICCE Errors':'cmdq_icce',
+    'Request Timedout':'request_timeout',
+    'CMDQ Request Timedout':'cmdq_request_timeout',
+    'ICE Config Errors':'ice_configuration',
+    'Controller Timedout errors':'controller_timeout',
+    'Unexpected IRQ errors':'unexpected_irq',
+}
+MMC_STATS_LIMIT = 4096
+MMC_ERROR_MAX = 2**32-1
+
+def mmc_error_counts(value):
+    """Validate the entire counter schema before allowing any export."""
+    if not isinstance(value,dict) or set(value) != set(MMC_ERROR_LABELS.values()):
+        return None
+    if any(type(count) is not int or not 0<=count<=MMC_ERROR_MAX for count in value.values()):
+        return None
+    return {key:value[key] for key in MMC_ERROR_LABELS.values()}
+
+def parse_mmc_errors(text):
+    # Kernel debugfs err_stats labels are fixed; never retain arbitrary lines.
+    if not isinstance(text,str) or len(text)>MMC_STATS_LIMIT:
+        return None
+    counts = {}
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        match = re.fullmatch(r'# ([^:\r\n]+):[ \t]*([0-9]{1,10})',line)
+        if not match or match[1] not in MMC_ERROR_LABELS:
+            return None
+        key = MMC_ERROR_LABELS[match[1]]
+        if key in counts:
+            return None
+        counts[key] = int(match[2])
+    return mmc_error_counts(counts)
+
+def read_mmc_errors(path):
+    """Optional read only: do not mount debugfs, reset counters or probe hardware."""
+    try:
+        if path.is_symlink() or not path.is_file():
+            return None
+        # debugfs files report a zero size; bound the read itself.
+        with path.open('rb') as source:
+            raw = source.read(MMC_STATS_LIMIT+1)
+        return parse_mmc_errors(raw.decode('ascii')) if len(raw)<=MMC_STATS_LIMIT else None
+    except (OSError,UnicodeError):
+        return None
 
 def small(path, limit=65536):
     try:
@@ -88,6 +144,7 @@ def collect(root=Path('/'), profile='appliance', run=subprocess.run):
                          'kernel':(small(root/'proc/sys/kernel/osrelease') or '').strip(),
                          'platform':object_file(directory/'release-platform.json'),
                          'approval':object_file(directory/'public-release.json'),
+                         'mmc_errors':read_mmc_errors(root/'sys/kernel/debug/mmc0/err_stats'),
                          'trigger':small(root/'sys/module/imx296/parameters/trigger_mode'),
                          'service':service,'camera_count':cameras,'health':health,'readiness':ready,
                          'encoding':object_file(root/'etc/nuvo-depth/encoding.json'),'versions':packages})
@@ -120,6 +177,13 @@ def build_report(inputs):
     check('platform.kernel','pass' if kernel_ok else 'fail' if kernel_known else 'unknown',
           'Kernel matches the package cohort.' if kernel_ok else 'Kernel qualification is unavailable or does not match.',
           'Compare uname -r with the selected release prerequisites; do not perform an unqualified kernel upgrade.')
+    mmc_errors = mmc_error_counts(inputs.get('mmc_errors'))
+    storage_errors = mmc_errors is not None and any(mmc_errors.values())
+    check('platform.storage','unknown' if mmc_errors is None else 'warning' if storage_errors else 'pass',
+          'MMC controller counters are unavailable or malformed; storage health is unconfirmed.' if mmc_errors is None else
+          'MMC controller errors are recorded since boot or the last counter reset; recovered errors may be absent from the journal.' if storage_errors else
+          'No MMC controller errors are recorded since boot or the last counter reset; storage health is unverified.',
+          'Read existing /sys/kernel/debug/mmc0/err_stats with sudo and inspect kernel I/O logs; check the SD card and power, then retest startup. Do not reset the counters before collecting evidence.')
     count = inputs.get('camera_count')
     count = count if type(count) is int and 0<=count<=16 else None
     check('capture.cameras','pass' if count==2 else 'unknown' if count is None else 'fail',
@@ -170,6 +234,7 @@ def build_report(inputs):
     bundle = bundle if isinstance(bundle,str) and re.fullmatch('[a-f0-9]{64}',bundle) else None
     return {'schema_version':1,'report_type':'nuvo-depth-support','generated_at':datetime.now(timezone.utc).isoformat(),
             'profile':profile,'checks':checks,'versions':versions,
+            'storage':{'mmc_error_counts':mmc_errors,'counter_scope':'since_boot_or_reset'},
             'calibration':{'state':state,'authority':authority,'calibration_sha256':bundle,
                            'loaded':ready.get('loaded') if type(ready.get('loaded')) is bool else None},
             'output':{'camera_count':count,'service':service,'mode':mode,
