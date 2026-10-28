@@ -18,7 +18,7 @@ The installer retains your existing network and SSH configuration.
 ## Install the public preview
 
 The approved public preview is recorded in `deployment/public-release.json`
-(currently `v0.1.1-beta.8`). Its minimal bundle and installer are separate from
+(currently `v0.1.1-beta.9`). Its minimal bundle and installer are separate from
 the full appliance downloads. The readiness/import commands below are included
 in this public preview.
 
@@ -29,7 +29,7 @@ curl -fsSL https://raw.githubusercontent.com/arputhamips/nuvo-depth/main/install
 An initial install can require a reboot for camera overlays. Reconnect over SSH
 after reboot and capture depth to finish the camera check. The package itself
 does not change boot configuration or start capture until the installer is run.
-Fresh beta 8 minimal installs on the supported head enable provisional preview,
+Fresh minimal installs of this release on the supported head enable provisional preview,
 with an explicit unverified-distance notice. Upgrades preserve the previous
 capture policy, including beta 6's implicit preview and an existing deliberately
 disabled policy. Use `--calibration-bundle /path/to/bundle` for a compatible
@@ -45,7 +45,7 @@ run with `package_profile=minimal`. Extract it, then on the Pi run:
 ```bash
 sha256sum --check SHA256SUMS
 sudo bash ./install-nuvo-depth-minimal.sh \
-  --package ./nuvo-depth-minimal_0.1.1~beta.8_arm64.deb \
+  --package ./nuvo-depth-minimal_0.1.1~beta.9_arm64.deb \
   --platform ./release-platform.json --dry-run
 ```
 
@@ -99,13 +99,13 @@ application user with `sudo usermod -aG nuvo-video USER`, then log in again.
 ## Geometry and operation
 
 The default geometry is the profile used on the unchanged rig with beta 5:
-728 × 544, a measured 99.694 mm baseline, and a 441.792 px rectified focal
+728 Ã— 544, a measured 99.694 mm baseline, and a 441.792 px rectified focal
 length. Its provenance and file hashes are recorded in
 `config/calibration/nuvo_depth_100mm/profile.json`. Shared seed outputs retain
 `provisional_recalibration_required` authority; these files do not establish
 metric accuracy for a different assembled rig. Published beta 6 packages
 predate this default change and still contain the earlier seed. There is no
-calibration capture or solving workflow in this package. Public beta 8
+calibration capture or solving workflow in this package. The public preview
 supports existing-bundle import without editing service files:
 
 ```bash
@@ -138,9 +138,9 @@ The default packaging command continues to build the full appliance packages.
 For the minimal CMake variant use the `pi5-minimal` preset. No runtime capture,
 matcher, rectification, depth conversion or IPC source is forked.
 
-## Same-device ROS 2 from current source
+## Same-device ROS 2
 
-The current source and its Actions packages prepare the local ROS connection as
+Public preview beta 9 prepares the local ROS connection as
 part of minimal installation. The package creates the `nuvo-video` group and
 the persistent `/run/nuvo-depth` directory with group access. The installer
 enables the socket-activated native calibration control endpoint, including
@@ -167,11 +167,10 @@ capture policy. A supplied bundle never grants factory authority or bypasses
 device identity and geometry checks. See the ROS adapter's local-container
 launcher documentation for its output/rate and provisional-preview choices.
 
-These additions follow public `v0.1.1-beta.8`; that public bundle does not include
-the new discovery/control endpoint or the frame calibration geometry needed by
-the current ROS adapter. Use a matching current-source Actions package for
-this path until a newer release is explicitly published. Installing the current
-source or passing host/container tests does not establish Pi hardware
+Native `v0.1.1-beta.9` includes this discovery/control endpoint and frame
+calibration geometry. Use a matching ROS adapter release and its versioned
+installer. Older native beta 8 lacks these additions.
+Publication or passing host/container tests does not establish Pi hardware
 qualification or metric-accuracy acceptance.
 
 ## Finish first use

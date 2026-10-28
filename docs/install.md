@@ -1,7 +1,7 @@
 # Install Nuvo Depth
 
 <!-- BEGIN APPROVED SETUP -->
-Approved public release: **`v0.1.1-beta.8`**. Start with **Balanced**.
+Approved public release: **`v0.1.1-beta.9`**. Start with **Balanced**.
 Use Raspberry Pi OS Lite 64-bit Trixie (`arm64`), kernel `6.12.75+rpt-rpi-2712`.
 The rolling command follows this approved reference; development builds and
 draft candidates are never selected automatically. Quality is an optional
@@ -16,7 +16,7 @@ profile with greater processing cost.
 - [Supported OS image and Pi setup](https://docs.nuvohardware.com/vision-one/install/byo-pi).
 - Ethernet or Wi-Fi with internet access.
 - Administrator access to a terminal on the Pi.
-- [Current public preview](https://docs.nuvohardware.com/vision-one/releases/): `v0.1.1-beta.8`.
+- [Current public preview](https://docs.nuvohardware.com/vision-one/releases/): `v0.1.1-beta.9`.
 
 ## Install
 

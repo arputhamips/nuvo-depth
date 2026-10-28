@@ -70,9 +70,9 @@ or guarantee host-driver support.
 The core Python SDK and examples require Python 3.11+ and the standard library.
 The candidate CI matrix covers Linux and Windows with Python 3.11 and 3.13.
 NumPy and Python OpenCV are optional application choices, not SDK requirements.
-The `nuvo_depth.examples` module is available in the current source SDK.
-Its original six commands are also in public beta 8; the new `preview` and
-`paired` commands require the updated SDK from this build. The older beta 6 SDK does not contain this module;
+The `nuvo_depth.examples` module is available in the beta 9 SDK.
+Its original six commands are also in public beta 8; the `preview` and
+`paired` commands require the beta 9 SDK and gateway. The older beta 6 SDK does not contain this module;
 use the standalone helper in the verified-TLS quickstart for that SDK.
 
 To try the original six commands with a beta 6 gateway, obtain the
@@ -125,8 +125,8 @@ python -m nuvo_depth.examples paired --url https://YOUR-PI-HOSTNAME.local:7443 -
 ```
 
 For application code, reuse one `NuvoClient` and close its frame contexts before
-`client.close()`, or nest them inside `with NuvoClient(...) as client:`. The beta 8
-candidate releases the caller's session without affecting other clients. The
+`client.close()`, or nest them inside `with NuvoClient(...) as client:`. Beta 8
+and newer gateways release the caller's session without affecting other clients. The
 older beta 6 gateway lacks session revocation: repeated short commands can fill
 its finite twelve-hour pool. A session-capacity error requires closing unused
 clients or, on that older gateway, restarting `nuvo-gateway` over trusted SSH

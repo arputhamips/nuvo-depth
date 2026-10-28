@@ -4,9 +4,9 @@ For first-time installation, use the [main user wiki](https://docs.nuvohardware.
 [bundled units](https://docs.nuvohardware.com/vision-one/install/bundled-pi),
 [your own Pi or SD card](https://docs.nuvohardware.com/vision-one/install/byo-pi),
 and [browser connection](https://docs.nuvohardware.com/vision-one/guide/getting-started).
-This is the source-version console and runtime reference. The unified console
-described here is a development update; the approved public beta 8 installation
-can still show the older navigation until upgraded to this build.
+This is the beta 9 console and runtime reference. Upgrade within the installed
+profile to the approved public beta 9 release for this navigation and its output
+controls. Existing identity, calibration and native capture policy are preserved.
 
 ## First connection
 
@@ -36,7 +36,7 @@ Overview shows camera, depth-rate, compute-time, and calibration status.
 Expand its **Setup guide** for first-use checks. Browser views are compressed
 visualizations; obtain original depth and recordings through the SDK. The
 [complete journey](https://docs.nuvohardware.com/vision-one/guide/getting-started)
-covers installation and the SDK route; use this versioned guide for development
+covers installation and the SDK route; use this versioned guide for beta 9
 console navigation.
 
 ## Console navigation

@@ -5,10 +5,9 @@
 - Build ARM64 test packages with the manual package-build workflow when needed.
 - Create a versioned release draft only when the user explicitly requests a
   release candidate. Do not publish it or mark it latest without explicit approval.
-- Beta candidates stay draft prereleases for internal testing. The user explicitly
-  approved `v0.1.1-beta.9` as the next public preview; advance the public installer
-  pointer only after its signed release is published. Until then it selects
-  `v0.1.1-beta.8`.
+- Beta candidates stay draft prereleases for internal testing. A public preview
+  is a deliberate exception approved by the user, currently `v0.1.1-beta.9`.
+- Advance the public installer pointer only after the signed release is published.
 - Public release notes start with a bullet-point changelog, then Pi prerequisites
   and the pinned curl command. No prose follows the command.
 - Keep manufacturing provisioning and repository-access instructions out of

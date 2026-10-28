@@ -14,7 +14,8 @@ specifications, and qualification evidence.
 - [ROS 2 Jazzy driver](https://github.com/arputhamips/nuvo-depth-ros) — same-Pi
   Docker quickstart for native depth, validity, CameraInfo and optional XYZ.
   The [Pi setup guide](https://docs.nuvohardware.com/vision-one/sdk/ros2) explains
-  prerequisites, including beta 8's explicit geometry override. Pi hardware
+  prerequisites. Native beta 9 supplies matching geometry and local calibration
+  control; beta 8 retains its explicit geometry-override requirement. Pi hardware
   qualification remains pending.
 - [Onboarding acceptance](../qualification/onboarding/README.md) — all 69 cases,
   frozen budgets, physical procedures, newcomer forms and fail-closed gates.

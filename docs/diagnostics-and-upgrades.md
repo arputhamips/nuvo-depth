@@ -1,7 +1,7 @@
 # Diagnostics and maintenance
 
-These commands are included in public preview beta 8. The approved public
-installer selects `deployment/public-release.json`, presently beta 8. A development
+These commands are included in public preview beta 9. The approved public
+installer follows `deployment/public-release.json`, presently beta 9. A development
 version or draft never advances that public reference automatically.
 
 ```bash
@@ -43,10 +43,11 @@ separate: request advancing depth/validity output to check actual capture.
 
 ## Upgrade and interrupted-operation recovery
 
-The beta 8 Software update page can show its older bundled approval reference.
-For the currently approved release, use the maintained GitHub command below.
-It resolves beta 8 and verifies its signed cohort; an implicit downgrade is
-refused. Installed-version reporting remains accurate.
+The Software update page shows the approval reference bundled with its release,
+which can precede that release's publication. Use the maintained GitHub command
+below for the current approval. It resolves beta 9 and verifies its signed
+cohort; an implicit downgrade is refused. Installed-version reporting remains
+accurate.
 
 
 Read the selected release's platform prerequisites first. Re-run the maintained
@@ -65,7 +66,7 @@ sudo nuvoctl calibration status
 
 Supported same-profile upgrades preserve `/var/lib/nuvo-depth` identity,
 recordings and calibration, `/etc/nuvo-depth` user settings and existing network
-choice. Beta 8 minimal migrates the old effective service policy before replacing
+choice. The minimal installer migrates the old effective service policy before replacing
 the unit: implicit beta 6 preview remains preview, a stopped preview remains
 preview, validated per-unit selection remains selected, and deliberate disabled
 capture stays disabled. Full preview remains opt-in. A software version change

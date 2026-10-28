@@ -1,6 +1,6 @@
 # Calibration readiness and existing-bundle import
 
-This reference describes public preview beta 8. The maintained installer selects
+This reference describes public preview beta 9. The maintained installer selects
 this approved release. Older beta 6 does not include these `nuvoctl calibration`
 commands; upgrade within the installed profile to use them.
 
@@ -37,7 +37,7 @@ Clients must tolerate additive fields and use `state` rather than parsing labels
 
 The installer explains three choices: preserve/use compatible existing
 calibration, deliberately enable provisional preview, or leave capture disabled.
-Fresh beta 8 minimal installations on the supported head enable provisional
+Fresh minimal installations of this release on the supported head enable provisional
 preview, with an unverified-distance notice. `--defer-capture` leaves a new minimal
 installation disabled; upgrades preserve the existing policy, including implicit
 older preview. Full appliance preview remains an explicit opt-in. In either

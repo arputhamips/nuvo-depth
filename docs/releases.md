@@ -6,9 +6,7 @@
   or release is created for routine fixes or benchmarks.
 - **Internal beta:** `vX.Y.Z-beta.N`, built and signed as a draft prerelease.
 - **Public preview:** an explicitly approved beta. The current preview is
-  `v0.1.1-beta.8`; earlier approved previews remain available and experimental betas remain drafts.
-  The requested next public preview is `v0.1.1-beta.9`; its versioned preparation
-  does not advance the rolling installer before publication.
+  `v0.1.1-beta.9`; earlier approved previews remain available and experimental betas remain drafts.
 - **Stable:** `vX.Y.Z`, published only after approval and marked latest.
 - Stable releases appear first on the website, followed by approved public
   previews; each group is sorted by semantic version, newest first.
