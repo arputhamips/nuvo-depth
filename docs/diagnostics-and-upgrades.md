@@ -87,6 +87,13 @@ establish the cause of the broad delays or a concrete trigger-code defect.
 Eventual recovery does not establish repeatable fast startup; host/container
 checks and this single reboot do not qualify cold-start reliability.
 
+The subsequent [startup/storage investigation](startup-storage-validation-20261028.md)
+identified blocked SD I/O and recovered controller data timeouts. A
+device-specific SD high-speed workaround produced two approximately 53-second
+reboots with zero retries and zero recorded MMC errors. The report separates
+that host workaround from the source changes and documents its limits; it is
+not an automatic installer setting for other cameras.
+
 ## Upgrade and interrupted-operation recovery
 
 The Software update page shows the approval reference bundled with its release,

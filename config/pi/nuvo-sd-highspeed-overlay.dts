@@ -1,0 +1,18 @@
+/dts-v1/;
+/plugin/;
+
+/* Optional Pi 5 SD-slot compatibility workaround, not an installer default.
+ * Tested with 6.12.75+rpt-rpi-2712 after measuring SD data timeouts.
+ * This targets the SD slot only; the Wi-Fi controller remains unchanged.
+ * See docs/startup-storage-validation-20261028.md before using it.
+ */
+/ {
+    compatible = "brcm,bcm2712";
+    fragment@0 {
+        target-path = "/soc@107c000000/mmc@fff000";
+        __overlay__ {
+            max-frequency = <50000000>;
+            no-1-8-v;
+        };
+    };
+};
