@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [v0.1.1-beta.10] - 2026-11-02
+
+### Fixed
+
+- Reduce native startup dependencies with a lightweight configuration preflight shared by full and minimal installations.
+- Bound trigger configuration queries to five seconds and report each preparation stage with flushed monotonic timestamps.
+
+### Added
+
+- Report available SD/MMC error counters in read-only diagnostics so recovered storage timeouts remain visible.
+- Document the investigated Pi 5 storage stalls and provide an optional, device-specific SD high-speed compatibility overlay source without enabling it during installation.
+
 ## [v0.1.1-beta.9] - 2026-10-28
 
 ### Added

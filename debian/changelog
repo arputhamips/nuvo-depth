@@ -1,3 +1,12 @@
+nuvo-depth (0.1.1~beta.10) unstable; urgency=medium
+
+  * Reduce native startup dependencies with a lightweight configuration preflight.
+  * Bound trigger configuration queries and log timed preparation stages.
+  * Expose available SD/MMC error counters through read-only diagnostics.
+  * Document investigated storage stalls and optional SD compatibility source.
+
+ -- Nirmal <nml@meridian.cv>  Mon, 02 Nov 2026 10:00:00 -0600
+
 nuvo-depth (0.1.1~beta.9) unstable; urgency=medium
 
   * Add a standalone C++ acquisition client and typed measurement geometry.
