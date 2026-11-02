@@ -18,7 +18,7 @@ The installer retains your existing network and SSH configuration.
 ## Install the public preview
 
 The approved public preview is recorded in `deployment/public-release.json`
-(currently `v0.1.1-beta.9`). Its minimal bundle and installer are separate from
+(currently `v0.1.1-beta.10`). Its minimal bundle and installer are separate from
 the full appliance downloads. The readiness/import commands below are included
 in this public preview.
 
@@ -45,7 +45,7 @@ run with `package_profile=minimal`. Extract it, then on the Pi run:
 ```bash
 sha256sum --check SHA256SUMS
 sudo bash ./install-nuvo-depth-minimal.sh \
-  --package ./nuvo-depth-minimal_0.1.1~beta.9_arm64.deb \
+  --package ./nuvo-depth-minimal_0.1.1~beta.10_arm64.deb \
   --platform ./release-platform.json --dry-run
 ```
 
@@ -167,7 +167,7 @@ capture policy. A supplied bundle never grants factory authority or bypasses
 device identity and geometry checks. See the ROS adapter's local-container
 launcher documentation for its output/rate and provisional-preview choices.
 
-Native `v0.1.1-beta.9` includes this discovery/control endpoint and frame
+Native `v0.1.1-beta.9` and later include this discovery/control endpoint and frame
 calibration geometry. Use a matching ROS adapter release and its versioned
 installer. Older native beta 8 lacks these additions.
 Publication or passing host/container tests does not establish Pi hardware

@@ -1,7 +1,7 @@
 # Nuvo Depth
 
 <!-- BEGIN APPROVED SETUP -->
-Approved public release: **`v0.1.1-beta.9`**. Start with **Balanced**.
+Approved public release: **`v0.1.1-beta.10`**. Start with **Balanced**.
 Use Raspberry Pi OS Lite 64-bit Trixie (`arm64`), kernel `6.12.75+rpt-rpi-2712`.
 The rolling command follows this approved reference; development builds and
 draft candidates are never selected automatically. Quality is an optional
@@ -71,7 +71,7 @@ in use; USB protocol and TLS details are under Advanced connection details.
 For a Windows host, the [USB-C setup guide](docs/user-guide.md#usb-c-device-setup-on-raspberry-pi-os)
 covers Raspberry Pi OS's official gadget package and signed host driver.
 See the [versioned console guide](docs/user-guide.md) for the controls and scopes.
-These controls are included in the approved public beta 9 release.
+These controls are included in the current approved public release.
 
 ## Get your first depth frame
 
@@ -106,10 +106,13 @@ calibration. Shared seed authority remains provisional.
 
 ## Current status
 
-- Public preview **beta 9** provides signed full and minimal bundles, a unified
+- Public preview **beta 10** provides signed full and minimal bundles, a unified
   console, associated numeric/picture delivery, same-Pi ROS discovery and explicit
   native calibration control. The standalone C++ acquisition SDK is available
   in its source archive; the camera installer does not build or install it.
+  Beta 10 reduces native startup configuration dependencies and adds bounded
+  trigger preparation logs and read-only SD/MMC diagnostics. The documented
+  device-specific SD compatibility overlay remains optional and disabled by default.
 - The [beta 8 qualification report](docs/onboarding-beta8-qualification-20261022.md)
   records its original artifacts, actual Pi journeys and remaining limits: 53 cases pass,
   15 remain blocked and one removal/profile-switch case fails. The operator
